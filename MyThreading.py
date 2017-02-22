@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyThreading.py,v 2.2 2017/02/17 17:18:55 teus Exp teus $
+# $Id: MyThreading.py,v 2.3 2017/02/22 17:41:43 teus Exp teus $
 
 # the values provided are rounded (3 decimals) of values in the
 # thread buffer (max BUFSIZE). INTERVAL and the thread interval (TINTERV)
@@ -32,7 +32,7 @@ class MyThreading:
     import threading
     from time import time, sleep
 
-    __version__ = "0." + "$Revision: 2.2 $"[11:-2]
+    __version__ = "0." + "$Revision: 2.3 $"[11:-2]
     __license__ = 'GPLV4'
 
     STOP = False    # stop all threads
@@ -125,7 +125,8 @@ class MyThreading:
                         avg = { 'time': self.Buffer[i]['time'] }
                     total += self.Buffer[i][key] ; cnt += 1
                     last = self.Buffer[i]['time']
-                avg[key] = round(total/cnt,3)
+                if cnt:
+                    avg[key] = round(total/cnt,3)
             if len(avg):
                 avg['time'] = (avg['time']+last)/2        # timestamp in the middle
             with self.threadLock: self.BufAvg = avg

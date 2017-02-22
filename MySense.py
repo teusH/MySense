@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.11 2017/02/18 17:00:26 teus Exp teus $
+# $Id: MySense.py,v 2.12 2017/02/22 17:41:43 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.11 $"[11:-2]
+__version__ = "0." + "$Revision: 2.12 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -167,14 +167,14 @@ def read_configuration():
             for opt in config.options(key):
                 if not opt in options: continue
                 try:
-                    if opt.lower()  in ['input','output']:
-                        Conf[key.lower()][opt] = config.getboolean(key,opt)
-                    elif (opt.lower() == 'port'):
-                        Conf[key][opt.lower()] = config.getint(key,opt)
+                    Conf[key][opt.lower()] = config.get(key,opt)
+                    if opt in ['input','output']:
+                        Conf[key][opt.lower()] = config.getboolean(key,opt)
+                    elif opt.lower() == 'port':
+                        if re.compile("^[0-9]+$").match(Conf[key][opt.lower()]):
+                            Conf[key][opt.lower()] = int(Conf[key][opt.lower()])
                     elif (opt.lower() == 'level'):
-                        Conf[key][opt.lower()] = config.get(key,opt).upper()
-                    else:
-                        Conf[key][opt.lower()] = config.get(key,opt)
+                        Conf[key][opt.lower()] = Conf[key][opt.lower()].upper()
                 except:
                     pass
             # end if

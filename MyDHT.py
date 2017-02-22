@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.11 2017/02/22 11:56:31 teus Exp teus $
+# $Id: MyDHT.py,v 2.14 2017/02/22 19:45:29 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.11 $"[11:-2]
+__version__ = "0." + "$Revision: 2.14 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -42,7 +42,7 @@ except ImportError:
 
 # configurable options
 __options__ = [
-    'input','pin','type','calibrations',
+    'input','pin','port','type','calibrations',
     'interval','bufsize','sync']       # multithead buffer size and search for input secs
 
 Conf ={
@@ -52,6 +52,7 @@ Conf ={
     'units' : ['C', '%'],    # C Celcius, K Kelvin, F Fahrenheit, % rh, hPa
     'calibrations' : [[-0.45,1],[0.5,1]], # calibration factors, here order 1
     'pin': None,         # GPIO pin of PI e.g. 4, 22
+    'port': None,        # GrovePi+ digital port
     'interval': 30,      # read dht interval in secs (dflt)
     'bufsize': 20,       # size of the window of values readings max
     'sync': False,       # use thread or not to collect data
@@ -90,6 +91,7 @@ def calibrate(nr,value):
 # get a record, called back from sensor thread with average of sliding window bufsize
 def Add():
     global Conf
+    rec = {'time': int(time()),'temp':None,'rh':None}
     try:
         if (Conf['pin'] != None) and (Conf['import'] != None):
             humidity, temp = Conf['import'].read_retry(Conf['fd'], Conf['pin'])
@@ -97,22 +99,25 @@ def Add():
             temp, humidity = Conf['import'].dht(Conf['port'],Conf['fd'])
         else:
             MyLogger.log('ERROR',"DHT configuration error.")
-            return {'time': int(time()),'temp':None,'rh':None}
+            return rec
     except:
         MyLogger.log('ERROR',"DHT gpio access error. /dev/gpiomem permissions correct?")
         return {'time': int(time()),'temp':None,'rh':None}
     if (temp == None) or (humidity == None):
         MyLogger.log('ERROR',"DHT access error. Connection problem?")
         raise IOError("DHT lost connection.")
-        return {'time': int(time()),'temp':None,'rh':None}
+        return rec
     if not math.isnan(temp):
-        MyLogger.log('DEBUG',"Temperature : %5.2f oC not calibrated" % temp)
+        if Conf['debug']:
+            MyLogger.log('DEBUG',"Temperature : %5.2f oC not calibrated" % temp)
     else:
         MyLogger.log('DEBUG',"Temperature : None")
     if not math.isnan(humidity):
-        MyLogger.log('DEBUG',"Rel.Humidity: %5.2f %% not calibrated" % humidity)
+        if Conf['debug']:
+            MyLogger.log('DEBUG',"Rel.Humidity: %5.2f %% not calibrated" % humidity)
     else:
         MyLogger.log('DEBUG',"Rel.Humidity: None")
+    if (temp == 0.0) and (humidity == 0.0)): return rec
     temp = calibrate(0,temp)
     humidity = calibrate(1,humidity)
     rec = {'time': int(time()),'temp':temp,'rh':humidity}
