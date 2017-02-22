@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.14 2017/02/22 19:45:29 teus Exp teus $
+# $Id: MyDHT.py,v 2.15 2017/02/22 21:17:45 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.14 $"[11:-2]
+__version__ = "0." + "$Revision: 2.15 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -117,7 +117,7 @@ def Add():
             MyLogger.log('DEBUG',"Rel.Humidity: %5.2f %% not calibrated" % humidity)
     else:
         MyLogger.log('DEBUG',"Rel.Humidity: None")
-    if (temp == 0.0) and (humidity == 0.0)): return rec
+    if (temp == 0.0) and (humidity == 0.0): return rec
     temp = calibrate(0,temp)
     humidity = calibrate(1,humidity)
     rec = {'time': int(time()),'temp':temp,'rh':humidity}
