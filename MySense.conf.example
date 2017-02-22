@@ -1,0 +1,175 @@
+# init/configuration file for Internet of Sense PI node controller
+[process]
+# default deamon working directory
+home   = /var/tmp/
+# deamon process ID is stored in this directory
+# make sure /var/run exists and is writable on process owner
+pid    = /var/tmp
+# the effective uid and gid if started by root
+user    = ios
+group   = ios
+
+[id]
+# identification of this sensor
+project      = my_IoS
+# serial number of this node eg use Serial from /proc/cpuinfo
+# default cpu serial or MAC address
+#serial = PI20170103A
+# OPTIONAL extra (contact) information:
+# geolocation if not via optional embedded GPS
+# latitude (rad),longitude (rad),altitude (m)
+geolocation  = 15.1243,6.112,32
+label        = aLabel
+description  = IoS Sensors AlphaTestPhase
+# overwrite PII rules default: do not send
+street       = Hallway
+village      = Maastricht
+province     = Limburg
+municipality = MyMajor
+
+# log definitions and from which level
+[logging]
+# log file eg /var/log/IoS/IoS.log
+#file     = /var/log/IoS/IoS.log
+file     = /dev/stderr
+# lowest level to log messages
+#level    = WARNING
+level    = INFO
+
+# pm serie dylos, shinyei
+#[dylos]
+#input = True
+#type  = Dylos DC1100
+# USB serial RS232 manufacturer ID
+#usbid = Prolific_Technology
+
+# meteo serie dht
+#[dht]
+## Meteo sensor
+#input = False
+##type  = DHT22
+#pin   = 22
+
+# Loudness measurement
+# GrovePi+ analogue port
+#[dbgrove]
+#input = False
+#type = Grove Loudness
+#port = A0
+
+# dynamic GPS sensor location grabber
+#[gps]
+#input   = False
+## Adafruit PA6H1F1627
+#type    = UltimateGPS
+##pin    = TrX
+
+# wifi with internet is present in the node
+# will output 0 if wifi is not activated or not wireless
+#[rssi]
+#input = True
+#type = None
+
+# LOCAL OUTPUT:
+
+# will be turned on if no output is defined
+[console]
+#output   = false
+file     = /dev/stdout
+
+# MySQL credentials and location
+# table is made of <project>_<serial_number>
+# database,table and credentials needed to be configured
+# environment vars: DB,DBHOST,DBUSER,DBPASS
+#[db]
+#output   = false
+#hostname = dbhost
+#user     = dbuser
+#password = acacadabra
+#database = airpollutants
+#port     = 3306 default
+
+# local CSV data from sensors
+#[csv]
+#output   =  false
+# CSV file name base, script will add date and .csv extension
+# default filename is ./<project>/<serial>.csv
+#file     =  Serialnr
+# csv file name changes: (in secs, resolution day) default 1 calendar day
+# ttl     =  86400
+
+# get API and system id from PVoutput.org (free)
+# this enables to get slimmeter and/or solar info on your phone/tablet
+# environment vars: GSPREADUSER,GSPREADHOST
+# THIS MODULE IS NOT OPERATIONAL TESTED YET
+#[gspread]
+#output   =  false
+#user     =  GspreadUser
+#hostname =  domain.org
+#password = acacadabra
+#credentials = ./gspread-internet-of-sense-22992c9b1319.json
+#sheet    = IoS_ prepend sheet name with this
+# new sheet per time (strftime )
+# ttl     =  %Y-%b   
+
+# OUTPUT BROKERS:
+
+# broker will try to send registration/session info on restarts
+# uses HTTP POST protocol
+# environment vars: BROKERHOST,BROKERUSER,BROKERPASS
+# NOT OPERATIONAL TESTED YET
+#[broker]
+#output   = false
+#url      = /IoSnode
+#hostname = host.org
+#port     = 8000
+#apikey   = acacadabra
+
+# Mosquitto broker PUBLISH (output) access
+# MQTT telegram protocol
+# environment vars: BROKERHOST,BROKERUSER,BROKERPASS
+#[mqttpub]
+#output   = true
+## access broker credentials
+#hostname = lunar.theunis.org
+##port     = 1883
+#user     = IoS
+#password = BehoudDeParel
+#apikey   = uniqID defaults to project_serial
+#cert     = to do
+#prefix    = IoS_
+#topic     = IoS
+# time to live for one session to renew registration phase dflt no
+# ttl     =  0
+
+# Mosquitto broker SUBSCRIBE (input) access
+# MQTT telegram protocol
+# environment vars: MQTTPUBHOST,MQTTPUBUSER,MQTTPUBPASS
+# if enabled: all other input channels will be disabled
+#[mqttsub]
+#input    = false
+# access broker credentials
+#hostname = lunar
+#port     = 1883
+#user     = ios
+#password = BeoudDeParhehl
+#prefix    = IoS_
+#topic     = IoS
+#qos       = 0
+#cert     = to do
+
+# send email if broker is used once with location details
+# any item not defined will disable sending registration/session emails
+# never use own private email access credentials
+# environment vars: MAILHOST,MAILUSER,MAILPASS
+# default direct email
+#[email]
+# from address default: program this_user@this_hostname
+#from     = noreply@theunis.org
+# make sure this is valid email address and is enabled
+#to       = noreply@gmail.com
+#hostname = Full.Qualified.Name for port 587
+#user     = user who has access to Port 587
+#password     = acacadabra for port 587
+#port = 587 for proxy email transports
+# ttl     = 0  # send email every day of operational info

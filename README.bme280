@@ -1,0 +1,17 @@
+https://www.adafruit.com/products/2652
+https://github.com/adafruit/Adafruit_Python_GPIO
+http://www.deviceplus.com/how-tos/raspberrypi-guide/reading-temperature-humidity-and-pressure-with-ae-bme280-and-raspberry-pi/
+
+sudo apt-get install i2c-tools
+sudo apt-get python-smbus
+run sudo i2cdetect -y 1
+or ??? run sudo i2cdetect -y 0 
+
+When selecting the I2C address, it defaults to [0x76] if the pin 5 on the circuit board (SDO) is connected to GND and [0x77] if connected to VDD.
+3V3
+
+GRND 
+SDI -> SDA1
+SDO -> GRND
+SDK -> SCL1
+enable i2c in rasp-config

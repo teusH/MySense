@@ -1,0 +1,2 @@
+apt-get install python-mysql.connector
+apt-get install mysql-client or gui mysql-navigator

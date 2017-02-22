@@ -1,0 +1,104 @@
+http://www.fhilitski.com/2016/11/temperature-sensor-with-raspberry-pi-3-and-aws/
+Now let’s make sure that the I2C is enabled by typing  $ sudo raspi-config and going to the advanced options menu. If I2C is currently off,  enabling it requires reboot of RPi board. We also need to install i2c-tools by executing  $ sudo apt-get install -y i2c-tools  to be able to communicate through I2C. Let’s see what’s connected by executing i2cdetect command:
+
+    $ i2cdetect -y 1
+       
+      0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+    00:          -- -- -- -- -- -- -- -- -- -- -- -- --
+    10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+    20: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+    30: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+    40: -- -- -- -- -- -- -- -- 48 -- -- -- -- -- -- --
+    50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+    60: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+    70: -- -- -- -- -- -- -- --
+
+We have the TMP102 sensor at its standard address 0x48. The full temperature reading is stored in the first 12 bits with address 0. The first 8 bits provide  to get the rounded temperature reading:
+
+    $ i2cget -y 1 0x48 0 b
+    0x19
+
+The returned result 0x19 = 25 C is the room temperature as measured by the sensor. The full 12 but reading will be used later to get more accurate data. For now,  we are assured that the sensor is connected and works. All we need is a python script that will read the temperature and send it to AWS.
+…with Python
+
+Let’s use pigpio library to communicate with I2C – seems like it comes pre-installed with Python3. Let’s also install the pyth0n-smbus library: $ sudo apt-get install python-smbus.
+
+First, start a pigpio daemon by executing  $ sudo pigpiod.  After that, the script should acquire and print the temperature. We can start it by executing $ python tmp102.py The source code  of tmp102.py is below:
+
+    #!bin/python3
+    #reading TMP 102 sensor
+    import pigpio
+    import time
+    def tmp102_reading(byte0, word0):
+     #calculation of the temperature based on 
+     #the first word and the first byte
+     
+     # !!! not tested for negative temperatures !!!!
+     #last 4 bits of the word0
+     l4b = (word0 & 0b1111000000000000)>>12
+     temperature = ((byte0<<4) | l4b) * 0.0625
+     return temperature
+     
+     
+    #i2c bus of the Raspberry Pi 3
+    i2c_bus = 1
+    #TMP 102 address on the i2c bus
+    addr = 0x48
+    dev_pi = pigpio.pi()
+    dev_tmp = dev_pi.i2c_open(i2c_bus, addr, 0)
+    register_n = 0
+    try:
+     while True:
+     t_byte = dev_pi.i2c_read_byte_data(dev_tmp, 0)
+     t_word = dev_pi.i2c_read_word_data(dev_tmp, 0)
+     t = tmp102_reading(t_byte, t_word)
+     print(' Temperature: {} C'.format(t))
+     time.sleep(1)
+    except KeyboardInterrupt:
+     pass
+    print('Exiting the loop');
+    r = dev_pi.i2c_close(dev_tmp)
+
+This script will output the sensor reading every second until Ctrl+C is pressed:
+
+    Temperature: 25.59375 C
+    Temperature: 25.59375 C
+    Temperature: 25.625 C
+    Temperature: 25.625 C
+    Temperature: 25.625 C
+    Temperature: 25.625 C
+    Temperature: 25.625 C
+
+Sending data to AWS
+
+Instead of printing the temperature in the console, we need to send it to AWS IoT and repeat the whole thing after a set interval – every minute, for example. The Raspberry Pi has already been connected to AWS during the first step. We will re-use the publish/subscribe code example (basucPubSub.py) from the AWS SDK example to publish to a new topic for our new sensor.
+
+First, let’s create variables for the topic and delay between temperature updates. Plus, we can give our sensor a serial number – in case we build more than one and need to distinguish between them:
+
+    delay_s = 60
+    sensor_sn = '00000001'
+    topic = 'myrpi/'+sensor_sn
+
+Let’s now read the temperature in the loop and send it to AWS (until Ctrl+C):
+
+    try:
+      while True:
+        loopCount += 1
+        t_byte = dev_pi.i2c_read_byte_data(dev_tmp, 0)
+        t_word = dev_pi.i2c_read_word_data(dev_tmp, 0)
+        t = tmp102_reading(t_byte, t_word)
+        timestamp = datetime.datetime.now()
+        print(' Temperature: {} C   Loop # {:d}'.format(t,loopCount))
+        print(' Time: {} \n'.format(timestamp))
+        msg = '"Device": "{:s}", "Temperature": "{}", "Loop": "{}"'.format(sensor_sn, t,loopCount)
+        msg = '{'+msg+'}'
+        myAWSIoTMQTTClient.publish(topic, msg, 1)
+        print('Sleeping...')
+        time.sleep(delay_s)
+    except KeyboardInterrupt:
+      pass
+      
+    print('Exiting the loop');
+    r = dev_pi.i2c_close(dev_tmp)
+    myAWSIoTMQTTClient.disconnect()
+    print('Disconnected from AWS')

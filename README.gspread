@@ -1,0 +1,158 @@
+2017/02/08
+
+STATUS: ALPHA, SW ready, credentials not operational
+
+INSTALL python oauth and gspread LIBS via:
+    (if pip is missing: sudo apt-get install python-pip)
+    pip install oauth2client
+    pip install gspread
+or
+    git clone https://github.com/burnash/gspread
+    cd gspread; python setup.py install
+
+Make sure you have the latest openssl version:
+    sudo apt-get update
+    sudo apt-get upgrade
+    sudo apt-get install python-openssl
+
+CREDENTIALS
+For gspread access to use you need credentials signed by Google.
+The following is quite complex. The mistakes are easy to be made.
+
+HOW TO obtain the credentials? Use your browser.
+For the following this outline is used:
+http://gspread.readthedocs.io/en/latest/oauth2.html
+
+1. Head to Google Developers Console (https://console.developers.google.com/)
+2. Create a new project e.g. Internet of Sense (or select the one you have.)
+3. Under “API & auth” (API Beheer), in the API enable “Drive API”.
+4. Go to “Credentials” (welke inlog gegevens heeft u nodig?)
+    and choose “New Credentials > Service Account Key”.
+    ID name and Role: create/maker
+    Service account ID
+    Create json
+5. You will automatically download a JSON file with this data.
+    Save this file as it is unique and secret.
+    This (2017-02-08) is how this file may look like:
+
+    {
+    "project_id": "internet-of-sense",
+    "private_key_id": "2c9...ba4",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nN...=\n-----END PRIVATE KEY-----\n",
+    "client_email": "isos-515@internet-of-sense.iam.gserviceaccount.com",
+    "client_id": "1109...71",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://accounts.google.com/o/oauth2/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/ios-515%40internet-of-sense.iam.gserviceaccount.com"
+    "type": "service_account"
+    }
+
+Provide the credential json file name in the config file under gspread.
+
+Preparation of the access:
+1. sign up with Google Documents (https://docs.google.com/)
+2. create a work/spreadsheet with the name e.g. BdP_f46d04af97ab (project_serial nr)
+    serial number is taken from cpu serial number or the MAC address without ':':
+    cat /proc/cpuinfo | grep Serial and delete leading zero's.
+    or: ifconfig | grep HWaddr
+    delete all but one row
+2a. Delete all rows except the first row.
+2b. The standard sheet is called sheet1. Add two new sheets called: 
+    info (for node identity information)
+    2017-<current month name> (language dependent)
+    Also here only one row.
+3. lookup in the json file the line:
+    "client_email": "14934...habos3qcu@developer.gserviceaccount.com"
+4.  Using the File -> Share... menu item share the spreadsheet with
+    read and write access to the email address found above.
+    Make sure to share your spreadsheet or you will not be able to update it.
+
+See README.dht Cfor some test some tests of this set up:
+5. as test adjust the Adafruit code in google_spreadsheet.py:
+    # Type of sensor, can be Adafruit_DHT.DHT11, Adafruit_DHT.DHT22, or Adafruit_DHT.AM2302.
+    DHT_TYPE = Adafruit_DHT.DHT22       <--- change
+    # Example of sensor connected to Raspberry Pi pin 23
+    DHT_PIN  = 4                        <--- change
+    # Example of sensor connected to Beaglebone Black pin P8_11
+    #DHT_PIN  = 'P8_11'
+    # Google Docs OAuth credential JSON file.  Note that the process for authenticating
+    GDOCS_OAUTH_JSON       = 'your SpreadsheetData-*.json file name' <--- change
+    # Google Docs spreadsheet name.
+    GDOCS_SPREADSHEET_NAME = 'your google docs spreadsheet name' <--- change
+6. Make sure the Google json file is in the same dir as the google_spreadsheet.py
+7. Run: sudo ./google_spreadsheet.py
+    And some seconds later the readings will appear in the spreadsheet
+
+DEPRECATED since April 2015
+Next "das war einmal": you will find this outdated info while googling.
+Google has changed the API to obtain more security.
+From: http://www.indjango.com/access-google-sheets-in-python-using-gspread/
+Easy way but not recommanded way: use your google account credentials (user@domain/password) in the config file or via command environment: GSPREAD{USER|HOST|PASS} variables.
+
+Complex and recommanded way: use apikey
+Apikey:
+If gspread password is empty (None) apikey is tried.
+Obtain the key: 
+1. Sign in at google developper console (https://console.developers.google.com/) and create a project: enter project name and optionally provide project ID.
+2. Next enable the API: go to Credentials under APIs & auth.
+3. Click Create new Client ID: select your email and give an product name to proceed. Rest of the fields are optional. 
+4. In the next screen, select your application type and provide authorized URLs. In our case Service Account, application type can be Web application and authorized and redirect uri can be http://localhost:8080/. 
+5. In the next screen, you will be able to see your Client ID and Client Secret.
+6. Then click Create Client ID and select Service account option and click create.
+7. This will prompt you to download a file with file extension *.p12. Download and save this file which will be required for further authentication.
+8. After you download the file, a secret key will be shown to you. Please copy and keep it safe. This will not be shown again. 
+
+So far Google interaction.
+Install Oauth2:
+1. pip install python-gflags oauth2client
+   pip install PyOpenSSL
+2. Now copy the following code as a python script or you can download the file get_oauth2_token.py (http://static.indjango.com/python-gspread/get_oauth2_token.py):
+    from oauth2client.client import OAuth2WebServerFlow
+    from oauth2client.tools import run
+    from oauth2client.file import Storage
+
+    CLIENT_ID = '<Client ID from Google API Console>'
+    CLIENT_SECRET = '<Client secret from Google API Console>'
+
+    flow = OAuth2WebServerFlow(
+          client_id = CLIENT_ID,
+          client_secret = CLIENT_SECRET,
+          scope = 'https://spreadsheets.google.com/feeds https://docs.google.com/feeds',
+          redirect_uri = 'http://example.com/auth_return'
+       )
+
+    storage = Storage('creds.data')
+    credentials = run(flow, storage).
+    print "access_token: %s" % credentials.access_token
+
+And run this: python get_oauth2_token.py
+Running this command will open your default browser and if you are not logged into google account already, you will be prompted to login. Then you need to grant access to your google account in the next screen.
+3. After you accept access permission you will see the message The authentication flow has completed. in your browser. A file named creds.data will be stored in the same location as your python script. Open the file and find refresh_token in that. The content of the file will be in python dictionary format. Make sure that you copy the refresh token during first time itself. If not you have to repeat the whole process again.
+And add either the apikey (from program below) or token,id,secret, p12 file location to the conf file.
+Python program (see http://www.indjango.com/access-google-sheets-in-python-using-gspread/) to obtain apikey:
+    import requests, gspread
+    from oauth2client.client import SignedJwtAssertionCredentials
+
+    def authenticate_google_docs():
+        f = file(os.path.join('your-key-file.p12'), 'rb')
+        SIGNED_KEY = f.read()
+        f.close()
+        scope = ['https://spreadsheets.google.com/feeds', 'https://docs.google.com/feeds']
+        credentials = SignedJwtAssertionCredentials('username@gmail.com', SIGNED_KEY, scope)
+    
+        data = {
+            'refresh_token' : '<refresh-token-copied>',
+            'client_id' : '<client-id-copied>',
+            'client_secret' : '<client-secret-copied>',
+            'grant_type' : 'refresh_token',
+        }
+    
+        r = requests.post('https://accounts.google.com/o/oauth2/token', data = data)
+        credentials.access_token = ast.literal_eval(r.text)['access_token']
+
+        gc = gspread.authorize(credentials)
+        return gc
+Now we need to write a function for google authentication using the credentials we obtained upto this point.
+
+

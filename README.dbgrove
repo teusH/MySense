@@ -1,0 +1,33 @@
+2017-02-21
+
+STATUS untested
+
+You need to have a Raspberry Pi (or Arduino) with a GrovePi+ shield (Kiwi Electronics € 35.-) from Dexter Industries.
+Kiwi Electronics Grove Loudness sensor € 8.-
+
+Advise: use for GrovePi+ sensors the Lego sockets and a Lego groundplate.
+
+You need the grovepi module eg via https://github.com/DexterInd/GrovePi
+or use the INSTALL.sh script.
+
+HARDWARE
+--------
+Attach the sensor to an analogue port of the GrovePi+, e.g. A0.
+The Grove Pi+ has 3 analog socktes/ports: board up, pin side on top left: analog ports are on the left side, top is number 0.
+
+TEST HW:
+-------
+Use the python script: git/GrovePi/Software/Python/grove_loudness_sensor.py
+It should display every second a line with loudness value (uncalibrated).
+
+TEST with MySense
+----
+First test with (see the script) with sync option set to True and debug to True
+On failure use pdb (python debugger) to see stepwise for the failure.
+On success set option sync to False in the script.
+
+OPERATION
+---------
+Set in MySense config file the sector [dbgrove] and port: A0
+With interval and bufsize you are able to tune the frequency of polled values.
+

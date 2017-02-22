@@ -1,0 +1,105 @@
+2017/02/08
+STATUS: BETA, operational
+
+Sensor temperature, huminity
+HARDWARE
+(tested) DHT22 Adafruit  Kiwi Electronics € 11.- (incl 10K resistor)
+if 4K7 resistor does not work use 10K.
+See: https://learn.adafruit.com/dht-humidity-sensing-on-raspberry-pi-with-gdocs-logging/wiring
+
+HARDWARE CONNECTION to Pi
+DHT22 pinsdown, hat front up:
+      ^
+     /o\
+   |-- -- |
+   | ---- |
+   | ---- |
+   ________
+    | | | |
+    1 2 3 4
+    V D   G
+    |=|   |
+    |R|   |
+    | |   |
+   P1 P4  P6
+left 3V3 pin1, pin2 data with GIO eg Pi pin #4 or #22
+pin 3 empty, pin 4 right to GRND. Resistor R 4K7 or 10K Ohm between 3V3 and data
+
+The document for DHT:
+https://cdn-learn.adafruit.com/downloads/pdf/dht-humidity-sensing-on-raspberry-pi-with-gdocs-logging.pdf
+
+SENSOR TYPES
+DHT11   blue cage needs 4K7/10K resister 5.-US$, € 7.-
+DHT22   white cage more precise as DHT11, € 11.-,  needs 4K7 or 10K resister
+AM2302  wired DHT22 white cage, € 17.-
+
+INSTALL
+For GPIO pin control /dev/gpiomem access is needed.
+To avoid running as root the MySense.py user e.g. ios needs permissions:
+sudo addgroup ios gpio # you need to logout/login to activate this
+Create the file eg /usr/local/bin/set_gio_perm.sh with the content:
+    #!/bin/sh
+    # add as super user to crontab -e
+    # @reboot      /usr/local/bin/set_gpio_perm.sh
+    chown root:gpio /dev/gpiomem
+    chmod g+rw /dev/gpiomem
+and sudo chmod +x /usr/local/bin/set_gio_perm.sh
+and add as super user to crontab -e the line:
+@reboot      /usr/local/bin/set_gpio_perm.sh
+
+See: https://learn.adafruit.com/dht-humidity-sensing-on-raspberry-pi-with-gdocs-logging/software-install-updated
+For: DHT22 (more precise as DHT11), DHT11 and DHT2301 are also valid.
+1. You needs some libraries:
+    sudo apt-get update
+    sudo apt-get install build-essential python-dev python-openssl python-rpi.gpio
+2. For SW github: git clone https://github.com/adafruit/Adafruit_Python_DHT
+    cd Adafruit_Python_DHT
+    sudo python setup.py install
+3. simple test:
+    cd examples
+    sudo ./AdafruitDHT.py sensor_type pin_nr
+    e.g. sudo ./AdafruitDHT.py 22 4
+DHT is real time dependent so you may miss a reading. Try again.
+You should see something like:
+Temp=23.0*  Humidity=26.4%
+
+MYSENSE
+Edit the MySense.conf file and add the section dht and complete the options e.g.:
+    [dht]
+    input = true
+    type  = DHT22
+    pin   = 4
+    # optional calibration factors for temp and hr (example here is order 1: a0+a1.x))
+    calibrations = [[-0.3,1],[3.9,1]]
+
+To evaluate run this as user ios:  ./MySense.py -i dht -o console -l debug
+
+GSPREAD
+The sofware with Google gspread test:
+1. sign up with Google Documents (https://docs.google.com/)
+2. create a spreadsheet with the name e.g. BdP_33040d45 (project_serial nr)
+    serial number is taken from cpu serial number or the MAC address without ':':
+    cat /proc/cpuinfo | grep Serial and delete leading zero's.
+    or: ifconfig | grep HWaddr
+    delete all but one row
+3. lookup in the json file the line:
+    "client_email": "14934...habos3qcu@developer.gserviceaccount.com"
+4.  Using the File -> Share... menu item share the spreadsheet with
+    read and write access to the email address found above.
+    Make sure to share your spreadsheet or you will not be able to update it.
+5. as test adjust the Adafruit code in google_spreadsheet.py:
+    # Type of sensor, can be Adafruit_DHT.DHT11, Adafruit_DHT.DHT22, or Adafruit_DHT.AM2302.
+    DHT_TYPE = Adafruit_DHT.DHT22       <--- change
+    # Example of sensor connected to Raspberry Pi pin 23
+    DHT_PIN  = 4                        <--- change
+    # Example of sensor connected to Beaglebone Black pin P8_11
+    #DHT_PIN  = 'P8_11'
+    # Google Docs OAuth credential JSON file.  Note that the process for authenticating
+    GDOCS_OAUTH_JSON       = 'your SpreadsheetData-*.json file name' <--- change
+    # Google Docs spreadsheet name.
+    GDOCS_SPREADSHEET_NAME = 'your google docs spreadsheet name' <--- change
+6. Make sure the Google json file is in the same dir as the google_spreadsheet.py
+7. Run: sudo ./google_spreadsheet.py
+    And some seconds later the readings will appear in the spreadsheet
+
+
