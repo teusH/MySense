@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyThreading.py,v 2.3 2017/02/22 17:41:43 teus Exp teus $
+# $Id: MyThreading.py,v 2.4 2017/02/25 14:32:04 teus Exp teus $
 
 # the values provided are rounded (3 decimals) of values in the
 # thread buffer (max BUFSIZE). INTERVAL and the thread interval (TINTERV)
@@ -28,11 +28,13 @@
     Has internal read interval and MySense input read interval.
 """
     
-class MyThreading:
-    import threading
-    from time import time, sleep
+import threading
+import atexit
 
-    __version__ = "0." + "$Revision: 2.3 $"[11:-2]
+class MyThreading:
+    from time import time,sleep
+
+    __version__ = "0." + "$Revision: 2.4 $"[11:-2]
     __license__ = 'GPLV4'
 
     STOP = False    # stop all threads
@@ -50,6 +52,7 @@ class MyThreading:
         inits['name'] = 'MySensor' # sensor name for this thread
         inits['sync'] = False      # in debug mode no threading
         inits['DEBUG'] = False     # be more versatile
+        inits['conf'] = None       # dict with Conf keys e.g. pin/port for Add method
         for key in args.keys():
             inits[key] = args[key]
         self.BUFSIZE = inits['bufsize']   # internal buffer (window) of values
@@ -58,23 +61,27 @@ class MyThreading:
         self.SYNC = inits['sync']         # in debug mode no threading
         self.DEBUG = inits['DEBUG']       # debug modus
         self.callback = args['callback']  # routine to add sensor value
+	self.conf = inits['conf']         # arg valuees for callback
 
         self.BufAvg = {}      # record avg of values in buffer (dynamic window)
-        self.Buffer = []     # time ordered list of measurements of sensor
+        self.Buffer = []      # time ordered list of measurements of sensor
         self.INTERVAL = self.TINTERV * self.BUFSIZE # max window buffer size
+        # conditional wait (avoid sleep() in client thread)
+        self.sleepCond = threading.Condition()
 
     # activated by thread start()
     # note subthreads will not catch Keyboard Interrupt <cntrl>c
     # kill it by <cntrl>z and kill %1   
     class ThisThread(threading.Thread):   # the real run part of the thread
-        def __init__(self,threading,bufCollect,threadID, name, callback):
+        def __init__(self,threading,bufCollect,threadID, name, callback,conf):
             threading.Thread.__init__(self)
             self.threadID = threadID
             self.name = name
             self.callback = callback
             self.bufCollect = bufCollect
+            self.conf = conf
         def run(self):
-            self.bufCollect(self.callback)
+            self.bufCollect(self.callback,self.conf)
             #print("Thread %s stopped." % self.name)
             return
         
@@ -104,7 +111,7 @@ class MyThreading:
                 else: avg[key] = None
             with self.threadLock: self.BufAvg = avg
             
-    def bufCollect(self,callback):
+    def bufCollect(self,callback,conf):
         self.STOP = False
         if self.SYNC:
             #import random ; cnt = random.randint(1,5)
@@ -114,7 +121,12 @@ class MyThreading:
         while not self.STOP:
             lastT = self.time()
             self.bufCleanup()
-            self.bufAdd(callback())
+            #self.bufAdd(callback(conf))
+            rec = callback(conf)
+            if self.DEBUG:
+                print("Sensor %s got input: " % self.name, rec)
+            self.Buffer.append(rec)
+
             avg = {}
             for key in self.Buffer[0]:
                 if key == 'time': continue
@@ -132,7 +144,9 @@ class MyThreading:
             with self.threadLock: self.BufAvg = avg
             lastT = self.TINTERV - (self.time()-lastT)
             if lastT > 0:
-                self.sleep(lastT)
+                # TO DO: change this to conditional wait
+                # self.sleep(lastT)
+                with self.sleepCond: self.sleepCond.wait(lastT)
             if self.SYNC:
                 cnt -= 1
                 if cnt <= 0: self.STOP = True
@@ -143,7 +157,7 @@ class MyThreading:
     def getRecord(self):
        for cnt in range(0,3):
            mean = {}
-           if self.SYNC: self.bufCollect(self.callback) # sync waiting for value
+           if self.SYNC: self.bufCollect(self.callback,self.conf) # sync waiting for value
            # else it is done by the sensor thread with interval timings
            with self.threadLock:
                if len(self.BufAvg):
@@ -154,11 +168,27 @@ class MyThreading:
        raise IOError("No input success while waiting 3 X %d seconds" % self.TINTERV)
        return {}
     
+    # stop the thread
+    # TO DO: add conditional wake up to client thread
+    def stop_thread(self):
+        self.STOP = True        # ask self threads to stop
+        #self.sleepCond.acquire()
+        with self.sleepCond: self.sleepCond.notify()
+        #self.sleepCond.release()
+        for thrd in threading.enumerate():
+            try:
+                threading.join()
+            except:
+                pass
+        if self.DEBUG:
+            print("Stopped threads.")
+        return
+
     # initialize
     def start_thread(self):
         if self.STOP:
             return True
-        ID = self.threading.activeCount()+1
+        ID = threading.activeCount()+1
         for Trd in self.threads:
             if Trd.getName() == self.name:
                 if Trd.isAlive():
@@ -166,9 +196,10 @@ class MyThreading:
                 else:
                     # maybe we should join first to delete the thread?
                     self.threads.remove(Trd)
-        self.threads.append(self.ThisThread(self.threading,self.bufCollect,ID, self.name, self.callback))
+        self.threads.append(self.ThisThread(threading,self.bufCollect,ID, self.name, self.callback,self.conf))
         if not self.SYNC:
             try:
+                atexit.register(self.stop_thread)
                 self.threads[len(self.threads)-1].start()
                 self.sleep(self.TINTERV*2)      # allow some data to come in
             except:
@@ -179,15 +210,4 @@ class MyThreading:
         if self.DEBUG:
             print("Sensor %s got input: " % self.name, rec)
         self.Buffer.append(rec)
-
-    def stop_thread(self):
-        self.STOP = True        # ask self threads to stop
-        for thrd in self.threading.enumerate():
-            try:
-                self.threading.join()
-            except:
-                pass
-        if self.DEBUG:
-            print("Stopped threads.")
-        return
 

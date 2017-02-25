@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.15 2017/02/22 21:17:45 teus Exp teus $
+# $Id: MyDHT.py,v 2.16 2017/02/25 14:32:04 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,14 +28,13 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.15 $"[11:-2]
+__version__ = "0." + "$Revision: 2.16 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
     from time import time
     import MyThreading          # needed for multi threaded input
     import MyLogger
-    import math
     import json
 except ImportError:
     MyLogger.log('FATAL',"Missing modules for %s" % modulename)
@@ -76,11 +75,10 @@ def get_calibrations():
     Conf['calibrations'] = json.loads(Conf['calibrations'])
 
 # calibrate as ordered function order defined by length calibraion factor array
-def calibrate(nr,value):
-    global Conf
-    if math.isnan(value):
+def calibrate(nr,conf,value):
+    if not type(value) is float:
         return None
-    if (not 'calibrations' in Conf.keys()) or (nr > len(Conf['calibrations'])-1):
+    if (not 'calibrations' in conf.keys()) or (nr > len(conf['calibrations'])-1):
         return value
     rts = 0; pow = 0
     for a in Conf['calibrations'][nr]:
@@ -89,14 +87,13 @@ def calibrate(nr,value):
     return round(rts,1)
 
 # get a record, called back from sensor thread with average of sliding window bufsize
-def Add():
-    global Conf
+def Add(conf):
     rec = {'time': int(time()),'temp':None,'rh':None}
     try:
-        if (Conf['pin'] != None) and (Conf['import'] != None):
-            humidity, temp = Conf['import'].read_retry(Conf['fd'], Conf['pin'])
-        elif (Conf['port'] != None) and (Conf['import'] != None):
-            temp, humidity = Conf['import'].dht(Conf['port'],Conf['fd'])
+        if (conf['pin'] != None) and (conf['import'] != None):
+            humidity, temp = conf['import'].read_retry(conf['fd'], conf['pin'])
+        elif (conf['port'] != None) and (conf['import'] != None):
+            temp, humidity = conf['import'].dht(conf['port'],conf['fd'])
         else:
             MyLogger.log('ERROR',"DHT configuration error.")
             return rec
@@ -107,19 +104,19 @@ def Add():
         MyLogger.log('ERROR',"DHT access error. Connection problem?")
         raise IOError("DHT lost connection.")
         return rec
-    if not math.isnan(temp):
-        if Conf['debug']:
+    if type(temp) is float:
+        if conf['debug']:
             MyLogger.log('DEBUG',"Temperature : %5.2f oC not calibrated" % temp)
     else:
         MyLogger.log('DEBUG',"Temperature : None")
-    if not math.isnan(humidity):
-        if Conf['debug']:
+    if type(humidity) is float:
+        if conf['debug']:
             MyLogger.log('DEBUG',"Rel.Humidity: %5.2f %% not calibrated" % humidity)
     else:
         MyLogger.log('DEBUG',"Rel.Humidity: None")
     if (temp == 0.0) and (humidity == 0.0): return rec
-    temp = calibrate(0,temp)
-    humidity = calibrate(1,humidity)
+    temp = calibrate(0,conf,temp)
+    humidity = calibrate(1,conf,humidity)
     rec = {'time': int(time()),'temp':temp,'rh':humidity}
     return rec
 
@@ -142,9 +139,9 @@ def registrate():
         else:
             Conf['import'] = __import__('Adafruit_DHT')
             DHT_types = {
-                'DHT11': Adafruit_DHT.DHT11,
-                'DHT22': Adafruit_DHT.DHT22,        # more precise as DHT11
-                'AM2302': Adafruit_DHT.AM2302       # wired DHT22
+                'DHT11': Conf['import'].DHT11,
+                'DHT22': Conf['import'].DHT22,        # more precise as DHT11
+                'AM2302': Conf['import'].AM2302       # wired DHT22
             }
             Conf['fd'] = DHT_types[Conf['type'].upper()]
     elif Conf['port'] != None:
@@ -165,6 +162,7 @@ def registrate():
             interval=Conf['interval'],
             name='DHT sensor',
             callback=Add,
+	    conf=Conf,
             sync=Conf['sync'],
             DEBUG=Conf['debug'])
         # first call is interval secs delayed by definition
@@ -196,11 +194,11 @@ def getdata():
 if __name__ == '__main__':
     from time import sleep
     Conf['type'] = 'DHT22'
-    #Conf['pin'] = 4            # GPIO pin of Pi
-    Conf['port'] = 'D3'         # Digital port D3 of GrovePi+
+    Conf['pin'] = 4            # GPIO pin of Pi
+    #Conf['port'] = 'D3'         # Digital port D3 of GrovePi+
     Conf['input'] = True
     #Conf['sync'] = True         # True is in sync (not multi threaded)
-    #Conf['debug'] = True        # print collected sensor values
+    Conf['debug'] = True        # print collected sensor values
     for cnt in range(0,10):
         timing = time()
         try:

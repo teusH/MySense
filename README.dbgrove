@@ -31,3 +31,16 @@ OPERATION
 Set in MySense config file the sector [dbgrove] and port: A0
 With interval and bufsize you are able to tune the frequency of polled values.
 
+Grove Loudness specifications (from Grove: http://www.exp-tech.de/en/seeed-studio-grove-loudness-sensor)
+-----------------------------
+Item              Min Typical Max Unit 
+Voltage           3.5 5.0     10  VDC 
+Working Frequency 50  -   20,000  HZ 
+Sensitivity      -48  -       66  dB 
+Signal-to-noise Ratio >58         dB 
+Output Signal      0  -     1023  /
+
+TO DO!!!
+--------
+The current calibration is set as linear between sensitivity and output signal, which is wrong.
+Algorithm to convert timed min/max ratio into dB

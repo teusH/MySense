@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDBGROVE.py,v 2.1 2017/02/21 19:19:03 teus Exp teus $
+# $Id: MyDBGROVE.py,v 2.2 2017/02/25 14:32:04 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDBGROVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.1 $"[11:-2]
+__version__ = "0." + "$Revision: 2.2 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -51,7 +51,9 @@ Conf ={
     'type': None,        # type of the lodness chip eg Grove dB
     'fields': ['db'],    # filtered audio loudness
     'units' : ['dB'],    # dB
-    'calibrations' : [[0,1]], # calibration factors, here order 1
+    # TO DO next is expected as linear fie which is wrong
+    # sensitivity: -48 db - 66 db, Grove output is 0 - 1023
+    'calibrations' : [[-48,114.0/1023.0]], # calibration factors, here order 1
     'port': None,        # Analog port of GrovePi
     'interval': 30,      # read lodness interval in secs (dflt)
     'bufsize': 20,       # size of the window of values readings max
@@ -69,31 +71,31 @@ def get_calibrations():
     Conf['calibrations'] = json.loads(Conf['calibrations'])
 
 # calibrate as ordered function order defined by length calibraion factor array
-def calibrate(nr,value):
-    global Conf
-    if math.isnan(value):
+def calibrate(nr,conf,value):
+    if not type(value) is int:
         return None
-    if (not 'calibrations' in Conf.keys()) or (nr > len(Conf['calibrations'])-1):
+    if (not 'calibrations' in conf.keys()) or (nr > len(conf['calibrations'])-1):
         return value
     rts = 0; pow = 0
-    for a in Conf['calibrations'][nr]:
+    for a in conf['calibrations'][nr]:
         rts += a*(value**pow)
         pow += 1
     return round(rts,1)
 
 # get a record, called back from sensor thread with average of sliding window bufsize
-def Add():
-    global Conf
+def Add(conf):
     try:
-        db = grovepi.analogRead(Conf['fd'])
-        if Conf['debug']:
-            print("Grove dB: %d" % db)
+        db = grovepi.analogRead(conf['fd'])
     except:
-        MyLogger('ERROR',"Grove dB access error.")
+        MyLogger.log('ERROR',"Grove dB access error.")
         return {'time': int(time()),'db':None}
-    #MyLogger.log('DEBUG',"Loudness (dB) : {0:0.1f} not calibrated".format(db))
-    db = calibrate(0,db)
-    rec = {'time': int(time()),'db':db}
+    if conf['debug']:
+        MyLogger.log('DEBUG',"Grove dB: %s" % str(db))
+    if not type(db) is int:
+	MyLogger.log('ATTENT','Grove dB has not an int as value: %s' % str(db))
+	return {'time': int(time()),'db':None}
+    db = calibrate(0,conf,db)
+    rec = {'time': int(time()),'db':int(db)}
     return rec
 
 # check the options
@@ -121,6 +123,7 @@ def registrate():
                 interval=Conf['interval'],
                 name='dB sensor',
                 callback=Add,
+                conf=Conf,
                 sync=Conf['sync'],
                 DEBUG=Conf['debug'])
             # first call is interval secs delayed by definition
@@ -171,4 +174,4 @@ if __name__ == '__main__':
         if timing > 0:
             sleep(timing)
     if (not Conf['sync']) and (MyThread != None):
-        MyThread.stop_thread()
+        oyThread.stop_thread()

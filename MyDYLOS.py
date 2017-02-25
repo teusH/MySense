@@ -45,7 +45,6 @@ Conf = {
     'input': False,      # Dylos input sensor is required
     'fd': None,          # input handler
     'type': "Dylos DC1100",     # type of device
-    # '#qf/m' particle count per qubic foot per minute
     'usbid': 'Prolific_Technology', # usb ID via lsusb
     'port': None,        # input com port number (depricated)
     'file': None,        # Debugging: read input from file -i option
@@ -57,6 +56,7 @@ Conf = {
     'interval': 50,     # read dht interval in secs (dflt)
     'bufsize': 30,      # size of the window of values readings max
     'sync': False,      # use thread or not to collect data
+    'debug': False,     # be more versatile on input data collection
 
 }
 #    from MySense import log
@@ -168,16 +168,17 @@ def registrate():
         return False
     Conf['input'] = True
     if MyThread == None: # only the first time
-        MyThread = MyThreading.MyThreading(
+        MyThread = MyThreading.MyThreading( # init the class
             bufsize=Conf['bufsize'],
             interval=Conf['interval'],
             name='Dylos PM sensor',
             callback=Add,
+            conf=Conf,
             sync=Conf['sync'],
-            DEBUG=False)
+            DEBUG=Conf['debug'])
         # first call is interval secs delayed by definition
         try:
-            if MyThread.start_thread():
+            if MyThread.start_thread(): # start multi threading
                 return True
         except:
             pass
@@ -192,37 +193,36 @@ def registrate():
 # Dylos MAX = 2 PM2.5 PM10 counts
 # ================================================================
 # get a record
-Serial_Errors = 0
-def Add():
-    global Conf, Serial_errors
+Conf['Serial_Errors'] = 0
+def Add(conf):
     MAX = 2     # non std Dylos firmware might generate 4 numbers
     try:
         # Request Dylos Data only for non std firmware
-        # Conf['fd'].write(bytes("R\r\n",'ascii'))
+        # conf['fd'].write(bytes("R\r\n",'ascii'))
         #line = ''
         #while 1:
-        #    chr = Conf['fd'].read(1) 
+        #    chr = conf['fd'].read(1) 
         #    line += chr
         #    if chr == '\n':
         #        break
         try:
-            line = Conf['fd'].readline()
-            while Conf['fd'].inWaiting():       # skip to latest record
-                line = Conf['fd'].readline()
+            line = conf['fd'].readline()
+            while conf['fd'].inWaiting():       # skip to latest record
+                line = conf['fd'].readline()
             Serial_Errors = 0
         except SerialException:
-            Serial_Errors += 1
+            conf['Serial_Errors'] += 1
             MyLogger.log('ATTENT',"Dylos serial exception. Close/Open serial.")
             try:
-                Conf['fd'].close()
+                conf['fd'].close()
             except:
                 pass
-            Conf['fd'] = None
-            if Serial_Errors > 10:
+            conf['fd'] = None
+            if conf['Serial_Errors'] > 10:
                 MyLogger.log('ERROR',"Dylos to many serial errors. Disabled.")
-                Conf['output'] = False
+                conf['output'] = False
                 return {}
-            return getdata()
+            return conf['getdata']()
         except:
             pass
         line = str(line.strip().decode('utf-8'))
@@ -254,11 +254,14 @@ def getdata():
         MyLogger.log('WARNING',"Sensor Dylos input failure: %s" % er)
     return {}
 
+Conf['getdata'] = getdata	# Add needs this global viariable
+
 # test main loop
 if __name__ == '__main__':
     from time import sleep
     Conf['input'] = True
     # Conf['sync'] = True
+    Conf['debug'] = True
     for cnt in range(0,10):
         timing = time()
         try:
