@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.2 2017/02/16 19:38:21 teus Exp teus $
+# $Id: INSTALL.sh,v 1.3 2017/02/27 15:02:39 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -140,6 +140,18 @@ EOF
     return $?
 }
 
+INSTALLS+=" BME280"
+function BME280() {
+    DEPENDS_ON pip adafruit/Adafruit_Python_GPIO.git Adafruit_Python_GPIO
+    if [ ! -f ./Adafruit_Python_BME280.py ]
+    then
+        git clone https://github.com/adafruit/Adafruit_Python_BME280.git
+        cp ./Adafruit_Python_BME280/Adafruit_BME280.py .
+        rm -rf ./Adafruit_Python_BME280/
+    fi
+    return $?
+}
+
 INSTALLS+=" THREADING"
 function THREADING(){
     #DEPENDS_ON pip threading
@@ -239,6 +251,106 @@ function USER(){
     sudo chmod 440 /etc/sudoers.d/020_${USER}-passwd
     sudo update-rc.d ssh enable
     sudo service ssh restart
+}
+
+function HOSTAP() {
+    # originates from: https://gist.github.com/Lewiscowles1986/fecd4de0b45b2029c390
+    if [ "$EUID" -ne 0 ]
+    then echo "Must be root"
+        exit
+    fi
+
+    if [[ $# -lt 1 ]]; 
+    then echo "You need to pass a password!"
+        echo "Usage:"
+        echo "sudo $0 yourChosenPassword [apName]"
+        exit
+    fi
+
+    APPASS="$1"
+    APSSID="rPi3"
+
+    if [[ $# -eq 2 ]]; then
+        APSSID=$2
+    fi
+
+    apt-get remove --purge hostapd -y
+    apt-get install hostapd dnsmasq -y
+
+    if [ ! -f /etc/systemd/system/hostapd.service ]
+    then
+        cat > /etc/systemd/system/hostapd.service <<EOF
+[Unit]
+Description=Hostapd IEEE 802.11 Access Point
+After=sys-subsystem-net-devices-wlan0.device
+BindsTo=sys-subsystem-net-devices-wlan0.device
+[Service]
+Type=forking
+PIDFile=/var/run/hostapd.pid
+ExecStart=/usr/sbin/hostapd -B /etc/hostapd/hostapd.conf -P /var/run/hostapd.pid
+[Install]
+WantedBy=multi-user.target
+EOF
+    else echo "/etc/systemd/system/hostapd.service already existed! Abort."
+    fi
+
+    if [ ! -f /etc/dnsmasq.conf ]
+    then
+        cat > /etc/dnsmasq.conf <<EOF
+interface=wlan0
+dhcp-range=10.0.0.2,10.0.0.5,255.255.255.0,12h
+EOF
+    else echo "/etc/dnsmasq.conf already exists! Abort."
+    fi
+
+    if [ ! -f /etc/hostapd/hostapd.conf ]
+    then
+        cat > /etc/hostapd/hostapd.conf <<EOF
+interface=wlan0
+hw_mode=g
+channel=10
+auth_algs=1
+wpa=2
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise=CCMP
+rsn_pairwise=CCMP
+wpa_passphrase=$APPASS
+ssid=$APSSID
+EOF
+    else echo "/etc/hostapd/hostapd.conf already exists! Abort."
+    fi
+
+    if grep q '^iface wlan0 inet manual' /etc/network/interfaces
+    then
+        sed -i -- 's/allow-hotplug wlan0//g' /etc/network/interfaces
+        sed -i -- 's/iface wlan0 inet manual//g' /etc/network/interfaces
+        sed -i -- 's/    wpa-conf \/etc\/wpa_supplicant\/wpa_supplicant.conf//g' /etc/network/interfaces
+    fi
+
+    if ! grep -q  '^allow-hotplug wlan0' /etc/network/interfaces
+    then
+        cat >> /etc/network/interfaces <<EOF
+    wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
+# Added by rPi Access Point Setup
+allow-hotplug wlan0
+iface wlan0 inet static
+    address 10.0.0.1
+    netmask 255.255.255.0
+    network 10.0.0.0
+    broadcast 10.0.0.255
+EOF
+    else "/etc/network/interfaces could not add static wifi address. Abort."
+    fi
+
+    if ! grep '^denyinterfaces wlan0' /etc/dhcpd.conf
+    then
+        echo "denyinterfaces wlan0" >> /etc/dhcpcd.conf
+    else echo "denyinterfaces wlan0 in /etc/dhcpcd.conf was already present."
+    fi
+
+    systemctl enable hostapd
+
+    echo "Wifi access point on wlan0/10.0.0.1 and DNS/dhcp  installed! Please reboot"
 }
 
 MODS=$@

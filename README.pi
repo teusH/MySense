@@ -17,6 +17,8 @@ on the SD first: see http://dougbtv.com/2016/03/06/raspi-3-headless-wifi/
 
 FIRST UPGRADE
 You need for this to have an internet connection.
+You probably do not need the package wolfram-engine (680 MB) so delete the package:
+    sudo apt-get purge wolfram-engine
 Startup and perform an upgrade:
     sudo apt-get update     # update package info
     sudo apt-get -y upgrade # upgrade all packages
@@ -33,7 +35,7 @@ localisation options:
     set keyboard layout: and check by pushing @-key and see key response.
 Had to edit /etc/default/keyboard the "gb" setting into "us" as well
 
-pi% passwd pi -> acacadabra 
+pi% `passwd pi` -> acacadabra 
 internet connectivity: sudo apt-get update/upgrade/dist-upgrade (takes a while)/autoremove
 Allow to remotely login via ssh (or putty):
     sudo update-rc.d ssh enable

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.16 2017/02/25 14:32:04 teus Exp teus $
+# $Id: MyDHT.py,v 2.17 2017/02/27 15:02:39 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.16 $"[11:-2]
+__version__ = "0." + "$Revision: 2.17 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -56,7 +56,7 @@ Conf ={
     'bufsize': 20,       # size of the window of values readings max
     'sync': False,       # use thread or not to collect data
     'debug': False,      # be more versatile
-    'import': None,      # imported module either DHT or Grove
+    'Ada_import': None,      # imported module either DHT or Grove
 #    'fd' : None          # input handler
 }
 
@@ -90,10 +90,10 @@ def calibrate(nr,conf,value):
 def Add(conf):
     rec = {'time': int(time()),'temp':None,'rh':None}
     try:
-        if (conf['pin'] != None) and (conf['import'] != None):
-            humidity, temp = conf['import'].read_retry(conf['fd'], conf['pin'])
-        elif (conf['port'] != None) and (conf['import'] != None):
-            temp, humidity = conf['import'].dht(conf['port'],conf['fd'])
+        if (conf['pin'] != None) and (conf['Ada_import'] != None):
+            humidity, temp = conf['Ada_import'].read_retry(conf['fd'], conf['pin'])
+        elif (conf['port'] != None) and (conf['Ada_import'] != None):
+            temp, humidity = conf['Ada_import'].dht(conf['port'],conf['fd'])
         else:
             MyLogger.log('ERROR',"DHT configuration error.")
             return rec
@@ -137,21 +137,21 @@ def registrate():
         if not int(Conf['pin']) in [4,5,6,12,13,17,18,22,23,24,25,26,27]:
             MyLogger.log('ERROR',"DHT GPIO pin number %s not correct. Disabled." % Conf['pin'])
         else:
-            Conf['import'] = __import__('Adafruit_DHT')
+            Conf['Ada_import'] = __import__('Adafruit_DHT')
             DHT_types = {
-                'DHT11': Conf['import'].DHT11,
-                'DHT22': Conf['import'].DHT22,        # more precise as DHT11
-                'AM2302': Conf['import'].AM2302       # wired DHT22
+                'DHT11': Conf['Ada_import'].DHT11,
+                'DHT22': Conf['Ada_import'].DHT22,        # more precise as DHT11
+                'AM2302': Conf['Ada_import'].AM2302       # wired DHT22
             }
             Conf['fd'] = DHT_types[Conf['type'].upper()]
     elif Conf['port'] != None:
         if (Conf['port'][0].upper() != 'D') or (not int(Conf['port'][1]) in range(0,8)):
             MyLogger.log('ERROR',"DHT Grove port number %s not correct. Disabled." % Conf['port'])
         else:
-            Conf['import'] = __import__('grovepi')
+            Conf['Ada_import'] = __import__('grovepi')
             Conf['fd'] = 0 if Conf['type'].upper() == 'DHT11' else 1
             Conf['port'] = int(Conf['port'][1])
-    if Conf['import'] == None:
+    if Conf['Ada_import'] == None:
         MyLogger.log('ERROR',"DHT pin or port configuration error.")
         return False
     get_calibrations()

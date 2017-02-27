@@ -1,2 +1,37 @@
-apt-get install python-mysql.connector
-apt-get install mysql-client or gui mysql-navigator
+2017/02/26
+STATUS: operational
+
+Output to MySQL database.
+For every MySense instance a table (<project>_<serial>) with archiving  date/time of entry, update, values of pollutants and meteo data.
+The table "Sensors" will archive the sensor instance identification information as eg location, start time, last seen data, activity, different installed sensors information.
+
+Use eg. phpadmin or Sequel Pro (both are free applications) to easily view the archived data. And use Behoud de Parel visualisation tooling for producing graphs on your website.
+
+YOU NEED
+========
+a name for the database, hostname of MySQL server, user/password access credentials.
+
+MySQL INSTALLATION as server
+============================
+Install the database MySQL on your server (if not already present). See yout OS distribution for the instructions.
+
+Install the database for MySense. Use the database name, host name and user name/password as you have defined in MySense.conf .
+Access the MySQL database as superuser:
+    mysql -u root -p
+And create the database:
+    mysql> CREATE DATABASE IF NOT EXISTS your_database_name;
+and add the MySense user (use '%' for localhost as wildcard for access from every host):
+    mysql> CREATE USER 'newuser'@'localhost' IDENTIFIED BY 'password';
+    mysql> GRANT ALL PRIVILEGES ON * . * TO 'newuser'@'localhost';
+    mysql> FLUSH PRIVILEGES;
+    mysql> QUIT
+AND WRITE a big sign above your bed to restrict this user for security reasons later.
+
+MySense will create and extend the tables and table columns automaticalty when needed so.
+
+INSTALL MySQL module
+====================
+    apt-get install python-mysql.connector
+or use INSTALL.sh
+apt-get install mysql-client or gui mysql-navigator if you need to access MySQL server from the command line or graphical interface.
+

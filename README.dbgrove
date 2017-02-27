@@ -43,4 +43,8 @@ Output Signal      0  -     1023  /
 TO DO!!!
 --------
 The current calibration is set as linear between sensitivity and output signal, which is wrong.
-Algorithm to convert timed min/max ratio into dB
+
+conversion TO dB, dBA, or dBV
+-----------------------------
+See article: http://www.animations.physics.unsw.edu.au/jw/dB.htm
+Grove Loudness measures voltage 0-1023: 20log((3.5+6.5*signal/1024)/3.5) = dB?

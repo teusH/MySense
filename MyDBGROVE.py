@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDBGROVE.py,v 2.2 2017/02/25 14:32:04 teus Exp teus $
+# $Id: MyDBGROVE.py,v 2.3 2017/02/26 13:15:32 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDBGROVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.2 $"[11:-2]
+__version__ = "0." + "$Revision: 2.3 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -49,8 +49,8 @@ __options__ = [
 Conf ={
     'input': False,      # no loudnes sensors installed
     'type': None,        # type of the lodness chip eg Grove dB
-    'fields': ['db'],    # filtered audio loudness
-    'units' : ['dB'],    # dB
+    'fields': ['dbv'],   # filtered audio loudness
+    'units' : ['dBV'],   # dB
     # TO DO next is expected as linear fie which is wrong
     # sensitivity: -48 db - 66 db, Grove output is 0 - 1023
     'calibrations' : [[-48,114.0/1023.0]], # calibration factors, here order 1
