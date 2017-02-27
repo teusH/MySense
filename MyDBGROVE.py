@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDBGROVE.py,v 2.3 2017/02/26 13:15:32 teus Exp teus $
+# $Id: MyDBGROVE.py,v 2.4 2017/02/27 17:17:23 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDBGROVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.3 $"[11:-2]
+__version__ = "0." + "$Revision: 2.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -88,14 +88,14 @@ def Add(conf):
         db = grovepi.analogRead(conf['fd'])
     except:
         MyLogger.log('ERROR',"Grove dB access error.")
-        return {'time': int(time()),'db':None}
+        return {'time': int(time()),'dbv':None}
     if conf['debug']:
         MyLogger.log('DEBUG',"Grove dB: %s" % str(db))
     if not type(db) is int:
 	MyLogger.log('ATTENT','Grove dB has not an int as value: %s' % str(db))
-	return {'time': int(time()),'db':None}
+	return {'time': int(time()),'dbv':None}
     db = calibrate(0,conf,db)
-    rec = {'time': int(time()),'db':int(db)}
+    rec = {'time': int(time()),'dbv':int(db)}
     return rec
 
 # check the options
@@ -147,7 +147,7 @@ def getdata():
         return {}
     try:
         rec = MyThread.getRecord()     # pick up a record
-        rec['db'] = int(rec['db'])
+        rec['dbv'] = int(rec['dbv'])
 	return rec
     except IOError as er:
         MyLogger.log('WARNING',"Sensor Grove dB input failure: %s" % er)
