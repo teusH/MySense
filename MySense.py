@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.12 2017/02/22 17:41:43 teus Exp teus $
+# $Id: MySense.py,v 2.16 2017/02/27 16:16:42 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.12 $"[11:-2]
+__version__ = "0." + "$Revision: 2.16 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -275,7 +275,7 @@ def get_config():
 def get_arguments():
     global Conf, progname, INTERVAL
     parser = argparse.ArgumentParser(prog=progname, description='Sensor datalogger - Behoud de Parel\nCommand arguments overwrite optional config file.', epilog="Copyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
-    parser.add_argument("-d", "--debug", help="Read pm sensor input from an input file instead. Debugging simulation.")
+    parser.add_argument("-d", "--debug", help="List of input sensors and show the raw sensor values.", default="")
     parser.add_argument("-i", "--input", help="Input sensor(s), comma separated list of %s" % ','.join(INPUTS+INPUTS_I), default="%s" % ','.join(Conf['inputs']))
     parser.add_argument("-o", "--output", help="Output mode(s), comma separated list of %s" % ','.join(OUTPUTS+OUTPUTS_I), default="%s" % ','.join(Conf['outputs']))
     parser.add_argument("-l", "--level", help="Be less verbose, default='%s'" % Conf['logging']['level'], default=Conf['logging']['level'], type=str.upper, choices=MyLogger.log_levels)
@@ -283,6 +283,7 @@ def get_arguments():
     parser.add_argument("-S", "--node", help="Sensor node serial number, default='%s'" % Conf['id']['serial'], default=Conf['id']['serial'])
     parser.add_argument("-G", "--geolocation", help="Sensor node geolocation (latitude,longitude), default='%s'" % Conf['id']['geolocation'], default=Conf['id']['geolocation'])
     parser.add_argument("-I", "--interval", help="Sensor read cycle interval in seconds, default='%d'" % INTERVAL, default=INTERVAL)
+    parser.add_argument("-D", "--DYLOS", help="Read pm sensor input from an input file instead. Debugging simulation.")
     parser.add_argument("process", help="Process start/stop/status. Default: interactive", default='interactive', choices=['interactive','start','stop','status'], nargs='?')
     # overwrite argument settings into configuration
     return parser.parse_args()
@@ -354,12 +355,16 @@ def integrate_options():
                 Conf['inputs'].append(Nme)
             if Nme in INPUTS_I:
                 from_env(Nme)
+        try:    # allow to display raw sensor values from a sensor thread
+            Conf[Nme]['debug'] = cmd_args.debug.rindex(Nme) >= 0
+        except:
+            Conf[Nme]['debug'] = False
 
     if 'dylos' in Conf['inputs']:
         if ('usbPID' in Conf['dylos'].keys()):
             if re.compile("^[0-9a-zA-Z_,]{7,}").match(Conf['dylos']['usbPID']) == None:
                 sys.exit(Conf['dylos']['usbPID'] + " is not a USB producer name.")
-        if cmd_args.debug:
+        if cmd_args.DYLOS:
             Conf['dylos'].update({ 'input': True, 'file': cmd_args.debug })
 
     if not len(Conf['inputs']):
@@ -583,6 +588,16 @@ def sensorread():
                 if ('time' in sensed.keys()) and sensed['time']:
                     t_cnt += 1
                     t_time += sensed['time']                       
+                for key in sensed.keys():
+                    if key == 'time': continue
+                    if key in data.keys():
+                        # some sensor key are the same, except only 2 of them
+                        # examples are meteo values eg temp, humidity
+                        if (type(data[key]) is int) and (type(sensed[key]) is int):
+                            sensed[key] = int((sensed[key]+data[key]+0.5)/2)
+                        else:
+                            sensed[key] = (sensed[key]+data[key])/2
+                        MyLogger.log('DEBUG',"There is more then one %s in data stream" % key)
                 data.update(sensed)
                 gotData = True
             except KeyboardInterrupt:
