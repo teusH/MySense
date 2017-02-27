@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyBME280.py,v 2.2 2017/02/27 15:02:39 teus Exp teus $
+# $Id: MyBME280.py,v 2.3 2017/02/27 16:20:09 teus Exp teus $
 
 """ Get measurements from BME280 Bosch chip via the I2C-bus.
     Measurements have a calibration factor (calibrated to Oregon weather station)
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyBME280.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.2 $"[11:-2]
+__version__ = "0." + "$Revision: 2.3 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -138,7 +138,7 @@ def registrate():
         try:
             Conf['Ada_import'] = __import__('Adafruit_BME280')
         except ImportError:
-            MyLogging.log('ERROR',"Unable to import BME Adafruit module. Disabled.")
+            MyLogger.log('ERROR',"Unable to import BME Adafruit module. Disabled.")
             Conf['Ada_import'] = None
         Conf['fd'] = Conf['Ada_import'].BME280(mode=Conf['Ada_import'].BME280_OSAMPLE_8, address=int(Conf['i2c'],0))
     if Conf['Ada_import'] == None:
