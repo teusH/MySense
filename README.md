@@ -85,7 +85,8 @@ The MySense framework/infrastructure is operational. By default MySense uses a s
 Input is tested with serial, I2C-bus and GPIO sensors.
 The focus is to allow Grove based sensors (easier to plugin to the MySense system) and weather resistent cases for the system.
 
-![Pi Breadboard in action](https://github.com/teusH/MySense/images/MySense.py)
+![Pi Breadboard in action](https://github.com/teusH/MySense/images/MySense.png)
+
 A picture of the breadboard with Dylos and Raspberry Pi3
 
 The gas sensor development (NO2, O3, NH3, CO) is just (Febr 2017) started.
@@ -99,5 +100,5 @@ Money is lacking for sensors reseach and travel expenses coverage.
 ## Licensing:
 FSF GPLV4
 Feedback of improvements, or extentions to the software are required.
-Copyright: Teus Hagen, ver. Behoud de Parel, the Netherlands 2017
+* Copyright: Teus Hagen, ver. Behoud de Parel, the Netherlands, 2017
 
