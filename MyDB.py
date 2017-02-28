@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.5 2017/02/11 16:46:27 teus Exp teus $
+# $Id: MyDB.py,v 2.6 2017/02/28 10:45:55 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.5 $"[11:-2]
+__version__ = "0." + "$Revision: 2.6 $"[11:-2]
 
 try:
     import MyLogger
@@ -142,10 +142,11 @@ def db_registrate(ident):
         fld_types ="'"+fld_types+"'"
     else:
         fld_types = 'NULL'
-    fld_units = ''
+    fld_units = '' ; gotIts = []
     for i in range(0,len(ident['fields'])):
-        if ident['fields'][i] in Conf['omit']:
+        if (ident['fields'][i] in Conf['omit']) or (ident['fields'][i] in gotIts):
             continue
+        gotIts.append(ident['fields'][i])
         if len(fld_units): fld_units += ','
         fld_units += "%s(%s)" %(ident['fields'][i],ident['units'][i])
     if len(fld_units):
@@ -241,15 +242,17 @@ def publish(**args):
         units = types['units']
         add = []
         table_flds = db_query("SELECT column_name FROM information_schema.columns WHERE  table_name = '%s_%s' AND table_schema = '%s'" % (args['ident']['project'],args['ident']['serial'],Conf['database']),True)
+        gotIts = []     # avoid doubles
         for i in range(0,len(fields)):
-            if fields[i] in Conf['omit']:
+            if (fields[i] in Conf['omit']) or (fields[i] in gotIts):
                 continue
-            Nme = fields[i]
+            Nme = fields[i] ; gotIts.append(Nme)
             if fields[i] == 'rh':       # translate name
                 Nme = 'rv'
             elif fields[i] == 'pa':
                 Nme = 'luchtdruk'
             if not (Nme,) in table_flds:
+                table_flds.append(Nme)
                 Col = Sensor_fields['default']
                 if Nme in Sensor_fields.keys():
                     Col = Sensor_fields[Nme]

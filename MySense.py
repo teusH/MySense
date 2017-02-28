@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.16 2017/02/27 16:16:42 teus Exp teus $
+# $Id: MySense.py,v 2.17 2017/02/28 10:27:00 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.16 $"[11:-2]
+__version__ = "0." + "$Revision: 2.17 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -610,10 +610,12 @@ def sensorread():
                 continue
             if first and local:
                 for i in range(0,len(Conf[Sensor]['module'].Conf['fields'])):
-                    Conf['id']['fields'].append(Conf[Sensor]['module'].Conf['fields'][i])
-                    Conf['id']['units'].append(Conf[Sensor]['module'].Conf['units'][i])
+                    if not Conf[Sensor]['module'].Conf['fields'][i] in Conf['id']['fields']:
+                        Conf['id']['fields'].append(Conf[Sensor]['module'].Conf['fields'][i])
+                        Conf['id']['units'].append(Conf[Sensor]['module'].Conf['units'][i])
                 if ('type' in Conf[Sensor]['module'].Conf.keys()) and (Conf[Sensor]['module'].Conf['type'] != None):
-                    Conf['id']['types'].append(Conf[Sensor]['module'].Conf['type'])
+                    if not Conf[Sensor]['module'].Conf['type'] in Conf['id']['types']:
+                        Conf['id']['types'].append(Conf[Sensor]['module'].Conf['type'])
                 if Sensor == 'gps':
                     if ((not 'geolocation' in Conf['id'].keys())) or \
                         (Conf['id']['geolocation'] == None):
