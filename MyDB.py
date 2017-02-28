@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.6 2017/02/28 10:45:55 teus Exp teus $
+# $Id: MyDB.py,v 2.7 2017/02/28 11:52:44 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.6 $"[11:-2]
+__version__ = "0." + "$Revision: 2.7 $"[11:-2]
 
 try:
     import MyLogger
@@ -226,15 +226,29 @@ def publish(**args):
         if not key in args.keys():
             MyLogger.log('FATAL',"Broker publish call missing argument %s." % key)
 
+    # translate MySense filed names into MySQL column field names
+    # TO DO: get the transaltion table from the MySense.conf file
+    def db_name(my_name):
+        DBnames = {
+            'rh': 'rv',
+            'pa': 'luchtdruk',  # deprecated
+            'hpa': 'luchtdruk',
+            'geo': 'geolocation',
+            'wd':  'wr',
+        }
+        if my_name in DBnames.keys(): return DBnames[my_name]
+        return my_name
+
     # check if fields in table exists if not add them
     def db_fields(types):
         global Conf
         if ("fields") in Conf.keys():
             return True
         Sensor_fields = {
-            'geolocation': "VARCHAR(25) default NULL",
-            'luchtdruk':   "INT(11) default NULL",
-            'wr':          "SMALLINT(4) default NULL",
+            'geo':         "VARCHAR(25) default NULL",
+            'pa':          "INT(11) default NULL",
+            'hpa':         "INT(11) default NULL",
+            'wd':          "SMALLINT(4) default NULL",
             'default':     "DECIMAL(7,2) default NULL",
             "_valid":      "BOOL default 1"
         }
@@ -246,17 +260,15 @@ def publish(**args):
         for i in range(0,len(fields)):
             if (fields[i] in Conf['omit']) or (fields[i] in gotIts):
                 continue
-            Nme = fields[i] ; gotIts.append(Nme)
-            if fields[i] == 'rh':       # translate name
-                Nme = 'rv'
-            elif fields[i] == 'pa':
-                Nme = 'luchtdruk'
+            gotIts.append(fields[i])
+            Nme = db_fields(fields[i])
             if not (Nme,) in table_flds:
                 table_flds.append(Nme)
                 Col = Sensor_fields['default']
-                if Nme in Sensor_fields.keys():
-                    Col = Sensor_fields[Nme]
+                if field[i] in Sensor_fields.keys():
+                    Col = Sensor_fields[field[i]]
                 add.append("ADD COLUMN %s %s COMMENT 'type: %s; added on %s'" % (Nme, Col, units[i], datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M")))
+                add.append("ADD COLUMN %s_valid %s COMMENT 'value validated'" % (Nme,Sensor_fields['_valid']))
         if len(add):
             try:
                 db_query("ALTER TABLE %s_%s %s" % (args['ident']['project'],args['ident']['serial'],','.join(add)),False)
