@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.10 2017/02/28 15:38:21 teus Exp teus $
+# $Id: MyDB.py,v 2.11 2017/02/28 16:12:48 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.10 $"[11:-2]
+__version__ = "0." + "$Revision: 2.11 $"[11:-2]
 
 try:
     import MyLogger
@@ -266,7 +266,7 @@ def publish(**args):
                 table_flds.append(Nme)
                 Col = Sensor_fields['default']
                 if fields[i] in Sensor_fields.keys():
-                    Col = Sensor_fields[field[i]]
+                    Col = Sensor_fields[fields[i]]
                 add.append("ADD COLUMN %s %s COMMENT 'type: %s; added on %s'" % (Nme, Col, units[i], datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M")))
                 add.append("ADD COLUMN %s_valid %s COMMENT 'value validated'" % (Nme,Sensor_fields['_valid']))
         if len(add):
