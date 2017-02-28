@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.8 2017/02/28 12:44:23 teus Exp teus $
+# $Id: MyDB.py,v 2.9 2017/02/28 15:07:54 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.8 $"[11:-2]
+__version__ = "0." + "$Revision: 2.9 $"[11:-2]
 
 try:
     import MyLogger
@@ -261,7 +261,7 @@ def publish(**args):
             if (fields[i] in Conf['omit']) or (fields[i] in gotIts):
                 continue
             gotIts.append(fields[i])
-            Nme = db_fields(fields[i])
+            Nme = db_name(fields[i])
             if not (Nme,) in table_flds:
                 table_flds.append(Nme)
                 Col = Sensor_fields['default']
@@ -297,7 +297,7 @@ def publish(**args):
         if (Fld in Conf['omit']) or (Fld in gotIts):
             continue
         gotIts.append(Fld)
-        Nm = db_fields(Fld)
+        Nm = db_name(Fld)
         if type(args['data'][Fld]) is str:
             cols.append(Nm); vals.append("'%s'" % args['data'][Fld])
         elif type(args['data'][Fld]) is list:
