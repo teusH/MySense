@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.17 2017/02/28 10:27:00 teus Exp teus $
+# $Id: MySense.py,v 2.18 2017/02/28 11:12:09 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.17 $"[11:-2]
+__version__ = "0." + "$Revision: 2.18 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -593,11 +593,11 @@ def sensorread():
                     if key in data.keys():
                         # some sensor key are the same, except only 2 of them
                         # examples are meteo values eg temp, humidity
+                        MyLogger.log('DEBUG',"There is more then one %s in data stream: collected: %5.1f, new %5.1f" % (key,data[key],sensed[key]))
                         if (type(data[key]) is int) and (type(sensed[key]) is int):
                             sensed[key] = int((sensed[key]+data[key]+0.5)/2)
                         else:
                             sensed[key] = (sensed[key]+data[key])/2
-                        MyLogger.log('DEBUG',"There is more then one %s in data stream" % key)
                 data.update(sensed)
                 gotData = True
             except KeyboardInterrupt:
