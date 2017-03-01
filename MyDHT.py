@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.17 2017/02/27 15:02:39 teus Exp teus $
+# $Id: MyDHT.py,v 2.18 2017/03/01 16:26:24 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.17 $"[11:-2]
+__version__ = "0." + "$Revision: 2.18 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -49,7 +49,7 @@ Conf ={
     'type': None,        # type of the humidity/temp chip eg AM2302,DHT22,DHT11
     'fields': ['temp','rh'], # temp, rh, pa
     'units' : ['C', '%'],    # C Celcius, K Kelvin, F Fahrenheit, % rh, hPa
-    'calibrations' : [[-0.45,1],[0.5,1]], # calibration factors, here order 1
+    'calibrations' : [[0.2,1],[-5,1]], # calibration factors, here order 1
     'pin': None,         # GPIO pin of PI e.g. 4, 22
     'port': None,        # GrovePi+ digital port
     'interval': 30,      # read dht interval in secs (dflt)
