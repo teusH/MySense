@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.3 2017/02/27 15:02:39 teus Exp teus $
+# $Id: INSTALL.sh,v 1.4 2017/03/01 15:25:22 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -253,6 +253,181 @@ function USER(){
     sudo service ssh restart
 }
 
+function KeepOriginal() {
+    local FILE
+    for FILE in $@
+    do
+    if [ -f $FILE ] && ! [ -f $FILE.orig ]
+    then
+        sudo cp $FILE $FILE.orig
+    fi
+    done
+}
+
+function WIFI(){
+    local ANS WLAN={1:-wlan1} INT=wlan0
+    if [ -z "$1" ]
+    then
+        WIFI_Internet       # wlan0 is now wifi connection to internet
+    else
+        WLAN=wlan0
+        INT=eth0
+    fi
+    read -p "You want wifi Access Point installed? [y|N] " ANS
+    if [ -z "${ANS/[nN]/}" ] ; then return ; fi
+    echo "Installing virtual wifi interface on wlan1 for wifi AP" 1>&2
+    WIFI_HOSTAP $WLAN
+    DNSMASQ $WLAN 10.0.0
+    read -p "You want wifi AP clients to reach internet? [y,N] " ANS
+    if [ -z "${ANS/[nN]/}" ] ; then return ; fi
+    NAT $WLAN $INT
+}
+
+function DNSMASQ() {
+    local WLAN=${1:-wlan1} ADDR=${2:-10.0.0}
+    KeepOriginal /etc/dnsmasq.conf
+    sudo /usr/sbin/service isc-dhcp-server stop
+    sudo /bin/systemctl disable isc-dhcp-server
+    sudo /usr/bin/apt-get install dnsmasq -y
+    sudo /usr/sbin/service dnsmasq stop
+    sudo /bin/systemctl enable dnsmasq
+    /bin/cat >/tmp/hostap$$ <<EOF
+interface=${WLAN}
+# access for max 4 computers, max 12h lease time
+dhcp-range=${ADDR}.2,${ADDR}.5,255.255.255.0,12h
+EOF
+    /bin/rm -f /tmp/hostap$$
+}
+
+# TO DO: add support for IPV6
+function NAT(){
+    local WLAN={1:-wlan1} INT=${2:-eth0}
+    echo "Installing NAT and internet forwarding for wifi $WLAN to $INT" 1>&2
+    sudo /bin/sh -c "net.ipv4.ip_forward=1 >>/etc/sysctl.conf"
+    sudo /bin/sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
+    sudo /sbin/iptables -t nat -A POSTROUTING -o ${INT} -j MASQUERADE
+    sudo /sbin/iptables -A FORWARD -i ${INT} -o ${WLAN} -m state --state RELATED,ESTABLISHED -j ACCEPT
+    sudo /sbin/iptables -A FORWARD -i ${WLAN} -o ${INT} -j ACCEPT
+    /sbin/iptables-save > /etc/firewall.conf
+    /bin/cat >/tmp/hostap$$ <<EOF
+#!/bin/sh
+    if /bin/grep -q 'up' /sys/class/net/eth0/operstate
+    then
+        INT=eth0
+        /sbin/ip link set dev wlan0 down
+    else
+        INT=wlan0
+    fi
+    if /sbin/ifconfig | /bin/grep -q wlan1
+    then
+        WLAN=wlan1
+        /sbin/iptables -t nat -A POSTROUTING -o \${INT} -j MASQUERADE
+        /sbin/iptables -A FORWARD -i \${INT} -o \${WLAN} -m state --state RELATED,ESTABLISHED -j ACCEPT
+        /sbin/iptables -A FORWARD -i \${WLAN} -o \${INT} -j ACCEPT
+    fi
+EOF
+    sudo /bin/cp /tmp/hostap$$ /etc/network/if-up.d/iptables
+    sudo /bin/chmod +x /etc/network/if-up.d/iptables
+    /bin/rm -f /tmp/hostap$$
+    sudo /usr/sbin/service dnsmasq restart
+    sudo /usr/sbin/service hostapd restart
+}
+
+function WLAN1(){
+    local WLAN=${1:-wlan1} ADDR=${2:-10.0.0}
+    if /sbin/ifconfig | grep -q $WLAN ; then return ; fi
+    cat >/tmp/hostap$$ <<EOF
+#!/bin/bash
+iw phy phy0 interface add ${WLAN} type __ap
+ip link set wlan1 address \$(ifconfig ${INT} | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:00/')
+ip a add ${ADDR}.1/24 dev ${WLAN}
+ip link set dev ${WLAN} up
+EOF
+    sudo cp /tmp/hostap$$ /etc/network/if-up.d/virtual_wifi
+    sudo chmod +x /etc/network/if-up.d/virtual_wifi
+    rm /tmp/hostap$$
+    sudo /etc/network/if-up.d/virtual_wifi
+}
+
+# install hostapd daemon
+function WIFI_HOSTAP(){
+    local WLAN=${1:-wlan1} SSID PASS HIDE
+    KeepOriginal \
+        /etc//etc/hostapd/hostapd.conf \
+        /etc/systemd/system/hostapd.service
+    if [ -f /etc/hostapd/hostapd.conf ]
+    then sudo /usr/bin/apt-get remove --purge hostapd -y
+    fi
+    sudo /usr/bin/apt-get install hostapd -y
+    sudo /usr/sbin/service hostapd stop
+    sudo /bin/systemctl enable hostapd
+    echo "wifi Access Point daemon needs SSID and password:" 1>&2
+    read -p "wifi AP SSID: " SSID
+    read -p "wifi AP password: " PASS
+    read -p "Need the SSID to be hidden? [y|N]: " HIDE
+    if [ -z "${HIDE/[Nn]/}" ] ; then HIDE=0 ; else HIDE=1 ; fi
+    cat >/tmp/hostap$$ <<EOF
+[Unit]
+Description=Hostapd IEEE 802.11 Access Point
+After=sys-subsystem-net-devices-${WLAN}.device
+BindsTo=sys-subsystem-net-devices-${WLAN}.device
+[Service]
+Type=forking
+PIDFile=/var/run/hostapd.pid
+ExecStart=/usr/sbin/hostapd -B /etc/hostapd/hostapd.conf -P /var/run/hostapd.pid
+[Install]
+WantedBy=multi-user.target
+EOF
+    sudo cp /tmp/hostap$$ /etc/systemd/system/hostapd.service
+    cat >/tmp/hostap$$ <<EOF
+interface=${WLAN}
+hw_mode=g
+channel=10
+auth_algs=1
+wpa=2
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise=CCMP
+rsn_pairwise=CCMP
+ssid=${SSID:-MySense}
+wpa_passphrase=${PASS:-BehoudDeParel}
+ignore_broadcast_ssid=${HIDE:-0}
+EOF
+    sudo cp /tmp/hostap$$ /etc/hostapd/hostapd.conf
+    rm -f /tmp/hostap$$
+}
+
+function WIFI_AP(){
+}
+
+function WIFI_Internet(){
+    local SSID PASS1=0 PASS2=1
+    for FILE in \
+        /etc/network/interfaces \
+        /etc/wpa_supplicant/wpa_supplicant.conf
+    do if [ -f $FILE ]
+    then
+        if ! [ -f $FILE.orig ] ; then sudo cp $FILE $FILE.orig ; fi
+    fi
+    done
+    echo "Need SSID and password accessing your wifi router." 1>&2
+    read -p "wifi SSID: " SSID
+    while [ "$PASS1" != "$PASS2" ]
+    do
+        read -p "wifi password: " PASS1
+        read -p "retype passwd: " PASS2
+    done
+    cp /etc/wpa_supplicant/wpa_supplicant.conf /tmp/wpa$$
+    cat >>/tmp/wpa$$ <<EOF
+network={
+    ssid="$SSID"
+    psk="$PASS1"
+    key_mgmt=WPA-PSK
+}
+EOF
+    sudo cp /tmp/wpa$$ /etc/wpa_supplicant/wpa_supplicant.conf
+    rm -f /tmp/wpa$$
+    echo "Added network={} to /etc/wpa_supplicant/wpa_supplicant.conf" 1>&2
+}
 function HOSTAP() {
     # originates from: https://gist.github.com/Lewiscowles1986/fecd4de0b45b2029c390
     if [ "$EUID" -ne 0 ]
