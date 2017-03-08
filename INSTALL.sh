@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.7 2017/03/08 16:43:31 teus Exp teus $
+# $Id: INSTALL.sh,v 1.8 2017/03/08 19:41:27 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -452,6 +452,8 @@ interface=${WLAN}
 # access for max 4 computers, max 12h lease time
 dhcp-range=${ADDR}.2,${ADDR}.5,255.255.255.0,12h
 EOF
+    /usr/bin/sudo /bin/cp /tmp/hostap$$ /etc/dnsmasq.conf
+    /usr/bin/sudo /usr/sbin/service dnsmasq restart
     /bin/rm -f /tmp/hostap$$
 }
 
