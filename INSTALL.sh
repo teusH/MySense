@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.8 2017/03/08 19:41:27 teus Exp teus $
+# $Id: INSTALL.sh,v 1.9 2017/03/09 16:14:59 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -407,6 +407,54 @@ EOF
     /bin/rm -f /tmp/EW$$
 }
 
+# installs  system admin web interface on port 10000
+# remote system admin (default via ssh)
+EXTRA+=' WEBMIN'
+function WEBMIN(){
+    local ANS
+    read -t 15 -p  "Install \"webmin\" to be accessed to the Pi via port 10000? [Yn] " ANS
+    if [ -z "${ANS/[Yy]/}" ] ; then return ; fi
+    # DEPENDS_ON APT perl
+    DEPENDS_ON APT libnet-ssleay-perl
+    # DEPENDS_ON APT openssl
+    DEPENDS_ON APT libauthen-pam-perl
+    # DEPENDS_ON APT libpam-runtime
+    DEPENDS_ON APT libio-pty-perl
+    DEPENDS_ON APT apt-show-versions
+    # DEPENDS_ON APT python
+
+    wget -O /tmp/webmin_1.831_all.deb http://prdownloads.sourceforge.net/webadmin/webmin_1.831_all.deb
+    echo "Installation can take more as 5 minutes." 1>&2
+    sudo dpkg --install /tmp/webmin_1.831_all.deb
+    /bin/rm  -f /tmp/webmin_1.831_all.deb
+    wget -O /tmp/jcameron-key.as http://www.webmin.com/jcameron-key.asc
+    /usr/bin/sudo /usr/bin/apt-key add /tmp/jcameron-key.asc
+    /bin/rm -f /tmp/jcameron-key.asc
+    /usr/bin/sudo /bin/sh -c "echo 'deb http://download.webmin.com/download/repository sarge contrib' >> /etc/apt/sources.list"
+}
+
+# backdoor via Weaved service: the service gives you a tunnel by name
+# the weaved daemon will connect to Weaved to build a tunnel to Weaved.
+# Reminder: everybody knowing the port from Weaved and have Pi user credentials
+# can login into your Pi
+EXTRA+=' WEAVED'
+function WEAVED(){
+    local ANS
+    echo "This will install a backdoor via the webservice from Weaved (remote3.it)." 1>&2
+    echo "You may first register (free try) and obatain user/passwd through https://weaved.com" 1>&2
+    read -p "Install Weaved backdoor for ssh and/or webmin access? [Yn] " ANS
+    if [ -z "${ANS/[nN]/}" ] ; then return ; fi
+    DEPENDS_ON APT weavedconnectd
+    echo "
+Run the next configuring command for Weaved.
+Use main menu: 1) Attach/reinstall to connect the Pi and enter a device name e.g. MySense-ssh
+Use protocol selection menu 1) for ssh and 4) for webmin (enter http and 10000)
+" 1>&2
+    read -t 20 -p "Configure it now? [Yn] " ANS
+    if [ -z "${ANS/[nN]/}" ] ; then return ; fi
+    /usr/bin/sudo /usr/bin/weavedinstaller
+}
+
 INSTALLS+=" WIFI"
 ####### wifi wlan0 for wifi internet access, wlan1 (virtual device) for wifi AP
 function WIFI(){
@@ -445,12 +493,12 @@ function DNSMASQ() {
     /usr/bin/sudo /usr/sbin/service isc-dhcp-server stop
     /usr/bin/sudo /bin/systemctl disable isc-dhcp-server
     /usr/bin/sudo /usr/bin/apt-get install dnsmasq -y
-    /usr/bin/sudo /usr/sbin/service dnsmasq stop
     /usr/bin/sudo /bin/systemctl enable dnsmasq
+    # provide dhcp on wifi channel
     /bin/cat >/tmp/hostap$$ <<EOF
 interface=${WLAN}
 # access for max 4 computers, max 12h lease time
-dhcp-range=${ADDR}.2,${ADDR}.5,255.255.255.0,12h
+dhcp-range=${WLAN},${ADDR}.2,${ADDR}.5,255.255.255.0,12h
 EOF
     /usr/bin/sudo /bin/cp /tmp/hostap$$ /etc/dnsmasq.conf
     /usr/bin/sudo /usr/sbin/service dnsmasq restart
@@ -496,10 +544,12 @@ function VIRTUAL(){
     if /sbin/ifconfig | /bin/grep -q $WLAN ; then return ; fi
     /bin/cat >/tmp/hostap$$ <<EOF
 #!/bin/bash
-iw phy phy0 interface add ${WLAN} type __ap
-ip link set ${WLAN} address \$(ifconfig ${INT} | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:00/')
-# ip a add ${ADDR}.1/24 dev ${WLAN}
-# ip link set dev ${WLAN} up
+WLAN=\${1:-wlan2}
+ADDR=\${2:-10.0.0}
+iw phy phy0 interface add "\${WLAN}" type __ap
+ip link set "\${WLAN}" address \$(ifconfig ${INT} | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:00/')
+ip a add "\${ADDR}".1/24 dev "\${WLAN}"
+ip link set dev "\${WLAN}" up
 EOF
     /usr/bin/sudo /bin/cp /tmp/hostap$$ /etc/network/if-up.d/virtual_wifi
     /usr/bin/sudo chmod +x /etc/network/if-up.d/virtual_wifi
@@ -507,9 +557,7 @@ EOF
 
 auto ${WLAN}
 iface ${WLAN} inet manual
-    pre-up /etc/network/if-up.d/virtual_wifi
-    address ${ADDR}.1
-    netmask 255.255.255.0
+    pre-up /etc/network/if-up.d/virtual_wifi ${WLAN} ${ADDR}
 EOF
     /usr/bin/sudo sh -c "cat /tmp/hostap$$ >>/etc/network/interfaces"
     /bin/rm -f /tmp/hostap$$
@@ -534,10 +582,10 @@ function WIFI_HOSTAP(){
     /usr/bin/sudo /usr/bin/apt-get install hostapd -y
     /usr/bin/sudo /usr/sbin/service hostapd stop
     /usr/bin/sudo /bin/systemctl enable hostapd
-    echo "wifi Access Point daemon needs SSID and password:" 1>&2
-    read -p "wifi AP SSID: " SSID
-    read -p "wifi AP password: " PASS
-    read -p "Need the SSID to be hidden? [y|N]: " HIDE
+    echo "wifi Access Point daemon needs SSID (dflt MySense) and password (dflt BehoudDeparel):" 1>&2
+    read -t 15 -p "wifi AP SSID: " SSID
+    read -t 15 -p "wifi AP password: " PASS
+    read -t 15 -p "Need the SSID to be hidden? [y|N]: " HIDE
     if [ -z "${HIDE/[Nn]/}" ] ; then HIDE=0 ; else HIDE=1 ; fi
     /bin/cat >/tmp/hostap$$ <<EOF
 [Unit]
