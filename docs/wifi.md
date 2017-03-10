@@ -46,6 +46,9 @@ network={
         ssid="MySSID"       <--- use the wifi SSID name
         psk="MyWifiPass"    <--- use the WPA password of your wifi"
         key_mgmt=WPA-PSK    <--- default WPA-Personal for home networks
+        proto=RSN
+        pairwise=CCMP
+        auth_alg=OPEN
 }
 ```
 
