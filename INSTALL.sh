@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.9 2017/03/09 16:14:59 teus Exp teus $
+# $Id: INSTALL.sh,v 1.10 2017/03/10 16:19:56 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -455,6 +455,45 @@ Use protocol selection menu 1) for ssh and 4) for webmin (enter http and 10000)
     /usr/bin/sudo /usr/bin/weavedinstaller
 }
 
+# backdoor via ssh tunneling.
+EXTRA+=' SSH_TUNNEL'
+function SSH_TUNNEL(){
+    local ANS
+    echo "This will install a backdoor via ssh tunneling" 1>&2
+    read -t 20 -p "Want backdoor via ssh tunnling? You need to have ready your User@laptop at hand. [yN] " ANS
+    if [ -z "${ANS/[nN]/}" ] ; then return ; fi
+    echo "You need to have imported an ssh key of you as user@your-desktop-machine."
+    echo "If not to this now: login into your laptop and authorize eg ios/IPnr.
+        if there is not ~/.ssh private and public key in this directory:
+        ssh-keygen   # no password, less secure it saves the trouble on each ssh run
+        ssh-copy-id ios@IPnrPi # copy of key for ssh no passwd access"
+    cat >/tmp/SH$$ <<EOF
+#!/bin/bash
+# note the identity should be for Pi user root in /root/.ssh/!
+ME=\${1:-me}            # <--- your local user name
+IP=\${2:-my-laptop-IP}  # <--- your local IP number, must be a static number
+# generate/copy key as root first!
+if ! /bin/nc -w 1 -z \${IP} 22 ; then exit 1 ; fi     # is there connectivity?
+if ! /bin/ps ax | /bin/grep "ssh -R 10000:" | grep -q \$ME # is tunnel alive?
+then
+    /usr/bin/ssh -R 10000:localhost:10000 "\${ME}@\${IP}" -nTN & # webmin
+    echo "Watchdog restart tunnel to \${ME}@\${IP}:10000 for webmin"
+fi
+if ! /bin/ps ax | /bin/grep "ssh -R 10001:" | grep -q "\$ME" # is tunnel alive?
+then
+    /usr/bin/ssh -R 10001:localhost:22 "\${ME}@${IP}" -nTN &    # ssh
+    echo "Watchdog restart tunnel to \${ME}@\${IP}:10001 for ssh"
+fi
+exit 0
+EOF
+    cmod +x /tmp/SH$$
+    sudo cp /tmp/SH$$ /usr/local/bin/watch_my_tunnel.sh
+    echo "Add the following line to the crontab, by issuing 'crontab -e'"
+    echo "Change USER HOSTIP by your user id and destop/laptop static IP number"
+    echo "*/10 10-23 * * * /usr/local/bin/watch_my_tunnel.sh USER IPnr"
+    crontab -e
+}
+    
 INSTALLS+=" WIFI"
 ####### wifi wlan0 for wifi internet access, wlan1 (virtual device) for wifi AP
 function WIFI(){
