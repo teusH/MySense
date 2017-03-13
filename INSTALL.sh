@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.10 2017/03/10 16:19:56 teus Exp teus $
+# $Id: INSTALL.sh,v 1.11 2017/03/13 14:27:26 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -294,6 +294,9 @@ function KeepOriginal() {
     if [ -f $FILE ] && ! [ -f $FILE.orig ]
     then
         /usr/bin/sudo /bin/cp $FILE $FILE.orig
+    elif [ -f $FILE ]
+    then
+        /usr/bin/sudo -b /bin/cp $FILE $FILE.bak
     fi
     done
 }
@@ -495,44 +498,87 @@ EOF
 }
     
 INSTALLS+=" WIFI"
-####### wifi wlan0 for wifi internet access, wlan1 (virtual device) for wifi AP
+####### wifi wlan0 for wifi internet access, uap0 (virtual device) for wifi AP
+# wlan1 for USB wifi dongle (use this if wifi wlan0 fails and need wifi AP)
 function WIFI(){
-    local ANS=$1 WLAN=${1:-wlan0} INT=${2:-eth0}
-    #sudo apt-get install wicd-curses # does not work well
-    read -p "Want internet connectivity via wired and wifi (auto switched)? [Y|n]: " ANS
-    if [ -z "${ANS/[Yy]/}" ]
-    then
-        INTERNET ${WLAN} ${INT}
-	WIFI_AddSSID ${WLAN}
-        INT=${WLAN}
-    else
-        WLAN=$WLAN}
-    fi
-    read -p "You want wifi Access Point installed? [y|N] " ANS
-    if [ -z "${ANS/[nN]/}" ] ; then return ; fi
-    echo "Installing virtual wifi interface on $WLAN for wifi AP" 1>&2
-    for (( I=0; I <=5; I++))
-    do
-        WLAN=wlan$I
-	if ! grep -q "$WLAN" /etc/network/interfaces ; then break ; fi
-    done
-    WIFI_HOSTAP $WLAN
-    DNSMASQ "$WLAN" 10.0.0
-    VIRTUAL "$WLAN" 10.0.0
+    KeepOriginal /etc/network/interfaces
+    local AP=${1:-uap0} ADDR=${2:-192.168.2}
+    # make sure wlan0 is getting activated
+    cat >/tmp/Int$$ <<EOF
+# virtual wifi AP
+auto ${AP}
+iface ${AP} inet static
+    address ${ADDR}.1
+    netmask 255.255.255.0
+    network 192.168.2.0                                                              
+    broadcast 192.168.2.255                                                          
+    gateway 192.168.2.1
+EOF
+    sudo cp /tmp/Int$$ /etc/network/interfaces.d/UAP
+    cat >/tmp/Int$$ <<EOF
+#!/bin/bash
+INT=\${1:-eth0}
+WLAN=\$2
+if [ -z "\$2" ] ; then exit 0 ; fi
+if /sbin/route -n | /bin/grep -q '^0.0.0.0.*dev  *'\${INT}
+then
+    exit 1      # do not bring up \${WLAN:-wlan0} if not needed
+fi
+exit 0
+EOF
+    chmod +x /tmp/Int$$
+    sudo cp /tmp/Int$$ /etc/network/if-pre-up.d/Check-internet
+    cat >/tmp/Int$$ <<EOF
+# interfaces(5) file used by ifup(8) and ifdown(8)
+
+# Please note that this file is written to be used with dhcpcd
+
+# Include files from /etc/network/interfaces.d:
+source-directory /etc/network/interfaces.d
+
+auto lo
+iface lo inet loopback
+
+iface eth0 inet manual
+
+auto wlan0
+iface wlan0 inet dhcp
+    pre-up /etc/network/if-pre-up.d/Check-internet eth0 wlan0
+    wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
+
+allow-hotplug wlan1
+iface wlan1 inet manual
+    wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
+
+source interfaces.d/UAP
+EOF
+    sudo cp /tmp/Int$$ /etc/network/interfaces
+    rm -f /tmp/Int$$
+    echo "If wired and wifi wireless fail you need wifi AP access." 1>&2
+    read -t 15 -p "You want wifi Access Point installed? [Y|n] " ANS
+    if [ -n "${ANS/[yY]/}" ] ; then return ; fi
+    echo "Installing virtual wifi interface on $AP for wifi AP" 1>&2
+    local NAT=YES
+    WIFI_HOSTAP ${AP}              # give access if eth0 and wlan0 fail
+    DNSMASQ "${AP}" ${ADDR}
     read -p "You want wifi AP clients to reach internet? [y,N] " ANS
-    if [ ! -z "${ANS/[nN]/}" ] ; then NAT $WLAN $INT ; fi
-    /usr/bin/sudo /usr/sbin/service dnsmasq restart
-    /usr/bin/sudo /usr/sbin/service hostapd restart
+    if [ -n "${ANS/[nN]/}" ] ; then NAT=NO ; fi
+    VIRTUAL "${AP}" ${ADDR} ${NAT}
+    # /usr/bin/sudo /usr/sbin/service dnsmasq restart
+    # /usr/bin/sudo /usr/sbin/service hostapd restart
 }
 
 UNINSTALLS[DNSMASQ]+=' /etc/dnsmasq.conf'
+# make dsnmasq ready to operatie on wifi Access Point
+# activate it from elsewhere
 function DNSMASQ() {
-    local WLAN=${1:-wlan1} ADDR=${2:-10.0.0}
+    local WLAN=${1:-uap0} ADDR=${2:-192.168.2}
     KeepOriginal /etc/dnsmasq.conf
     /usr/bin/sudo /usr/sbin/service isc-dhcp-server stop
     /usr/bin/sudo /bin/systemctl disable isc-dhcp-server
-    /usr/bin/sudo /usr/bin/apt-get install dnsmasq -y
-    /usr/bin/sudo /bin/systemctl enable dnsmasq
+    DEPENDS_ON APT dnsmasq
+    /usr/bin/sudo /usr/sbin/service dnsmasq stop
+    /usr/bin/sudo /bin/systemctl disable dnsmasq
     # provide dhcp on wifi channel
     /bin/cat >/tmp/hostap$$ <<EOF
 interface=${WLAN}
@@ -540,14 +586,14 @@ interface=${WLAN}
 dhcp-range=${WLAN},${ADDR}.2,${ADDR}.5,255.255.255.0,12h
 EOF
     /usr/bin/sudo /bin/cp /tmp/hostap$$ /etc/dnsmasq.conf
-    /usr/bin/sudo /usr/sbin/service dnsmasq restart
     /bin/rm -f /tmp/hostap$$
+    # /usr/bin/sudo /usr/sbin/service dnsmasq restart
 }
 
 INSTALLS+=" NAT"
 # TO DO: add support for IPV6
 function NAT(){
-    local WLAN={1:-wlan1} INT=${2:-eth0}
+    local WLAN={1:-uap0} INT=${2:-eth0}
     echo "Installing NAT and internet forwarding for wifi $WLAN to $INT" 1>&2
     /usr/bin/sudo /bin/sh -c "net.ipv4.ip_forward=1 >>/etc/sysctl.conf"
     /usr/bin/sudo /bin/sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
@@ -557,16 +603,16 @@ function NAT(){
     /sbin/iptables-save > /etc/firewall.conf
     /bin/cat >/tmp/hostap$$ <<EOF
 #!/bin/sh
-    if /bin/grep -q 'up' /sys/class/net/eth0/operstate
+    if /bin/grep -q 'up' /sys/class/net/${INT}/operstate
     then
-        INT=eth0
-        /sbin/ip link set dev wlan0 down
+        INT=${INT}
+        /sbin/ip link set dev ${WLAN} down
     else
-        INT=wlan0
+        INT=${WLAN}
     fi
-    if /sbin/ifconfig | /bin/grep -q wlan1
+    if /sbin/ifconfig | /bin/grep -q uap0
     then
-        WLAN=wlan1
+        WLAN=${WLAN}
         /sbin/iptables -t nat -A POSTROUTING -o \${INT} -j MASQUERADE
         /sbin/iptables -A FORWARD -i \${INT} -o \${WLAN} -m state --state RELATED,ESTABLISHED -j ACCEPT
         /sbin/iptables -A FORWARD -i \${WLAN} -o \${INT} -j ACCEPT
@@ -577,33 +623,43 @@ EOF
     /bin/rm -f /tmp/hostap$$
 }
 
-UNINSTALLS[VIRTUAL]+=' /etc/network/if-up.d/virtual_wifi'
+UNINSTALLS[VIRTUAL]+=' /usr/local/etc/start_wifi_AP'
+# this will start wifi Access Point if eth0 and wlan0 have no internet access
+# the virtual uap0 wifi will be combined with wlan0 (embedded in Pi3)
+# TO DO: if uap0 is up, wlan0 cannot be used in symultane (does not work yet)
 function VIRTUAL(){
-    local WLAN=${1:-wlan2} ADDR=${2:-10.0.0}
-    if /sbin/ifconfig | /bin/grep -q $WLAN ; then return ; fi
+    local WLAN=${1:-uap0} ADDR=${2:-192.168.2} NAT=${3:-YES}
+    if [ $NAT = YES ]
+    then
+        NAT="/sbin/sysctl net.ipv4.ip_forward=1
+/sbin/iptables -t nat -A POSTROUTING -s ${ADDR}.0/24 ! -d ${ADDR}.0/24 -j MASQUERADE"
+    else
+        NAT=""
+    fi
     /bin/cat >/tmp/hostap$$ <<EOF
 #!/bin/bash
-WLAN=\${1:-wlan2}
-ADDR=\${2:-10.0.0}
-iw phy phy0 interface add "\${WLAN}" type __ap
-ip link set "\${WLAN}" address \$(ifconfig ${INT} | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:00/')
-ip a add "\${ADDR}".1/24 dev "\${WLAN}"
-ip link set dev "\${WLAN}" up
+WLAN=\${1:-${WLAN}}
+ADDR=\${2:-${ADDR}}
+if /sbin/iw dev wlan0 link | grep -q '^Connected'
+then
+    if /sbin/route -n | grep -q '^0.0.0.0.*wlan0' ; then exit 0 ; fi
+fi
+/sbin/iw dev wlan0 interface add "\${WLAN}" type __ap
+/sbin/ip link set "\${WLAN}" address \$(ifconfig ${INT} | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:0f/')
+/sbin/ifup ${WLAN} 2>/dev/null >/dev/null   # ignore already exists error
+/usr/sbin/service dnsmasq restart
+$NAT
+/usr/sbin/service hostapd restart
+/sbin/route del default dev $WLAN
 EOF
-    /usr/bin/sudo /bin/cp /tmp/hostap$$ /etc/network/if-up.d/virtual_wifi
-    /usr/bin/sudo chmod +x /etc/network/if-up.d/virtual_wifi
-    /bin/cat >/tmp/hostap$$ <<EOF
-
-auto ${WLAN}
-iface ${WLAN} inet manual
-    pre-up /etc/network/if-up.d/virtual_wifi ${WLAN} ${ADDR}
-EOF
-    /usr/bin/sudo sh -c "cat /tmp/hostap$$ >>/etc/network/interfaces"
+    sudo cp /tmp/hostap$$ /usr/local/etc/start_wifi_AP
+    sudo chmod +x /usr/local/etc/start_wifi_AP
     /bin/rm -f /tmp/hostap$$
-    /usr/bin/sudo /sbin/iw phy phy0 interface add ${WLAN} type __ap
-    /usr/bin/sudo /sbin/ip link set ${WLAN} address $(ifconfig ${INT} | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:00/')
-    /usr/bin/sudo /sbin/ip a add ${ADDR}.1/24 dev ${WLAN}
-    /usr/bin/sudo /sbin/ip link set dev ${WLAN} up
+    sudo sh -c /usr/local/etc/start_wifi_AP
+    if ! sudo grep -q '@reboot  */usr/local/etc/start_wifi_AP' /var/spool/cron/crontabs/root
+    then
+        sudo sh -c "echo '@reboot /usr/local/etc/start_wifi_AP' >>/var/spool/cron/crontabs/root"
+    fi
 }
 
 INSTALLS+=" WIFI_HOSTAP"
@@ -611,21 +667,23 @@ UNINSTALLS[WIFI_HOSTAP]+=' /etc//etc/hostapd/hostapd.conf'
 UNINSTALLS[WIFI_HOSTAP]+=' /etc/systemd/system/hostapd.service'
 # install hostapd daemon
 function WIFI_HOSTAP(){
-    local WLAN=${1:-wlan1} SSID PASS HIDE
+    local WLAN=${1:-uap0} SSID=MySense PASS=BehoudDeParel HIDE=1
     KeepOriginal \
         /etc//etc/hostapd/hostapd.conf \
         /etc/systemd/system/hostapd.service
     if [ -f /etc/hostapd/hostapd.conf ]
     then /usr/bin/sudo /usr/bin/apt-get remove --purge hostapd -y
     fi
-    /usr/bin/sudo /usr/bin/apt-get install hostapd -y
+    DEPENDS_ON APT hostapd
     /usr/bin/sudo /usr/sbin/service hostapd stop
-    /usr/bin/sudo /bin/systemctl enable hostapd
-    echo "wifi Access Point daemon needs SSID (dflt MySense) and password (dflt BehoudDeparel):" 1>&2
-    read -t 15 -p "wifi AP SSID: " SSID
-    read -t 15 -p "wifi AP password: " PASS
-    read -t 15 -p "Need the SSID to be hidden? [y|N]: " HIDE
-    if [ -z "${HIDE/[Nn]/}" ] ; then HIDE=0 ; else HIDE=1 ; fi
+    # /usr/bin/sudo /bin/systemctl enable hostapd
+    echo "wifi Access Point needs SSID (dflt ${SSID}) and" 1>&2
+    echo "WPA password (dflt ${PASS}):" 1>&2
+    read -t 15 -p "wifi AP SSID (dflt ${SSID}): " SSID
+    read -t 15 -p "wifi AP WPA (dflt ${PASS}): " PASS
+    read -t 15 -p "Need to hide the SSID? [Y|n]: " HIDE
+    if [ -n "${HIDE/[Yy]/}" ] ; then HIDE=1 ; else HIDE=0 ; fi
+    KeepOriginal /etc/systemd/system/hostapd.service
     /bin/cat >/tmp/hostap$$ <<EOF
 [Unit]
 Description=Hostapd IEEE 802.11 Access Point
@@ -633,6 +691,7 @@ After=sys-subsystem-net-devices-${WLAN}.device
 BindsTo=sys-subsystem-net-devices-${WLAN}.device
 [Service]
 Type=forking
+EnvironmentFile=-/etc/default/hostapd
 PIDFile=/var/run/hostapd.pid
 ExecStart=/usr/sbin/hostapd -B /etc/hostapd/hostapd.conf -P /var/run/hostapd.pid
 [Install]
@@ -648,6 +707,7 @@ wpa=2
 wpa_key_mgmt=WPA-PSK
 wpa_pairwise=CCMP
 rsn_pairwise=CCMP
+macaddr_acl=0
 ssid=${SSID:-MySense}
 wpa_passphrase=${PASS:-BehoudDeParel}
 ignore_broadcast_ssid=${HIDE:-0}
@@ -656,10 +716,10 @@ EOF
     /bin/rm -f /tmp/hostap$$
 }
 
-INSTALLS+=" WIFI_AddSSID"
-UNINSTALLS[WIFI_AddSSID]+=' /etc/wpa_supplicant/wpa_supplicant.conf'
+INSTALLS+=" New_SSID"
+UNINSTALLS[New_SSID]+=' /etc/wpa_supplicant/wpa_supplicant.conf'
 # add wifi ssid/WPA password to enable wlan0 for internet access via wifi
-function WIFI_AddSSID(){
+function New_SSID(){
     local SSID PASS1=0 PASS2=1 WLAN=${1:-wlan}
     KeepOriginal /etc/wpa_supplicant/wpa_supplicant.conf
     SSID=$(/usr/bin/sudo /bin/grep ssid /etc/wpa_supplicant/wpa_supplicant.conf | /bin/sed -e 's/.*ssid=//' -e 's/"//g')
@@ -722,25 +782,11 @@ EOF
         if [ -z "${PASS1/[Yy]/}" ] ; then continue ; fi
         read  -p "Try another SSID? [y|N] " PASS1
         if [ -z "${PASS1/[Nn]/}" ] ; then return ; fi
-        WIFI_AddSSID ${WLAN}
+        New_SSID ${WLAN}
         return
     fi
 }
-#WIFI_AddSSID
-function WIFI_Internet(){
-    local WLAN=${1:-wlan0}
-    /bin/cat >/tmp/hostap$$ <<EOF
-#!/bin/sh
-    if /bin/grep -q 'up' /sys/class/net/eth0/operstate
-    then
-        /sbin/ip link set dev ${WLAN} down
-    fi
-EOF
-    /usr/bin/sudo /bin/cp /tmp/hostap$$ /etc/network/if-up.d/iptables
-    /usr/bin/sudo /bin/chmod +x /etc/network/if-up.d/iptables
-    echo "Added network={} to /etc/wpa_supplicant/wpa_supplicant.conf" 1>&2
-    echo "${WLAN} will be down on reboot if eth0 is active: /etc/network/if-up.d/iptables" 1>&2
-}
+#New_SSID
 
 if [ -n "$1" ] && [ "$1" = help -o x"$1" = x--help -o x"$1"  = x-h ]
 then
