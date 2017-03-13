@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.18 2017/02/28 11:12:09 teus Exp teus $
+# $Id: MySense.py,v 2.19 2017/03/13 19:38:49 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.18 $"[11:-2]
+__version__ = "0." + "$Revision: 2.19 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -99,7 +99,7 @@ OUTPUTS_I  = []         # output using internet
 OUTPUTS    = []         # local output channels
 INPUTS_I   = []         # inputs from internet (disables other input channels)
 INPUTS     = []         # local input channels
-INTERVAL   = 60         # main loop interval in seconds
+INTERVAL   = 60*60      # dflt main loop interval in seconds
 
 # parse the program configuration (ini) file progname.conf
 #       or uppercase progname as defined by environment variable
@@ -282,7 +282,7 @@ def get_arguments():
     parser.add_argument("-P", "--project", help="Project XYZ, default='%s'" % Conf['id']['project'], default=Conf['id']['project'], choices=['BdP','VW'])
     parser.add_argument("-S", "--node", help="Sensor node serial number, default='%s'" % Conf['id']['serial'], default=Conf['id']['serial'])
     parser.add_argument("-G", "--geolocation", help="Sensor node geolocation (latitude,longitude), default='%s'" % Conf['id']['geolocation'], default=Conf['id']['geolocation'])
-    parser.add_argument("-I", "--interval", help="Sensor read cycle interval in seconds, default='%d'" % INTERVAL, default=INTERVAL)
+    parser.add_argument("-I", "--interval", help="Sensor read cycle interval in minutes, default='%d'" % (INTERVAL/60), default=(INTERVAL/60))
     parser.add_argument("-D", "--DYLOS", help="Read pm sensor input from an input file instead. Debugging simulation.")
     parser.add_argument("process", help="Process start/stop/status. Default: interactive", default='interactive', choices=['interactive','start','stop','status'], nargs='?')
     # overwrite argument settings into configuration
