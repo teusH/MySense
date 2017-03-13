@@ -1,14 +1,20 @@
 2017/02/27
 ### Status
-alpha (setup phase)
+Operational 2017/3/13
 
 # How To enable Raspberry Pi wifi
-Pi 3 has an embedded wifi chip. The wifi chip is quit sensative. For older versions of the Pi you may use a good wifi dongle (USB wifi).
+Use `INSTALL.sh WIFI` to do a tested set up: Wifi Access Point (MySense/BehoudDeParel) is only activated if wifi-client was not able to do a succesfull wifi AP asscociation. Use ssh or webmin (`https:192.168.2.1:10000`) to change the SSID and/or WPA in `/etc/wpa_supplicant/wpa-supplicant.conf` wifi configuration file.
+
+Pi 3 has an embedded wifi chip. The wifi chip is quit sensative. For older versions of the Pi you may use a good wifi dongle (USB wifi). With a wifi dongle one may need for wifi Access Point the hostapd from itwelt.org: `wget itwelt.org/downloads/hostapd`
 
 * From: http://www.raspberryconnect.com/network/item/315-rpi3-auto-wifi-hotspot-if-no-internet
 * From: https://www.raspberrypi.org/documentation/configuration/wireless/wireless-cli.md
 
 The next is much dependent on Pi Jessie distribution. Use the installaion `INSTALL.sh WIFI` if you want to avoid the manual installation.
+
+Problem: was not able to have both wlan0 configured as wifi-client and a virtual wifi linked to wlan0 as wifi Access Point. Configuration went ok but as soon as hostapd is launched the wifi-client stopt forwarding packeges to the kernel.
+
+The configuration is: on boot  if wifi-client cannot get an wifi association the wifi Access Point is pushed operational. The Pi3 can be configured from ssh or browser `http://192.168.2.1:10000` (webmin system manager).
 
 Network connections are managed via configurations files e.g. network interfaces, wifi supplicant, host access points, dns masquarete, etc.
 Make sure you copy before you make changes of these files for a backup:
@@ -29,9 +35,9 @@ This readme will describe some methods to use wifi with MySense:
 
 * The MySense Pi is only connected with an UTP cable to Internet (skip this readme).
 * The MySense Pi is connected with wifi to the internet. Add `network={}`  with SSID and password to the file `/etc/wpa_supplicant/wpa_supplicant.conf`. This as mentioned earlier. You can define more wifi internet access points `network={}` if you want to.
-* BUT you want to automatically use wifi or the UTP eth0 internet connection. Google for the "auto switch eth0 and wlan0".
-* You may want to access your wifi *as well* via wifi. See the virtual wifi section of this readme.
-* You may want to use a combination of this all. Read on. 
+* The Pi3 uses automatically wifi and/or the UTP eth0 internet connection.
+The INSTALL.sh script will give preceedence to wired and bring wifi-client down.
+* You may want to use a combination of this all: wired, wifi-client and access point: only possible with a wifi USB dongle.
 
 If you want to reach the Raspberry Pi MySense remotely via internet, see the how to example for access via ssh-tunneling or the Weaved free service, see the `README.pi.md` for the instructions. Be aware that this is a *backdoor*. But it can ease your live for remote updates and access from anywhere via `ssh`. A backdoor has privacy issues!
 
@@ -78,7 +84,7 @@ Here we use *wlan1* as virtual wifi device name. Check with `ifconfig wlan0` the
     sudo ip link set dev wlan1 up
     ifconfig    # this should show wlan0 and wlan1
 ```
-You should add the iw and ip partsin an executable shell file e.g. `/etc/network/if-up.d/virtual_wifi` if virtual wifi device should survive a reboot.
+You should add the iw and ip parts in an executable shell file e.g. `/etc/network/if-up.d/virtual_wifi` if virtual wifi device should survive a reboot.
 
 Or use the install shell script `./INSTALL.sh WLAN1`
 
