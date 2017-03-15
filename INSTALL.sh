@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.11 2017/03/13 14:27:26 teus Exp teus $
+# $Id: INSTALL.sh,v 1.12 2017/03/15 13:48:10 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -638,14 +638,45 @@ function VIRTUAL(){
     fi
     /bin/cat >/tmp/hostap$$ <<EOF
 #!/bin/bash
-WLAN=\${1:-${WLAN}}
-ADDR=\${2:-${ADDR}}
-if /sbin/iw dev wlan0 link | grep -q '^Connected'
+# led ON
+function INTERNET() {
+    local WLAN=\${1:-wlan0}
+    if /sbin/ifconfig \$WLAN | grep -q 'inet addr'
+    then
+        if /sbin/route -n | grep -q '^0.0.0.0.*'\${WLAN}
+	then
+	    # led OFF
+	    exit 0
+	fi
+    fi
+    return 1
+}
+INTERNET eth0
+INTERNET wlan0
+if /sbin/ifconfig | /bin/grep -q uap0 
 then
-    if /sbin/route -n | grep -q '^0.0.0.0.*wlan0' ; then exit 0 ; fi
+    /sbin/ip link set dev uap0 down
+    /sbin/ifdown eth0
+    /sbin/ifup wlan0
 fi
+
+# try WPS
+SSIDS=(\$(/sbin/wpa_cli scan_results | /bin/grep WPS | /usr/bin/sort -r -k3 | /usr/bin/awk '{ print \$1;}'))
+for SSID in \${SSIDS[@]}
+do
+    # try associated: led OFF-ON-OFF-ON...
+    if /sbin/wpa_cli wps_pbc \$SSID | /bin/grep -q CTRL-EVENT-CONNECTED
+    then
+	INTERNET
+    fi
+done
+
+# try wifi AP
+WLAN=\${1:-uap0}
+ADDR=\${2:-192.168.2}
+# led ON-OFF-OFF-OFF-ON ...
 /sbin/iw dev wlan0 interface add "\${WLAN}" type __ap
-/sbin/ip link set "\${WLAN}" address \$(ifconfig ${INT} | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:0f/')
+/sbin/ip link set "\${WLAN}" address \$(ifconfig  | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:0f/')
 /sbin/ifup ${WLAN} 2>/dev/null >/dev/null   # ignore already exists error
 /usr/sbin/service dnsmasq restart
 $NAT
@@ -682,7 +713,7 @@ function WIFI_HOSTAP(){
     read -t 15 -p "wifi AP SSID (dflt ${SSID}): " SSID
     read -t 15 -p "wifi AP WPA (dflt ${PASS}): " PASS
     read -t 15 -p "Need to hide the SSID? [Y|n]: " HIDE
-    if [ -n "${HIDE/[Yy]/}" ] ; then HIDE=1 ; else HIDE=0 ; fi
+    if [ -n "${HIDE/[Yy]/}" ] ; then HIDE=0 ; else HIDE=1 ; fi
     KeepOriginal /etc/systemd/system/hostapd.service
     /bin/cat >/tmp/hostap$$ <<EOF
 [Unit]
