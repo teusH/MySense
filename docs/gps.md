@@ -1,7 +1,13 @@
 2017/02/21
 # MySense GPS input plugin
 ## STATUS
-BETA: operational with use of GPS daemon
+Operational: used with the GPS daemon
+
+## MySense install
+Install the dependent modules with `INSTAL.sh GPS`
+The `gpsd` daemon will find the tty, but you can provide in `/etc/default/gpsd` the `DEVICES=/dev/ttyUSB0` for gps via the USB connection. Use for OPTIONS `-G`.
+
+Test the GPS function (see paragraph on hardware tests.
 
 ## Hardware kits
 * Grove GPS
@@ -13,16 +19,18 @@ If you prefer to use serial eg USB TTL cable:
 Adafruit Ultimate Pi GPSHAT minikit € 50.- (more dynamic board)
 This needs soldering on the Ultimate board.
 You can use TTL serial USB cale eg CP2102 € 12.-,
-so you have  less soldering (use 4 pin connectors to 5V) and can use it on every computer.
+so you have  less soldering (use 4 pin connectors to 3V3!) and can use it on every computer.
 Optional:
-CR1220 battery (€ 2.-) to use the clock to adjust time
-External antenna 3-5V 28 DB to work in house € 15.- Order this with a pig-tail eg RP-SM uFL/u RF cable € 5.-
+CR1220 battery (€ 2.-) if you have a bad power and need to keep the real time clock.
+External antenna 3-5V 28 DB to work in house € 15.- Order this with a pig-tail SMA uFL/u RF cable € 5.- (https://www.kiwi-electronics.nl/SMA-naar-UFL-kabel?search=SMA)
+
 Ultimate GPS module has a built in patch antenna - -165 dBm sensitivity. If you want to place your GPS module in a box, it might not be possible to have the antenna pointing up, or it might be in a metal shield, or you may need more sensitivity. In that case use external antenna.
 Active antennas draw current, so they do provide more gain but at a power cost: 10-20mA.
+Version 3 has the capablity to save the location log data internally. See the Adafruit documentation for this:
+* https://cdn-learn.adafruit.com/downloads/pdf/adafruit-ultimate-gps.pdf
 
 Alternative: HAB Supplies GPS for Pi (no need for pig-tail) + antenna (CR2032 battery)
 Costs 36 UK L. It is a hat for Pi, no soldering. (Attaches to ttyAMA0 or TTYS0)
-
 
 ## Hardware configuration
 If attached to UART (GPIO) pins of the PI the /dev/ttyAMA0 should be disabled to run login terminal:
@@ -40,7 +48,7 @@ enable_uart=1
 In other circumtances for Pi3:
 
 1. make sure UART is not used by kernel:
-Check first if at boot /dev/ttyAMA0 or ttyS0 is used somehow:
+Check first if at boot /dev/ttyAMA0 or ttyUSB0 is used somehow:
     `cat /proc/cmdline`
 Look for _tty,115200_ references.
 If so: change in `/boot/config.txt` change the line: `enable_uart=0 into enable_uart=1`
