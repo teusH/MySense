@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.12 2017/03/15 13:48:10 teus Exp teus $
+# $Id: INSTALL.sh,v 1.13 2017/03/18 16:11:49 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -213,9 +213,10 @@ function MQTT(){
     return $?
 }
 
-INSTALLS+=" GROVE"
-function GROVE(){
-    #if pip list | grep -q smbus ; then return ; fi
+INSTALLS+=" GROVEPI"
+# this will install the grovepi library
+function GROVEPI(){
+    if pip list | grep -q grovepi ; then return ; fi
     echo "This will install Grove Pi shield dependencies. Can take 10 minutes."
     mkdir -p git
     cd git
@@ -229,6 +230,9 @@ function GROVE(){
     chmod +x install.sh
     /usr/bin/sudo ./install.sh
     cd ..
+    # user needs user access to gpio and i2c
+    /usr/bin/sudo adduser $USER gpio
+    /usr/bin/sudo adduser $USER i2c
     echo "Please reboot and install the Grove shield"
     echo "Run sudo i2cdetect -y To see is GrovePi is detected."
     return
@@ -250,6 +254,7 @@ function USER(){
     /usr/bin/sudo adduser $USER 
     /usr/bin/sudo passwd $USER
     /usr/bin/sudo adduser $USER gpio
+    /usr/bin/sudo adduser $USER i2c
     /usr/bin/sudo adduser $USER dialout
     echo "$USER ALL=(ALL) PASSWD: ALL" >/tmp/US$$
     /usr/bin/sudo /bin/cp /tmp/US$$ /etc/sudoers.d/020_${USER}-passwd
@@ -639,6 +644,11 @@ function VIRTUAL(){
     /bin/cat >/tmp/hostap$$ <<EOF
 #!/bin/bash
 # led ON
+if [ -x /usr/local/bin/MyLed.py ]
+then
+    /usr/local/bin/MyLed.py --led D6 --light ON
+fi
+
 function INTERNET() {
     local WLAN=\${1:-wlan0}
     if /sbin/ifconfig \$WLAN | grep -q 'inet addr'
@@ -646,6 +656,9 @@ function INTERNET() {
         if /sbin/route -n | grep -q '^0.0.0.0.*'\${WLAN}
 	then
 	    # led OFF
+            if [ -x /usr/local/bin/MyLed.py ]
+		/usr/local/bin/MyLed.py --led D6 --light OFF
+	    fi
 	    exit 0
 	fi
     fi
@@ -665,9 +678,21 @@ SSIDS=(\$(/sbin/wpa_cli scan_results | /bin/grep WPS | /usr/bin/sort -r -k3 | /u
 for SSID in \${SSIDS[@]}
 do
     # try associated: led OFF-ON-OFF-ON...
+    if [ -x /usr/local/bin/MyLed.py ]
+    then
+        /usr/local/bin/MyLed.py --led D6 --blink 1,1,30 &
+    fi
     if /sbin/wpa_cli wps_pbc \$SSID | /bin/grep -q CTRL-EVENT-CONNECTED
     then
+        if [ -x /usr/local/bin/MyLed.py ]
+        then 
+            kill %1
+        fi
 	INTERNET
+    fi
+    if [ -x /usr/local/bin/MyLed.py ]
+    then
+	/usr/local/bin/MyLed.py --led D6 --light ON
     fi
 done
 
@@ -693,8 +718,38 @@ EOF
     fi
 }
 
+INSTALLS+=" BUTTON"
+UNINSTALLS+=" /usr/local/bin/MyLed.py"
+# install button/led/relay handler
+function BUTTON(){
+    if [ -x /usr/local/bin/MyLed.py ] ; then return ; fi
+    GROVEPI                # depends on govepi
+    sudo cp MyLed.py /usr/local/bin/
+    sudo chmod +x /usr/local/bin/MyLed.py
+    cat >/tmp/poweroff$$ <<EOF
+#!/bin/bash
+# power off switch: press 15 seconds till led light up constantly
+# button socket on Grove D5, led socket on Grove D6
+SOCKET=${1:-D5}
+LED=${2:-D6}
+while /dev/true
+do
+    /usr/local/bin/MyLed.py --led $LED --light OFF
+    TIMING=$(/usr/local/bin/MyLed.py --led $LED --button $SOCKET)
+    TIMING=$(echo "$TIMING" | /bin/sed 's/[^0-9]//g')
+    if [ -n "${TIMING}" -a "$TIMING" -gt 10 ] ; then /sbin/poweroff ; fi
+done
+EOF
+    scp /tmp/poweroff$$ /usr/local/etc/poweroff
+    sudo chmod +x /usr/local/etc/poweroff
+    if ! sudo grep -q '@reboot  */usr/local/etc/poweroff' /var/spool/cron/crontabs/root
+    then
+        sudo sh -c "'@reboot /usr/local/etc/poweroff >>/var/spool/cron/crontabs/root"
+    fi
+}
+
 INSTALLS+=" WIFI_HOSTAP"
-UNINSTALLS[WIFI_HOSTAP]+=' /etc//etc/hostapd/hostapd.conf'
+UNINSTALLS[WIFI_HOSTAP]+=' /etc/etc/hostapd/hostapd.conf'
 UNINSTALLS[WIFI_HOSTAP]+=' /etc/systemd/system/hostapd.service'
 # install hostapd daemon
 function WIFI_HOSTAP(){
