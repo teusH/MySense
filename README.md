@@ -15,7 +15,7 @@ The MySense configuration file defines all plugins available for the MySense.py 
 The output of sensor values to an output channel will always be preceeded (on startup) with an identification json info record.
 If switched on and configured an email with identification information will be sent to the configured user.
 
-Make sure one obeys the PII privacy rulings.
+Make sure one obeys the Personally Identifiable Information ([PII]http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-122.pdf) privacy rulings.
 
 # Plugin configuration 
 MySense.conf is the configuration/init file from which plugin or modules are imported into the MySense process. See the MySense.conf.example for all plugins (sections) and the plugin options.
@@ -26,15 +26,21 @@ If needed it can be switched to read only in sync with the other input sensors.
 
 A working example of MySense in todays operation:
 ```
-   syst.mgt. webmin/ssh -internet_ _  _ wifi AP -- webmin/ssh system mgt
+                                     |  INTERNET (wired/wifi)
+          syst.mgt.     webmin -----||_ wifi AP -- webmin/ssh system mgt
+                    ssh tunnel -----||
+                    Weaved IoT -----||
                                     ||
-    DHT-sensor -------GPIO-----|   ----  |-- CSV
+                               |    ||   |
+    DHT11/22-sensor --GPIO-----| /-----\ |-- CSV
     GPS-locator ------RS232----|-MySense-|-- console
-    RSSI-wifi-signal-strength -|  Pi     |-- MYSQL        |         |--gspread
-    Dylos-dust-sensor RS232----| Jessie  |-- Mosquitto ---|-Mysense-|--MySQL
-    Grove-Loudness ---GPIO-----|         |-- HTTP-Post    |  Linux  |--CSV
-    Adafruit EMS280 --I2C------|         |-- email
-    Mosquitto sub ----server --|         |-- Google gspread
+    RSSI-wifi-signal-strength -|  Pi     |-- MYSQL           | /-----\ |--gspread
+    Dylos-dust-sensor RS232----| Jessie  |-- Mosquitto pub---|-Mysense-|--MySQL
+    Grove-Loudness ---GPIO-----| \-----/ |-- HTTP-Post       |  Linux  |--CSV
+    Adafruit EMS280 --I2C------|         |-- email           | \-----/ |--console
+    Shinyei PPD42NS --Arduino--|         |-- Google gspread
+    (LoRaWan) -----------------|
+    Mosquitto sub ----server --|
 ```
 
 ## Interaction data format
