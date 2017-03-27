@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyThreading.py,v 2.4 2017/02/25 14:32:04 teus Exp teus $
+# $Id: MyThreading.py,v 2.5 2017/03/27 19:30:29 teus Exp teus $
 
 # the values provided are rounded (3 decimals) of values in the
 # thread buffer (max BUFSIZE). INTERVAL and the thread interval (TINTERV)
@@ -34,7 +34,7 @@ import atexit
 class MyThreading:
     from time import time,sleep
 
-    __version__ = "0." + "$Revision: 2.4 $"[11:-2]
+    __version__ = "0." + "$Revision: 2.5 $"[11:-2]
     __license__ = 'GPLV4'
 
     STOP = False    # stop all threads
@@ -120,11 +120,12 @@ class MyThreading:
             print("Starting sensor %s collect." % self.name)
         while not self.STOP:
             lastT = self.time()
-            self.bufCleanup()
             #self.bufAdd(callback(conf))
             rec = callback(conf)
+            if not len(rec): continue
             if self.DEBUG:
                 print("Sensor %s got input: " % self.name, rec)
+            self.bufCleanup()
             self.Buffer.append(rec)
 
             avg = {}
