@@ -43,6 +43,25 @@ level    = INFO
 # USB serial RS232 manufacturer ID
 #usbid = Prolific_Technology
 
+# sensors via Arduino controller
+# PM serie Shinyei PPD42NS
+#[arduino]
+#input = True
+#type = Arduino Uno
+# Arduino USB identication string
+#usbid = usb-Arduino_srl_
+#firmware = 1.05
+# Arduino will output sensrID_units
+# if fields is empty all sensors from Arduino are used
+# next will define a selection:
+#fields = pm25,pm10
+#units = pcs/0.01qf,pcs/0.01qf
+#calibrations = 0,1;0,1
+# output interval timing in seconds
+#interval = 60
+# sample timing for each pm sensor
+#sample = 15
+#bufsize = 30
 # meteo serie dht
 #[dht]
 ## Meteo sensor
