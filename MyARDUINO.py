@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.2 2017/03/27 19:30:29 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.3 2017/03/28 13:46:01 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -45,12 +45,12 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
 
 # configurable options
 __options__ = [
     'input','type','usbid','firmware',
-    'calibration',       # calibration per sensor
+    'calibrations',       # calibration per sensor
     'interval','sample', # report interval in secs, sample timing in secs
     'bufsize', 'sync',   # multithead buffer size and search for input
     'fields','units'     # values collected
@@ -67,6 +67,7 @@ Conf = {
      # 'ug/m3' particle count per qubic foot per sample timing per minute
      # 'count' and 'ratio' (0-100) per sample timing
     'units' : ['pcs/0.01qf','pcs/0.01qf'], # per type the measurment unit
+    'calibrations': [[0,1],[0,1]],         # per type calibration (Taylor serie)
     'interval': 45,     # read interval in secs (dflt)
     'sample': 10,       # sample timing for the count (seconds)
     'bufsize': 30,      # size of the window of values readings max
@@ -93,6 +94,26 @@ try:
     import json                 # Arduino will export json data
 except ImportError as e:
     MyLogger.log('FATAL',"Missing module %s" % e)
+
+def get_calibrations():
+    global Conf
+    if (not 'calibrations' in Conf.keys()) or (not type(Conf['calibrations']) is str):
+        return
+    Conf['calibrations'] = json.loads(Conf['calibrations'])
+
+# calibrate as ordered function order defined by length calibration factor array
+def calibrate(nr,conf,value):
+    if (not 'calibrations' in conf.keys()) or (nr > len(conf['calibrations'])-1):
+        return value
+    if type(value) is int:
+        value = value/1.0
+    if not type(value) is float:
+        return None
+    rts = 0; pow = 0
+    for a in Conf['calibrations'][nr]:
+        rts += a*(value**pow)
+        pow += 1
+    return round(rts,1)
 
 # =======================================================================
 # serial USB input or via (test) input file
@@ -178,6 +199,7 @@ def registrate():
     if not open_serial():
         return False
     Conf['input'] = True
+    get_calibrations()
     if MyThread == None: # only the first time
         MyThread = MyThreading.MyThreading( # init the class
             bufsize=Conf['bufsize'],
@@ -268,12 +290,18 @@ def Add(conf):
                     conf['keys_skipped'].append(key)
     else:       # at start: denote all record names/units from Arduino firmware
         conf['keys'] = []
-        conf['fields'] = []; conf['units'] = []
+        conf['fields'] = []; conf['units'] = []; conf['calibrations'] = []
         for key in bin_data.keys():
             conf['keys'].append(key)
             id_un = key.split('_')
             conf['fields'].append(id_un[0])
             conf['units'].append(id_un[1].replace('#',''))
+            conf['calibrations'].append = [0,1]
+    for i in range(0,len(conf['fields'])):
+        dataKey = '%s_%s' % (conf['fields'][i],conf['units'][i])
+        if dataKey in bin_data.keys():
+            bin_data.update( {conf['fields'][i]:calibrate(i,conf,bin_data[dataKey])})
+            del bin_data[dataKey]
     bin_data.update( {"time": int(time())} )
     return bin_data
 
