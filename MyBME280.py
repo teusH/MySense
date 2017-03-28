@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyBME280.py,v 2.4 2017/03/01 16:26:24 teus Exp teus $
+# $Id: MyBME280.py,v 2.5 2017/03/28 13:46:01 teus Exp teus $
 
 """ Get measurements from BME280 Bosch chip via the I2C-bus.
     Measurements have a calibration factor (calibrated to Oregon weather station)
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyBME280.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.4 $"[11:-2]
+__version__ = "0." + "$Revision: 2.5 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -46,7 +46,7 @@ Conf ={
     'type': 'BME280',    # type of the chip eg BME280 Bosch
     'fields': ['temp','rh','hpa'], # temp, humidity, Pascal pressure
     'units' : ['C', '%','hPa'],    # C Celcius, K Kelvin, F Fahrenheit, % rh, hPa
-    'calibrations' : [[-0.3,1],[-3,1],[0,1]], # calibration factors, here order 1
+    'calibrations' : [[-2.2,1],[0.3,1],[0,1]], # calibration factors, here order 1
     'i2c': '0x77',       # I2C-bus address
     'interval': 30,      # read dht interval in secs (dflt)
     'bufsize': 20,       # size of the window of values readings max
@@ -66,10 +66,11 @@ def get_calibrations():
 
 # calibrate as ordered function order defined by length calibraion factor array
 def calibrate(nr,conf,value):
-    if not type(value) is float:
-        return None
     if (not 'calibrations' in conf.keys()) or (nr > len(conf['calibrations'])-1):
         return value
+    if type(value) is int: value = value/1.0
+    if not type(value) is float:
+        return None
     rts = 0; pow = 0
     for a in Conf['calibrations'][nr]:
         rts += a*(value**pow)

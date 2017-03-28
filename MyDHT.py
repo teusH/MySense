@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.18 2017/03/01 16:26:24 teus Exp teus $
+# $Id: MyDHT.py,v 2.19 2017/03/28 13:46:01 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.18 $"[11:-2]
+__version__ = "0." + "$Revision: 2.19 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -49,7 +49,7 @@ Conf ={
     'type': None,        # type of the humidity/temp chip eg AM2302,DHT22,DHT11
     'fields': ['temp','rh'], # temp, rh, pa
     'units' : ['C', '%'],    # C Celcius, K Kelvin, F Fahrenheit, % rh, hPa
-    'calibrations' : [[0.2,1],[-5,1]], # calibration factors, here order 1
+    'calibrations' : [[0.0,1],[-3.3,1]], # calibration factors, here order 1
     'pin': None,         # GPIO pin of PI e.g. 4, 22
     'port': None,        # GrovePi+ digital port
     'interval': 30,      # read dht interval in secs (dflt)
@@ -76,10 +76,11 @@ def get_calibrations():
 
 # calibrate as ordered function order defined by length calibraion factor array
 def calibrate(nr,conf,value):
-    if not type(value) is float:
-        return None
     if (not 'calibrations' in conf.keys()) or (nr > len(conf['calibrations'])-1):
         return value
+    if type(value) is int: value = value/1.0
+    if not type(value) is float:
+        return None
     rts = 0; pow = 0
     for a in Conf['calibrations'][nr]:
         rts += a*(value**pow)
@@ -194,10 +195,10 @@ def getdata():
 if __name__ == '__main__':
     from time import sleep
     Conf['type'] = 'DHT22'
-    Conf['pin'] = 4            # GPIO pin of Pi
-    #Conf['port'] = 'D3'         # Digital port D3 of GrovePi+
+    #Conf['pin'] = 4            # GPIO pin of Pi
+    Conf['port'] = 'D3'         # Digital port D3 of GrovePi+
     Conf['input'] = True
-    #Conf['sync'] = True         # True is in sync (not multi threaded)
+    Conf['sync'] = True         # True is in sync (not multi threaded)
     Conf['debug'] = True        # print collected sensor values
     for cnt in range(0,10):
         timing = time()
