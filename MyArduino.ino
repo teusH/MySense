@@ -38,7 +38,7 @@
  * MySense changes: Teus, March 2017
 **/
 
-String version = "1.05";
+String version = "1.06";
 
 String type = "PPD42NS";
 #define DUST_SENSOR_DIGITAL_PIN_PM10  8
@@ -93,23 +93,26 @@ void configure(char cmd)
     if ( timing1 == 0 ) {
       timing1 = Serial.parseInt();
       // Serial.print("interval: "); Serial.println(timing1);
-      if ( (timing1 > 0) and (timing1 <= 3600) ) {  // 60 minutes max
-        interval = timing1 * 1000;
+      if ( (timing1 >= 0) and (timing1 <= 3600) ) {  // 60 minutes max
+        if ( timing1 == 0 ) { ack = true ; }
+        else { interval = timing1 * 1000; }
       }
+      timing1 = 1;
       continue;
     } else if ( timing2 == 0 ) {
       timing2 = Serial.parseInt();
       // Serial.print("sample time: "); Serial.println(timing2);
-      if ( (timing2 > 0) and (timing2 <= (interval/2000)) ) {
+      if ( (timing2 > 0) and (timing2 <= 10) ) {
         sampletime_ms = timing2 * 1000;
       }
+      timing2 = 1;
       continue;
     } else {
       do {
         cmd = Serial.read();
         if( cmd == 'R' ) {
           ack = true;
-          Serial.println("Request receive");
+          // Serial.println("Request receive");
         } else if ( cmd == '\n' ) {
           break;
         } // else { Serial.println("skipping"); }
@@ -186,7 +189,7 @@ void printPM(int pin, String name){
   
   //get PM density of particles over x μm.
   concentrationPM=(long)getPM((int)pin,(String)name);
-  Serial.print(",\"" + name + "_pcs/0.01cf\":");
+  Serial.print(",\"" + name + "_pcs/0.01qf\":");
   if ( concentrationPM > 0 ) {
     Serial.print(concentrationPM);
   } else { 
