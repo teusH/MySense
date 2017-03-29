@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.13 2017/03/18 16:11:49 teus Exp teus $
+# $Id: INSTALL.sh,v 1.14 2017/03/29 16:02:53 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -42,11 +42,11 @@ function git_pip() {
         echo "Installing $MOD via pip"
         if [ -n "$2" ]
         then
-            mkdir src
+            mkdir -p src
             /usr/bin/sudo /usr/bin/pip -q install -e "git+https://github.com/${PROJ}#egg=${PKG}"
             if [ -d src ]
             then
-                /usr/bin/sudo /bin/chown -R $USER.$USER src/${PKG,,}
+                /usr/bin/sudo /bin/chown -R $USER.$USER src
             fi
         else
             /usr/bin/sudo /usr/bin/pip -q install "$MOD"
@@ -104,8 +104,8 @@ function MYSENSE(){
     return $?
 }
 
-PLUGINS+=" MySQL"
-function MySQL(){
+PLUGINS+=" MYSQL"
+function MYSQL(){
     DEPENDS_ON apt python-mysql.connector
     # mysql shell client command
     DEPENDS_ON  apt mysql-client
@@ -216,7 +216,7 @@ function MQTT(){
 INSTALLS+=" GROVEPI"
 # this will install the grovepi library
 function GROVEPI(){
-    if pip list | grep -q grovepi ; then return ; fi
+    if /usr/bin/dpkg --get-selections | grep -q python-rpi.gpio ; then return ; fi
     echo "This will install Grove Pi shield dependencies. Can take 10 minutes."
     mkdir -p git
     cd git
@@ -229,12 +229,12 @@ function GROVEPI(){
     cd GrovePi/Script
     chmod +x install.sh
     /usr/bin/sudo ./install.sh
-    cd ..
+    cd ../../..
     # user needs user access to gpio and i2c
     /usr/bin/sudo adduser $USER gpio
     /usr/bin/sudo adduser $USER i2c
     echo "Please reboot and install the Grove shield"
-    echo "Run sudo i2cdetect -y To see is GrovePi is detected."
+    echo "Run \"sudo i2cdetect -y 1\" To see is GrovePi is detected."
     return
 }
 
@@ -243,7 +243,7 @@ function USER(){
     READ=''
     if [ $(whoami) = ${USER} ]
     then
-        echo "if not '${USER}' user owner of installation, provide new name or push <return" 1>&2
+        echo "if not '${USER}' user owner of installation, provide new name or push <return key>" 1>&2
         read -p "new name: " -t 15 READ
     fi
     if [ -z "$READ" ] ; then return ; else USER=$READ ;  fi
@@ -467,6 +467,7 @@ Use protocol selection menu 1) for ssh and 4) for webmin (enter http and 10000)
 EXTRA+=' SSH_TUNNEL'
 function SSH_TUNNEL(){
     local ANS
+    if [ -f /usr/local/bin/watch_my_tunnel.sh ] ; then return 0 ; fi
     echo "This will install a backdoor via ssh tunneling" 1>&2
     read -t 20 -p "Want backdoor via ssh tunnling? You need to have ready your User@laptop at hand. [yN] " ANS
     if [ -z "${ANS/[nN]/}" ] ; then return ; fi
@@ -494,12 +495,12 @@ then
 fi
 exit 0
 EOF
-    cmod +x /tmp/SH$$
+    chmod +x /tmp/SH$$
     sudo cp /tmp/SH$$ /usr/local/bin/watch_my_tunnel.sh
     echo "Add the following line to the crontab, by issuing 'crontab -e'"
     echo "Change USER HOSTIP by your user id and destop/laptop static IP number"
     echo "*/10 10-23 * * * /usr/local/bin/watch_my_tunnel.sh USER IPnr"
-    crontab -e
+    /usr/bin/sudo crontab -e
 }
     
 INSTALLS+=" WIFI"
@@ -730,21 +731,21 @@ function BUTTON(){
 #!/bin/bash
 # power off switch: press 15 seconds till led light up constantly
 # button socket on Grove D5, led socket on Grove D6
-SOCKET=${1:-D5}
-LED=${2:-D6}
+SOCKET=\${1:-D5}
+LED=\${2:-D6}
 while /dev/true
 do
-    /usr/local/bin/MyLed.py --led $LED --light OFF
-    TIMING=$(/usr/local/bin/MyLed.py --led $LED --button $SOCKET)
-    TIMING=$(echo "$TIMING" | /bin/sed 's/[^0-9]//g')
-    if [ -n "${TIMING}" -a "$TIMING" -gt 10 ] ; then /sbin/poweroff ; fi
+    /usr/local/bin/MyLed.py --led \$LED --light OFF
+    TIMING=\$(/usr/local/bin/MyLed.py --led \$LED --button \$SOCKET)
+    TIMING=\$(echo "\$TIMING" | /bin/sed 's/[^0-9]//g')
+    if [ -n "\${TIMING}" -a "\$TIMING" -gt 10 ] ; then /sbin/poweroff ; fi
 done
 EOF
     scp /tmp/poweroff$$ /usr/local/etc/poweroff
     sudo chmod +x /usr/local/etc/poweroff
     if ! sudo grep -q '@reboot  */usr/local/etc/poweroff' /var/spool/cron/crontabs/root
     then
-        sudo sh -c "'@reboot /usr/local/etc/poweroff >>/var/spool/cron/crontabs/root"
+        sudo sh -c "echo '@reboot /usr/local/etc/poweroff' >>/var/spool/cron/crontabs/root"
     fi
 }
 
@@ -753,13 +754,14 @@ UNINSTALLS[WIFI_HOSTAP]+=' /etc/etc/hostapd/hostapd.conf'
 UNINSTALLS[WIFI_HOSTAP]+=' /etc/systemd/system/hostapd.service'
 # install hostapd daemon
 function WIFI_HOSTAP(){
+    if [ -f /etc/hostapd/hostapd.conf ] ; then return ; fi
     local WLAN=${1:-uap0} SSID=MySense PASS=BehoudDeParel HIDE=1
     KeepOriginal \
         /etc//etc/hostapd/hostapd.conf \
         /etc/systemd/system/hostapd.service
-    if [ -f /etc/hostapd/hostapd.conf ]
-    then /usr/bin/sudo /usr/bin/apt-get remove --purge hostapd -y
-    fi
+    #if [ -f /etc/hostapd/hostapd.conf ]
+    #then /usr/bin/sudo /usr/bin/apt-get remove --purge hostapd -y
+    #fi
     DEPENDS_ON APT hostapd
     /usr/bin/sudo /usr/sbin/service hostapd stop
     # /usr/bin/sudo /bin/systemctl enable hostapd
@@ -769,21 +771,21 @@ function WIFI_HOSTAP(){
     read -t 15 -p "wifi AP WPA (dflt ${PASS}): " PASS
     read -t 15 -p "Need to hide the SSID? [Y|n]: " HIDE
     if [ -n "${HIDE/[Yy]/}" ] ; then HIDE=0 ; else HIDE=1 ; fi
-    KeepOriginal /etc/systemd/system/hostapd.service
-    /bin/cat >/tmp/hostap$$ <<EOF
-[Unit]
-Description=Hostapd IEEE 802.11 Access Point
-After=sys-subsystem-net-devices-${WLAN}.device
-BindsTo=sys-subsystem-net-devices-${WLAN}.device
-[Service]
-Type=forking
-EnvironmentFile=-/etc/default/hostapd
-PIDFile=/var/run/hostapd.pid
-ExecStart=/usr/sbin/hostapd -B /etc/hostapd/hostapd.conf -P /var/run/hostapd.pid
-[Install]
-WantedBy=multi-user.target
-EOF
-    /usr/bin/sudo /bin/cp /tmp/hostap$$ /etc/systemd/system/hostapd.service
+#    KeepOriginal /etc/systemd/system/hostapd.service
+#    /bin/cat >/tmp/hostap$$ <<EOF
+#[Unit]
+#Description=Hostapd IEEE 802.11 Access Point
+#After=sys-subsystem-net-devices-${WLAN}.device
+#BindsTo=sys-subsystem-net-devices-${WLAN}.device
+#[Service]
+#Type=forking
+#EnvironmentFile=-/etc/default/hostapd
+#PIDFile=/var/run/hostapd.pid
+#ExecStart=/usr/sbin/hostapd -B /etc/hostapd/hostapd.conf -P /var/run/hostapd.pid
+#[Install]
+#WantedBy=multi-user.target
+#EOF
+#    /usr/bin/sudo /bin/cp /tmp/hostap$$ /etc/systemd/system/hostapd.service
     /bin/cat >/tmp/hostap$$ <<EOF
 interface=${WLAN}
 hw_mode=g
@@ -802,10 +804,10 @@ EOF
     /bin/rm -f /tmp/hostap$$
 }
 
-INSTALLS+=" New_SSID"
-UNINSTALLS[New_SSID]+=' /etc/wpa_supplicant/wpa_supplicant.conf'
+INSTALLS+=" NEW_SSID"
+UNINSTALLS[NEW_SSID]+=' /etc/wpa_supplicant/wpa_supplicant.conf'
 # add wifi ssid/WPA password to enable wlan0 for internet access via wifi
-function New_SSID(){
+function NEW_SSID(){
     local SSID PASS1=0 PASS2=1 WLAN=${1:-wlan}
     KeepOriginal /etc/wpa_supplicant/wpa_supplicant.conf
     SSID=$(/usr/bin/sudo /bin/grep ssid /etc/wpa_supplicant/wpa_supplicant.conf | /bin/sed -e 's/.*ssid=//' -e 's/"//g')
@@ -907,8 +909,10 @@ do
             echo "Plugin My${M^^}.py looking for missing modules/packages:" 
         else
             echo "For extra's not really needed  ${M^^} services:" 
+            read -t 10 -p "Want ${^^M} installed? [N|y] " ANS
+            if [ -n "${M/[nN}/}" ] ; then M='' ; fi
         fi
-        if ! ${M^^}
+        if [ -n "${M}" ] && ! ${M^^}
         then
             echo "FAILED to complete needed modules/packages for My${M^^}.py." 1>&2
         fi
