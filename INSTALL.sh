@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.15 2017/03/30 10:58:03 teus Exp teus $
+# $Id: INSTALL.sh,v 1.16 2017/03/30 11:06:15 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -193,14 +193,14 @@ function GSPREAD(){
 
 PLUGINS+=" MQTTSUB"
 function MQTTSUB(){
-    #DEPENDS_ON pip paho-mqtt    # mosquitto client modules
+    DEPENDS_ON pip paho-mqtt    # mosquitto client modules
     DEPENDS_ON apt python-mosquitto
     return $?
 }
 
 PLUGINS+=" MQTTPUB"
 function MQTTPUB(){
-    #DEPENDS_ON pip paho-mqtt    # mosquitto client modules
+    DEPENDS_ON pip paho-mqtt    # mosquitto client modules
     DEPENDS_ON apt python-mosquitto
     return $?
 }
