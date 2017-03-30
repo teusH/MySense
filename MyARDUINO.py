@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.3 2017/03/28 13:46:01 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.5 2017/03/30 15:36:56 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -45,7 +45,7 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -67,7 +67,7 @@ Conf = {
      # 'ug/m3' particle count per qubic foot per sample timing per minute
      # 'count' and 'ratio' (0-100) per sample timing
     'units' : ['pcs/0.01qf','pcs/0.01qf'], # per type the measurment unit
-    'calibrations': [[0,1],[0,1]],         # per type calibration (Taylor serie)
+    'calibrations': [[0,0.02],[0,0.02]],         # per type calibration (Taylor serie)
     'interval': 45,     # read interval in secs (dflt)
     'sample': 10,       # sample timing for the count (seconds)
     'bufsize': 30,      # size of the window of values readings max
