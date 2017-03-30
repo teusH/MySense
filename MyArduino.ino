@@ -41,8 +41,8 @@
 String version = "1.06";
 
 String type = "PPD42NS";
-#define DUST_SENSOR_DIGITAL_PIN_PM10  8
-#define DUST_SENSOR_DIGITAL_PIN_PM25  9
+#define DUST_SENSOR_DIGITAL_PIN_PM10  9
+#define DUST_SENSOR_DIGITAL_PIN_PM25  8
 
 #define LedPIN 13
 
@@ -206,7 +206,7 @@ void printPM(int pin, String name){
 float conversion(long concentrationPM) {
   double pi = 3.14159;
   double density = 1.65 * pow (10, 12);
-  double r = 0.44 * pow (10, -6);
+  double r = 0.44 * pow (10, -6); // radius PM2.5 and PM10 do not differ ???
   double vol = (4/3) * pi * pow (r, 3);
   double mass = density * vol;
   double K = 3531.5;
