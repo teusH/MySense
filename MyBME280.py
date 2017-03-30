@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyBME280.py,v 2.5 2017/03/28 13:46:01 teus Exp teus $
+# $Id: MyBME280.py,v 2.6 2017/03/30 09:54:51 teus Exp teus $
 
 """ Get measurements from BME280 Bosch chip via the I2C-bus.
     Measurements have a calibration factor (calibrated to Oregon weather station)
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyBME280.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.5 $"[11:-2]
+__version__ = "0." + "$Revision: 2.6 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -141,7 +141,13 @@ def registrate():
         except ImportError:
             MyLogger.log('ERROR',"Unable to import BME Adafruit module. Disabled.")
             Conf['Ada_import'] = None
-        Conf['fd'] = Conf['Ada_import'].BME280(mode=Conf['Ada_import'].BME280_OSAMPLE_8, address=int(Conf['i2c'],0))
+        try:
+            Conf['fd'] = Conf['Ada_import'].BME280(mode=Conf['Ada_import'].BME280_OSAMPLE_8, address=int(Conf['i2c'],0))
+        except IOError:
+            MyLogger.log('WARNING','BME280 try another I2C address.')
+            if int(Conf['i2c'],0) == 0x77: Conf['i2c'] = '0x76'
+            else: Conf['i2c'] = '0x77'
+            Conf['fd'] = Conf['Ada_import'].BME280(mode=Conf['Ada_import'].BME280_OSAMPLE_8, address=int(Conf['i2c'],0))
     if Conf['Ada_import'] == None:
         MyLogger.log('ERROR',"BME280 configuration error.")
         return False
@@ -187,8 +193,8 @@ if __name__ == '__main__':
     Conf['type'] = 'BME280'
     Conf['input'] = True
     Conf['i2c'] = '0x77'        # default I2C-bus address
-    #Conf['sync'] = True         # True is in sync (not multi threaded)
-    #Conf['debug'] = True        # print collected sensor values
+    Conf['sync'] = True         # True is in sync (not multi threaded)
+    Conf['debug'] = True        # print collected sensor values
     for cnt in range(0,10):
         timing = time()
         try:
