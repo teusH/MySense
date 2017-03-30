@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRSSI.py,v 1.2 2017/02/01 12:47:13 teus Exp teus $
+# $Id: MyRSSI.py,v 1.3 2017/03/30 11:38:05 teus Exp teus $
 
 # TO DO:
 
 """ wifi rssi values
 """
 modulename='$RCSfile: MyRSSI.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
 
 # configurable options
 __options__ = ['input']
@@ -105,10 +105,29 @@ def getdata():
                 except:
                     pass
             ips = re.findall('[Ss]ignal\s+level=\s*(-[0-9]+)\s+dBm', stdout)
-            for item in ips:
-                # TO DO: may need to exclude wifi AP ip interfaces
-                Conf['rssi'] = item[0]
-                break
+            # TO DO: may need to exclude wifi AP ip interfaces
+            if len(ips):
+                Conf['rssi'] = int(ips[0])
+            else:
+                return {}
         except:
             return {}
     return {'time': int(time()),'rssi': Conf['rssi']}
+
+# test main loop
+if __name__ == '__main__':
+    from time import sleep
+    for cnt in range(0,10):
+        timing = time()
+        try:
+            data = getdata()
+        except Exception as e:
+            print("input sensor error was raised as %s" % e)
+            break
+        print("Getdata returned:")
+        print(data)
+        timing = 30 - (time()-timing)
+        if timing > 0:
+            sleep(timing)
+    if (not Conf['sync']) and (MyThread != None):
+        MyThread.stop_thread()
