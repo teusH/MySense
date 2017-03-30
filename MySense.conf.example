@@ -80,6 +80,8 @@ level    = INFO
 #[gps]
 #input   = False
 ## Adafruit PA6H1F1627
+# host = 127.0.0.1 default
+# port = 2745 default
 #type    = UltimateGPS
 ##pin    = TrX
 
