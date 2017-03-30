@@ -18,9 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from __future__ import print_function
-
-# $Id: MyLed.py,v 1.2 2017/03/28 17:41:05 teus Exp teus $
+# $Id: MyLed.py,v 1.3 2017/03/30 10:47:55 teus Exp teus $
 
 # Turn Grove led on, off or blink for an amount of time
 
@@ -30,9 +28,13 @@ from __future__ import print_function
     blink: N (dflt 1) secs on (dflt 1), M secs off, O period in minutes (dlft 30m)
     led: Grove socket nr (dflt D6)
     button: Grove socket nr (dflt: None) time button is pressed
+    fan: switch fan on or off
+    relay: fan relay Grove socket (dflt  D2)
 """
+from __future__ import print_function
+
 progname='$RCSfile: MyLed.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
 __license__ = 'GPLV4'
 grovepi = None
 import sys
@@ -53,21 +55,22 @@ LED = 'OFF'
 BLINK=[]
 BUTTON = 'D0'
 RELAY = 'D2'
-FAN = 'None'
+FAN = None
 
 def get_arguments():
-    global LED, SOCKET, BLINK, BUTTON
+    global LED, SOCKET, BLINK, BUTTON, FAN, RELAY
     parser = argparse.ArgumentParser(prog=progname, description='System led ON/OFF switch, and time button is pressed - Behoud de Parel', epilog="Copyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
     parser.add_argument("--light", help="Switch system led ON or OFF (dlft).", default=LED, choices=['ON','on','OFF','off'])
     parser.add_argument("--blink", help="Switch system led on/off for a period of time (e.g. 1,1,30 : 1 sec ON, optional 1 sec (dflt) OFF, optional max period 30 (dflt) minutes).",default='0,0,30')
     parser.add_argument("--led", help="Led socket number, e.g. D6 (dflt)", default=SOCKET,choices=['D3','D4','D5','D6','D7'])
     parser.add_argument("--button", help="Button socket number, e.g. D5 (dflt=None)", default=BUTTON,choices=['D3','D4','D5','D6','D7'])
-    parser.add_argument("--relay", help="Relay socket number, e.g. D2 (dflt=None)", default=RELAY,choices=['D2','D3','D4','D5','D6','D7'])
-    parser.add_argument("--fan", help="Switch fan ON or OFF (dflt)", default=OFF,choices=['ON','on','OFF','off'])
+    parser.add_argument("--relay", help="Relay socket number, e.g. D2 (dflt=%s)" % RELAY, default=RELAY,choices=['D2','D3','D4','D5','D6','D7'])
+    parser.add_argument("--fan", help="Switch fan ON or OFF (dflt no fan)", default=None,choices=['ON','on','OFF','off'])
     args = parser.parse_args()
     SOCKET = int(args.led[1])
     LED = 0
     if args.light.upper() == 'ON': LED = 1
+    RELAY = int(args.relay[1])
     FAN = None
     if args.fan.upper() == 'ON': FAN = 1
     if args.fan.upper() == 'OFF': FAN = 0
@@ -125,14 +128,17 @@ def pressed():
    
 get_arguments()
 
-grovepi.pinMode(SOCKET,'OUTPUT')
-import signal
+if FAN == None:
+    grovepi.pinMode(SOCKET,'OUTPUT')
+else:
+    grovepi.pinMode(RELAY,'OUTPUT')
+
 if BUTTON:
+    import signal
     grovepi.pinMode(BUTTON,'INPUT')
     signal.signal(signal.SIGHUP,Led_Off)
     signal.signal(signal.SIGKILL,Led_Off)
     # atexit.register(Led_Off)
-if FAN != None: grovepi.pinMode(RELAY,'OUTPUT')
 
 from time import sleep
 sleep(0.5)
