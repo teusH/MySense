@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyGPS.py,v 2.8 2017/02/22 09:50:10 teus Exp teus $
+# $Id: MyGPS.py,v 2.9 2017/03/30 14:59:19 teus Exp teus $
 
 # TO DO:
 #
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyGPS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.8 $"[11:-2]
+__version__ = "0." + "$Revision: 2.9 $"[11:-2]
 
 import os
 from time import time, sleep
@@ -41,6 +41,7 @@ except ImportError as e:
 # configurable options
 __options__ = [
         'input',
+        'host','port',
         'interval','sync'
 ]
 
@@ -85,7 +86,7 @@ class GPSthread(threading.Thread):
         self.cur_val = {}                 # current location record
 
     def getRecord(self):
-        for i in range(0,3):
+        for i in range(0,5):
             with self.threadLock:
                 if len(self.cur_val):
                     return {
@@ -96,7 +97,7 @@ class GPSthread(threading.Thread):
         return {}
 
     def GPSstart(self):
-        prev_t = int(time()) ; prev_l = '0.0,0.0,0'
+        prev_t = int(self.time()) ; prev_l = '0.0,0.0,0'
         GPSdata = None
         GPSsock = None
         GPSsock = self.gps3.GPSDSocket()
@@ -109,7 +110,7 @@ class GPSthread(threading.Thread):
                 GPSdata.unpack(new_data)
 	        if GPSdata.TPV['device'] == 'n/a':
 		        continue
-                rec = { 'time': int(time()) }
+                rec = { 'time': int(self.time()) }
                 geo = []
                 for item in ['lat','lon','alt']:
                     if GPSdata.TPV[item] != 'n/a':
@@ -214,7 +215,7 @@ def getdata():
     try:
         if Conf['sync']: MyThread.GPSclient()
         rec = MyThread.getRecord()     # pick up a record
-        if rec['time'] == 0:
+        if not 'geo' in rec.keys():
             return {}                  # for 5 minutes no geo change
         return rec
     except IOError as er:
@@ -225,8 +226,8 @@ def getdata():
 if __name__ == '__main__':
     from time import sleep
     Conf['input'] = True
-    #Conf['sync'] = True      # sync = False will start async collect
-    #Conf['debug'] = True     # True will print GPSD collect info from thread
+    Conf['sync'] = True      # sync = False will start async collect
+    Conf['debug'] = True     # True will print GPSD collect info from thread
     for cnt in range(0,10):
         timing = time()
         try:
