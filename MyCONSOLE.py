@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyCONSOLE.py,v 2.3 2017/02/01 12:47:13 teus Exp teus $
+# $Id: MyCONSOLE.py,v 2.4 2017/03/30 14:59:19 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,7 +26,7 @@
     Relies on Conf setting biy main program
 """
 modulename='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.3 $"[11:-2]
+__version__ = "0." + "$Revision: 2.4 $"[11:-2]
 
 try:
     import MyLogger
@@ -55,7 +55,7 @@ def registrate(ident):
         if (Id in ident.keys() and (ident[Id] != None)):
             values = ident[Id]
             if type(ident[Id]) is list:
-                values = ', '.join(ident[Id])
+                values = '; '.join(ident[Id])
             print "%15s: %s" % (Id,values)
     print ''
     Conf['registrated'] = True
