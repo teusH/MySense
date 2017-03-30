@@ -99,7 +99,10 @@ def get_calibrations():
     global Conf
     if (not 'calibrations' in Conf.keys()) or (not type(Conf['calibrations']) is str):
         return
-    Conf['calibrations'] = json.loads(Conf['calibrations'])
+    try:
+        Conf['calibrations'] = json.loads(Conf['calibrations'])
+    except:
+        MyLogger.log('FATAL',"Arduino calibrations configuration error. Use JSON array.")
 
 # calibrate as ordered function order defined by length calibration factor array
 def calibrate(nr,conf,value):

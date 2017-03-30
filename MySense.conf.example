@@ -56,7 +56,7 @@ level    = INFO
 # next will define a selection:
 #fields = pm25,pm10
 #units = pcs/0.01qf,pcs/0.01qf
-#calibrations = 0,1;0,1
+#calibrations = [[0,1],[0,1]]
 # output interval timing in seconds
 #interval = 60
 # sample timing for each pm sensor
