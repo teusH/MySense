@@ -55,8 +55,8 @@ level    = INFO
 # if fields is empty all sensors from Arduino are used
 # next will define a selection:
 #fields = pm25,pm10
-#units = pcs/0.01qf,pcs/0.01qf
-#calibrations = [[0,0.02],[0,0.02]]
+#units = pcs/qf,pcs/qf
+#calibrations = [[0,1],[0,1]]
 # output interval timing in seconds
 #interval = 60
 # sample timing for each pm sensor

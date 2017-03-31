@@ -37,10 +37,10 @@ For other controller possibilities:
 You won't need the Grove board, the Shinyei sensor has digital outputs that the Pi can monitor
 
 ```
-    1 : COMMON(GND)
+    1 : COMMON(GND)           COUNTS particles >2.5 micron
     2 : OUTPUT(P2)
     3 : INPUT(5VDC 90mA)
-    4 : OUTPUT(P1)
+    4 : OUTPUT(P1)            COUNTS particles >1 micron
     5 : INPUT(T1)･･･FOR THRESHOLD FOR [P2] unused
 ```
 The output is stated to be at 4V so a voltage divider is highly recommended to bring those down to 3V3 if you connect it to the Pi board!.
@@ -57,13 +57,13 @@ Pi Pin 6 (or 9, 14, 20, 25, 30, 34, 39) (Gnd) connects to a Variable resistor, t
 ## MyArduino.ino firmware description
 The firware will output via USB to the Pi in string format as a json value:
 ```
-{"version": "1.05","type": "PPD42NS","pm25_count":391645,"pm25_ratio":1.20,"pm25_pcs/0.01qf":623,"pm25_ug/m3":0.97,"pm10_count":2035010,"pm10_ratio":6.68,"pm10_pcs/0.01qf":3634,"pm10_ug/m3":5.67}
+{"version": "1.06","type": "PPD42NS","pm25_count":391645,"pm25_ratio":1.20,"pm25_pcs/qf":623,"pm25_ug/m3":0.97,"pm10_count":2035010,"pm10_ratio":6.68,"pm10_pcs/qf":3634,"pm10_ug/m3":5.67}
 ```
 If the ratio is found 0 `null` values will be printed.
 
 The firmware will provide per PM type three classes of values per sample time:
 1. dust count and low ratio (0-100%).
-2. count per sample time as particals per 0.01 square foot.
+2. count per sample time as particals per square foot (0.01pcs/qf multiplied with 100).
 3. partical weight value per sample time in ug/m3.
 
 Default timings: The output will be on every `interval` secs time frame (default 60 seconds).

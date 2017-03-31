@@ -30,9 +30,9 @@
  * http://www.seeedstudio.com/wiki/images/4/4c/Grove_-_Dust_sensor.pdf
  * 
  *   connect the sensor as follows :
- *    Pin 4 of dust sensor PM1      -> Digital 8
+ *    Pin 4 of dust sensor PM1      -> Digital 9
  *    Pin 3 of dust sensor          -> +5V 
- *    Pin 2 of dust sensor PM25    -> Digital 9 
+ *    Pin 2 of dust sensor PM25    -> Digital 8
  *    Pin 1 of dust sensor          -> Ground
 * Contributor: epierre and alexsh1
  * MySense changes: Teus, March 2017
@@ -94,7 +94,7 @@ void configure(char cmd)
       timing1 = Serial.parseInt();
       // Serial.print("interval: "); Serial.println(timing1);
       if ( (timing1 >= 0) and (timing1 <= 3600) ) {  // 60 minutes max
-        if ( timing1 == 0 ) { ack = true ; }
+        if (timing1 == 0) { ack = true; }
         else { interval = timing1 * 1000; }
       }
       timing1 = 1;
@@ -189,24 +189,29 @@ void printPM(int pin, String name){
   
   //get PM density of particles over x μm.
   concentrationPM=(long)getPM((int)pin,(String)name);
-  Serial.print(",\"" + name + "_pcs/0.01qf\":");
+  Serial.print(",\"" + name + "_pcs/qf\":");
   if ( concentrationPM > 0 ) {
-    Serial.print(concentrationPM);
+    Serial.print(concentrationPM/100);
   } else { 
     Serial.print("null");
   }
   Serial.print(",\"" + name + "_ug/m3\":");
   if ( concentrationPM > 0 ) {
-    Serial.print((float)conversion(concentrationPM));
+    Serial.print((float)conversion(concentrationPM,name));
   } else {
     Serial.print("null");
   }
 }
 
-float conversion(long concentrationPM) {
+// ref: https://github.com/andy-pi/weather-monitor/blob/master/air_quality.py
+// this conversion needs more study
+float conversion(long concentrationPM, String name) {
   double pi = 3.14159;
   double density = 1.65 * pow (10, 12);
-  double r = 0.44 * pow (10, -6); // radius PM2.5 and PM10 do not differ ???
+  // radius only correct for PM2.5
+  double r = 0.44;
+  if ( name.equals("pm10") ) { r *= 4; } // ???
+  r *= pow (10, -6);
   double vol = (4/3) * pi * pow (r, 3);
   double mass = density * vol;
   double K = 3531.5;
@@ -220,23 +225,24 @@ long getPM(int DUST_SENSOR_DIGITAL_PIN, String name) {
   float ratio = 0;
   unsigned long lowpulseoccupancy = 0;
   float concentration = 0;
-  boolean ledState = HIGH;
+  boolean ledState = LOW;
   
   starttime = millis();
-  digitalWrite(LedPIN,HIGH);
+  if ( ledState == LOW ) {
+    digitalWrite(LedPIN,HIGH); ledState = HIGH;
+  }
 
   while (true) {
     
     duration = pulseIn(DUST_SENSOR_DIGITAL_PIN, LOW);
     lowpulseoccupancy += duration;
     endtime = millis();
-    if ( (ledState == HIGH) && (endtime - starttime > 100) ) {
-      digitalWrite(LedPIN,LOW); ledState = LOW;
-    }
 
     if ((endtime-starttime) > sampletime_ms)
     {
-    
+      if ( ledState == HIGH ) {
+        digitalWrite(LedPIN,LOW); ledState = LOW;
+      }
       ratio = (lowpulseoccupancy-endtime+starttime)/(sampletime_ms*10.0);
       // Integer percentage 0=>100
       if ( (ratio > 100) or (ratio < 0) ) {

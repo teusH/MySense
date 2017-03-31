@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.5 2017/03/30 15:36:56 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.6 2017/03/31 16:08:13 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -33,8 +33,8 @@
     Arduino produces lines output (json string) like (format: <type>_<unit>):
     {
     "version": "1.05","type": "PPD42NS",
-    "pm25_count":null,"pm25_ratio":null,"pm25_pcs/0.01cf":null,"pm25_ug/m3":null,
-    "pm10_count":2435471,"pm10_ratio":8.02,"pm10_pcs/0.01cf":4490,"pm10_ug/m3":7.00
+    "pm25_count":null,"pm25_ratio":null,"pm25_pcs/cf":null,"pm25_ug/m3":null,
+    "pm10_count":2435471,"pm10_ratio":8.02,"pm10_pcs/cf":4490,"pm10_ug/m3":7.00
     } EOL-char
     Arduino firmware can operate in two modes:
         driven on send values requests (send any char not 'C')
@@ -45,7 +45,7 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+__version__ = "0." + "$Revision: 1.6 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -63,10 +63,10 @@ Conf = {
     'usbid': 'usb-Arduino_srl_', # usb ID via lsusb
     'firmware': '1.05',  # firmware number
     'fields': ['pm25','pm10'], # types of pollutants
-     # 'pcs/0.01qf' particle count per qubic foot per sample timing
+     # 'pcs/qf' particle count per qubic foot per sample timing
      # 'ug/m3' particle count per qubic foot per sample timing per minute
      # 'count' and 'ratio' (0-100) per sample timing
-    'units' : ['pcs/0.01qf','pcs/0.01qf'], # per type the measurment unit
+    'units' : ['pcs/qf','pcs/qf'], # per type the measurment unit
     'calibrations': [[0,0.02],[0,0.02]],         # per type calibration (Taylor serie)
     'interval': 45,     # read interval in secs (dflt)
     'sample': 10,       # sample timing for the count (seconds)
@@ -324,7 +324,7 @@ Conf['getdata'] = getdata	# Add needs this global viariable
 if __name__ == '__main__':
     from time import sleep
     Conf['input'] = True
-    # Conf['sync'] = True
+    Conf['sync'] = True
     Conf['debug'] = True
     for cnt in range(0,10):
         timing = time()
