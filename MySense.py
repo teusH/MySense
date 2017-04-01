@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.19 2017/03/13 19:38:49 teus Exp teus $
+# $Id: MySense.py,v 2.20 2017/04/01 11:55:28 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.19 $"[11:-2]
+__version__ = "0." + "$Revision: 2.20 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -311,7 +311,7 @@ def integrate_options():
     Conf['id']['project'] = cmd_args.project
     Conf['id']['serial'] = cmd_args.node
     Conf['id']['geolocation'] = cmd_args.geolocation
-    INTERVAL = cmd_args.interval * 60
+    INTERVAL = int(cmd_args.interval) * 60
 
     Conf['outputs'] = []
     # TO DO: enable MQTT to be used on output as well on input
