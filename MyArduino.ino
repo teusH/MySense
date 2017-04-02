@@ -38,7 +38,7 @@
  * MySense changes: Teus, March 2017
 **/
 
-String version = "1.06";
+String version = "1.07";
 
 String type = "PPD42NS";
 #define DUST_SENSOR_DIGITAL_PIN_PM10  9
@@ -204,13 +204,12 @@ void printPM(int pin, String name){
 }
 
 // ref: https://github.com/andy-pi/weather-monitor/blob/master/air_quality.py
-// this conversion needs more study
 float conversion(long concentrationPM, String name) {
   double pi = 3.14159;
   double density = 1.65 * pow (10, 12);
-  // radius only correct for PM2.5
+  // ref art.: Air Quality Sensor Network for Philadelphia, Arling a.o.
   double r = 0.44;
-  if ( name.equals("pm10") ) { r *= 4; } // ???
+  if ( name.equals("pm10") ) { r = 2.60; }
   r *= pow (10, -6);
   double vol = (4/3) * pi * pow (r, 3);
   double mass = density * vol;
