@@ -99,7 +99,7 @@ The MySense framework/infrastructure is operational. By default MySense uses a s
 Input is tested with serial, I2C-bus and GPIO sensors.
 The focus is to allow Grove based sensors (easier to plugin to the MySense system) and weather resistent cases for the system.
 
-![Pi Breadboard in action](https://github.com/teusH/MySense/images/MySense0.png)
+![Pi Breadboard in action](https://github.com/teusH/MySense/tree/master/images/MySense0.png)
 
 A picture of the breadboard with Dylos and Raspberry Pi3
 
