@@ -37,3 +37,6 @@ The MySense Dylos plugin is able to read the Dylos data from a file. This can be
 
 ## calibration
 MySense supports calibration of the sensors values via a Taylor polonium of order n. Use the MySense configuration/init file to change the calibration factors per sensor.
+
+references:
+* http://aqicn.org/data/dylos/Air-Quality-Sensor-Network-for-Philadelphia.pdf convert pcs/qf to ug/m3

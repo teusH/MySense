@@ -24,7 +24,8 @@ Reading and software references used:
 * https://software.intel.com/en-us/iot/hardware/sensors/ppd42ns-dust-sensor
 * http://iotdk.intel.com/docs/master/upm/python/_modules/pyupm_ppd42ns.html#PPD42NS
 * https://github.com/intel-iot-devkit/upm/blob/master/examples/python/ppd42ns.py
-import time, sys, signal, atexit
+* http://ir.uiowa.edu/cgi/viewcontent.cgi?article=5915&context=etd paper on convertion to ug/m3 and compare Dylos with small budget dust sensors
+* http://aqicn.org/data/dylos/Air-Quality-Sensor-Network-for-Philadelphia.pdf convert pcs/qf to ug/m3
 
 ## Artduino firmware
 Use the Arduino IDE (GUI) or commandline inotool http://inotool.org/ to compile, build and install the firmware sketch MyArduino.ino into the Arduino controller. The Arduino controller is conneted with the PI via an normal USB cable.
@@ -79,5 +80,12 @@ Literature shows also that humidity play a role in the dust size countings. So m
 
 Make sure to calibrate the sensor against other dust sensors of a higher quality as eg a Dylos dust sensor. Make sure you clean up the dust sensor once an a while.
 
-The MySense Shinyei/Arduino plugin will provaide handles to calibarte the sensor measurements.
+The MySense Shinyei/Arduino plugin will provride handles to calibrate the sensor measurements.
+* ref: https://www.ijirset.com/upload/2015/february/76_Evaluation.pdf 
+International Journal of Innovative Research in Science, Engineering and Technology Vol. 4, Issue 2, February 2015
+Day to day variation of particulate matter was observed indoor: Shinyei’s PPD42NS data agreed well with the
+large particles data obtained using Dylos DC1100 Pro. A good correlation was found with R2
+= 0.818. Lineair correlation factor `PM10/PPD45NS = 2.124\*PM10/Dylos - 113.3`
+
+
 
