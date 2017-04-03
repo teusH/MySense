@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.6 2017/03/31 16:08:13 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.7 2017/04/03 15:31:32 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -45,7 +45,7 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.6 $"[11:-2]
+__version__ = "0." + "$Revision: 1.7 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -81,6 +81,7 @@ try:
     try:
         import os
         from time import time
+        from time import sleep
         import MyLogger
         import serial
     except:
@@ -271,7 +272,7 @@ def Add(conf):
             return bin_data
     except (Exception) as error:
         # Some other Arduino Error
-        MyLogger.log('WARNING',error)
+        MyLogger.log('WARNING','Arduino error in Add routine.')
         sleep(1)
         return {}
     if ('firmware' in conf.keys()) and ('version' in bin_data.keys()):
@@ -322,7 +323,6 @@ Conf['getdata'] = getdata	# Add needs this global viariable
 
 # test main loop
 if __name__ == '__main__':
-    from time import sleep
     Conf['input'] = True
     Conf['sync'] = True
     Conf['debug'] = True
