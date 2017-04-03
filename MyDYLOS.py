@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDYLOS.py,v 2.10 2017/03/28 14:01:26 teus Exp teus $
+# $Id: MyDYLOS.py,v 2.11 2017/04/03 13:21:02 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add version number, firmware number
@@ -29,15 +29,17 @@
 
 """ Get sensor values: PM2.5 and PM10 from Dylos Particular Matter senor
     Relies on Conf setting by main program
-    Output dict with pm_10 and pm_25 elements.
+    Output dict with PM2.5 (fields index 0) and PM10 (fields index 1) elements
+    if units is not defined as pcs the values are converted to ug/m3 (report Philadelphia)
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MyDYLOS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.10 $"[11:-2]
+__version__ = "0." + "$Revision: 2.11 $"[11:-2]
 
 # configurable options
 __options__ = [
     'input','type','usbid','file','firmware', 'calibrations',
+    'fields','units',            # one may change this as name and/or ug/m3 units
     'interval','bufsize','sync'  # multithead buffer size and search for input
 ]
 
@@ -51,8 +53,9 @@ Conf = {
     'firmware': 'V1.17i',# firmware number
     'serial': None,      # S/N number
     'fields': ['pm_25','pm_10'],   # types of pollutants
-     # '#qf/m' particle count per qubic foot per minute
-    'units' : ['#qf/m','#qf/m'],   # per type the measurment unit
+     # 'pcs/qf' particle count per qubic foot per minute
+     #  spec: 0.01pcs/qf average per minute window
+    'units' : ['pcs/qf','pcs/qf'],   # dflt type the measurement unit
     'calibrations': [[0,1],[0,1]], # per type calibration (Taylor polonium)
     'interval': 50,     # read dht interval in secs (dflt)
     'bufsize': 30,      # size of the window of values readings max
@@ -84,17 +87,27 @@ def get_calibrations():
         return
     Conf['calibrations'] = json.loads(Conf['calibrations'])
 
+# convert pcs/qf (counter) to ug/m3 (weight)
+# ref: https://github.com/andy-pi/weather-monitor/blob/master/air_quality.py
+def convertPM(nr,conf,value):
+    if conf['units'][nr][0:3] == 'pcs': return value
+    r = 0.44            # diameter of PM2.5
+    if nr: r = 2.60     # diameter of PM10
+    # concentration * K * mass (mass=:density (=:1.65*10**12) * vol (vol=:4/3 * pi * r**3))
+    return value * 3531.5 * ((1.65 * (10**12)) * ((4/3.0) * 3.14159 * (r * (10**-6))**3))
+
 # calibrate as ordered function order defined by length calibration factor array
 def calibrate(nr,conf,value):
     if (not 'calibrations' in conf.keys()) or (nr > len(conf['calibrations'])-1):
         return value
     if type(value) is int: value = value/1.0
     if not type(value) is float: return None
+    value = convertPM(nr,conf,value)
     rts = 0; pow = 0
     for a in Conf['calibrations'][nr]:
         rts += a*(value**pow)
         pow += 1
-    return round(rts,1)
+    return round(rts,2)
 
 # =======================================================================
 # serial USB input or via (test) input file
@@ -216,6 +229,7 @@ def registrate():
 Conf['Serial_Errors'] = 0
 def Add(conf):
     MAX = 2     # non std Dylos firmware might generate 4 numbers
+    PM25 = 0 ; PM10 = 1 # array index defs
     try:
         # Request Dylos Data only for non std firmware
         # conf['fd'].write(bytes("R\r\n",'ascii'))
@@ -262,12 +276,10 @@ def Add(conf):
     except (Exception) as error:
         # Some other Dylos Error
         MyLogger.log('WARNING',error)
-    i25 = 0 ; i10 = 1
-    if conf['fields'][0] != 'pm_25':
-        i25 = 1; i10 = 0
+    # take notice: index 0 is PM2.5, index 1 is PM10 values
     return { "time": int(time()),
-            "pm_25": calibrate(i25,conf,bin_data[0]),
-            "pm_10": calibrate(i10,conf,bin_data[1]) }
+            conf['fields'][PM25]: calibrate(PM25,conf,bin_data[PM25]),
+            conf['fields'][PM10]: calibrate(PM10,conf,bin_data[PM10]) }
 
 def getdata():
     global Conf, MyThread
