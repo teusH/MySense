@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.20 2017/04/01 11:55:28 teus Exp teus $
+# $Id: MySense.py,v 2.21 2017/04/03 12:09:14 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.20 $"[11:-2]
+__version__ = "0." + "$Revision: 2.21 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -62,6 +62,7 @@ try:
     import os
     # sys.path.append("/home/pi/quick2wire-python-api/")
     #import quick2wire.i2c as i2c
+    import math
     import re
     from time import time, sleep
     import subprocess
@@ -589,8 +590,11 @@ def sensorread():
                     t_cnt += 1
                     t_time += sensed['time']                       
                 for key in sensed.keys():
+                    if math.isnan(sensed[key]):
+                        MyLogger.log('ATTENT','Sensor %s has NaN value.' % Sensor)
+                        sensed[key] = None
                     if key == 'time': continue
-                    if key in data.keys():
+                    if (key in data.keys()) and (sensed[key] != None):
                         # some sensor key are the same, except only 2 of them
                         # examples are meteo values eg temp, humidity
                         MyLogger.log('DEBUG',"There is more then one %s in data stream: collected: %5.1f, new %5.1f" % (key,data[key],sensed[key]))
