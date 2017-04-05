@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyCONSOLE.py,v 2.4 2017/03/30 14:59:19 teus Exp teus $
+# $Id: MyCONSOLE.py,v 2.5 2017/04/05 09:10:05 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,7 +26,7 @@
     Relies on Conf setting biy main program
 """
 modulename='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.4 $"[11:-2]
+__version__ = "0." + "$Revision: 2.5 $"[11:-2]
 
 try:
     import MyLogger
@@ -51,12 +51,9 @@ def registrate(ident):
         return Conf['registrated']
     print datetime.datetime.fromtimestamp(time()).strftime('%b %d %Y %H:%M:%S')
     print "Registration of project %s, S/N %s, location %s:" % (ident['project'], ident['serial'],ident['geolocation'])
-    for Id in ("label","description","street","village","province","municipality",'fields','units','types','apikey','intern_ip','extern_ip','version'):
+    for Id in ("label","description","street","village","province","municipality",'fields','units','calibrations','types','apikey','intern_ip','extern_ip','version'):
         if (Id in ident.keys() and (ident[Id] != None)):
-            values = ident[Id]
-            if type(ident[Id]) is list:
-                values = '; '.join(ident[Id])
-            print "%15s: %s" % (Id,values)
+            print "%15s: " % Id, ident[Id]
     print ''
     Conf['registrated'] = True
 
