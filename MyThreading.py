@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyThreading.py,v 2.5 2017/03/27 19:30:29 teus Exp teus $
+# $Id: MyThreading.py,v 2.6 2017/04/06 14:59:31 teus Exp teus $
 
 # the values provided are rounded (3 decimals) of values in the
 # thread buffer (max BUFSIZE). INTERVAL and the thread interval (TINTERV)
@@ -34,7 +34,7 @@ import atexit
 class MyThreading:
     from time import time,sleep
 
-    __version__ = "0." + "$Revision: 2.5 $"[11:-2]
+    __version__ = "0." + "$Revision: 2.6 $"[11:-2]
     __license__ = 'GPLV4'
 
     STOP = False    # stop all threads
@@ -144,7 +144,7 @@ class MyThreading:
                 avg['time'] = (avg['time']+last)/2        # timestamp in the middle
             with self.threadLock: self.BufAvg = avg
             lastT = self.TINTERV - (self.time()-lastT)
-            if lastT > 0:
+            if (lastT > 0) and (not conf['sync']):
                 # TO DO: change this to conditional wait
                 # self.sleep(lastT)
                 with self.sleepCond: self.sleepCond.wait(lastT)
