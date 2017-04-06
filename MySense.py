@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.21 2017/04/03 12:09:14 teus Exp teus $
+# $Id: MySense.py,v 2.22 2017/04/06 15:17:59 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.21 $"[11:-2]
+__version__ = "0." + "$Revision: 2.22 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -366,7 +366,7 @@ def integrate_options():
             if re.compile("^[0-9a-zA-Z_,]{7,}").match(Conf['dylos']['usbPID']) == None:
                 sys.exit(Conf['dylos']['usbPID'] + " is not a USB producer name.")
         if cmd_args.DYLOS:
-            Conf['dylos'].update({ 'input': True, 'file': cmd_args.debug })
+            Conf['dylos'].update({ 'input': True, 'sync': True, 'file': cmd_args.DYLOS })
 
     if not len(Conf['inputs']):
         MyLogger.log('FATAL',"No sensor input is defined.")
@@ -539,6 +539,77 @@ def deamon_status(pidfile):
 
 # Define Global Variables
 
+# Archive data when Internet connectivity failed
+Archive = {}
+Heap = {}
+HeapId = -1
+HeapSze = 100000
+
+# throw away oldest first of this channel
+# or throw away object from another channel
+def HeapCleanup(channel, space):
+    global Heap, HeapSze
+    while sys.getsizeof(Heap) > HeapSze-space:
+        if (not channel in Archive.keys()) or (len(Archive[channel]) == 0):
+            for channel in Archive.keys():
+                if HeapCleanup(channel,space): return True
+            return False
+        if not len(Archive[channel]): return False
+        heapPop(Archive[channel][0]['ident'])
+        heapPop(Archive[channel][0]['data'])
+        Archive[channel].pop(0)
+    return True
+
+def heapAppend(data):
+    global Heap, HeapId
+    for key in Heap.keys():
+        if Heap[key]['data'] == data:
+            Heap[key]['refs'] += 1
+            return int(key)
+    HeapId += 1
+    Heap['%d' % HeapId] = { 'refs': 1, 'data': data }
+    return HeapId
+
+def heapPop(Id):
+    global Heap
+    if not ('%d' % Id) in Heap.keys():
+        return {}
+    Sid = '%d' % Id
+    Heap[Sid]['refs'] -= 1
+    data = Heap[Sid]['data']
+    if not Heap[Sid]['refs']: del Heap[Sid]
+    return data
+
+# get some saved data from archive
+def getArchive(channel):
+    global Archive
+    if len(Archive[channel]):
+        rts = {
+            'ident': heapPop(Archive[channel][0]['ident']),
+            'data': heapPop(Archive[channel][0]['data'])
+            }
+        Archive[channel].pop(0)
+        return rts
+    return {}
+
+# push data to archive
+def putArchive(channel,ident,data,end):
+    global Archive, Heap
+    if (not len(ident)) and (len(data) <= 1):
+        return False
+    if not HeapCleanup(channel,sys.getsizeof(ident)+sys.getsizeof(data)):
+        MySyslog.log('WARNING','Archived space exhausted, skipping')
+        # TO DO: use picle to collect data into filesystem
+        Archive = {}
+        Heap = {}
+    if not channel in Archive.keys():
+        Archive[channel] = []
+    if end:
+        Archive[channel].append( {'ident': heapAppend(ident), 'data': heapAppend(data)} )
+    else:
+        Archive[channel].insert(0, {'ident': heapAppend(ident), 'data': heapAppend(data)} )
+    return True
+
 # ================ List of Global Variables to be stored in DB
 # next has keys as: time, dylos[4], temp, humidity, asense[8]
 # ================ End of Variable List
@@ -647,22 +718,37 @@ def sensorread():
             for Out in Conf['outputs']:
                 if not Conf[Out]['output']: continue
                 if not 'module' in Conf[Out].keys(): continue
+                if not putArchive(Out,ident,data,True):
+                    MyLogger.log('WARNING','Output buffer exceeded. Skipping record')
+                    continue
                 # TO DO: do this async
-                try:
-                    Conf[Out]['module'].publish(
-                        ident = ident,
-                        data = data,
-                        internet = Conf['internet']
-                    )
-                except IOError:
-                    Conf['outputs'].remove(Out)
-                    MyLogger.log('ERROR',"Publish via %s failed. Buffering it for now?" % Out)
-                    # TO DO: add buffer for non published data
-                    # Add2Buffer(Out,data)
-                except:
-                    Conf['outputs'].remove(Out)
-                    Conf[Out]['module'].Conf['output'] = False
-                    MyLogger.log('ERROR',"Publish via %s failed. Skipping it." % Out)
+                while True:
+                    rec = getArchive(Out) # record should have more as rec['data']['time']
+                    if (not len(rec)) or (not 'data' in rec.keys()) or (len(rec['data']) <= 1):
+                        break
+                    try:
+                        Conf[Out]['module'].publish(
+                            ident = rec['ident'],
+                            data = rec['data'],
+                            internet = Conf['internet']
+                        )
+                    except IOError:
+                        if 'fd' in Conf['module'].keys():
+                            if (Conf['module']['fd'] != None) and (not Conf['module']['fd']):
+                                # temporary connectivity problem
+                                close(Conf['module']['fd'])     # try again later
+                                Conf['module']['fd'] = 0
+                                putArchive(Out,rec['ident'],rec['data'],False)
+                                break
+                            else:
+                                Conf['outputs'].remove(Out)
+                                MyLogger.lof('ERROR','Publishing for %s permanent error.' % Out)
+                                break
+                    except:
+                        Conf['outputs'].remove(Out)
+                        Conf[Out]['module'].Conf['output'] = False
+                        MyLogger.log('ERROR',"Publish via %s failed. Skipping it." % Out)
+                        break
         if local:
             if local and (time() - data['time'] < INTERVAL):    # limit to once per minute
                 sleep(INTERVAL-(time()-data['time'])) 
