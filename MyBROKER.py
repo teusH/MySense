@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyBROKER.py,v 2.3 2017/02/01 12:47:13 teus Exp teus $
+# $Id: MyBROKER.py,v 2.4 2017/04/06 16:15:41 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,7 +26,7 @@
     Relies on Conf setting biy main program
 """
 modulename='$RCSfile: MyBROKER.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.3 $"[11:-2]
+__version__ = "0." + "$Revision: 2.4 $"[11:-2]
 
 try:
     import MyLogger
@@ -51,6 +51,7 @@ Conf = {
     'registrated': None, # has send identification to broker on boot
     'ttl': None,         # time in secs to live for forced new registration
     'omit': [],          # omit to send these items
+    'fd': None,          # 1 internet connect success, 0 connectivity broke down
 #   'renew': None,       # time to renew registration
 #    'file': None,       # Debugging: write to file
 }
@@ -93,12 +94,18 @@ def registrate(ident,net):
             for i in range(0,len(ident['fields'])):
                 request['items'].append(ident['fields'][i] + ':' + ident['units'][i])
     headers = {'content-type': 'application/json', 'X-Sensors-APIkey': 'registrate'}
+    Conf['fd'] = 0
     try:
         r = requests.post('https://'+Conf['hostname']+':'+Conf['port']+'/'+Conf['url'], data=json.dumps(request), headers=headers)
         # should receive a session key cookie Conf['session']['cookie'] = cookie
         # and check cookie for new regsitration
         Conf['registrated'] = True
+        Conf['fd'] = 1
         MyLogger.log('DEBUG',"Registration request sent to broker")
+    except IOError:
+        MyLogger.log('ERROR','Internet connection is failing')
+        raise IOError('Broker connectivity error')
+        return False
     except:
         MyLogger.log('ERROR',"Sending registration to url %s" % Conf['url'])
         Conf['registrated'] = False
@@ -115,19 +122,31 @@ def publish(**args):
         Conf['output'] = False # to do: add recovery time out
         MyLogger.log('ERROR',"No internet access. Abort broker output.")
         return False
-
+    if not 'fd' in Conf.keys(): Conf['fd'] = None
+    if not 'last' in Conf.keys():
+        Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
     # obtain session registration via broker (to do: needs some work)
-    if (not 'registrated' in Conf.keys()) or (not Conf['registrated']):
-        registrate(args['ident'])
-
-    headers = {'content-type': 'application/json', 'X-Sensors-APIKEY': Conf['broker']['apikey']}
-    if ('cookie' in Conf.keys()) and len(Conf['cookie']):
-        request['cookie'] = Conf['cookie']
+    if (not Conf['fd']) and (time() < (Conf['last']+Conf['waiting'])):
+        raise IOError('Broker has to wait')
+        return False
     try:
+        if (not 'registrated' in Conf.keys()) or (not Conf['registrated']):
+            registrate(args['ident'])
+
+        headers = {'content-type': 'application/json', 'X-Sensors-APIKEY': Conf['broker']['apikey']}
+        if ('cookie' in Conf.keys()) and len(Conf['cookie']):
+            request['cookie'] = Conf['cookie']
         r = requests.post('https://'+Conf['hostname']+':'+Conf['port']+'/'+Conf['url'], data=json.dumps(request), headers=headers)
         MyLogger.log('DEBUG',"Data send to broker")
+    except IOError:
+        MyLogger.log('WARNING','Broker internet connectivity error.')
+        Conf['last'] = time() ; Conf['fd'] = 0 ; Conf['waitCnt'] += 1
+        if not (Conf['waitCnt'] % 5): Conf['waiting'] *= 2
+        raise IOError("Broker repeated access try failed")
+        return False
     except:
         MyLogger.log('ERROR',"Sending data to url %s" % Conf['url'])
-        raise IOError("Connection send failure broker: %s" % Conf['url'])
+        Conf['output'] = False
+        return False
     return True
 
