@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyMQTTPUB.py,v 1.3 2017/02/01 12:47:13 teus Exp teus $
+# $Id: MyMQTTPUB.py,v 1.4 2017/04/06 15:43:49 teus Exp teus $
 
 # module mqtt: git clone https://github.com/eclipse/paho.mqtt.python.git
 # cd paho.mqtt.python ; python setup.py install
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyMQTTPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 
 try:
     import MyLogger
@@ -61,6 +61,7 @@ Conf = {
     'apikey': None,      # no shared secret, so everybody can see it
     'timeout' : 2,       # timeout for this broker
     'omit': ['intern_ip'],  # omit to send these items, obey PII ruling
+    'fd': None,          # 1 once connected, 0 if connectivity broke
 #    'file': None,       # Debugging: write to file
 }
 
@@ -123,6 +124,7 @@ def PubOrSub(topic,telegram):
             mqttc.username_pw_set(username=Conf['user'],password=Conf['password'])
 
         mqttc.connect(Conf['host'], Conf['port'])
+        Conf['fd'] = 1
         timeout = time() + Conf['timeout']
         waiting = True
         mqttc.loop_start()
@@ -140,6 +142,7 @@ def PubOrSub(topic,telegram):
         return False
     if waiting:
         MyLogger.log('ATTENT',"Sending telegram to MQTT broker")
+        Conf['fd'] = 0
         raise IOError("MQTT publishing timeout, message id: %s" % str(mid))
         return False
     MyLogger.log('DEBUG',"Sent telegram to MQTT broker, waiting = %s, message id: %s" % (str(waiting),str(mid)) )
@@ -197,6 +200,7 @@ def registrate(args):
     try:
         PubOrSub(topic, data)
     except IOError as e:
+        Conf['fd'] = 0
         MyLogger.log('ERROR',"Sending registration to MQTT broker %s: error: %s" % (Conf['host'],e))
         return False
     return True
