@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.7 2017/04/03 15:31:32 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.8 2017/04/07 19:48:59 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -45,7 +45,7 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -173,8 +173,12 @@ def open_serial():
         if (Conf['interval'] < 0) or (Conf['interval'] > 3600):
             Conf['interval'] = 60
         if type(Conf['sample']) is str: Conf['sample'] = int(Conf['sample'])
-        if (Conf['sample'] <= 0) or (Conf['sample'] <= Conf['interval']/2):
-            Conf['sample'] = 15
+        if Conf['sample'] <= 10:
+            Conf['sample'] = 10
+            MyLogger.log('WARNING','Shinyei dust adjusted sample time to 10 secs')
+        if Conf['sample'] > Conf['interval']/2:
+            Conf['interval'] = 2 * Conf['sample']
+            MyLogger.log('WARNING','Shinyei dust adjusted interval time to %d secs' % Conf['interval'])
         cnt = 0
         while 1:
             if (cnt%3) == 0:  # configure Arduino firmware
@@ -272,7 +276,7 @@ def Add(conf):
             return bin_data
     except (Exception) as error:
         # Some other Arduino Error
-        MyLogger.log('WARNING','Arduino error in Add routine.')
+        MyLogger.log('WARNING','Some Arduine error in Add routine')
         sleep(1)
         return {}
     if ('firmware' in conf.keys()) and ('version' in bin_data.keys()):
@@ -323,6 +327,7 @@ Conf['getdata'] = getdata	# Add needs this global viariable
 
 # test main loop
 if __name__ == '__main__':
+    from time import sleep
     Conf['input'] = True
     Conf['sync'] = True
     Conf['debug'] = True

@@ -130,6 +130,14 @@ void configure(char cmd)
   // Serial.println("End of configuration");
 }
 
+void MyDelay(long msecs)
+{
+  if ( msecs < 250 ) { msecs = 250; }
+  digitalWrite(LedPIN,HIGH);
+  delay(msecs);
+  digitalWrite(LedPIN,LOW);
+}
+
 void loop()
 {
   long sleepTime;
@@ -149,9 +157,9 @@ void loop()
   
   if ( not ack ) {
     sleepTime = (interval/2) - (millis()-sleepTime);
-    if ( sleepTime > 0 ) {
-      delay(sleepTime);
-    }
+    MyDelay(sleepTime);
+  } else {
+    MyDelay(250);
   }
   
   sleepTime = millis();
@@ -162,10 +170,9 @@ void loop()
   
   if ( not ack ) { //sleep to save on radio
     sleepTime = interval/2 - (millis() - sleepTime);
-    if ( sleepTime > 0 ) {
-      Serial.print("sleep2: "); Serial.print(sleepTime/1000);
-      delay(sleepTime);
-    }
+    MyDelay(sleepTime);
+  } else {
+    MyDelay(250);
   }
   if ( ack or (Serial.available() > 0 ) ) {
     sleepTime = millis() + 3600000; // max wait time one hour
@@ -174,7 +181,7 @@ void loop()
         if ( millis() > sleepTime ) {
           break;
         }
-        delay(1000);
+        MyDelay(1000);
       }
       cmd = Serial.read();
       if ( cmd == '\n' ) {
@@ -230,9 +237,6 @@ long getPM(int DUST_SENSOR_DIGITAL_PIN, String name) {
   boolean ledState = LOW;
   
   starttime = millis();
-  if ( ledState == LOW ) {
-    digitalWrite(LedPIN,HIGH); ledState = HIGH;
-  }
 
   while (true) {
     
@@ -242,9 +246,6 @@ long getPM(int DUST_SENSOR_DIGITAL_PIN, String name) {
 
     if ((endtime-starttime) > sampletime_ms)
     {
-      if ( ledState == HIGH ) {
-        digitalWrite(LedPIN,LOW); ledState = LOW;
-      }
       ratio = (lowpulseoccupancy-endtime+starttime)/(sampletime_ms*10.0);
       // Integer percentage 0=>100
       if ( (ratio > 100) or (ratio < 0) ) {
