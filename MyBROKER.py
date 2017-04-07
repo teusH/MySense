@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyBROKER.py,v 2.4 2017/04/06 16:15:41 teus Exp teus $
+# $Id: MyBROKER.py,v 2.5 2017/04/07 15:49:18 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,7 +26,7 @@
     Relies on Conf setting biy main program
 """
 modulename='$RCSfile: MyBROKER.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.4 $"[11:-2]
+__version__ = "0." + "$Revision: 2.5 $"[11:-2]
 
 try:
     import MyLogger
@@ -141,6 +141,7 @@ def publish(**args):
     except IOError:
         MyLogger.log('WARNING','Broker internet connectivity error.')
         Conf['last'] = time() ; Conf['fd'] = 0 ; Conf['waitCnt'] += 1
+        Conf['registrated'] = None      # force registrate
         if not (Conf['waitCnt'] % 5): Conf['waiting'] *= 2
         raise IOError("Broker repeated access try failed")
         return False
@@ -148,5 +149,6 @@ def publish(**args):
         MyLogger.log('ERROR',"Sending data to url %s" % Conf['url'])
         Conf['output'] = False
         return False
+    Conf['last'] = time(); Conf['waitCnt'] = 0
     return True
 
