@@ -38,13 +38,13 @@
  * MySense changes: Teus, March 2017
 **/
 
-String version = "1.07";
+String version = "1.08";
 
 String type = "PPD42NS";
 #define DUST_SENSOR_DIGITAL_PIN_PM10  9
 #define DUST_SENSOR_DIGITAL_PIN_PM25  8
 
-#define LedPIN 13
+#define LedPIN 12
 
 // variables
 unsigned long interval = 60000; // timing reads (in milliseconds)
@@ -100,10 +100,10 @@ void configure(char cmd)
       timing1 = 1;
       continue;
     } else if ( timing2 == 0 ) {
-      timing2 = Serial.parseInt();
+      timing2 = Serial.parseInt() * 1000;
       // Serial.print("sample time: "); Serial.println(timing2);
-      if ( (timing2 > 0) and (timing2 <= 10) ) {
-        sampletime_ms = timing2 * 1000;
+      if ( (timing2 > 0) and (timing2 <= (interval/2)) ) {
+        sampletime_ms = timing2;
       }
       timing2 = 1;
       continue;
@@ -125,12 +125,14 @@ void configure(char cmd)
     Serial.read();
   }
   digitalWrite(LedPIN,LOW);
+  // Serial.print("interval: "); Serial.println(interval/1000);
+  // Serial.print("sample time: "); Serial.println(sampletime_ms/1000);
   // Serial.println("End of configuration");
 }
 
 void loop()
 {
-  unsigned long sleepTime;
+  long sleepTime;
   unsigned long timing;
   char cmd;
   
@@ -146,7 +148,7 @@ void loop()
   printPM((int)DUST_SENSOR_DIGITAL_PIN_PM25,(String)"pm25");
   
   if ( not ack ) {
-    sleepTime = interval/2 - (millis() - sleepTime);
+    sleepTime = (interval/2) - (millis()-sleepTime);
     if ( sleepTime > 0 ) {
       delay(sleepTime);
     }
@@ -161,6 +163,7 @@ void loop()
   if ( not ack ) { //sleep to save on radio
     sleepTime = interval/2 - (millis() - sleepTime);
     if ( sleepTime > 0 ) {
+      Serial.print("sleep2: "); Serial.print(sleepTime/1000);
       delay(sleepTime);
     }
   }
