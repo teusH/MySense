@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.22 2017/04/06 15:17:59 teus Exp teus $
+# $Id: MySense.py,v 2.23 2017/04/08 13:43:25 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.22 $"[11:-2]
+__version__ = "0." + "$Revision: 2.23 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -547,14 +547,15 @@ HeapSze = 100000
 
 # throw away oldest first of this channel
 # or throw away object from another channel
-def HeapCleanup(channel, space):
-    global Heap, HeapSze
+def HeapCleanup(space):
+    global Heap, HeapSze, Archive
     while sys.getsizeof(Heap) > HeapSze-space:
-        if (not channel in Archive.keys()) or (len(Archive[channel]) == 0):
-            for channel in Archive.keys():
-                if HeapCleanup(channel,space): return True
-            return False
-        if not len(Archive[channel]): return False
+        # search largest channel
+        channel = None
+        for key in Archive.keys():
+            if not channel: channel = key
+            if len(Archive[key]) > len(Archive[channel]): channel = key
+        if not channel: return False
         heapPop(Archive[channel][0]['ident'])
         heapPop(Archive[channel][0]['data'])
         Archive[channel].pop(0)
@@ -576,38 +577,65 @@ def heapPop(Id):
         return {}
     Sid = '%d' % Id
     Heap[Sid]['refs'] -= 1
-    data = Heap[Sid]['data']
     if not Heap[Sid]['refs']: del Heap[Sid]
-    return data
+    return
+
+def heapRef(Id):
+    global Heap
+    if not ('%d' % Id) in Heap.keys():
+        return {}
+    return Heap['%d' % Id]['data']
 
 # get some saved data from archive
-def getArchive(channel):
+def refQueue(channel):
     global Archive
     if len(Archive[channel]):
         rts = {
-            'ident': heapPop(Archive[channel][0]['ident']),
-            'data': heapPop(Archive[channel][0]['data'])
+            'ident': heapRef(Archive[channel][0]['ident']),
+            'data': heapRef(Archive[channel][0]['data'])
             }
-        Archive[channel].pop(0)
         return rts
     return {}
 
-# push data to archive
-def putArchive(channel,ident,data,end):
+# removes oldest data tuple from channle queue
+def deQueue(channel):
+    global Archive
+    if len(Archive[channel]):
+        heapPop(Archive[channel][0]['ident'])
+        heapPop(Archive[channel][0]['data'])
+        Archive[channel].pop(0)
+        return True
+    return False
+
+# push ident and data dicts to the channel queue
+def Queue(channels,ident,data):
+    """ Each output channel has a queue. identification and data values are
+        pushed to a heap.
+        Queue routine pushes data tuple to all channel queues.
+        refQueue returns the oldest data tuple.
+        deQueue removes oldest data tuple for a channel
+    """
     global Archive, Heap
-    if (not len(ident)) and (len(data) <= 1):
-        return False
-    if not HeapCleanup(channel,sys.getsizeof(ident)+sys.getsizeof(data)):
-        MySyslog.log('WARNING','Archived space exhausted, skipping')
+    if (not len(ident)) and (len(data) <= 1): return False
+    Channels = channels
+    if not type(Channels) is list: Channels = [Channels]
+    if not len(Channels): return False
+    if not HeapCleanup(sys.getsizeof(ident)+sys.getsizeof(data)):
+        MySyslog.log('WARNING','Archived space exhausted, skipping data')
         # TO DO: use picle to collect data into filesystem
         Archive = {}
         Heap = {}
-    if not channel in Archive.keys():
-        Archive[channel] = []
-    if end:
-        Archive[channel].append( {'ident': heapAppend(ident), 'data': heapAppend(data)} )
-    else:
-        Archive[channel].insert(0, {'ident': heapAppend(ident), 'data': heapAppend(data)} )
+    id_nr = heapAppend(ident) ; da_nr = heapAppend(data)
+    First = True
+    for Chan in Channels:
+        if not First:
+            Heap['%d' % id_nr]['refs'] += 1
+            Heap['%d' % da_nr]['refs'] += 1
+        else:
+            First = False
+        if not Chan in Archive.keys():
+            Archive[Chan] = []
+        Archive[Chan].append( {'ident': id_nr, 'data': da_nr} )
     return True
 
 # ================ List of Global Variables to be stored in DB
@@ -715,15 +743,15 @@ def sensorread():
         # next have threads to fill and empty the buffer supervised with a semaphore
         
         if gotData:      # data collected?
+            # queue for all channels the data tuple
+            Queue(Conf['outputs'],ident,data)
             for Out in Conf['outputs']:
-                if not Conf[Out]['output']: continue
-                if not 'module' in Conf[Out].keys(): continue
-                if not putArchive(Out,ident,data,True):
-                    MyLogger.log('WARNING','Output buffer exceeded. Skipping record')
+                if (not Conf[Out]['output']) or (not 'module' in Conf[Out].keys()):
+                    deQueue(Out)
                     continue
                 # TO DO: do this async
                 while True:
-                    rec = getArchive(Out) # record should have more as rec['data']['time']
+                    rec = refQueue(Out) # record should have more as rec['data']['time']
                     if (not len(rec)) or (not 'data' in rec.keys()) or (len(rec['data']) <= 1):
                         break
                     try:
@@ -732,19 +760,22 @@ def sensorread():
                             data = rec['data'],
                             internet = Conf['internet']
                         )
+                        deQueue(Out)
                     except IOError:
                         if 'fd' in Conf['module'].keys():
-                            if (Conf['module']['fd'] != None) and (not Conf['module']['fd']):
+                            if (Conf['module']['fd'] != None) and (Conf['module']['fd']):
                                 # temporary connectivity problem
-                                close(Conf['module']['fd'])     # try again later
+                                if type(Conf['module']['fd']) is file:
+                                    close(Conf['module']['fd'])     # try again later
                                 Conf['module']['fd'] = 0
-                                putArchive(Out,rec['ident'],rec['data'],False)
                                 break
                             else:
+                                while(deQueue(Out)): continue
                                 Conf['outputs'].remove(Out)
                                 MyLogger.lof('ERROR','Publishing for %s permanent error.' % Out)
                                 break
                     except:
+                        while(deQueue(Out)): continue
                         Conf['outputs'].remove(Out)
                         Conf[Out]['module'].Conf['output'] = False
                         MyLogger.log('ERROR',"Publish via %s failed. Skipping it." % Out)
