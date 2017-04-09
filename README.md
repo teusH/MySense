@@ -8,17 +8,19 @@ Provide a generalised dynamic Open Source based infrastructure to allow environm
 The main python script is MySense.py
 
 The script is the central management script beween sensor and broker input (modules) plugins (temperature, dust, etc. sensor device modules and brokers) to output modules (console output, (MySQL) database, (CSV/gspread) spreadsheets, and brokers.
-Try `./MySense.py --help` to get an overview.
+* Try `./MySense.py --help` to get an overview.
 MySense.py can be called with the argument start (or status, or stop) to start MySense as background process.
+
 On the command line input or output plugins can be switched on or off.
 The MySense configuration file defines all plugins available for the MySense.py command.
-The output of sensor values to an output channel will always be preceeded (on startup) with an identification json info record.
-If switched on and configured an email with identification information will be sent to the configured user.
+The output of sensor values to an output channel will always on startup to send an identification json info record.
+Each configurable interval period of time MySense will send (input) measurements values to all configured output channels. For each output channel connected via internet MySense will keep a queue in the case the connection will be broken. If the queue is exceeding memory limits the oldest records in the queue will be deleted first.
 
+If switched on and configured an email with identification information will be sent to the configured user.
 Make sure one obeys the Personally Identifiable Information ([PII]http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-122.pdf) privacy rulings.
 
 # Plugin configuration 
-MySense.conf is the configuration/init file from which plugin or modules are imported into the MySense process. See the MySense.conf.example for all plugins (sections) and the plugin options.
+MySense.conf is the configuration/init file from which plugin or modules are imported into the MySense process. See the `MySense.conf.example` for all plugins (sections) and the plugin options.
 
 For every plugin module there is an README.plugin with explanations of the input/output plugin.
 The input from sensors is read asynchronous (in parallel) via the module MyTHREAD.py.
@@ -45,7 +47,7 @@ A working example of MySense in todays operation:
 
 ## Interaction data format
 Interaction with plugins and output channels is done in json datastructure:
-Example of json to display a measurment on the console (and others):
+Example of json to display a measurement on the console (and others):
 ```javascript
      { "time": UNIXtimeStamp,
         "temp": 23.2,
@@ -54,7 +56,7 @@ Example of json to display a measurment on the console (and others):
         "o3": None }
 ```
 
-At the startup MySense.py will start with an identifaction record providing details of the version, the location if available, a unique identifier, sensor types and measurement unit, etc.
+At the startup MySense.py will start with an identification record providing details of the version, the location if available, a unique identifier, sensor types and measurement unit, etc.
 This information will define eg the first row of a spreadsheet or the database table with all sensor info (called Sensors).
 
 Towards a broker the output will consist of an (updated e.g. GPS location) combination of the data json record and the infomration json record:
@@ -67,13 +69,13 @@ The input sensor plugins provide (sliding window of a per plug definable buffer 
 Typical input rate from a sensor is 60 seconds (can be tuned) and for brokers it is 60 minute interval (can be tuned).
 
 ## Brokers
-MySense can act either sensor manager or as input from broker manager to a set (dynamic) of output channels. 
+MySense can act either *sensor manager* or as *input from broker manager* to a set (dynamic) of output channels. 
 
 Available input plugins:
-Dust: Dylos DC1100 or 1700 via serial interface, Shinyei GPIO (e.g. Grove dust sensor)
-Temperature/humidity: Adafruit DHT11/22 or AM3202 and Grove variants
-RSSI (strength of wifi signal): via the platform
-Location: GPS (GPS Ultimate from Adafruit/Grove) via TTL serial interface
+* Dust: Dylos DC1100 or 1700 via serial interface, Shinyei GPIO (e.g. Grove dust sensor)
+* Temperature/humidity: Adafruit DHT11/22 or AM3202 and Grove variants
+* RSSI (strength of wifi signal): via the platform
+* Location: GPS (GPS Ultimate from Adafruit/Grove) via TTL serial interface
 
 ## Remote management
 The Pi allows to install a wifi connectivity with internet as well a virtual wifi Access Point. A backdoor configuration is provided via direct access to `webmin` and `ssh` (Putty), as well via a proxy as *ssh tunneling* and/or using the proxy service of Weaved (`https://www.remot3.it/web/index.html`).
@@ -91,6 +93,8 @@ The sensor plugins can be tested standalone, e.g. for BME280 Bosch chip, use `py
 ## Documentation
 See the REAME's and docs directory for descriptions how to prepair the HW, python software and Pi OS for the different modules.
 
+`CONTENT.md` will give an overview of the files and short description.
+
 ## Operation status:
 See the various README/docs directory for the plugin's and modules for the status of operation, development status, or investigation.
 
@@ -99,7 +103,7 @@ The MySense framework/infrastructure is operational. By default MySense uses a s
 Input is tested with serial, I2C-bus and GPIO sensors.
 The focus is to allow Grove based sensors (easier to plugin to the MySense system) and weather resistent cases for the system.
 
-![Pi Breadboard in action](https://github.com/teusH/MySense/tree/master/images/MySense0.png)
+![Pi Breadboard in action](https://www.github.com/teusH/MySense/tree/master/images/MySense0.png)
 
 A picture of the breadboard with Dylos and Raspberry Pi3
 
@@ -116,3 +120,18 @@ FSF GPLV4
 Feedback of improvements, or extentions to the software are required.
 * Copyright: Teus Hagen, ver. Behoud de Parel, the Netherlands, 2017
 
+## References
+A list of references for the documentation and/or code used in MySense.py:
+* http://opensense.epfl.ch/wiki/index.php/OpenSense_2
+* http://mysensors.org
+* http://opensensors.io
+* http://mydevices.org (Cayenne)
+* MIT Clairity CEE Senior Capstone Project report V1 dd 15-05-14
+* Waag Society Amsterdam Smart Citizens Lab Urban AirQ
+* Citi-Sense
+* Smart-Citizen-Kit
+* smartemission
+* polluxnzcity
+* AirCastingAndroidClient
+* Mosquitto
+* smart-city-air-challenge (USA GOV)
