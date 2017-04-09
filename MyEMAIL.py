@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyEMAIL.py,v 2.4 2017/02/01 12:47:13 teus Exp teus $
+# $Id: MyEMAIL.py,v 2.5 2017/04/09 17:44:20 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyEMAIL.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.4 $"[11:-2]
+__version__ = "0." + "$Revision: 2.5 $"[11:-2]
 
 # send email once on startup when broker is used
 
@@ -47,6 +47,7 @@ Conf = {
     'registrated': None, # have registrated
     'ttl': None,         # time in secs to live for forced new registrationo
     'version': None,     # data version
+    'fd': None,          # 1 once connected, 0 if connectivity broke
 }
 
 try:
@@ -83,6 +84,11 @@ def registrate(ident,net):
                 query.append("%s:\t%s" % (fld,key[fld]))
         if not len(query): return ''
         return "\n\t".join(query)
+
+    if (Conf['fd'] != None) and (not Conf['fd']):
+        if ('waiting' in Conf.keys()) and ((Conf['waiting']+Conf['last']) >= time()):
+            # raise IOError
+            return False
 
     if Conf['registrated'] != None:
         if not Conf['ttl']:
@@ -147,11 +153,22 @@ def registrate(ident,net):
     except:
         MyLogger.log(WARNING,"SMTP error, unable to send session email")
         Conf['registrated'] = False
+        Conf['last'] = time() ; Conf['fd'] = 0 ; Conf['waitCnt'] += 1
+        if not (Conf['waitCnt'] % 5):
+            Conf['waiting'] *= 2
+            return False        # we tried hard, no more tries from now
+        raise IOError
         return False
+    Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0 ; Conf['fd'] = 1
     return True
 
 def publish(**args):
     global Conf
+
+    if not 'fd' in Conf.keys(): Conf['fd'] = None
+    if not 'last' in Conf.keys():
+        Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
+
     if Conf['registrated'] != None:
         if (not Conf['ttl']) or (not 'renew' in Conf.keys()):
             return Conf['registrated']
