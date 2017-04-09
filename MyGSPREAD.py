@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyGSPREAD.py,v 2.7 2017/02/08 13:26:00 teus Exp teus $
+# $Id: MyGSPREAD.py,v 2.8 2017/04/09 18:15:35 teus Exp teus $
 
 # TO DO:  OPERATIONAL TESTS
 
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyGSPREAD.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.7 $"[11:-2]
+__version__ = "0." + "$Revision: 2.8 $"[11:-2]
 
 # configurable options
 __options__ = ['output','sheet','credentials','user','ttl','hostname','apikey']
@@ -124,10 +124,15 @@ def show_ident(ident):
 # create a new CSV file and/or open it
 # every serial should be unique (not checked) and get own file handling
 def registrate(args):
-    global Conf, CSV,gspread
+    global Conf, CSV, gspread
     for key in ['ident']:
         if not key in args.keys():
             MyLogger.log('FATAL',"GSPREAD %s argument missing." % key)
+    if (Conf['fd'] != None) and (not Conf['fd']):
+        if ('waiting' in Conf.keys()) and ((Conf['waiting']+Conf['last']) >= time()):
+            CSV = {}
+            raise IOError
+            return False
     ID = args['ident']['serial']
     if not ID in CSV.keys():
         if len(CSV) >= 20:
@@ -198,9 +203,12 @@ def registrate(args):
             ID['cur_sheet'].append_rows(Row)
         except:
             MyLogger.log('ERROR','GSPREAD Unable to create new %s sheet in %s.' % (newNme, ID['worksheet'])) 
-            raise IOError("Gspread sheet creation")
+            Conf['last'] = time() ; Conf['fd'] = 0 ; Conf['waitCnt'] += 1
+            if not (Conf['waitCnt'] % 5): Conf['waiting'] *= 2
+            raise IOError
             return False
         MyLogger.log('INFO',"Created and can add gspread records to file:" + ID['sheet'])
+        Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
     return True
     
 # add record to the CSV file
@@ -211,24 +219,41 @@ def publish(**args):
     for key in ['data','ident']:
         if not key in args.keys():
             MyLogger.log('FATAL',"GSPREAD method: missing argument %s." % key)
+    if not 'fd' in Conf.keys(): Conf['fd'] = None
+    if not 'last' in Conf.keys():
+        Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
     if not registrate(args):
+        CSV = {}
+        if Conf['waitCnt'] <= 5:
+            raise IOError
+        Conf['output'] = False  # give up
         MyLogger.log('ERROR',"GSPREAD method spreadsheet creation/opening.")
         return False
     ID = CSV[args['ident']['serial']]
     if (not 'cur_sheet' in ID.keys()) or (not ID['cur_sheet']):
         MyLogger.log('ERROR',"GSPREAD method spreadsheet creation/opening.")
         return False
-    Row = []
-    for Fld in args['ident']['fields']:
-        if type(args['data'][Fld]) is list:
-            for i in args['data'][Fld]:
-                Row.append(i)
-        elif Fld == 'time':     # convert UNIX brith time to local time string
-            Row.append(datetime.datetime.fromtimestamp(args['data'][Fld]).strftime("%Y-%m-%d %H:%M:%S"))
-        else:
-            Row.append(args['data'][Fld])
-    ID['cur_sheet'].append_rows(Row)
-    ID['last'] = int(time())
+    try:
+        Row = []
+        for Fld in args['ident']['fields']:
+            if type(args['data'][Fld]) is list:
+                for i in args['data'][Fld]:
+                    Row.append(i)
+            elif Fld == 'time':     # convert UNIX birth time to local time string
+                Row.append(datetime.datetime.fromtimestamp(args['data'][Fld]).strftime("%Y-%m-%d %H:%M:%S"))
+            else:
+                Row.append(args['data'][Fld])
+        ID['cur_sheet'].append_rows(Row)
+        ID['last'] = int(time())
+    except IOError:
+        CSV['ID']['auth'].close(CSV['ID']['worksheet'])
+        CSV = {}
+        raise IOError
+        return False
+    except:
+        MyLogger.log('ERROR',"CSVrecord error in %s, timestamp: %s" % (ID['cur_name'], args['data']['time']) )
+        return False
     MyLogger.log('DEBUG',"CSVrecord in %s, timestamp: %s" % (ID['cur_name'], args['data']['time']) )
+    Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
     return True
     
