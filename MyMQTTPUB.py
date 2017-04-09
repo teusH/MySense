@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyMQTTPUB.py,v 1.4 2017/04/06 15:43:49 teus Exp teus $
+# $Id: MyMQTTPUB.py,v 1.5 2017/04/09 15:01:26 teus Exp teus $
 
 # module mqtt: git clone https://github.com/eclipse/paho.mqtt.python.git
 # cd paho.mqtt.python ; python setup.py install
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyMQTTPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 
 try:
     import MyLogger
@@ -108,6 +108,7 @@ def PubOrSub(topic,telegram):
         mid = MiD
         MyLogger.log('DEBUG',"MQTT publishing On disconnect mid: " + str(mid) )
 
+    Conf['fd'] = 1
     try:
         mqttc = mqtt.Client(Conf['prefix']+Conf['apikey'])     # unique client ID
         mqttc.on_connect = on_connect
@@ -137,13 +138,11 @@ def PubOrSub(topic,telegram):
         mqttc.loop_stop()
     except:
         MyLogger.log('ERROR',"IoS MQTT publishing Failure type: %s; value: %s. MQTT broker aborted." % (sys.exc_info()[0],sys.exc_info()[1]) )
-        Conf['output'] = False
-        raise IOError("MQTT communication failure, message id: %s" % str(mid))
+        raise IOError
         return False
     if waiting:
         MyLogger.log('ATTENT',"Sending telegram to MQTT broker")
-        Conf['fd'] = 0
-        raise IOError("MQTT publishing timeout, message id: %s" % str(mid))
+        raise IOError
         return False
     MyLogger.log('DEBUG',"Sent telegram to MQTT broker, waiting = %s, message id: %s" % (str(waiting),str(mid)) )
     return True
@@ -173,6 +172,12 @@ def registrate(args):
     if (not args['internet']['module'].internet(args['ident'])):
         Conf['output'] = False
         return False
+
+    if (Conf['fd'] != None) and (not Conf['fd'):
+        if ('waiting' in Conf.keys()) and ((Conf['waiting']+Conf['last']) >= time()):
+            raise IOError
+            return False
+
     if (not 'apikey' in Conf.keys()) or (Conf['apikey'] == None):
         Conf['apikey'] = "%s_%s" % (args['ident']['project'],args['ident']['serial'])
     request = { 'apikey': Conf['apikey'] }
@@ -199,9 +204,12 @@ def registrate(args):
     topic = '%s/%s/%s' % (Conf['topic'],request['project'],request['serial'])
     try:
         PubOrSub(topic, data)
+        Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
     except IOError as e:
-        Conf['fd'] = 0
+        Conf['last'] = time() ; Conf['fd'] = 0 ; Conf['waitCnt'] += 1
+        if not (Conf['waitCnt'] % 5): Conf['waiting'] *= 2
         MyLogger.log('ERROR',"Sending registration to MQTT broker %s: error: %s" % (Conf['host'],e))
+        raise IOError
         return False
     return True
 
@@ -220,6 +228,9 @@ def publish(**args):
     for key in ['apikey']:      # force to ident
         if (key in Conf.keys()) and (Conf[key] != None) and len(Conf[key]):
             args['data'][key] = Conf[key]
+    if not 'fd' in Conf.keys(): Conf['fd'] = None
+    if not 'last' in Conf.keys():
+        Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
 
     # obtain session registration via broker (to do: needs some work)
     if not registrate(args):

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.11 2017/02/28 16:12:48 teus Exp teus $
+# $Id: MyDB.py,v 2.14 2017/04/09 15:01:26 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.11 $"[11:-2]
+__version__ = "0." + "$Revision: 2.14 $"[11:-2]
 
 try:
     import MyLogger
@@ -49,7 +49,7 @@ Conf = {
     'password': None,    # DB credential secret to use MySQL DB
     'database': None,    # MySQL database name
     'port': 3306,        # default mysql port number
-    'fd': None,           # have sent to db
+    'fd': None,           # have sent to db: current fd descriptor, 0 on IO error
     'omit' : ['time','geolocation','rssi']        # fields not archived
 }
 # ========================================================
@@ -65,9 +65,10 @@ def attributes(**t):
 def db_connect(net):
     """ Connect to MYsql database and save filehandler """
     global Conf
-    if not 'fd' in Conf.keys():
-        Conf['fd'] == None
-    if Conf['fd'] == None:
+    if not 'fd' in Conf.keys(): Conf['fd'] = None
+    if not 'last' in Conf.keys():
+        Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
+    if (Conf['fd'] == None) or (not Conf['fd']):
         if (Conf['hostname'] != 'localhost') and ((not net['module']) or (not net['connected'])):
             MyLogger.log('ERROR',"Local access database %s / %s."  % (Conf['hostname'], Conf['database']))      
             Conf['output'] = False
@@ -77,6 +78,10 @@ def db_connect(net):
                 MyLogger.log('ERROR','Define DB details and credentials.')
                 Conf['output'] = False
                 return False
+        if (Conf['fd'] != None) and (not Conf['fd']):
+            if ('waiting' in Conf.keys()) and ((Conf['waiting']+Conf['last']) >= time()):
+                raise IOError
+                return False
         try:
             Conf['fd'] = mysql.connector.connect(
                 charset='utf8',
@@ -85,10 +90,15 @@ def db_connect(net):
                 host=Conf['hostname'],
                 port=Conf['port'],
                 database=Conf['database'])
+            Conf['last'] = 0 ; Conf['waiting'] = 5 * 30 ; Conf['waitCnt'] = 0
             return True
+        except IOError:
+            Conf['last'] = time() ; Conf['fd'] = 0 ; Conf['waitCnt'] += 1
+            if not (Conf['waitCnt'] % 5): Conf['waiting'] *= 2
+            raise IOError
         except:
-            MyLogger.log('ERROR',"MySQL Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
-            Conf['output'] = False
+            Conf['output'] = False; del Conf['fd']
+            MyLogger.log('ERROR',"MySQL Connection failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
             return False
     else:
         return Conf['output']
@@ -176,6 +186,8 @@ def db_registrate(ident):
 def db_query(query,answer):
     """ communicate in sql to database """
     global Conf
+    testCnt = 0
+    if testCnt > 0: raise IOError
     try:
         c = Conf['fd'].cursor()
         c.execute (query)
@@ -184,11 +196,10 @@ def db_query(query,answer):
             return c.fetchall()     
         else:
             Conf['fd'].commit()
+    except IOError:
+        raise IOError
     except:
-        Conf['fd'].close()
         MyLogger.log('ERROR',"MySQL Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
-        Conf['fd'] = None
-        # Conf['output'] = False
         return False
     return True
 
@@ -273,6 +284,8 @@ def publish(**args):
             try:
                 db_query("ALTER TABLE %s_%s %s" % (args['ident']['project'],args['ident']['serial'],','.join(add)),False)
                 MyLogger.log('ATTENT',"Added new field to table %s_%s" % (args['ident']['project'],args['ident']['serial']))
+            except IOError:
+                raise IOError
             except:
                 MyLogger.log('FATAL',"Unable to add columns: %s" % ', '.join(add))
                 Conf['output'] = False
@@ -285,7 +298,7 @@ def publish(**args):
     if not db_registrate(args['ident']):
         MyLogger.log('WARNING',"Unable to registrate the sensor.")
         return False
-    
+   
     if not db_table(args['ident'],args['ident']["project"]+'_'+args['ident']["serial"]) or \
         not db_fields(args['ident']):
         return False
@@ -318,12 +331,5 @@ def publish(**args):
             vals.append(strg)
     query += "(%s) " % ','.join(cols)
     query += "VALUES (%s)" % ','.join(vals)
-    try:
-        return db_query(query,False)
-    except IOError:
-        raise IOError('MySQL connect failure')
-    except:
-        pass
-        # raise ValueError('MySQL sql error')
-    return False
+    return db_query(query,False)
 
