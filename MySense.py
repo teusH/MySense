@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.23 2017/04/08 13:43:25 teus Exp teus $
+# $Id: MySense.py,v 2.24 2017/04/09 15:33:45 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.23 $"[11:-2]
+__version__ = "0." + "$Revision: 2.24 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -86,7 +86,7 @@ except ImportError:
 reload(sys)  
 sys.setdefaultencoding('utf8')
 
-# global data
+# global data Conf is the central dictunary for global values
 Conf = {}       # data dict for configuration variables, values and static values
 
 # ==========================================================================
@@ -102,10 +102,18 @@ INPUTS_I   = []         # inputs from internet (disables other input channels)
 INPUTS     = []         # local input channels
 INTERVAL   = 60*60      # dflt main loop interval in seconds
 
+Archive = {}            # archived queues per channel, has links to heap
+Heap = {}               # heap for storing data indexed by Archive
+HeapId = -1             # current heap index number
+HeapSze = 100000        # max of bytes in heap
+
+
 # parse the program configuration (ini) file progname.conf
 #       or uppercase progname as defined by environment variable
 # Parse configuration
 def read_configuration():
+    """ read the configuration details (options per plugin) from init file
+    """
     global Conf, OUTPUTS, OUTPUTS_I, INPUTS, INPUTS_I, progname
     config = ConfigParser.RawConfigParser()
     initFile = os.getenv(progname.replace('.py','').upper())
@@ -207,6 +215,8 @@ def read_configuration():
     return True
 
 def get_serial():
+    """ get serial number (cpu S/N) for this sensor node
+    """
     try:        # try serial cpu number
         p=subprocess.Popen('cat /proc/cpuinfo',shell=True,stdout=subprocess.PIPE)
         stdout, stderr = p.communicate()
@@ -230,6 +240,7 @@ def get_serial():
 # ==================================================================
 # TO DO: push all input/output routines in a class and load dynamically
 def get_config():
+    """ Initialize Conf dictionary """
     global Conf, __version__
     Conf = {}
     Conf['process'] = {
@@ -274,7 +285,8 @@ def get_config():
 # Commandline arguments parsing
 # ===================================================================
 def get_arguments():
-    global Conf, progname, INTERVAL
+    """ Command line argument roll in """
+    global Conf, progname, INTERVAL, HeapSze
     parser = argparse.ArgumentParser(prog=progname, description='Sensor datalogger - Behoud de Parel\nCommand arguments overwrite optional config file.', epilog="Copyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
     parser.add_argument("-d", "--debug", help="List of input sensors and show the raw sensor values.", default="")
     parser.add_argument("-i", "--input", help="Input sensor(s), comma separated list of %s" % ','.join(INPUTS+INPUTS_I), default="%s" % ','.join(Conf['inputs']))
@@ -284,6 +296,7 @@ def get_arguments():
     parser.add_argument("-S", "--node", help="Sensor node serial number, default='%s'" % Conf['id']['serial'], default=Conf['id']['serial'])
     parser.add_argument("-G", "--geolocation", help="Sensor node geolocation (latitude,longitude), default='%s'" % Conf['id']['geolocation'], default=Conf['id']['geolocation'])
     parser.add_argument("-I", "--interval", help="Sensor read cycle interval in minutes, default='%d'" % (INTERVAL/60), default=(INTERVAL/60))
+    parser.add_argument("-M", "--memory", help="Allocated memory space in Kbytes for queuing data, default='%d'" % (HeapSze/1000), default=(HeapSze/1000))
     parser.add_argument("-D", "--DYLOS", help="Read pm sensor input from an input file instead. Debugging simulation.")
     parser.add_argument("process", help="Process start/stop/status. Default: interactive", default='interactive', choices=['interactive','start','stop','status'], nargs='?')
     # overwrite argument settings into configuration
@@ -291,6 +304,9 @@ def get_arguments():
 
 # roll in the definition from environment eg passwords
 def from_env(name):
+    """ hostname, user credentials can (should) be defined from environment as
+        <section name><host|user|pass> e.g. DBHOST, DBUSER, DBPASS
+    """
     global Conf
     for credit in ['hostname','user','password']:
         if not credit in Conf[name].keys():
@@ -305,6 +321,8 @@ def from_env(name):
 # Overwrite configuration values with argument values
 # =================================================================
 def integrate_options():
+    """ Command line arguments overwrite configuration option values
+    """
     global Conf, OUTPUTS, OUTPUTS_I, INPUTS, INPUTS_I, INTERVAL
     
     cmd_args = get_arguments()
@@ -313,6 +331,7 @@ def integrate_options():
     Conf['id']['serial'] = cmd_args.node
     Conf['id']['geolocation'] = cmd_args.geolocation
     INTERVAL = int(cmd_args.interval) * 60
+    HeapSze = int(cmd_args.memory) * 1000
 
     Conf['outputs'] = []
     # TO DO: enable MQTT to be used on output as well on input
@@ -376,6 +395,7 @@ def integrate_options():
 
 # show the intension of this process
 def show_startup():
+    """ On startup log configuration details """
     global Conf, progname, __version__
     MyLogger.log('ATTENT',"%s Started Sensor processing: %s Version:%s" % (datetime.datetime.strftime(datetime.datetime.today(), "%Y-%m-%d %H:%M:%S " ), progname, __version__))
     MyLogger.log('DEBUG',"Control-C to abort")
@@ -540,11 +560,6 @@ def deamon_status(pidfile):
 # Define Global Variables
 
 # Archive data when Internet connectivity failed
-Archive = {}
-Heap = {}
-HeapId = -1
-HeapSze = 100000
-
 # throw away oldest first of this channel
 # or throw away object from another channel
 def HeapCleanup(space):
@@ -648,6 +663,10 @@ def Queue(channels,ident,data):
 # compile the sensors values telegram and output the telegram to the world
 # TO DO: multiple input channels can block each other: select/multi threading
 def sensorread():
+    """ Main routine: read input values from plugins (threaded)
+        and print collected measurements and identication to output channels
+        Queue output if internet connectivity failed.
+    """
     #Continuously loop collecting all data
     global Conf, INTERVAL
     if not 'fields' in Conf['id'].keys():
@@ -786,6 +805,7 @@ def sensorread():
         local = True
     return False
 
+# make sure plugins are compatible
 def CheckVersion(version):
     global __version__
     if version == None:
