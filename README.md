@@ -98,6 +98,8 @@ See the REAME's and docs directory for descriptions how to prepair the HW, pytho
 ## Operation status:
 See the various README/docs directory for the plugin's and modules for the status of operation, development status, or investigation.
 
+Failures on internet connectivity and so retries of access is provided.
+
 ## Current development focus
 The MySense framework/infrastructure is operational. By default MySense uses a so called lightweight process (multithreaded) to allow sensor data to be collected asynchronously..
 Input is tested with serial, I2C-bus and GPIO sensors.
@@ -108,8 +110,13 @@ The focus is to allow Grove based sensors (easier to plugin to the MySense syste
 A picture of the breadboard with Dylos and Raspberry Pi3
 
 The gas sensor development (NO2, O3, NH3, CO) is just (Febr 2017) started.
-Calibration of dust counters like Shinyei and Dylos is started in March 2017.
-Calibration of gas sensors is a problematic area.
+
+## Calibration
+Calibration of dust counters like Shinyei and Dylos is started in April 2017.
+
+Calibration of gas sensors is a problematic area. Probably May.
+
+For calibration the Python tool `statistics/Calibration.py` has been developped. The script uses pyplot and is based on numpy (numeric analyses library). The calibration uses two database column values as input and provides a best fit polynomial (dflt order 1/linear), the R square and shows the scattered plot and best fit graph.
 
 ## Funding
 There is no funding (costs to many time of the developers).

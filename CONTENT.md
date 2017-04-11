@@ -56,5 +56,6 @@ docs directory:
 * MyThreading.py Multi threading library for input plugins
 ### OS support scripts
 * MyLed.py      Script to use led/relay/button
+* statistics/Calibrate.py Script to calculate best fit polynomial between two measurement data 
 ## testdata
 * dylos-input.txt Debugging MySense.py test data (imitating Dylos sensor)
