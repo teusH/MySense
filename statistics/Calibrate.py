@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: Calibrate.py,v 1.4 2017/04/11 20:14:22 teus Exp teus $
+# $Id: Calibrate.py,v 1.5 2017/04/12 15:18:32 teus Exp teus $
 
 """ Create and show best fit for two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -29,10 +29,11 @@
     Script uses: numpy package and matplotlib from pyplot.
 """
 progname='$RCSfile: Calibrate.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 
 try:
     import sys
+    import os
     import mysql
     import mysql.connector
     import datetime
@@ -92,13 +93,28 @@ def db_query(db,query,answer):
         sys.exit("Database query \"%s\" failed with:\ntype: \"%s\"\nvalue: \"%s\"" %(query,sys.exc_info()[0],sys.exc_info()[1]))
     return True
 
+# get the most frequent interval timing
+# outliers are those with more as one hour or less as one minute
+def getInterval(arr, amin = 60, amax = 60*60):
+    ivals = []
+    for iv in range(0,len(arr)-1):
+        diff = abs(arr[iv+1][0]-arr[iv][0])
+        if (diff > amax) or (diff < amin): continue
+        ivals.append(diff)
+    n = len(ivals)
+    ivals_bar = sum(ivals)/n
+    ivals_std = math.sqrt(sum([(iv-ivals_bar)**2 for iv in ivals])/(n-1))
+    # print("average sample interval: %3.1f, std dev: %3.1f" % (ivals_bar, ivals_std))
+    return int(ivals_bar+ 2* ivals_std)
+    
+
 # we could first get average/std dev and omit the outliers
-def getColumn(db,table,period):
+def getColumn(db,table,period, amin = 60, amax = 60*60):
     global interval
     qry = "SELECT UNIX_TIMESTAMP(datum),(if(isnull(%s),'nan',%s)) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d and %s_valid  order by datum" % \
         (table['column'],table['column'],table['name'],timing['start'],timing['end'],table['column'])
     values = db_query(db,qry, True)
-    ival = 24*60*60 ; nr_records = len(values)
+    imin = None; imax = None; nr_records = len(values)
     i = len(values)-1
     while ( i >= 0 ):
         try:
@@ -107,11 +123,21 @@ def getColumn(db,table,period):
             values.pop(i)
             i -= 1
             continue
-        if (i > 0) and (abs(values[i][0]-values[i-1][0]) < ival):
-            ival = abs(values[i][0]-values[i-1][0])
+        if i == 0: break
+        diff = abs(values[i][0]-values[i-1][0])
         i -= 1
-    ival = int(ival*1.05)       # add 5 %
-    if (interval == None) or (ival > interval): interval = ival
+        if imin == None:
+            imin = imax = diff
+        if (diff >= amin) and (diff <= amax):
+            if diff < imin: imin = diff
+            if diff > imax: imax = diff
+    ival = int(imin+abs(imax-imin)/2)           # half between min and max
+    aval = getInterval(values,amin,amax)        # cover 95% of samples
+    if (interval == None) or (ival > interval) or (aval > interval):
+        interval = aval ; strg = 'avg+2*stddev'
+        if ival < aval:
+            interval = aval; strg = 'minimal- 50% -maximal'
+        print("Auto interval samples is (re)set to %d (%s)" % (interval,strg))
     print("Database table %s column %s: %d db records, deleted %d NaN records." % (table['name'],table['column'],len(values), nr_records-len(values)))
     return values
 
@@ -137,8 +163,8 @@ def pickValue(arr, time, sample):
 def getArrays(net,table1,table2,timing):
     global X, Y, minX, maxX, minY, maxY, interval
     DB = db_connect(net)
-    DX = getColumn(DB,table1,timing)
-    DY = getColumn(DB,table2,timing)
+    DX = getColumn(DB,table1,timing,60,60*60)
+    DY = getColumn(DB,table2,timing,60,60*60)
     DB.close()
     X = []; Y = []
     skipped = 0
@@ -274,9 +300,10 @@ print('Calibration of %s against the %s' % (table2['type'],table1['type']))
 print('Regression graph for %s %s/%s - %s/%s' %(net['database'],table1['name'],table1['column'],table2['name'],table2['column']))
 print('Period: %s up to %s, sample time %dm %ds.' % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M'),interval/60,interval%60))
 print("Best fit polynomial regression curve (a0 + a1*X + a2*X**2 + ...): ")
-print("\t[ %s ]" % ', '.join(["%5.3f" % i for i in Z[0][::-1]]))
+string = ', '.join(["%4.3e" % i for i in Z[0][::-1]])
+print("\t(low order first)[ %s ]" % string)
 # print("Rcond: %1.3e" % Z[4] )
-print("Total of samples %s/%s(%d), %s/%s(%d), Rsquare:\t%5.3f" % (table1['name'],table1['column'],len(X),table2['name'],table2['column'],len(Y),R2))
+print("Total of samples %s/%s(%d), %s/%s(%d), Rsquare:\t%6.4f" % (table1['name'],table1['column'],len(X),table2['name'],table2['column'],len(Y),R2))
 
 def makeXgrid(mn,mx,nr):
     grid = (mx-mn)/nr
@@ -287,11 +314,10 @@ if show:
     sortedX = makeXgrid(minX,maxX,100)
     fig = plt.figure()
     # create some bling bling
-    fig.suptitle('Calibration for %s with %s' % (table2['type'],table1['type']), fontsize=9, fontweight='bold')
+    fig.suptitle('calibration for %s with %s' % (table2['type'],table1['type']), fontsize=9, fontweight='bold')
     fig.suptitle('regression graph for %s %s/%s - %s/%s' %(net['database'],table1['name'],table1['column'],table2['name'],table2['column']), fontsize=9, fontweight='bold')
     ax = fig.add_subplot(111)
-    string = ', '.join(["%5.3f" % i for i in Z[0][::-1]])
-    fig.text(0.5, 0.85, "R-square=%5.3f, order=%d, polynomial constants: [ %s ]" % (R2, order, string), verticalalignment='bottom', horizontalalignment='center', transform=ax.transAxes, color='red', fontsize=8)
+    fig.text(0.5, 0.85, "R-square=%6.4f, order=%d, polynomial constants\n(low order first): [ %s ]" % (R2, order, string), verticalalignment='bottom', horizontalalignment='center', transform=ax.transAxes, color='red', fontsize=8)
     fig.text(0.98, 0.015, 'generated %s by pyplot/numpy' % datetime.datetime.fromtimestamp(time()).strftime('%d %b %Y %H:%M'),verticalalignment='bottom', horizontalalignment='right',transform=ax.transAxes, color='gray', fontsize=8)
     # the graph
     ax.set_title('for period: %s up to %s' % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M')),fontsize=8)
