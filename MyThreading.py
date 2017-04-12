@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyThreading.py,v 2.6 2017/04/06 14:59:31 teus Exp teus $
+# $Id: MyThreading.py,v 2.7 2017/04/12 13:08:26 teus Exp teus $
 
 # the values provided are rounded (3 decimals) of values in the
 # thread buffer (max BUFSIZE). INTERVAL and the thread interval (TINTERV)
@@ -34,7 +34,7 @@ import atexit
 class MyThreading:
     from time import time,sleep
 
-    __version__ = "0." + "$Revision: 2.6 $"[11:-2]
+    __version__ = "0." + "$Revision: 2.7 $"[11:-2]
     __license__ = 'GPLV4'
 
     STOP = False    # stop all threads
@@ -65,6 +65,7 @@ class MyThreading:
 
         self.BufAvg = {}      # record avg of values in buffer (dynamic window)
         self.Buffer = []      # time ordered list of measurements of sensor
+        self.lastAvg = 0      # last time of avg calculation in buffer
         self.INTERVAL = self.TINTERV * self.BUFSIZE # max window buffer size
         # conditional wait (avoid sleep() in client thread)
         self.sleepCond = threading.Condition()
@@ -144,7 +145,7 @@ class MyThreading:
                 avg['time'] = (avg['time']+last)/2        # timestamp in the middle
             with self.threadLock: self.BufAvg = avg
             lastT = self.TINTERV - (self.time()-lastT)
-            if (lastT > 0) and (not conf['sync']):
+            if lastT > 0:
                 # TO DO: change this to conditional wait
                 # self.sleep(lastT)
                 with self.sleepCond: self.sleepCond.wait(lastT)
@@ -163,6 +164,10 @@ class MyThreading:
            with self.threadLock:
                if len(self.BufAvg):
                    mean = self.BufAvg
+                   if mean['time'] != self.lastAvg: self.lastAvg = mean['time']
+                   else:        # no more data entered
+                       mean = {}
+                       self.BufAvg = {}; self.Buffer = [] # clear avg buffer
            if len(mean):
                return mean
            self.sleep(self.TINTERV) # if empty wait and try again
