@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: Calibrate.py,v 1.5 2017/04/12 15:18:32 teus Exp teus $
+# $Id: Calibrate.py,v 1.7 2017/04/12 15:44:19 teus Exp teus $
 
 """ Create and show best fit for two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -29,7 +29,7 @@
     Script uses: numpy package and matplotlib from pyplot.
 """
 progname='$RCSfile: Calibrate.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+__version__ = "0." + "$Revision: 1.7 $"[11:-2]
 
 try:
     import sys
@@ -54,9 +54,9 @@ net = {
     }
 # database identifiers
 # first range/array of regression values (second wil be calibrated against this one)
-table1 = { 'name': 'BdP_8d5ba45f', 'column': 'pm_10', 'type': 'Dylos DC1100' }
+table1 = { 'name': 'BdP_8d5ba45f', 'column': 'pm_25', 'type': 'Dylos DC1100' }
 # second (Y) range/array of regression values
-table2 = { 'name': 'BdP_3f18c330', 'column': 'pm10', 'type': 'Shinyei PPD42NS' }
+table2 = { 'name': 'BdP_3f18c330', 'column': 'pm25', 'type': 'Shinyei PPD42NS' }
 # period of time for the regression values
 timing = { 'start': time() - 24*60*60, 'end': time() }
 
@@ -229,16 +229,22 @@ def get_arguments():
     net['database'] = args.database
     tbl = args.table1.split('/')
     if len(tbl) < 2: sys.exit("table definition should define at least table/column")
-    table1['name'] = tbl[0]
-    table1['column'] = tbl[1]
-    if len(tbl) > 2: table1['type'] = tbl[2]
-    else: table1['type'] = 'unknown'
+    if len(tbl[0]):
+        table1['name'] = tbl[0]
+    if len(tbl[1]):
+        table1['column'] = tbl[1]
+    if len(tbl) > 2:
+        if len(tbl[2]): table1['type'] = tbl[2]
+        else: table1['type'] = 'unknown'
     tbl = args.table2.split('/')
     if len(tbl) < 2: sys.exit("table definition should define at least table/column")
-    table2['name'] = tbl[0]
-    table2['column'] = tbl[1]
-    if len(tbl) > 2: table2['type'] = tbl[2]
-    else: table2['type'] = 'unknown'
+    if len(tbl[0]):
+        table2['name'] = tbl[0]
+    if len(tbl[1]):
+        table2['column'] = tbl[1]
+    if len(tbl) > 2:
+        if len(tbl[2]): table2['type'] = tbl[2]
+        else: table2['type'] = 'unknown'
     timing['start'] = int(args.timing.split('-')[0])
     timing['end'] = int(args.timing.split('-')[1])
     if args.interval != None: interval = int(args.interval)
