@@ -42,6 +42,8 @@ level    = INFO
 #type  = Dylos DC1100
 # USB serial RS232 manufacturer ID
 #usbid = Prolific_Technology
+#fields = pm25,pm10
+#units = 0.01pcs/qf,0.01pcs/qf
 
 # sensors via Arduino controller
 # PM serie Shinyei PPD42NS
@@ -55,7 +57,7 @@ level    = INFO
 # if fields is empty all sensors from Arduino are used
 # next will define a selection:
 #fields = pm25,pm10
-#units = pcs/qf,pcs/qf
+#units = 0.01pcs/qf,0.01pcs/qf
 #calibrations = [[0,1],[0,1]]
 # output interval timing in seconds
 #interval = 60
@@ -68,6 +70,8 @@ level    = INFO
 #input = False
 ##type  = DHT22
 #pin   = 22
+#fields = temp,rv
+#units = C,%
 
 # Loudness measurement
 # GrovePi+ analogue port
@@ -75,6 +79,8 @@ level    = INFO
 #input = False
 #type = Grove Loudness
 #port = A0
+#fields = dbv
+#units = dBv
 
 # dynamic GPS sensor location grabber
 #[gps]
@@ -90,6 +96,8 @@ level    = INFO
 #[rssi]
 #input = True
 #type = None
+#fields = rssi
+#units = dB
 
 # LOCAL OUTPUT:
 
