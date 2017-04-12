@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.24 2017/04/09 15:33:45 teus Exp teus $
+# $Id: MySense.py,v 2.25 2017/04/12 19:43:26 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.24 $"[11:-2]
+__version__ = "0." + "$Revision: 2.25 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -184,6 +184,8 @@ def read_configuration():
                             Conf[key][opt.lower()] = int(Conf[key][opt.lower()])
                     elif (opt.lower() == 'level'):
                         Conf[key][opt.lower()] = Conf[key][opt.lower()].upper()
+                    elif opt.lower() in ['fields','units']:
+                        Conf[key][opt.lower()] = Conf[key][opt.lower()].split(',')
                 except:
                     pass
             # end if
