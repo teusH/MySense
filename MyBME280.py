@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyBME280.py,v 2.6 2017/03/30 09:54:51 teus Exp teus $
+# $Id: MyBME280.py,v 2.7 2017/04/12 19:02:02 teus Exp teus $
 
 """ Get measurements from BME280 Bosch chip via the I2C-bus.
     Measurements have a calibration factor (calibrated to Oregon weather station)
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyBME280.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.6 $"[11:-2]
+__version__ = "0." + "$Revision: 2.7 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -39,6 +39,7 @@ except ImportError:
 # configurable options
 __options__ = [
     'input','i2c','type','calibrations',
+    'fields','units',
     'interval','bufsize','sync']       # multithead buffer size and search for input secs
 
 Conf ={

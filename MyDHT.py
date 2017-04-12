@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.19 2017/03/28 13:46:01 teus Exp teus $
+# $Id: MyDHT.py,v 2.20 2017/04/12 19:02:02 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.19 $"[11:-2]
+__version__ = "0." + "$Revision: 2.20 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -42,6 +42,7 @@ except ImportError:
 # configurable options
 __options__ = [
     'input','pin','port','type','calibrations',
+    'fields','units',
     'interval','bufsize','sync']       # multithead buffer size and search for input secs
 
 Conf ={

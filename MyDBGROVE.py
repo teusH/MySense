@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDBGROVE.py,v 2.4 2017/02/27 17:17:23 teus Exp teus $
+# $Id: MyDBGROVE.py,v 2.5 2017/04/12 19:02:02 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDBGROVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.4 $"[11:-2]
+__version__ = "0." + "$Revision: 2.5 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -44,6 +44,7 @@ except ImportError:
 # configurable options
 __options__ = [
     'input','port','type','calibrations',
+    'fields','units',
     'interval','bufsize','sync']       # multithead buffer size and search for input secs
 
 Conf ={

@@ -18,17 +18,17 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRSSI.py,v 1.3 2017/03/30 11:38:05 teus Exp teus $
+# $Id: MyRSSI.py,v 1.4 2017/04/12 19:02:02 teus Exp teus $
 
 # TO DO:
 
 """ wifi rssi values
 """
 modulename='$RCSfile: MyRSSI.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 
 # configurable options
-__options__ = ['input']
+__options__ = ['input','fields','units',]
 
 Conf = {
     'input': False,

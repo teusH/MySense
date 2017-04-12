@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.8 2017/04/07 19:48:59 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.9 2017/04/12 19:02:02 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -45,11 +45,12 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__version__ = "0." + "$Revision: 1.9 $"[11:-2]
 
 # configurable options
 __options__ = [
     'input','type','usbid','firmware',
+    'fields','units',
     'calibrations',       # calibration per sensor
     'interval','sample', # report interval in secs, sample timing in secs
     'bufsize', 'sync',   # multithead buffer size and search for input
