@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDBGROVE.py,v 2.5 2017/04/12 19:02:02 teus Exp teus $
+# $Id: MyDBGROVE.py,v 2.6 2017/04/13 13:35:54 teus Exp $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDBGROVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.5 $"[11:-2]
+__version__ = "0." + "$Revision: 2.6 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -37,7 +37,6 @@ try:
     import MyLogger
     import grovepi
     import math
-    import json
 except ImportError:
     MyLogger.log('FATAL',"Missing modules for %" % modulename)
 
@@ -62,14 +61,6 @@ Conf ={
     'debug': False,      # be more versatile
 #    'fd' : None         # input handler
 }
-
-# get calibration factors
-# convert calibration json string into array obect
-def get_calibrations():
-    global Conf
-    if (not 'calibrations' in Conf.keys()) or (not type(Conf['calibrations']) is str):
-        return
-    Conf['calibrations'] = json.loads(Conf['calibrations'])
 
 # calibrate as ordered function order defined by length calibraion factor array
 def calibrate(nr,conf,value):
@@ -117,7 +108,6 @@ def registrate():
     else:
         Conf['input'] = True
         Conf['fd'] = int(Conf['port'][1])
-        get_calibrations()
         if MyThread == None: # only the first time
             MyThread = MyThreading.MyThreading(
                 bufsize=Conf['bufsize'],

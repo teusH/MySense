@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.20 2017/04/12 19:02:02 teus Exp teus $
+# $Id: MyDHT.py,v 2.21 2017/04/13 13:35:54 teus Exp $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,14 +28,13 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.20 $"[11:-2]
+__version__ = "0." + "$Revision: 2.21 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
     from time import time
     import MyThreading          # needed for multi threaded input
     import MyLogger
-    import json
 except ImportError:
     MyLogger.log('FATAL',"Missing modules for %s" % modulename)
 
@@ -66,14 +65,6 @@ DHT_types = {
     'DHT22': 1,        # DHT22 more precise as DHT11, needs 4K7 resistor
     'AM2302': 1,       # Adafruit AM2302, wired DHT22
 }
-
-# get calibration factors
-# convert calibration json string into array obect
-def get_calibrations():
-    global Conf
-    if (not 'calibrations' in Conf.keys()) or (not type(Conf['calibrations']) is str):
-        return
-    Conf['calibrations'] = json.loads(Conf['calibrations'])
 
 # calibrate as ordered function order defined by length calibraion factor array
 def calibrate(nr,conf,value):
@@ -156,7 +147,6 @@ def registrate():
     if Conf['Ada_import'] == None:
         MyLogger.log('ERROR',"DHT pin or port configuration error.")
         return False
-    get_calibrations()
     Conf['input'] = True
     if MyThread == None: # only the first time
         MyThread = MyThreading.MyThreading(

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.9 2017/04/12 19:02:02 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.10 2017/04/13 13:35:54 teus Exp $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -45,7 +45,7 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.9 $"[11:-2]
+__version__ = "0." + "$Revision: 1.10 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -96,15 +96,6 @@ try:
     import json                 # Arduino will export json data
 except ImportError as e:
     MyLogger.log('FATAL',"Missing module %s" % e)
-
-def get_calibrations():
-    global Conf
-    if (not 'calibrations' in Conf.keys()) or (not type(Conf['calibrations']) is str):
-        return
-    try:
-        Conf['calibrations'] = json.loads(Conf['calibrations'])
-    except:
-        MyLogger.log('FATAL',"Arduino calibrations configuration error. Use JSON array.")
 
 # calibrate as ordered function order defined by length calibration factor array
 def calibrate(nr,conf,value):
@@ -208,7 +199,6 @@ def registrate():
     if not open_serial():
         return False
     Conf['input'] = True
-    get_calibrations()
     if MyThread == None: # only the first time
         MyThread = MyThreading.MyThreading( # init the class
             bufsize=Conf['bufsize'],

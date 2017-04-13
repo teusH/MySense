@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDYLOS.py,v 2.13 2017/04/12 13:08:26 teus Exp teus $
+# $Id: MyDYLOS.py,v 2.15 2017/04/13 13:35:54 teus Exp $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add version number, firmware number
@@ -34,7 +34,7 @@
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MyDYLOS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.13 $"[11:-2]
+__version__ = "0." + "$Revision: 2.15 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -81,12 +81,6 @@ try:
     import MyThreading          # needed for multi threaded input
 except ImportError as e:
     MyLogger.log('FATAL',"Missing module %s" % e)
-
-def get_calibrations():
-    global Conf
-    if (not 'calibrations' in Conf.keys()) or (not type(Conf['calibrations']) is str):
-        return
-    Conf['calibrations'] = json.loads(Conf['calibrations'])
 
 # convert pcs/qf (counter) to ug/m3 (weight)
 # ref: https://github.com/andy-pi/weather-monitor/blob/master/air_quality.py
@@ -200,7 +194,6 @@ def registrate():
     if not open_serial():
         return False
     Conf['input'] = True
-    get_calibrations()
     if MyThread == None: # only the first time
         MyThread = MyThreading.MyThreading( # init the class
             bufsize=Conf['bufsize'],
@@ -242,8 +235,9 @@ def Add(conf):
         #        break
         try:
             line = conf['fd'].readline()
-            while conf['fd'].inWaiting():       # skip to latest record
-                line = conf['fd'].readline()
+            if not conf['file']:
+                while conf['fd'].inWaiting():       # skip to latest record
+                    line = conf['fd'].readline()
             Serial_Errors = 0
         except SerialException:
             conf['Serial_Errors'] += 1
