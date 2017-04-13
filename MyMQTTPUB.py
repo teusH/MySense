@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyMQTTPUB.py,v 1.5 2017/04/09 15:01:26 teus Exp teus $
+# $Id: MyMQTTPUB.py,v 1.6 2017/04/13 11:11:25 teus Exp teus $
 
 # module mqtt: git clone https://github.com/eclipse/paho.mqtt.python.git
 # cd paho.mqtt.python ; python setup.py install
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyMQTTPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+__version__ = "0." + "$Revision: 1.6 $"[11:-2]
 
 try:
     import MyLogger
@@ -173,7 +173,7 @@ def registrate(args):
         Conf['output'] = False
         return False
 
-    if (Conf['fd'] != None) and (not Conf['fd'):
+    if (Conf['fd'] != None) and (not Conf['fd']):
         if ('waiting' in Conf.keys()) and ((Conf['waiting']+Conf['last']) >= time()):
             raise IOError
             return False
