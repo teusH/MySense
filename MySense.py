@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.25 2017/04/12 19:43:26 teus Exp teus $
+# $Id: MySense.py,v 2.26 2017/04/13 13:28:49 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.25 $"[11:-2]
+__version__ = "0." + "$Revision: 2.26 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -64,6 +64,7 @@ try:
     #import quick2wire.i2c as i2c
     import math
     import re
+    import json
     from time import time, sleep
     import subprocess
     import datetime
@@ -107,6 +108,25 @@ Heap = {}               # heap for storing data indexed by Archive
 HeapId = -1             # current heap index number
 HeapSze = 100000        # max of bytes in heap
 
+
+# convert string from config to internal format
+def defFields(conf):
+    if not 'fields' in conf.keys(): return
+    if type(conf['fields']) is str:
+        while conf['fields'].find(', ') >= 0: conf['fields'] = conf['fields'].replace(', ',',')
+        conf['fields'] = conf['fields'].split(',')
+    if not 'units' in conf.keys(): conf['units'] = []
+    nr = len(conf['fields'])
+    if type(conf['units']) is str:
+        while conf['units'].find(', ') >= 0: conf['units'] = conf['units'].replace(', ',',')
+        conf['units'] = conf['units'].split(',')
+    while len(conf['units']) < nr: conf['units'].append('')
+    while len(conf['units']) > nr: conf['units'].pop()
+    if ('calibrations' in conf.keys()):
+        if (type(conf['fields']) is str):
+            conf['calibrations'] = json.loads(conf['calibrations'])
+        while len(conf['calibrations']) < nr: conf['calibrations'].append([0,1])
+        while len(conf['calibrations']) > nr: conf['calibrations'].pop()
 
 # parse the program configuration (ini) file progname.conf
 #       or uppercase progname as defined by environment variable
@@ -173,6 +193,7 @@ def read_configuration():
                 elif key == 'logging':
                     options = ['level','file']
             #MyLogger.log('DEBUG','Configuring module %s: options %s.' % (key,', '.join(config.options(key))) )
+            # get options allowed to be redefined by the plugin
             for opt in config.options(key):
                 if not opt in options: continue
                 try:
@@ -184,10 +205,12 @@ def read_configuration():
                             Conf[key][opt.lower()] = int(Conf[key][opt.lower()])
                     elif (opt.lower() == 'level'):
                         Conf[key][opt.lower()] = Conf[key][opt.lower()].upper()
-                    elif opt.lower() in ['fields','units']:
-                        Conf[key][opt.lower()] = Conf[key][opt.lower()].split(',')
+                    else:
+                        Conf[key][opt.lower()] = config.get(key,opt)
                 except:
                     pass
+            if 'fields' in options:
+                defFields(Conf[key])
             # end if
                 
     if config == None:
