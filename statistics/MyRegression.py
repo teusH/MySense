@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 1.9 2017/04/16 16:31:58 teus Exp teus $
+# $Id: MyRegression.py,v 1.10 2017/04/17 11:10:58 teus Exp teus $
 
 """ Create and show best fit for two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -29,7 +29,7 @@
     Script uses: numpy package and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.9 $"[11:-2]
+__version__ = "0." + "$Revision: 1.10 $"[11:-2]
 
 try:
     import sys
@@ -65,7 +65,8 @@ timing = { 'start': time() - 24*60*60, 'end': time() }
 interval = None # auto detect interval from database time values
 order = 1       # best fit polynomial, order: default 1: linear regression graph
 show = False    # show the scatter graph and regression polynomial best fit graph
-norm = False    # transform regression polynomial best fit graph to [0,1] space
+normMinMax = False    # transform regression polynomial best fit graph to [0,1] space
+normAvgStd = False    # transform regression polynomial best fit graph to [-1,1] space
 
 def db_connect(net):
     for M in ('user','password','hostname','database'):
@@ -218,7 +219,7 @@ def get_arguments():
     """ Command line argument roll in """
     import argparse
     global progname
-    global net, table1, table2, timing, interval, order, show, norm
+    global net, table1, table2, timing, interval, order, show, normMinMax, normAvgStd
     parser = argparse.ArgumentParser(prog=progname, description='Get from two tables a table for a period of time and calculate the regression', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nCopyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
     parser.add_argument("-H", "--hostname", help="Database host name, default: %s" % net['hostname'], default="%s" % net['hostname'])
     parser.add_argument("--port", help="Database port number, default: %d" % net['port'], default="%d" % net['port'])
@@ -230,7 +231,8 @@ def get_arguments():
     parser.add_argument("-i", "--interval", help="Interval sample timing (two values in same sample time) in seconds, default: auto detect", default=None)
     parser.add_argument("-t", "--timing", help="Database period of time UNIX start-end seconds or use date as understood by UNIX date command: 'date --date=SOME_DATE_string', default: %d/%d or \"1 day ago/%s\"" % (timing['start'],timing['end'],datetime.datetime.fromtimestamp(timing['start']).strftime('%Y-%m-%d %H:%M')), default="%d/%d" % (timing['start'],timing['end']))
     parser.add_argument("-o", "--order", help="best fit polynomium order, default: linear regression best fit line (order 2)", default=order)
-    parser.add_argument("-n", "--norm", help="best fit polynomium normalized to [0,1] space, default: no normalisation", choices=['False','True'], default=norm)
+    parser.add_argument("-n", "--norm", help="best fit polynomium min-max normalized to [0,1] space, default: no normalisation", choices=['False','True'], default=normMinMax)
+    parser.add_argument("-N", "--NORM", help="best fit polynomium [avg-std,avg+std] normalized to [-1,1] space (overwrites norm option), default: no normalisation", choices=['False','True'], default=normMinMax)
     parser.add_argument("-s", "--show", help="show graph, default: graph is not shown", default=show, choices=['False','True'])
     # overwrite argument settings into configuration
     args = parser.parse_args()
@@ -262,7 +264,9 @@ def get_arguments():
     if args.interval != None: interval = int(args.interval)
     order = int(args.order)
     show = bool(args.show)
-    norm = bool(args.norm)
+    normMinMax = bool(args.norm)
+    normAvgStd = bool(args.NORM)
+    if normAvgStd: normMinMax = False
 
 def regression(z,x):
     y = []
@@ -305,24 +309,44 @@ get_arguments()         # get command line arguments
 
 # roll in arrays for regression calculation
 getArrays(net,table1,table2,timing)
-Xmin = np.nanmin(np.array(X, dtype=float)); Xmax = np.nanmax(np.array(X, dtype=float))
-Ymin = np.nanmin(np.array(Y, dtype=float)); Ymax = np.nanmax(np.array(Y, dtype=float))
+Xnp = np.array(X, dtype=float)
+Xmin = np.nanmin(Xnp); Xmax = np.nanmax(Xnp)
+Xavg = np.nanmean(Xnp); Xstd = np.nanstd(Xnp)
+Ynp = np.array(Y, dtype=float)
+Ymin = np.nanmin(Ynp); Ymax = np.nanmax(Ynp)
+Yavg = np.nanmean(Ynp); Ystd = np.nanstd(Ynp)
 
-print('Calibration details for: %s versus %s' % (table2['type'],table1['type']))
-print('Regression graph for %s %s/%s - %s/%s' %(net['database'],table1['name'],table1['column'],table2['name'],table2['column']))
-print('Period: %s up to %s, sample time %dm %ds.' % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M'),interval/60,interval%60))
+print('Regression best fit calculation details for: %s versus %s' % (table2['type'],table1['type']))
+print('Graph for %s %s/%s <- %s/%s' % (net['database'],table1['name'],table1['column'],table2['name'],table2['column']))
+print('Samples period: %s up to %s, interval timing %dm:%ds.' % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M'),interval/60,interval%60))
+print("%20s/%8s:\tavg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (table1['name'],table1['column'],Xavg,Xstd,Xmin,Xmax))
+print("%20s/%8s:\tavg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (table2['name'],table2['column'],Yavg,Ystd,Ymin,Ymax))
 
 
-if norm:
-    print('Normalisation:')
-    print('\t%s/%s (min,max)=[%6.2f,%6.2f]' % (table1['name'],table1['column'],Xmin,Xmax))
-    print('\t%s/%s (min,max)=[%6.2f,%6.2f]' % (table2['name'],table2['column'],Ymin,Ymax))
+if normMinMax:
+    print('Normalisation (min,max):')
+    print('\t%s/%s [%6.2f,%6.2f] ->[0,1]' % (table1['name'],table1['column'],Xmin,Xmax))
+    print('\t%s/%s [%6.2f,%6.2f] ->[0,1]' % (table2['name'],table2['column'],Ymin,Ymax))
     X = X - Xmin; X /= (Xmax-Xmin)
+    Xnp = np.array(X, dtype=float)
     Y = Y - Ymin; Y /= (Ymax-Ymin)
+    Ynp = np.array(Y, dtype=float)
+if normAvgStd:
+    print('Normalisation (avg-stddev,avg+stddev):')
+    print('\t%s/%s [%6.2f,%6.2f] ->[-1,+1]' % (table1['name'],table1['column'],Xavg-Xstd,Xavg+Xstd))
+    print('\t%s/%s [%6.2f,%6.2f] ->[-1,+1]' % (table2['name'],table2['column'],Yavg-Ystd,Yavg-Ystd))
+    X = X - Xavg
+    if Xstd > 1.0: X /= Xstd
+    Xnp = np.array(X, dtype=float)
+    Y = Y - Yavg
+    if Ystd > 1.0: Y /= Ystd
+    Ynp = np.array(Y, dtype=float)
+    # X = X - (Xavg-Xstd); X /= ((Xavg+Xstd)-(Xavg-Xstd))
+    # Y = Y - (Yavg-Ystd); Y /= ((Yavg+Ystd)-(Yavg-Ystd))
 
 # calculate the polynomial best fit graph
-Z  = np.polyfit(np.array(X, dtype=float),np.array(Y, dtype=float),order,full=True)
-Zrev  = np.polyfit(np.array(Y, dtype=float),np.array(X, dtype=float),order,full=True)
+Z  = np.polyfit(Xnp,Ynp,order,full=True)
+Zrev  = np.polyfit(Ynp,Xnp,order,full=True)
 
 # if order == 1:
 #     R2 = get_r2_corrcoeff(X,Y)
@@ -331,7 +355,7 @@ Zrev  = np.polyfit(np.array(Y, dtype=float),np.array(X, dtype=float),order,full=
 R2 = get_r2_numpy(X,Y,Z[0])
 #R2rev = get_r2_numpy(Y,X,Zrev[0])
 # print("Rcond: %1.3e" % Z[4] )
-print("Total of samples %s/%s(%d) and %s/%s(%d), R² %6.4f" % (table1['name'],table1['column'],len(X),table2['name'],table2['column'],len(Y),R2))
+print("Number of samples %s/%s: %d and %s/%s: %d, R²: %6.4f" % (table1['name'],table1['column'],len(X),table2['name'],table2['column'],len(Y),R2))
 
 print("Best fit polynomial regression curve (a0 + a1*X + a2*X**2 + ...): ")
 string = ', '.join(["%4.3e" % i for i in Z[0][::-1]])
@@ -345,24 +369,29 @@ def makeXgrid(mn,mx,nr):
     
 if show:
     import matplotlib.pyplot as plt
-    if norm:
+    if normMinMax:
         sortedX = makeXgrid(0,1,100)
+    elif normAvgStd:
+        dev = Xstd
+        if Xstd < 1.0: dev = 1.0
+        sortedX = makeXgrid((Xmin-Xavg)/dev,(Xmax-Xavg)/dev,100)
     else:
         sortedX = makeXgrid(Xmin,Xmax,100)
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
     fig = plt.figure()
     # create some bling bling
-    fig.suptitle('calibration for %s with %s' % (table2['type'],table1['type']),
+    fig.suptitle('Best fit polynomial for %s with %s' % (table2['type'],table1['type']),
         fontsize=9, fontweight='bold')
     ax = fig.add_subplot(111)
-    ax.set_title('regression graph for %s' % net['database'],
+    ax.set_title('Regression graph for %s' % net['database'],
         fontsize=9, fontweight='bold')
-    title_strg = "%20s %6s: %5.2f(min), %5.2f(max)" % (table1['name'],table1['column'],
-        Xmin,Ymin)
-    title_strg += "\n%20s %6s: %5.2f(min), %5.2f(max)" %(table2['name'],table2['column'],
-        Ymin,Ymax)
+    title_strg = "%20s %6s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" % (table1['name'],table1['column'],
+        Xavg,Xstd,Xmin,Xmax)
+    title_strg += "\n%20s %6s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" %(table2['name'],table2['column'],
+        Yavg,Ystd,Ymin,Ymax)
     title_strg += "\nR$^2$=%6.4f, order=%d" % (R2, order)
-    if norm: title_strg += ', (0,1) normalized'
+    if normMinMax: title_strg += ', (min,max)->(0,1) normalized'
+    if normAvgStd: title_strg += ', (avg, std dev) -> (0,1) normalized'
     title_strg += "\nPolynomial constants (low order first): [ %s ]" % string
     fig.text(0.98, 0.015, 'generated %s by pyplot/numpy' % datetime.datetime.fromtimestamp(time()).strftime('%d %b %Y %H:%M'),
         verticalalignment='bottom', horizontalalignment='right',
