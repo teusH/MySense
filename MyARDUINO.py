@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.10 2017/04/13 13:35:54 teus Exp $
+# $Id: MyARDUINO.py,v 1.11 2017/04/17 12:58:21 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -45,16 +45,17 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.10 $"[11:-2]
+__version__ = "0." + "$Revision: 1.11 $"[11:-2]
 
 # configurable options
 __options__ = [
     'input','type','usbid','firmware',
     'fields','units',
-    'calibrations',       # calibration per sensor
+    'calibrations',      # calibration per sensor
     'interval','sample', # report interval in secs, sample timing in secs
     'bufsize', 'sync',   # multithead buffer size and search for input
-    'fields','units'     # values collected
+    'fields','units',    # values collected
+    'file',              # records input file for debugging
 ]
 
 Conf = {
@@ -68,13 +69,14 @@ Conf = {
      # 'ug/m3' particle count per qubic foot per sample timing per minute
      # 'count' and 'ratio' (0-100) per sample timing
     'units' : ['pcs/qf','pcs/qf'], # per type the measurment unit
-    'calibrations': [[0,0.02],[0,0.02]],         # per type calibration (Taylor serie)
+    'calibrations': [[0,1],[0,1]], # per type calibration (Taylor serie)
     'interval': 45,     # read interval in secs (dflt)
     'sample': 10,       # sample timing for the count (seconds)
     'bufsize': 30,      # size of the window of values readings max
     'sync': False,      # use thread or not to collect data
     'debug': False,     # be more versatile on input data collection
     'keys': [],         # set of keys from firmware to be exported
+    'file': None,       # debug records from input file
 
 }
 #    from MySense import log
@@ -120,7 +122,7 @@ def open_serial():
     if Conf['fd'] != None:
         return True
 
-    if Conf['usbid']:
+    if (not Conf['file']) and Conf['usbid']:
         serial_dev = None
         if Conf['usbid'] != None:
             # try serial with product ID
@@ -155,7 +157,7 @@ def open_serial():
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
                 bytesize=serial.EIGHTBITS,
-                timeout=65*60)      # allow also monitor mode
+                timeout=65*60)  # allow also monitor mode
             MyLogger.log('INFO',"Arduino serial USB: %s" % serial_dev)
         except (Exception) as error:
             MyLogger.log('FATAL',"%s" % error)
@@ -173,11 +175,18 @@ def open_serial():
             MyLogger.log('WARNING','Shinyei dust adjusted interval time to %d secs' % Conf['interval'])
         cnt = 0
         while 1:
-            if (cnt%3) == 0:  # configure Arduino firmware
+            if (cnt%3) == 0:    # configure Arduino firmware
                 Conf['fd'].write("C %d %d\n" % (Conf['interval'],Conf['sample'])) 
             cnt += 1
             line = Conf['fd'].readline()
             if (len(line) < 20) or (cnt > 10): break
+    elif Conf['file']:
+        try:
+            Conf['fd'] = open(Conf['file'])
+            Conf['sync'] = True
+        except:
+            MyLogger.log('FATAL', "Failed top open Arduino test input from %s" % Conf['file'])
+            return False
     else: return False
     return True
 
@@ -229,11 +238,13 @@ def Add(conf):
     bin_data = {}
     try:
         try:
-            if conf['interval'] == 0:   # request a json string
+            if (not Conf['file']) and (conf['interval'] == 0):
+                # request a json string
                 conf['fd'].write("\n")
             line = conf['fd'].readline()
-            while conf['fd'].inWaiting():       # skip to latest record
-                line = conf['fd'].readline()
+            if not Conf['file']:
+                while conf['fd'].inWaiting():       # skip to latest record
+                    line = conf['fd'].readline()
             Serial_Errors = 0
         except SerialException:
             conf['Serial_Errors'] += 1
