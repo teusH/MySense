@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.12 2017/04/18 18:14:59 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.13 2017/04/18 19:45:10 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -45,7 +45,7 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.12 $"[11:-2]
+__version__ = "0." + "$Revision: 1.13 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -311,6 +311,7 @@ def Add(conf):
             if nr > len(conf['calibrations']): conf['calibrations'].append = [0,1]
             conf['names'].append(id_un[0])
             conf['units'].append(id_un[1].replace('#',''))
+            MyLogger.log('ATTENT','New Arduino nr %d sensor added: %s units %s' % (nr,id_un[0],id_un[1])
     for i in range(0,len(conf['fields'])):
         dataKey = '%s_%s' % (conf['names'][i],conf['units'][i])
         if dataKey in bin_data.keys():
