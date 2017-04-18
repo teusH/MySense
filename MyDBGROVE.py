@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDBGROVE.py,v 2.6 2017/04/13 13:35:54 teus Exp $
+# $Id: MyDBGROVE.py,v 2.7 2017/04/18 18:14:59 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDBGROVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.6 $"[11:-2]
+__version__ = "0." + "$Revision: 2.7 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -80,14 +80,14 @@ def Add(conf):
         db = grovepi.analogRead(conf['fd'])
     except:
         MyLogger.log('ERROR',"Grove dB access error.")
-        return {'time': int(time()),'dbv':None}
+        return {'time': int(time()),conf['fields'][0]:None}
     if conf['debug']:
         MyLogger.log('DEBUG',"Grove dB: %s" % str(db))
     if not type(db) is int:
 	MyLogger.log('ATTENT','Grove dB has not an int as value: %s' % str(db))
-	return {'time': int(time()),'dbv':None}
+	return {'time': int(time()),conf['fields'][0]:None}
     db = calibrate(0,conf,db)
-    rec = {'time': int(time()),'dbv':int(db)}
+    rec = {'time': int(time()),conf['fields'][0]:int(db)}
     return rec
 
 # check the options

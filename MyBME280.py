@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyBME280.py,v 2.8 2017/04/13 13:35:54 teus Exp $
+# $Id: MyBME280.py,v 2.9 2017/04/18 18:14:59 teus Exp teus $
 
 """ Get measurements from BME280 Bosch chip via the I2C-bus.
     Measurements have a calibration factor (calibrated to Oregon weather station)
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyBME280.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.8 $"[11:-2]
+__version__ = "0." + "$Revision: 2.9 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -71,7 +71,7 @@ def calibrate(nr,conf,value):
 
 # get a record, called back from sensor thread with average of sliding window bufsize
 def Add(conf):
-    rec = {'time': int(time()),'temp':None,'rh':None, 'hpa': None}
+    rec = {'time': int(time()),conf['fields'][0]:None,conf['fields'][1]:None, conf['fields'][2]: None}
     temp = None ; humidity = None ; pascals = None
     try:
         if (conf['fd'] != None) and (conf['Ada_import'] != None):
@@ -112,7 +112,7 @@ def Add(conf):
     temp = calibrate(0,conf,temp)
     humidity = calibrate(1,conf,humidity)
     pascals = calibrate(2,conf,pascals)
-    rec = {'time': int(time()),'temp':round(temp,2),'rh':int(humidity), 'hpa': int(pascals/100)}
+    rec = {'time': int(time()),conf['fields'][0]:round(temp,2),conf['fields'][1]:int(humidity), conf['fields'][2]: int(pascals/100)}
     return rec
 
 # check the options

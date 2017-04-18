@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.26 2017/04/13 13:28:49 teus Exp teus $
+# $Id: MySense.py,v 2.27 2017/04/18 18:14:59 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.26 $"[11:-2]
+__version__ = "0." + "$Revision: 2.27 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -108,25 +108,37 @@ Heap = {}               # heap for storing data indexed by Archive
 HeapId = -1             # current heap index number
 HeapSze = 100000        # max of bytes in heap
 
-
-# convert string from config to internal format
-def defFields(conf):
-    if not 'fields' in conf.keys(): return
-    if type(conf['fields']) is str:
-        while conf['fields'].find(', ') >= 0: conf['fields'] = conf['fields'].replace(', ',',')
-        conf['fields'] = conf['fields'].split(',')
-    if not 'units' in conf.keys(): conf['units'] = []
-    nr = len(conf['fields'])
-    if type(conf['units']) is str:
-        while conf['units'].find(', ') >= 0: conf['units'] = conf['units'].replace(', ',',')
-        conf['units'] = conf['units'].split(',')
-    while len(conf['units']) < nr: conf['units'].append('')
-    while len(conf['units']) > nr: conf['units'].pop()
-    if ('calibrations' in conf.keys()):
-        if (type(conf['fields']) is str):
-            conf['calibrations'] = json.loads(conf['calibrations'])
-        while len(conf['calibrations']) < nr: conf['calibrations'].append([0,1])
-        while len(conf['calibrations']) > nr: conf['calibrations'].pop()
+def defFields(name,conf):
+    if not 'module' in conf.keys():
+        MyLogger.log("WARNING", 'no module for this sensor %s defined' % name)
+        return
+    if not 'fields' in conf.keys():
+        if not 'fields' in conf['module'].Conf.keys():
+            return
+    nr = len(conf['module'].Conf['fields'])
+    for key in ['fields','units','calibrations']:
+        if not key in conf['module'].Conf.keys(): continue
+        if not key in conf.keys():
+            new = conf['module'].Conf[key] 
+        else: new = conf[key]
+        conf[key] = conf['module'].Conf[key]
+        if type(new) is str:
+            if key != 'calibrations':
+                while new.find(', ') >= 0:
+                    new = new.replace(', ',',')
+                new = new.split(',')
+            else:
+                try:
+                    new = json.loads(new)
+                    if not type(new) is list: raise TypeError
+                except:
+                    MyLogger.log('FATAL',"Sensor %s calibration configuration error" % name)
+        elif not type(new) is list: new = []
+        while len(new) > nr: new.pop() 
+        while len(new) < nr:
+            if key == 'calibrations': new.append([0,1])
+            else: new.append('unknown')
+        conf[key][0:len(new)] = new
 
 # parse the program configuration (ini) file progname.conf
 #       or uppercase progname as defined by environment variable
@@ -210,7 +222,7 @@ def read_configuration():
                 except:
                     pass
             if 'fields' in options:
-                defFields(Conf[key])
+                defFields(key,Conf[key])
             # end if
                 
     if config == None:
@@ -733,7 +745,7 @@ def sensorread():
                     t_cnt += 1
                     t_time += sensed['time']                       
                 for key in sensed.keys():
-                    if math.isnan(sensed[key]):
+                    if (not type(sensed[key]) is str) and math.isnan(sensed[key]):
                         MyLogger.log('ATTENT','Sensor %s has NaN value.' % Sensor)
                         sensed[key] = None
                     if key == 'time': continue
@@ -806,12 +818,13 @@ def sensorread():
                         )
                         deQueue(Out)
                     except IOError:
-                        if 'fd' in Conf['module'].keys():
-                            if (Conf['module']['fd'] != None) and (Conf['module']['fd']):
+                        if 'fd' in Conf[Out]['module'].Conf.keys():
+                            if (Conf[Out]['module'].Conf['fd'] != None) and (Conf[Out]['module'].Conf['fd']):
                                 # temporary connectivity problem
-                                if type(Conf['module']['fd']) is file:
-                                    close(Conf['module']['fd'])     # try again later
-                                Conf['module']['fd'] = 0
+                                if type(Conf[Out]['module'].Conf['fd']) is file:
+                                    close(Conf[Out]['module'].Conf['fd'])     # try again later
+                                Conf[Out]['module'].Conf['fd'] = 0
+                                MyLogger.log('WARNING','Publishing for %s has temporary failure. Try again.' % Out)
                                 break
                             else:
                                 while(deQueue(Out)): continue

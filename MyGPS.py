@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyGPS.py,v 2.9 2017/03/30 14:59:19 teus Exp teus $
+# $Id: MyGPS.py,v 2.10 2017/04/18 18:14:59 teus Exp teus $
 
 # TO DO:
 #
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyGPS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.9 $"[11:-2]
+__version__ = "0." + "$Revision: 2.10 $"[11:-2]
 
 import os
 from time import time, sleep
@@ -52,7 +52,7 @@ Conf = {
     'units': ['r,r,m','s'],# radials or d (degrees)
     'host': '127.0.0.1',# default gspd service
     'port': 2947,       # default unix socket port for gpsd
-    'interval': 1,      # read location every interval seconds
+    'interval': 60,     # read location every interval seconds
     'sync': False,	# get geo info in sync with main process
     'debug': False,     # be more versatile
 }
@@ -97,11 +97,11 @@ class GPSthread(threading.Thread):
         return {}
 
     def GPSstart(self):
-        prev_t = int(self.time()) ; prev_l = '0.0,0.0,0'
+        prev_t = int(self.time()) ; prev_l = ['lat','lon','alt']
         GPSdata = None
         GPSsock = None
-        GPSsock = self.gps3.GPSDSocket()
         GPSdata = self.gps3.DataStream()
+        GPSsock = self.gps3.GPSDSocket()
         GPSsock.connect()
         GPSsock.watch()
         for new_data in GPSsock:
@@ -114,29 +114,37 @@ class GPSthread(threading.Thread):
                 geo = []
                 for item in ['lat','lon','alt']:
                     if GPSdata.TPV[item] != 'n/a':
-                       strg = '%13.7f' % float(GPSdata.TPV[item])
-                       strg = strg.rstrip('0').rstrip('.') if '.' in strg else strg
-                       strg = strg + '.0' if not '.' in strg else strg
-                       strg = strg.strip(' ')
-                       geo.append(strg)
+                        try:
+                            val = float(GPSdata.TPV[item])
+                            # altitude is +- 5 meters
+                            # TO DO: add distance calculation
+                            if item != 'alt': strg = '%8.5f' % val
+                            else: strg = '%8.1f' % val
+                            strg = strg.rstrip('0').rstrip('.') if '.' in strg else strg
+                            strg = strg + '.0' if not '.' in strg else strg
+                            strg = strg.strip(' ')
+                            geo.append(strg)
+                        except:
+                            pass
                     elif self.DEBUG:
                         print("Got for %s geo 'n/a'" % item)
                 if len(geo) == 3:
-                    geo = ','.join(geo)
-                    rec['geo'] = geo
-                    if prev_l != rec['geo']:
-                        prev_t = rec['time']
-                        if self.DEBUG:
-                            print("Got GPS rec: %s (lat,lon,alt)" % rec['geo'])
+                    rec['geo'] = ','.join(geo)
+                    if self.DEBUG:
+                        print("Got new GPS rec: %s (lat,lon,alt)" % rec['geo'])
+                    if (prev_l[0] != geo[0]) or (prev_l[1] != geo[1]):
+                        prev_t = rec['time']; prev_l = geo
                         with self.threadLock: self.cur_val = rec
                         if self.sync:
                             GPSsock.close()
+                            GPSsock = None
                             return
-                    # slow down for an hour if no change in TINTERV minutes
-                    elif rec['time'] - prev_t > self.TINTERV*60:
-                        with self.threadLock: self.cur_val['time'] = 0
-                        GPSsock.close()
-                        GPSsock = None
+                    # slow down if no change in TINTERV minutes
+                    elif rec['time'] - prev_t > self.TINTERV:
+                        if not self.sync:
+                            with self.threadLock: self.cur_val['time'] = 0
+                            GPSsock.close();
+                            return
 
     def GPSclient(self):
         while not self.STOP:
@@ -150,7 +158,7 @@ class GPSthread(threading.Thread):
                 return
             if self.DEBUG:
                 print("Long time sleep")
-            if forever and (not self.STOP): self.sleep(60*60)
+            if not self.STOP: self.sleep(self.TINTERV)
         return
 
 # initialize
@@ -226,7 +234,7 @@ def getdata():
 if __name__ == '__main__':
     from time import sleep
     Conf['input'] = True
-    Conf['sync'] = True      # sync = False will start async collect
+    # Conf['sync'] = True      # sync = False will start async collect
     Conf['debug'] = True     # True will print GPSD collect info from thread
     for cnt in range(0,10):
         timing = time()

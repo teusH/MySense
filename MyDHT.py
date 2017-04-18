@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.21 2017/04/13 13:35:54 teus Exp $
+# $Id: MyDHT.py,v 2.22 2017/04/18 18:14:59 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.21 $"[11:-2]
+__version__ = "0." + "$Revision: 2.22 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -81,7 +81,7 @@ def calibrate(nr,conf,value):
 
 # get a record, called back from sensor thread with average of sliding window bufsize
 def Add(conf):
-    rec = {'time': int(time()),'temp':None,'rh':None}
+    rec = {'time': int(time()),conf['fields'][0]:None,conf['fields'][1]:None}
     try:
         if (conf['pin'] != None) and (conf['Ada_import'] != None):
             humidity, temp = conf['Ada_import'].read_retry(conf['fd'], conf['pin'])
@@ -92,7 +92,7 @@ def Add(conf):
             return rec
     except:
         MyLogger.log('ERROR',"DHT gpio access error. /dev/gpiomem permissions correct?")
-        return {'time': int(time()),'temp':None,'rh':None}
+        return {'time': int(time()),conf['fields'][0]:None,conf['fields'][1]:None}
     if (temp == None) or (humidity == None):
         MyLogger.log('ERROR',"DHT access error. Connection problem?")
         raise IOError("DHT lost connection.")
@@ -110,7 +110,7 @@ def Add(conf):
     if (temp == 0.0) and (humidity == 0.0): return rec
     temp = calibrate(0,conf,temp)
     humidity = calibrate(1,conf,humidity)
-    rec = {'time': int(time()),'temp':temp,'rh':humidity}
+    rec = {'time': int(time()),conf['fields'][0]:temp,conf['fields'][1]:humidity}
     return rec
 
 # check the options

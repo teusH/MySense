@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.11 2017/04/17 12:58:21 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.12 2017/04/18 18:14:59 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -45,16 +45,16 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.11 $"[11:-2]
+__version__ = "0." + "$Revision: 1.12 $"[11:-2]
 
 # configurable options
 __options__ = [
     'input','type','usbid','firmware',
-    'fields','units',
     'calibrations',      # calibration per sensor
     'interval','sample', # report interval in secs, sample timing in secs
     'bufsize', 'sync',   # multithead buffer size and search for input
-    'fields','units',    # values collected
+    'fields',            # record names for values collected
+    # 'units',           # Arduino is defining record names and units
     'file',              # records input file for debugging
 ]
 
@@ -64,6 +64,9 @@ Conf = {
     'type': "Arduino Uno",   # type of sensor(s) controller
     'usbid': 'usb-Arduino_srl_', # usb ID via lsusb
     'firmware': '1.05',  # firmware number
+     # define 'names': [] if one want to extract the names from firmware, but
+     # note the order of names and so map to 'fields' is then at random
+    'names': ['pm25','pm10'],  # record names as provided by firmware
     'fields': ['pm25','pm10'], # types of pollutants
      # 'pcs/qf' particle count per qubic foot per sample timing
      # 'ug/m3' particle count per qubic foot per sample timing per minute
@@ -107,7 +110,7 @@ def calibrate(nr,conf,value):
         value = value/1.0
     if not type(value) is float:
         return None
-    rts = 0; pow = 0
+    rts = 0.0; pow = 0
     for a in Conf['calibrations'][nr]:
         rts += a*(value**pow)
         pow += 1
@@ -198,13 +201,10 @@ def registrate():
     Conf['input'] = False
     if (Conf['type'] == None) or (Conf['type'][0:7].lower() != 'arduino'):
         return False
-    if type(Conf['fields']) is str:
-        Conf['fields'] = Conf['fields'].split(',')
-    if type(Conf['units']) is str:
-        Conf['units'] = Conf['units'].split(',')
     Conf['keys'] = []
-    for i in range(0,len(Conf['fields'])):
-        Conf['keys'].append("%s_%s" % (Conf['fields'][i],Conf['units'][i].replace('#','')))
+    if type(Conf['names']) is list:
+        for i in range(0,len(Conf['fields'])):
+            Conf['keys'].append("%s_%s" % (Conf['names'][i],Conf['units'][i].replace('#','')))
     if not open_serial():
         return False
     Conf['input'] = True
@@ -296,19 +296,23 @@ def Add(conf):
                 del bin_data[key]
                 if not 'keys_skipped' in conf.keys(): conf['keys_skipped'] = []
                 if not key in conf['keys_skipped']:
-                    MyLogger.log('ATTENT','Skip Arduino sensor %s value.' % key)
+                    MyLogger.log('ATTENT','Skip value with Arduino name %s.' % key)
                     conf['keys_skipped'].append(key)
     else:       # at start: denote all record names/units from Arduino firmware
-        conf['keys'] = []
-        conf['fields'] = []; conf['units'] = []; conf['calibrations'] = []
+        conf['keys'] = []; conf['names'] = []
+        conf['units'] = []
+        if not 'calibrations' in conf.keys(): conf['calibrations'] = []
+        if not 'fields' in conf.keys(): conf['fields'] = []
+        nr = 0
         for key in bin_data.keys():
             conf['keys'].append(key)
-            id_un = key.split('_')
-            conf['fields'].append(id_un[0])
+            id_un = key.split('_'); nr += 1
+            if nr > len(conf['fields']): conf['fields'].append(id_un[0])
+            if nr > len(conf['calibrations']): conf['calibrations'].append = [0,1]
+            conf['names'].append(id_un[0])
             conf['units'].append(id_un[1].replace('#',''))
-            conf['calibrations'].append = [0,1]
     for i in range(0,len(conf['fields'])):
-        dataKey = '%s_%s' % (conf['fields'][i],conf['units'][i])
+        dataKey = '%s_%s' % (conf['names'][i],conf['units'][i])
         if dataKey in bin_data.keys():
             bin_data.update( {conf['fields'][i]:calibrate(i,conf,bin_data[dataKey])})
             del bin_data[dataKey]
