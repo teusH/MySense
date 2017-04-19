@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.27 2017/04/18 18:14:59 teus Exp teus $
+# $Id: MySense.py,v 2.28 2017/04/19 20:29:29 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.27 $"[11:-2]
+__version__ = "0." + "$Revision: 2.28 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -838,7 +838,7 @@ def sensorread():
                         MyLogger.log('ERROR',"Publish via %s failed. Skipping it." % Out)
                         break
         if local:
-            if local and (time() - data['time'] < INTERVAL):    # limit to once per minute
+            if INTERVAL - (time() - data['time']) > 0:    # limit to once per minute
                 sleep(INTERVAL-(time()-data['time'])) 
         local = True
     return False

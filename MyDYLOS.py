@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDYLOS.py,v 2.15 2017/04/13 13:35:54 teus Exp $
+# $Id: MyDYLOS.py,v 2.16 2017/04/19 20:29:29 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add version number, firmware number
@@ -34,7 +34,7 @@
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MyDYLOS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.15 $"[11:-2]
+__version__ = "0." + "$Revision: 2.16 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -176,6 +176,7 @@ def open_serial():
         # input is read from a file
         if not Conf['file']:
             Conf['file'] = "Dylos-test.input"
+        Conf['sync'] = False # no multi threading
         try:
             Conf['fd'] = open(Conf['file'])
         except:
