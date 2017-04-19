@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.16 2017/04/19 08:33:10 teus Exp teus $
+# $Id: MyDB.py,v 2.17 2017/04/19 10:52:31 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.16 $"[11:-2]
+__version__ = "0." + "$Revision: 2.17 $"[11:-2]
 
 try:
     import MyLogger
@@ -188,10 +188,10 @@ def db_query(query,answer):
     global Conf
     testCnt = 0 # just for testing connectivity failures
     if testCnt > 0: raise IOError
+    MyLogger.log('DEBUG',"DB query: %s" % query)
     try:
         c = Conf['fd'].cursor()
         c.execute (query)
-        MyLogger.log('DEBUG',"DB query: %s" % query)
         if answer:
             return c.fetchall()     
         else:
@@ -312,7 +312,7 @@ def publish(**args):
             continue
         gotIts.append(Fld)
         Nm = db_name(Fld)
-        if type(args['data'][Fld]) is NoneType: 
+        if args['data'][Fld] == None:
             cols.append(Nm); vals.append("NULL")
         elif type(args['data'][Fld]) is str:
             cols.append(Nm); vals.append("'%s'" % args['data'][Fld])
