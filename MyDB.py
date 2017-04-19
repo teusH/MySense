@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.15 2017/04/18 18:14:59 teus Exp teus $
+# $Id: MyDB.py,v 2.16 2017/04/19 08:33:10 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.15 $"[11:-2]
+__version__ = "0." + "$Revision: 2.16 $"[11:-2]
 
 try:
     import MyLogger
@@ -186,7 +186,7 @@ def db_registrate(ident):
 def db_query(query,answer):
     """ communicate in sql to database """
     global Conf
-    testCnt = 0
+    testCnt = 0 # just for testing connectivity failures
     if testCnt > 0: raise IOError
     try:
         c = Conf['fd'].cursor()
@@ -227,10 +227,11 @@ def db_table(ident,table):
     Conf[table] = True
     return Conf[table]
 
+ErrorCnt = 0
 def publish(**args):
     """ add records to the database,
         on the first update table Sensors with ident info """
-    global Conf
+    global Conf, ErrorCnt
     if (not 'output' in Conf.keys()) or (not Conf['output']):
         return
     for key in ['data','internet','ident']:
@@ -311,7 +312,9 @@ def publish(**args):
             continue
         gotIts.append(Fld)
         Nm = db_name(Fld)
-        if type(args['data'][Fld]) is str:
+        if type(args['data'][Fld]) is NoneType: 
+            cols.append(Nm); vals.append("NULL")
+        elif type(args['data'][Fld]) is str:
             cols.append(Nm); vals.append("'%s'" % args['data'][Fld])
         elif type(args['data'][Fld]) is list:
             # TO DO: this needs more thought
@@ -331,5 +334,14 @@ def publish(**args):
             vals.append(strg)
     query += "(%s) " % ','.join(cols)
     query += "VALUES (%s)" % ','.join(vals)
-    return db_query(query,False)
-
+    try:
+        if db_query(query,False): ErrorCnt = 0
+        else: ErrorCnt += 1
+    except IOError:
+        raise IOError
+    except:
+        MyLogger.log('ERROR','MySQL error in qry %s' % query)
+        ErrorCnt += 1
+    if ErrorCnt > 10:
+        return False
+    return True
