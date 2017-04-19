@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 1.10 2017/04/17 11:10:58 teus Exp teus $
+# $Id: MyRegression.py,v 1.12 2017/04/19 13:04:48 teus Exp teus $
 
 """ Create and show best fit for two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -29,7 +29,7 @@
     Script uses: numpy package and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.10 $"[11:-2]
+__version__ = "0." + "$Revision: 1.12 $"[11:-2]
 
 try:
     import sys
@@ -126,6 +126,8 @@ def getColumn(db,table,period, amin = 60, amax = 60*60):
         try:
             values[i] = (values[i][0],float(values[i][1]))
         except:
+            pass
+        if math.isnan(values[i][1]):
             values.pop(i)
             i -= 1
             continue
@@ -359,9 +361,11 @@ print("Number of samples %s/%s: %d and %s/%s: %d, R²: %6.4f" % (table1['name'],
 
 print("Best fit polynomial regression curve (a0 + a1*X + a2*X**2 + ...): ")
 string = ', '.join(["%4.3e" % i for i in Z[0][::-1]])
+Xstring = "  %s/%6s (%10s)-> best fit [ %s ]" % (table1['name'],table1['column'],table1['type'],string)
+print(Xstring)
 stringrev = ', '.join(["%4.3e" % i for i in Zrev[0][::-1]])
-print("%s/%s -> %s/%s:\t[ %s ]" % (table1['name'],table1['column'],table2['name'],table2['column'],string))
-print("%s/%s -> %s/%s:\t[ %s ]" % (table2['name'],table2['column'],table1['name'],table1['column'],stringrev))
+Ystring = "  %s/%6s (%10s)-> best fit [ %s ]" % (table2['name'],table2['column'],table2['type'],stringrev)
+print(Ystring)
 
 def makeXgrid(mn,mx,nr):
     grid = (mx-mn)/(nr*1.0)
@@ -392,7 +396,9 @@ if show:
     title_strg += "\nR$^2$=%6.4f, order=%d" % (R2, order)
     if normMinMax: title_strg += ', (min,max)->(0,1) normalized'
     if normAvgStd: title_strg += ', (avg, std dev) -> (0,1) normalized'
-    title_strg += "\nPolynomial constants (low order first): [ %s ]" % string
+    title_strg += "\nCalibration polynomial constants (low order first): "
+    title_strg += "\n%s" % Xstring
+    title_strg += "\n%s" % Ystring
     fig.text(0.98, 0.015, 'generated %s by pyplot/numpy' % datetime.datetime.fromtimestamp(time()).strftime('%d %b %Y %H:%M'),
         verticalalignment='bottom', horizontalalignment='right',
         transform=ax.transAxes, color='gray', fontsize=8)
