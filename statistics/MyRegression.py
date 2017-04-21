@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 1.12 2017/04/19 13:04:48 teus Exp teus $
+# $Id: MyRegression.py,v 1.13 2017/04/19 15:28:01 teus Exp teus $
 
 """ Create and show best fit for two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -29,7 +29,7 @@
     Script uses: numpy package and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.12 $"[11:-2]
+__version__ = "0." + "$Revision: 1.13 $"[11:-2]
 
 try:
     import sys
@@ -369,7 +369,8 @@ print(Ystring)
 
 def makeXgrid(mn,mx,nr):
     grid = (mx-mn)/(nr*1.0)
-    return [mn + i*grid for i in range(0,nr)]
+    # return np.linspace(mn, mx, 100)
+    return [mn + i*grid for i in range(0,nr+1)]
     
 if show:
     import matplotlib.pyplot as plt
@@ -410,7 +411,9 @@ if show:
         table1['column'],table1['type']), fontsize=8, fontweight='bold')
     ax.set_ylabel('table %s column %s (%s)' %(table2['name'],table2['column'],
         table2['type']), fontsize=8 , fontweight='bold')
-    ax.plot(X, Y, 'o', sortedX, regression(Z[0][::-1],sortedX), 'r',
+    #ax.plot(X, Y, 'o', sortedX, regression(Z[0][::-1],sortedX), 'r',
+    #    markersize=3, label='')
+    ax.plot(X, Y, 'o', sortedX, np.poly1d(Z[0])(sortedX), 'r',
         markersize=3, label='')
     # plt.legend()
     plt.show()
