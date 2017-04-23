@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 1.13 2017/04/19 15:28:01 teus Exp teus $
+# $Id: MyRegression.py,v 2.4 2017/04/23 15:17:41 teus Exp teus $
 
 """ Create and show best fit for two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -29,7 +29,7 @@
     Script uses: numpy package and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.13 $"[11:-2]
+__version__ = "0." + "$Revision: 2.4 $"[11:-2]
 
 try:
     import sys
@@ -56,15 +56,21 @@ net = {
     }
 # database identifiers
 # first range/array of regression values (second wil be calibrated against this one)
-table1 = { 'name': 'BdP_8d5ba45f', 'column': 'pm_25', 'type': 'Dylos DC1100' }
-# second (Y) range/array of regression values
-table2 = { 'name': 'BdP_3f18c330', 'column': 'pm25', 'type': 'Shinyei PPD42NS' }
+tables = [
+    { 'name': 'BdP_8d5ba45f', 'column': 'pm_25', 'type': 'Dylos DC1100' },
+    # second (Y) range/array of regression values
+    { 'name': 'BdP_3f18c330', 'column': 'pm25', 'type': 'Shinyei PPD42NS' },
+]
 # period of time for the regression values
 timing = { 'start': time() - 24*60*60, 'end': time() }
 
 interval = None # auto detect interval from database time values
 order = 1       # best fit polynomial, order: default 1: linear regression graph
-show = False    # show the scatter graph and regression polynomial best fit graph
+show = True     # show the scatter graph and regression polynomial best fit graph
+SHOW = True     # show the value and scatter graphs
+colors = ['y','b','g','darkblue','sienna','teal','purple','m','r']
+MaxPerGraph = 4 # max graphs per subplot
+pngfile = None  # show the scatter graph and regression polynomial best fit graph
 normMinMax = False    # transform regression polynomial best fit graph to [0,1] space
 normAvgStd = False    # transform regression polynomial best fit graph to [-1,1] space
 
@@ -111,20 +117,38 @@ def getInterval(arr, amin = 60, amax = 60*60):
     # print("average sample interval: %3.1f, std dev: %3.1f" % (ivals_bar, ivals_std))
     return int(ivals_bar+ 2* ivals_std)
     
-
-# we could first get average/std dev and omit the outliers
-def getColumn(db,table,period, amin = 60, amax = 60*60):
-    global interval
+def fromMySQL(fd,table):
+    # check table and column name for existance
+    if not (table['name'],) in db_query(fd,"SHOW TABLES", True):
+        sys.exit("Table with name %s does not exists in DB." % table['name'])
+    names = db_query(fd,"DESCRIBE %s" % table['name'],True)
+    fnd = False
+    for name in names:
+        if name[0] == table['column']:
+            fnd = True ; break
+    if not fnd:
+        sys.exit("Column %s in table %s does not exists." % (table['column'],table['table']))
+    # get the tuples (UNIX time stamp, valid value) for this period of time
     qry = "SELECT UNIX_TIMESTAMP(datum),(if(isnull(%s),'nan',%s)) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d and %s_valid  order by datum" % \
         (table['column'],table['column'],table['name'],timing['start'],timing['end'],table['column'])
-    values = db_query(db,qry, True)
+    return np.array(db_query(fd,qry, True), dtype=float)
+
+# we could first get average/std dev and omit the outliers
+def getColumn(resource,table,period, amin = 60, amax = 60*60):
+    global interval
+    if (not 'type' in resource.keys()) or (not 'fd' in resource.keys()) or (resource['fd'] == None):
+        sys.exit("Data resource error")
+    if resource['type'] == 'mysql':
+        values = fromMySQL(resource['fd'],table)
+    else:
+        sys.exit("Data resource error")
     if len(values) < 5:
         sys.exit("Only %d records in DB %s/%s. Need more values for proper regression." % (len(values),table['name'],table['column']))
     imin = None; imax = None; nr_records = len(values)
     i = len(values)-1
     while ( i >= 0 ):
         try:
-            values[i] = (values[i][0],float(values[i][1]))
+            values[i] = [int(values[i][0]),float(values[i][1])]
         except:
             pass
         if math.isnan(values[i][1]):
@@ -132,7 +156,7 @@ def getColumn(db,table,period, amin = 60, amax = 60*60):
             i -= 1
             continue
         if i == 0: break
-        diff = abs(values[i][0]-values[i-1][0])
+        diff = abs(values[i][0]-values[i-1][0]) # try to guess the sample interval time
         i -= 1
         if imin == None:
             imin = imax = diff
@@ -157,7 +181,7 @@ Xmin = None
 Xmin = None
 
 def pickValue(arr, time, sample):
-    value = 0; cnt = 0
+    value = 0.0; cnt = 0
     index = 0
     while (index < len(arr)) and (arr[index][0] < time-sample): 
         index += 1
@@ -166,28 +190,47 @@ def pickValue(arr, time, sample):
         cnt += 1; value += arr[index][1]
         index += 1
     if not cnt: return None
-    return value*1.0/cnt
+    return value/cnt
 
-def getArrays(net,table1,table2,timing):
-    global X, Y, interval
-    DB = db_connect(net)
-    DX = getColumn(DB,table1,timing,60,60*60)
-    DY = getColumn(DB,table2,timing,60,60*60)
-    DB.close()
-    X = []; Y = []
+def getData(net,tables,timing):
+    DB = None
+    if 'database' in net.keys():
+        DB = db_connect(net)
+    Data = []
+    for I in range(0,len(tables)):
+        Data.append(getColumn({"type": 'mysql', "fd": DB},tables[I],timing,60,60*60))
+    if DB != None:
+        DB.close()
+    return Data
+
+def getArrays(net,tables,timing):
+    """ Build a matrix with times and column values """
+    global interval
+
+    try:
+        Data = getData(net,tables,timing)
+    except StandardError:
+        sys.exit("Cannot obtain the records from the Database. Exiting.")
+
+    X = []
     skipped = 0
-    for tx in range(0,len(DX)):
-        yval = pickValue(DY,DX[tx][0],interval/2)
-        if yval == None:
-            skipped += 1
+    # build a matrix every row: [time, colVal0, colVal1, ...]
+    for tx in range(0,len(Data[0][:,0])):
+        row = [] ; row.append(Data[0][tx][0]); row.append(Data[0][tx][1])
+        try:
+            for I in range(1,len(tables)):
+                yval = pickValue(Data[I],row[0],interval/2)
+                if yval == None:
+                    skipped += 1
+                    raise ValueError
+                row.append(yval)
+        except ValueError:
             continue
-        xval = DX[tx][1]
-        X.append(xval)
-        Y.append(yval)
+        X.append(row)
     print("Collected %d values in sample time frame (%dm/%ds) for the graph." % (len(X),interval/60,interval%60))
     if skipped:
-        print("Skipped %d db records not find Y value in same sample timing." % skipped)
-    return
+        print("Skipped %d db records, could not find any value(s) in same sample interval." % skipped)
+    return np.array(X)
 
 def date2secs(string):
     timing_re = re.compile("^([0-9]+)$")
@@ -221,21 +264,24 @@ def get_arguments():
     """ Command line argument roll in """
     import argparse
     global progname
-    global net, table1, table2, timing, interval, order, show, normMinMax, normAvgStd
-    parser = argparse.ArgumentParser(prog=progname, description='Get from two tables a table for a period of time and calculate the regression', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nCopyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
+    global net, tables, timing, interval, order, show, normMinMax
+    global normAvgStd, pngfile, SHOW, MaxPerGraph
+    parser = argparse.ArgumentParser(prog=progname, description='Get from at least two tables for a period of time and calculate the regression best fit polynomial. The arguments define the row of table/column/type tables. Two default tables are defined and are overwritten by command arguments. For empty names the previous name will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nCopyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
     parser.add_argument("-H", "--hostname", help="Database host name, default: %s" % net['hostname'], default="%s" % net['hostname'])
     parser.add_argument("--port", help="Database port number, default: %d" % net['port'], default="%d" % net['port'])
     parser.add_argument("-U", "--user", help="Database user name, default: %s" % net['user'], default="%s" % net['user'])
     parser.add_argument("-P", "--password", help="Database password, default: %s" % net['password'], default="%s" % net['password'])
     parser.add_argument("-D", "--database", help="Database name, default: %s" % net['database'], default="%s" % net['database'])
-    parser.add_argument("-1", "--table1", help="Database table one/column name, default: %s/%s/%s" % (table1['name'],table1['column'],table1['type']), default="%s/%s/%s" % (table1['name'],table1['column'],table1['type']))
-    parser.add_argument("-2", "--table2", help="Database table one/column name, default: %s/%s/%s" % (table2['name'],table2['column'],table2['type']), default="%s/%s/%s" % (table2['name'],table2['column'],table2['type']))
     parser.add_argument("-i", "--interval", help="Interval sample timing (two values in same sample time) in seconds, default: auto detect", default=None)
     parser.add_argument("-t", "--timing", help="Database period of time UNIX start-end seconds or use date as understood by UNIX date command: 'date --date=SOME_DATE_string', default: %d/%d or \"1 day ago/%s\"" % (timing['start'],timing['end'],datetime.datetime.fromtimestamp(timing['start']).strftime('%Y-%m-%d %H:%M')), default="%d/%d" % (timing['start'],timing['end']))
     parser.add_argument("-o", "--order", help="best fit polynomium order, default: linear regression best fit line (order 2)", default=order)
     parser.add_argument("-n", "--norm", help="best fit polynomium min-max normalized to [0,1] space, default: no normalisation", choices=['False','True'], default=normMinMax)
     parser.add_argument("-N", "--NORM", help="best fit polynomium [avg-std,avg+std] normalized to [-1,1] space (overwrites norm option), default: no normalisation", choices=['False','True'], default=normMinMax)
     parser.add_argument("-s", "--show", help="show graph, default: graph is not shown", default=show, choices=['False','True'])
+    parser.add_argument("-S", "--SHOW", help="show value and scatter graphs, default: graph is not shown", default=SHOW, choices=['False','True'])
+    parser.add_argument("-f", "--file", help="generate png graph file, default: no png", default=pngfile)
+    parser.add_argument("-g", "--graphs", help="plot N graps in one scatter plot, default: %d", default=MaxPerGraph, type=int, choices=range(1,6))
+    parser.add_argument('args', nargs=argparse.REMAINDER, help="Database table one/column name, default: %s/%s/%s %s/%s/%s" % (tables[0]['name'],tables[0]['column'],tables[0]['type'],tables[1]['name'],tables[1]['column'],tables[1]['type']))
     # overwrite argument settings into configuration
     args = parser.parse_args()
     net['hostname'] = args.hostname
@@ -243,29 +289,26 @@ def get_arguments():
     net['user'] = args.user
     net['password'] = args.password
     net['database'] = args.database
-    tbl = args.table1.split('/')
-    if len(tbl) < 2: sys.exit("table definition should define at least table/column")
-    if len(tbl[0]):
-        table1['name'] = tbl[0]
-    if len(tbl[1]):
-        table1['column'] = tbl[1]
-    if len(tbl) > 2:
-        if len(tbl[2]): table1['type'] = tbl[2]
-        else: table1['type'] = 'unknown'
-    tbl = args.table2.split('/')
-    if len(tbl) < 2: sys.exit("table definition should define at least table/column")
-    if len(tbl[0]):
-        table2['name'] = tbl[0]
-    if len(tbl[1]):
-        table2['column'] = tbl[1]
-    if len(tbl) > 2:
-        if len(tbl[2]): table2['type'] = tbl[2]
-        else: table2['type'] = 'unknown'
+    cnt = 0
+    for tbl in args.args:
+        atbl = tbl.split('/')
+        if cnt > len(tables)-1: tables.append(tables[cnt-1])
+        if len(atbl[0]): tables[cnt]['name'] = atbl[0]
+        if len(atbl[1]): tables[cnt]['column'] = atbl[1]
+        if len(atbl) > 2:
+            if len(atbl[2]): tables[cnt]['type'] = atbl[2]
+            else: tables[cnt] = 'unknown%d' % cnt
+        cnt += 1
     timing['start'] = date2secs(args.timing.split('/')[0])
     timing['end'] = date2secs(args.timing.split('/')[1])
     if args.interval != None: interval = int(args.interval)
     order = int(args.order)
     show = bool(args.show)
+    SHOW = bool(args.SHOW)
+    if SHOW: show=True
+    pngfile = args.file
+    if pngfile != None: show = True
+    MaxPerGraph = int(args.graphs)
     normMinMax = bool(args.norm)
     normAvgStd = bool(args.NORM)
     if normAvgStd: normMinMax = False
@@ -309,111 +352,213 @@ def get_r2_python(x_list,y_list):
 from_env('DB')          # get DB credentials from command environment
 get_arguments()         # get command line arguments
 
-# roll in arrays for regression calculation
-getArrays(net,table1,table2,timing)
-Xnp = np.array(X, dtype=float)
-Xmin = np.nanmin(Xnp); Xmax = np.nanmax(Xnp)
-Xavg = np.nanmean(Xnp); Xstd = np.nanstd(Xnp)
-Ynp = np.array(Y, dtype=float)
-Ymin = np.nanmin(Ynp); Ymax = np.nanmax(Ynp)
-Yavg = np.nanmean(Ynp); Ystd = np.nanstd(Ynp)
+print('Regression best fit calculation details for sensor type(s): %s' % ', '.join(set([elm['type'] for elm in tables]))) 
+print('Graphs based on data from %s:' % net['database'])
 
-print('Regression best fit calculation details for: %s versus %s' % (table2['type'],table1['type']))
-print('Graph for %s %s/%s <- %s/%s' % (net['database'],table1['name'],table1['column'],table2['name'],table2['column']))
+# we have to take slices from the matrix: row = [time in secs, values 1, values 2, ...]
+Matrix = getArrays(net,tables,timing)
+
 print('Samples period: %s up to %s, interval timing %dm:%ds.' % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M'),interval/60,interval%60))
-print("%20s/%8s:\tavg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (table1['name'],table1['column'],Xavg,Xstd,Xmin,Xmax))
-print("%20s/%8s:\tavg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (table2['name'],table2['column'],Yavg,Ystd,Ymin,Ymax))
+Stat = { 'min': [], 'max': [], 'avg': [], 'std': [] }
 
-
-if normMinMax:
-    print('Normalisation (min,max):')
-    print('\t%s/%s [%6.2f,%6.2f] ->[0,1]' % (table1['name'],table1['column'],Xmin,Xmax))
-    print('\t%s/%s [%6.2f,%6.2f] ->[0,1]' % (table2['name'],table2['column'],Ymin,Ymax))
-    X = X - Xmin; X /= (Xmax-Xmin)
-    Xnp = np.array(X, dtype=float)
-    Y = Y - Ymin; Y /= (Ymax-Ymin)
-    Ynp = np.array(Y, dtype=float)
-if normAvgStd:
-    print('Normalisation (avg-stddev,avg+stddev):')
-    print('\t%s/%s [%6.2f,%6.2f] ->[-1,+1]' % (table1['name'],table1['column'],Xavg-Xstd,Xavg+Xstd))
-    print('\t%s/%s [%6.2f,%6.2f] ->[-1,+1]' % (table2['name'],table2['column'],Yavg-Ystd,Yavg-Ystd))
-    X = X - Xavg
-    if Xstd > 1.0: X /= Xstd
-    Xnp = np.array(X, dtype=float)
-    Y = Y - Yavg
-    if Ystd > 1.0: Y /= Ystd
-    Ynp = np.array(Y, dtype=float)
-    # X = X - (Xavg-Xstd); X /= ((Xavg+Xstd)-(Xavg-Xstd))
-    # Y = Y - (Yavg-Ystd); Y /= ((Yavg+Ystd)-(Yavg-Ystd))
+for I in range(0,len(tables)):
+    # roll in arrays for regression calculation
+    Stat['min'].append(np.nanmin(Matrix[:,I+1]))
+    Stat['max'].append(np.nanmax(Matrix[:,I+1]))
+    Stat['avg'].append(np.nanmean(Matrix[:,I+1]))
+    Stat['std'].append(np.nanstd(Matrix[:,I+1]))
+    if normMinMax:
+        print('Normalisation (min,max):')
+        print('\t%s/%s [%6.2f,%6.2f] ->[0,1]' % (tables[I]['name'],tables[I]['column'],Stat['min'][I],Stat['max'][I]))
+        Matrix[:,I+1] = Matrix[:,I+1] - Stat['min'][I]
+        Matrix[:,I+1] /= (Stat['max'][I]-Stat['min'][I])
+    if normAvgStd:
+        print('Normalisation (avg-stddev,avg+stddev):')
+        print('\t%s/%s [%6.2f,%6.2f] ->[-1,+1]' % (tables[I]['name'],tables[I]['column'],Stat['avg'][I]-Stat['std'][I],Stat['avg'][I]+Stat['std'][I]))
+        Matrix[:,I+1] = Matrix[:,I+1] - Stat['avg'][I]
+        if Stat['std'][I] > 1.0: Matrix[:,I+1] /= Stat['std'][I]
 
 # calculate the polynomial best fit graph
-Z  = np.polyfit(Xnp,Ynp,order,full=True)
-Zrev  = np.polyfit(Ynp,Xnp,order,full=True)
-
-# if order == 1:
-#     R2 = get_r2_corrcoeff(X,Y)
-#     R2 = get_r2_python( list(X),list(Y))
-# else:
-R2 = get_r2_numpy(X,Y,Z[0])
-#R2rev = get_r2_numpy(Y,X,Zrev[0])
+Z  = np.polyfit(Matrix[:,1],Matrix[:,1:],order,full=True)
 # print("Rcond: %1.3e" % Z[4] )
-print("Number of samples %s/%s: %d and %s/%s: %d, R²: %6.4f" % (table1['name'],table1['column'],len(X),table2['name'],table2['column'],len(Y),R2))
 
-print("Best fit polynomial regression curve (a0 + a1*X + a2*X**2 + ...): ")
-string = ', '.join(["%4.3e" % i for i in Z[0][::-1]])
-Xstring = "  %s/%6s (%10s)-> best fit [ %s ]" % (table1['name'],table1['column'],table1['type'],string)
-print(Xstring)
-stringrev = ', '.join(["%4.3e" % i for i in Zrev[0][::-1]])
-Ystring = "  %s/%6s (%10s)-> best fit [ %s ]" % (table2['name'],table2['column'],table2['type'],stringrev)
-print(Ystring)
+for I in range(0,len(tables)):
+    print("Data from table/sheet %s, column %s:" % (elm['name'],elm['column']))
+    print("\t#number %d, avg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (len(Matrix[:,I+1]),Stat['avg'][I],Stat['std'][I],Stat['min'][I],Stat['max'][I]))
+    if I == 0: continue
+    # if order == 1:
+    #     R2 = get_r2_corrcoeff(Matrix[:,1],Matrix[:,2])
+    #     R2 = get_r2_python( list(Matrix[:,1]),list(Matrix[:,2]))
+    # else:
+    R2 = get_r2_numpy(Matrix[:,1],Matrix[:,I+1],Z[0][:,I])
+    print("\tR-squared R² with %s/%s: %6.4f" % (tables[0]['name'],tables[0]['column'],R2))
+
+    print("\tBest fit polynomial regression curve (a0*X^0 + a1*X^1 + a2*X^2 + ...): ")
+    string = ', '.join(reversed(["%4.3e" % i for i in Z[0][:,I]]))
+    string = "\t%s/%6s (%10s)-> best fit [ %s ]" % (tables[I]['name'],tables[I]['column'],tables[I]['type'],string)
+    print(string)
 
 def makeXgrid(mn,mx,nr):
     grid = (mx-mn)/(nr*1.0)
     # return np.linspace(mn, mx, 100)
     return [mn + i*grid for i in range(0,nr+1)]
+
+# maybe numpy can do this simpler
+# create a new matrix with values calculated using best fit polynomial
+fitStat = {}
+def getFitMatrix():
+    global Matrix, Z, Stat, fitStat
+    from numpy.polynomial.polynomial import polyval
+    new = []
+    newZ = []
+    fitStat = {}
+    for I in range(0,len(Z[0])):        # reverse array ply constants low order first
+        newZ.append([])
+        for J in reversed(Z[0][I]): newZ[I].append(J)
+    for I in Stat.keys(): # get poly fit values for statistics values
+        fitStat[I] = []
+        for J in range(0,len(newZ[0])):
+            fitStat[I].append(polyval(Stat[I][J],newZ[J]))
+    for I in range(0,len(Matrix)):      # best fit value for these measurements
+        row = []
+        for J in range(1,len(Matrix[I])):
+            row.append(polyval(Matrix[I][J],newZ[J-1]))
+        new.append(row)
+    return np.array(new)
+
+# plot a spline of dates/measurements for each table
+def SplinePlot(figure,gs,base):
+    global Stat, fitStat, tables, Matrix, colors
+    from matplotlib import dates
+    ax = figure.add_subplot(gs[base,0])
+    string = "Graphs of measurements for period: %s up to %s" % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M'))
+
+    ax.set_title(string, fontsize=8)
+    times = [int(elmt) for elmt in Matrix[:,0]]
+    fds = dates.date2num(map(datetime.datetime.fromtimestamp, times))
+    ax.xaxis.set_major_locator(dates.DayLocator(interval=1))
+    ax.xaxis.set_major_formatter(dates.DateFormatter('%m/%d'))
+    ax.xaxis.set_minor_locator(dates.HourLocator(interval=4) )
+    ax.xaxis.set_minor_formatter(dates.DateFormatter('%Hh'))
+    ax.set_xticklabels(ax.xaxis.get_majorticklabels(), rotation=-45)
+    plt.xticks(rotation='vertical')
+    plt.subplots_adjust(bottom=.3)
+    ax.set_ylabel('scaled to avg %s/%s (%s)' %(tables[0]['name'],tables[0]['column'],
+                tables[0]['type']), fontsize=8 , fontweight='bold')
+
+    # fitMatrix = getFitMatrix()
+    for I in range(1,len(Matrix[0,:])):
+        ax.plot(fds,Matrix[:,I]*Stat['avg'][0]/Stat['avg'][I-1], '-', c=colors[I%len(colors)], label='%s/%s (%s)' % (tables[I-1]['name'],tables[I-1]['column'],tables[I-1]['type']))
+        #if I >= 1:       # add best fit correction graph
+        #    ax.plot(fds,fitMatrix[:,I-1]*fitStat['avg'][0]/fitStat['avg'][I-1], ':', c=colors[I%len(colors)], label='%s/%s (best fit)' % (tables[I-1]['name'],tables[I-1]['column']))
+
+    # Set the fontsize
+    legend = ax.legend(loc='upper left', labelspacing=-0.1, shadow=True)
+    for label in legend.get_texts():
+        label.set_fontsize(7)
+    for label in legend.get_lines():
+        label.set_linewidth(1.5)  # the legend line width
+    legend.get_frame().set_facecolor('0.95')
+    legend.get_frame().set_linewidth(0.01)
+
+# plot a scattered plot range of max MaxPerGraphs scatter plots in one subplot
+def ScatterPlot(figure,gs,base):
+    global Stat, tables, Matrix, MaxPerGraph, colors, props
+    ax = None; strg1 = strg2 = ''
+    for I in range(1,len(tables)):
+        # the graphs
+        nr_graphs = 0
+        ax = figure.add_subplot(gs[base+(I/MaxPerGraph),0])
+
+        # title of the plot
+        if not (I-1)%MaxPerGraph:
+            ax.set_title("for period: %s up to %s" % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M')),fontsize=8)
+
+        # box with text for each graph
+        if (I%MaxPerGraph) == 1:
+            strg2 = '\n\nBest fit polynomials (low order first):'
+            strg2 += "\n%s/%s: [%s]" % (tables[0]['name'],tables[0]['column'],', '.join(reversed(["%4.3e" % i for i in Z[0][:,0]])))
+            strg1 = "R$^2$=%6.4f, order=%d" % (R2, order)
+            strg1 += "\n%s/%s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" % (tables[0]['name'],tables[0]['column'],
+                Stat['avg'][0],Stat['std'][0],Stat['min'][0],Stat['max'][0])
+        for J in range(I,I+MaxPerGraph):
+            if J == len(tables): break
+            nr_graphs += 1
+            strg1 += "\n%s/%s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" %(tables[J]['name'],tables[J]['column'],
+                Stat['avg'][J],Stat['std'][J],Stat['min'][J],Stat['max'][J])
+        if normMinMax: strg1 += ', (min,max)->(0,1) normalized'
+        if normAvgStd: strg1 += ', (avg, std dev) -> (0,1) normalized'
+        for J in range(I,I+MaxPerGraph):
+            if J == len(tables): break
+            strg2 += "\n%s/%s: [%s]" % (tables[J]['name'],tables[J]['column'],', '.join(reversed(["%4.3e" % i for i in Z[0][:,J]])))
+        if (I == (len(tables)-1)) or ((MaxPerGraph-1) == (I%MaxPerGraph)):
+            ax.text(0.03, 0.96, strg1+strg2, transform=ax.transAxes, fontsize=8,
+                verticalalignment='top', bbox=props)
+            strg1 = strg2 = ''
+
+        # legend text(s)
+        if not (I-1)%MaxPerGraph:
+            ax.set_xlabel('table %s column %s (%s)' %(tables[0]['name'],
+                tables[0]['column'],tables[0]['type']), fontsize=8, fontweight='bold')
+        label = ''
+        if nr_graphs == 1:
+            ax.set_ylabel('table %s column %s (%s)' %(tables[I]['name'],tables[I]['column'],
+                tables[I]['type']), fontsize=8 , fontweight='bold')
+        else:
+            label = '%s/%s (%s)' % (tables[I]['name'],tables[I]['column'],tables[I]['type'])
+        
+        # the scatter and best fit graph(s)
+        for J in range(I,I+MaxPerGraph):
+            if J == len(tables): break
+            ax.plot(Matrix[:,1], Matrix[:,J+1], 'o', c=colors[J%MaxPerGraph],markersize=3, label='%s' % label)
+            ax.plot(sortedX, np.poly1d(Z[0][:,J])(sortedX), c=colors[J%MaxPerGraph], label='%s versus %s' % (tables[0]['type'],tables[J]['type']))
+        I = J-1    
+
+        # Set the fontsize
+        legend = ax.legend(loc='lower right', labelspacing=-0.1, shadow=True)
+        for label in legend.get_texts():
+            label.set_fontsize(7)
+        for label in legend.get_lines():
+            label.set_linewidth(1.5)  # the legend line width
+        legend.get_frame().set_facecolor('0.95')
+        legend.get_frame().set_linewidth(0.01)
     
 if show:
     import matplotlib.pyplot as plt
+    from matplotlib import gridspec
+    base = 0    # base for scatter graphs
+    if SHOW: base = 1
     if normMinMax:
         sortedX = makeXgrid(0,1,100)
     elif normAvgStd:
-        dev = Xstd
-        if Xstd < 1.0: dev = 1.0
-        sortedX = makeXgrid((Xmin-Xavg)/dev,(Xmax-Xavg)/dev,100)
+        dev = Stat['std'][0]
+        if Stat['std'][0] < 1.0: dev = 1.0
+        sortedX = makeXgrid((Stat['min'][0]-Stat['avg'][0])/dev,(Stat['max'][0]-Stat['avg'][0])/dev,100)
     else:
-        sortedX = makeXgrid(Xmin,Xmax,100)
+        sortedX = makeXgrid(Stat['min'][0],Stat['max'][0],100)
+
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-    fig = plt.figure()
+    # fig = plt.figure(tight_layout=True, figsize=(7.5,(base+(len(tables)/MaxPerGraph)+1) *5.0))
+    Width = 7.5
+    Height = 5
+    if SHOW: Height *= 2
+    fig = plt.figure(tight_layout=True, figsize=(Width,Height))
+    # fig = plt.figure()
+    # left=0.1, bottom=0.1, right=0.97, top=0.93, wspace=0.25, hspace=0.25
+    # fig.subplots_adjust(top=0.93, bottom=0.5, left=0.2, right=0.2)
     # create some bling bling
-    fig.suptitle('Best fit polynomial for %s with %s' % (table2['type'],table1['type']),
-        fontsize=9, fontweight='bold')
-    ax = fig.add_subplot(111)
-    ax.set_title('Regression graph for %s' % net['database'],
-        fontsize=9, fontweight='bold')
-    title_strg = "%20s %6s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" % (table1['name'],table1['column'],
-        Xavg,Xstd,Xmin,Xmax)
-    title_strg += "\n%20s %6s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" %(table2['name'],table2['column'],
-        Yavg,Ystd,Ymin,Ymax)
-    title_strg += "\nR$^2$=%6.4f, order=%d" % (R2, order)
-    if normMinMax: title_strg += ', (min,max)->(0,1) normalized'
-    if normAvgStd: title_strg += ', (avg, std dev) -> (0,1) normalized'
-    title_strg += "\nCalibration polynomial constants (low order first): "
-    title_strg += "\n%s" % Xstring
-    title_strg += "\n%s" % Ystring
+    #fig.suptitle('Data from %s, best fit polynomial for type(s): %s' % (net['database'],', '.join(set([elmt['type'] for elmt in tables]))),
+    #    fontsize=9, fontweight='bold')
+    gs = gridspec.GridSpec(base + (len(tables)-1)/MaxPerGraph+1,1)
+    # bottom declaration
     fig.text(0.98, 0.015, 'generated %s by pyplot/numpy' % datetime.datetime.fromtimestamp(time()).strftime('%d %b %Y %H:%M'),
         verticalalignment='bottom', horizontalalignment='right',
-        transform=ax.transAxes, color='gray', fontsize=8)
-    # the graph
-    ax.set_title("for period: %s up to %s" % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M')),fontsize=8)
-    ax.text(0.03, 0.96, title_strg, transform=ax.transAxes, fontsize=8,
-        verticalalignment='top', bbox=props)
-    ax.set_xlabel('table %s column %s (%s)' %(table1['name'],
-        table1['column'],table1['type']), fontsize=8, fontweight='bold')
-    ax.set_ylabel('table %s column %s (%s)' %(table2['name'],table2['column'],
-        table2['type']), fontsize=8 , fontweight='bold')
-    #ax.plot(X, Y, 'o', sortedX, regression(Z[0][::-1],sortedX), 'r',
-    #    markersize=3, label='')
-    ax.plot(X, Y, 'o', sortedX, np.poly1d(Z[0])(sortedX), 'r',
-        markersize=3, label='')
-    # plt.legend()
-    plt.show()
+        color='gray', fontsize=8)
+
+    if SHOW: SplinePlot(fig,gs,0)
+    ScatterPlot(fig,gs,base)
+
+    if pngfile != None:
+        plt.savefig(pngfile, bbox_inches='tight')
+    else:
+        plt.show()
