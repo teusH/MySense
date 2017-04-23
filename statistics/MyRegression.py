@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 2.4 2017/04/23 15:17:41 teus Exp teus $
+# $Id: MyRegression.py,v 2.5 2017/04/23 15:54:07 teus Exp teus $
 
 """ Create and show best fit for two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -29,7 +29,7 @@
     Script uses: numpy package and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.4 $"[11:-2]
+__version__ = "0." + "$Revision: 2.5 $"[11:-2]
 
 try:
     import sys
@@ -131,7 +131,7 @@ def fromMySQL(fd,table):
     # get the tuples (UNIX time stamp, valid value) for this period of time
     qry = "SELECT UNIX_TIMESTAMP(datum),(if(isnull(%s),'nan',%s)) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d and %s_valid  order by datum" % \
         (table['column'],table['column'],table['name'],timing['start'],timing['end'],table['column'])
-    return np.array(db_query(fd,qry, True), dtype=float)
+    return db_query(fd,qry, True)
 
 # we could first get average/std dev and omit the outliers
 def getColumn(resource,table,period, amin = 60, amax = 60*60):
@@ -171,7 +171,7 @@ def getColumn(resource,table,period, amin = 60, amax = 60*60):
             interval = aval; strg = 'minimal- 50% -maximal'
         print("Auto interval samples is (re)set to %d (%s)" % (interval,strg))
     print("Database table %s column %s: %d db records, deleted %d NaN records." % (table['name'],table['column'],len(values), nr_records-len(values)))
-    return values
+    return np.array(values)
 
 X = []
 Y = []
@@ -209,8 +209,8 @@ def getArrays(net,tables,timing):
 
     try:
         Data = getData(net,tables,timing)
-    except StandardError:
-        sys.exit("Cannot obtain the records from the Database. Exiting.")
+    except StandardError as err:
+        sys.exit("Cannot obtain the records from the Database. Error: %s." % err)
 
     X = []
     skipped = 0
