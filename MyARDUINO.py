@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.13 2017/04/18 19:45:10 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.14 2017/04/25 20:14:29 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -31,21 +31,27 @@
     Relies on Conf setting by main program
     Output dict with Shinyei PPD42NS and maybe other sensors
     Arduino produces lines output (json string) like (format: <type>_<unit>):
-    {
-    "version": "1.05","type": "PPD42NS",
-    "pm25_count":null,"pm25_ratio":null,"pm25_pcs/cf":null,"pm25_ug/m3":null,
+    sync:
+    {} EOL-char
+    configuration:
+    { "version": "1.05","type": "PPD42NS",
+      "interval": 60, "sample: 20, "request": False } EOL-char
+    data:
+    { "pm25_count":null,"pm25_ratio":null,"pm25_pcs/cf":null,"pm25_ug/m3":null,
     "pm10_count":2435471,"pm10_ratio":8.02,"pm10_pcs/cf":4490,"pm10_ug/m3":7.00
     } EOL-char
+
     Arduino firmware can operate in two modes:
-        driven on send values requests (send any char not 'C')
+        driven on send values requests (request == True, send any char not 'C')
         every interval (dftl 60 secs) a sample (flt 15 secs)
     Firmware config Options: interval, sample and mode. Send command line::
     'C interval sample R<EOL>'
+    Arduino responds with configuration json string
     where interval/sample is a number (in secs), R (request mode) is optional
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.13 $"[11:-2]
+__version__ = "0." + "$Revision: 1.14 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -63,7 +69,7 @@ Conf = {
     'fd': None,          # input handler
     'type': "Arduino Uno",   # type of sensor(s) controller
     'usbid': 'usb-Arduino_srl_', # usb ID via lsusb
-    'firmware': '1.05',  # firmware number
+    'firmware': '1.08',  # firmware number
      # define 'names': [] if one want to extract the names from firmware, but
      # note the order of names and so map to 'fields' is then at random
     'names': ['pm25','pm10'],  # record names as provided by firmware
@@ -73,8 +79,8 @@ Conf = {
      # 'count' and 'ratio' (0-100) per sample timing
     'units' : ['pcs/qf','pcs/qf'], # per type the measurment unit
     'calibrations': [[0,1],[0,1]], # per type calibration (Taylor serie)
-    'interval': 45,     # read interval in secs (dflt)
-    'sample': 10,       # sample timing for the count (seconds)
+    'interval': 60,     # read interval in secs (dflt)
+    'sample': 30,       # sample timing for the count (seconds)
     'bufsize': 30,      # size of the window of values readings max
     'sync': False,      # use thread or not to collect data
     'debug': False,     # be more versatile on input data collection
@@ -177,12 +183,46 @@ def open_serial():
             Conf['interval'] = 2 * Conf['sample']
             MyLogger.log('WARNING','Shinyei dust adjusted interval time to %d secs' % Conf['interval'])
         cnt = 0
-        while 1:
-            if (cnt%3) == 0:    # configure Arduino firmware
+        # start arduino with config details, try to synchronize
+        while True:
+            if (cnt%4) == 0:    # configure Arduino firmware
                 Conf['fd'].write("C %d %d\n" % (Conf['interval'],Conf['sample'])) 
             cnt += 1
             line = Conf['fd'].readline()
-            if (len(line) < 20) or (cnt > 10): break
+            try:
+                i = line.index('{')
+            except ValueError:
+                continue
+            line = line[i:]
+            while line.count('{') > 1:
+                if len(line) < 3: break
+                line = line[line.index('{')+1:]
+            try:
+                i = line.index('}')
+                line = line[0:line.index('}')+1]
+            except ValueError:
+                continue
+            try:
+                config = json.loads(line[line.index('{'):line.index('}')+1])
+                if (Conf['interval'] != config['interval']) or (Conf['sample'] != config['sample']):
+                    MyLogger.log('WARNING',"Conf != Arduino conf: interval %d~%d sample %d~%d" % (Conf['interval'],config['interval'],Conf['sample'],config['sample']))
+                Conf['interval'] = config['interval']
+                Conf['sample'] = config['sample']
+                if Conf['firmware'][0] != config['version'][0]:
+                    MyLogger.log('ERROR',"Firmware Aduino %s incompatible, need version %s" % (Conf['firmware'][0],config['version'][0]))
+                    return False 
+                Conf['firmware'] = config['version']
+                if 'type' in config.keys():
+                    if Conf['type'] != config['type']:
+                        MyLogger.log('ATTENT','%s sensor(s) type: %s' % (Conf['type'],config['type']));
+                    Conf['type'] = config['type']
+                # if 'fields' in config.keys(): Conf['fields'] = config['fields']
+                break
+            except:
+                continue
+            if cnt > 12:
+                MyLogger.log('ERROR', "Arduino: unable to start Arduino")
+                return False
     elif Conf['file']:
         try:
             Conf['fd'] = open(Conf['file'])
@@ -238,11 +278,11 @@ def Add(conf):
     bin_data = {}
     try:
         try:
-            if (not Conf['file']) and (conf['interval'] == 0):
+            if (not conf['file']) and (conf['interval'] == 0):
                 # request a json string
                 conf['fd'].write("\n")
             line = conf['fd'].readline()
-            if not Conf['file']:
+            if not conf['file']:
                 while conf['fd'].inWaiting():       # skip to latest record
                     line = conf['fd'].readline()
             Serial_Errors = 0
@@ -311,7 +351,7 @@ def Add(conf):
             if nr > len(conf['calibrations']): conf['calibrations'].append = [0,1]
             conf['names'].append(id_un[0])
             conf['units'].append(id_un[1].replace('#',''))
-            MyLogger.log('ATTENT','New Arduino nr %d sensor added: %s units %s' % (nr,id_un[0],id_un[1])
+            MyLogger.log('ATTENT','New Arduino nr %d sensor added: %s units %s' % (nr,id_un[0],id_un[1]))
     for i in range(0,len(conf['fields'])):
         dataKey = '%s_%s' % (conf['names'][i],conf['units'][i])
         if dataKey in bin_data.keys():

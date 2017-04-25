@@ -51,6 +51,8 @@ unsigned long interval = 60000; // timing reads (in milliseconds)
 unsigned long sampletime_ms = 15000;  // timing one sample synchronous
 boolean configured = false;
 boolean ack = false;
+int scale = 10;                 // scale to Dylos range
+String StrBuf = "";
 
 void setup()
 {
@@ -61,6 +63,7 @@ void setup()
   pinMode(LedPIN,OUTPUT); // signals configuration mode and sampling mode
   pinMode(DUST_SENSOR_DIGITAL_PIN_PM10,INPUT);
   pinMode(DUST_SENSOR_DIGITAL_PIN_PM25,INPUT);
+  digitalWrite(LedPIN,HIGH);
 
 
 }
@@ -74,8 +77,8 @@ void configure(char cmd)
   Serial.setTimeout(60000); // after one minute use defaults
   digitalWrite(LedPIN,HIGH);
   // Serial.println("Configuring");
-  Serial.println("");
-  sampletime_ms = 15000; // defaults
+  Serial.println("{}");
+  sampletime_ms = 20000; // defaults
   interval = 60000;
   ack = false;
   endTime = millis() + 60000;
@@ -89,21 +92,23 @@ void configure(char cmd)
   }
   configured = true;
   // configure: C interval sampleTime RequestTiming \n (timeout 15 seconds)
+  Serial.print("{");
+  digitalWrite(LedPIN,HIGH);
   while ( Serial.available() > 0 ) {
     if ( timing1 == 0 ) {
       timing1 = Serial.parseInt();
-      // Serial.print("interval: "); Serial.println(timing1);
+      //Serial.print("interval: "); Serial.println(timing1);
       if ( (timing1 >= 0) and (timing1 <= 3600) ) {  // 60 minutes max
         if (timing1 == 0) { ack = true; }
-        else { interval = timing1 * 1000; }
+        else { interval = timing1 * 1000 + 200; }
       }
       timing1 = 1;
       continue;
     } else if ( timing2 == 0 ) {
-      timing2 = Serial.parseInt() * 1000;
-      // Serial.print("sample time: "); Serial.println(timing2);
-      if ( (timing2 > 0) and (timing2 <= (interval/2)) ) {
-        sampletime_ms = timing2;
+      timing2 = Serial.parseInt();
+      //Serial.print("sample time: "); Serial.println(timing2);
+      if ( (timing2 > 0) and (2000*timing2 <= interval) ) {
+        sampletime_ms = timing2 * 1000;
       }
       timing2 = 1;
       continue;
@@ -125,17 +130,16 @@ void configure(char cmd)
     Serial.read();
   }
   digitalWrite(LedPIN,LOW);
-  // Serial.print("interval: "); Serial.println(interval/1000);
-  // Serial.print("sample time: "); Serial.println(sampletime_ms/1000);
+  Serial.print("\"version\":\"" + version + "\",\"type\":\"" + type + "\"");
+  Serial.print(",\"interval\":" + String(interval/1000));
+  Serial.print(",\"sample\":" + String(sampletime_ms/1000));
+  if ( ack ) { Serial.println(",\"request\":true}"); }
+  else { Serial.println(",\"request\":false}"); }
   // Serial.println("End of configuration");
-}
-
-void MyDelay(long msecs)
-{
-  if ( msecs < 250 ) { msecs = 250; }
-  digitalWrite(LedPIN,HIGH);
-  delay(msecs);
-  digitalWrite(LedPIN,LOW);
+  // empty serial read buffer
+  while ( Serial.available() > 0 ) {
+    Serial.read();
+  }
 }
 
 void loop()
@@ -148,31 +152,28 @@ void loop()
     configure('R');
   }
   
-  Serial.print("{");
-  Serial.print("\"version\": \"" + version + "\",\"type\": \"" + type + "\"");
-  
   sleepTime = millis();
-  Serial.print(",");
+  StrBuf = "{";
   printPM((int)DUST_SENSOR_DIGITAL_PIN_PM25,(String)"pm25");
   
   if ( not ack ) {
-    sleepTime = (interval/2) - (millis()-sleepTime);
-    MyDelay(sleepTime);
-  } else {
-    MyDelay(250);
+    sleepTime = interval/2 - (millis() - sleepTime);
+    if ( sleepTime > 0 ) {
+      delay(sleepTime);
+    }
   }
   
   sleepTime = millis();
-  Serial.print(",");
+  StrBuf += ',';
   printPM((int)DUST_SENSOR_DIGITAL_PIN_PM10,(String)"pm10");
   
-  Serial.println("}");
+  Serial.println(StrBuf + "}"); StrBuf = "{";
   
   if ( not ack ) { //sleep to save on radio
     sleepTime = interval/2 - (millis() - sleepTime);
-    MyDelay(sleepTime);
-  } else {
-    MyDelay(250);
+    if ( sleepTime > 50 ) {
+      delay(sleepTime);
+    }
   }
   if ( ack or (Serial.available() > 0 ) ) {
     sleepTime = millis() + 3600000; // max wait time one hour
@@ -181,7 +182,9 @@ void loop()
         if ( millis() > sleepTime ) {
           break;
         }
-        MyDelay(1000);
+        digitalWrite(LedPIN,HIGH);
+        delay(1000);
+        digitalWrite(LedPIN,LOW);
       }
       cmd = Serial.read();
       if ( cmd == '\n' ) {
@@ -194,22 +197,34 @@ void loop()
   }    
 }
 
+//function to extract decimal part of float
+long getDecimal(float val)
+{
+  if ( val < 0 ) val = (-1)*val;
+  int intPart = int(val);
+  long decPart = int(100.0*(val-intPart)+0.5); // max 3 decimal places.
+  if(decPart==0)return(0);           //return 0 if no decimal part
+  return(decPart);
+}
+
 void printPM(int pin, String name){
   long concentrationPM;
+  float conv;
   
   //get PM density of particles over x μm.
   concentrationPM=(long)getPM((int)pin,(String)name);
-  Serial.print(",\"" + name + "_pcs/qf\":");
+  StrBuf += ",\"" + name + "_pcs/qf\":";
   if ( concentrationPM > 0 ) {
-    Serial.print(concentrationPM/100);
+    StrBuf += String(concentrationPM/scale);  // divide by 10?
   } else { 
-    Serial.print("null");
+    StrBuf += "null";
   }
-  Serial.print(",\"" + name + "_ug/m3\":");
+  StrBuf += ",\"" + name + "_ug/m3\":";
   if ( concentrationPM > 0 ) {
-    Serial.print((float)conversion(concentrationPM,name));
+    conv = (float)conversion(concentrationPM,name);
+    StrBuf += String(int(conv)) + "." + String(getDecimal(conv));
   } else {
-    Serial.print("null");
+    StrBuf += "null";
   }
 }
 
@@ -234,9 +249,9 @@ long getPM(int DUST_SENSOR_DIGITAL_PIN, String name) {
   float ratio = 0;
   unsigned long lowpulseoccupancy = 0;
   float concentration = 0;
-  boolean ledState = LOW;
   
   starttime = millis();
+  digitalWrite(LedPIN,LOW);
 
   while (true) {
     
@@ -246,6 +261,7 @@ long getPM(int DUST_SENSOR_DIGITAL_PIN, String name) {
 
     if ((endtime-starttime) > sampletime_ms)
     {
+      digitalWrite(LedPIN,HIGH);
       ratio = (lowpulseoccupancy-endtime+starttime)/(sampletime_ms*10.0);
       // Integer percentage 0=>100
       if ( (ratio > 100) or (ratio < 0) ) {
@@ -253,17 +269,17 @@ long getPM(int DUST_SENSOR_DIGITAL_PIN, String name) {
       }
       concentration = 1.1*pow(ratio,3)-3.8*pow(ratio,2)+520*ratio+0.62; // using spec sheet curve
     
-      Serial.print("\"" + name + "_count\":");
+      StrBuf = StrBuf + "\"" + name + "_count\":";
       if ( ratio > 0 ) {
-        Serial.print(lowpulseoccupancy);
+        StrBuf = StrBuf + String(lowpulseoccupancy/10);  // scaling Dylos??
       } else {
-        Serial.print("null");
+        StrBuf = StrBuf + "null";
       }
-      Serial.print(",\"" + name + "_ratio\":");
+      StrBuf = StrBuf + ",\"" + name + "_ratio\":";
       if ( ratio > 0 ) {
-        Serial.print(ratio);
+        StrBuf += String(int(ratio)) + "." + String(getDecimal(ratio));
       } else {
-        Serial.print("null");
+        StrBuf = StrBuf + "null";
         return(0);
       }
       return(concentration);
