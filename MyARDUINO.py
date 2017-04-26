@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.14 2017/04/25 20:14:29 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.15 2017/04/26 10:07:04 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -51,7 +51,7 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.14 $"[11:-2]
+__version__ = "0." + "$Revision: 1.15 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -286,9 +286,9 @@ def Add(conf):
                 while conf['fd'].inWaiting():       # skip to latest record
                     line = conf['fd'].readline()
             Serial_Errors = 0
-        except SerialException:
+        except IOError as er:
             conf['Serial_Errors'] += 1
-            MyLogger.log('ATTENT',"ARduino serial exception. Close/Open serial.")
+            MyLogger.log('ATTENT',"Arduino serial error: %s, retry close/open serial." % er)
             try:
                 conf['fd'].close()
             except:
@@ -298,9 +298,10 @@ def Add(conf):
                 MyLogger.log('ERROR',"Arduino to many serial errors. Disabled.")
                 sleep(1)
                 conf['output'] = False
-                return bin_data
+                return {}
             return conf['getdata']()
-        except:
+        except StandardError as er:
+            MyLogger.log('ATTENT',"Arduino serial access error: %s" % er)
             pass
         line = str(line.strip().decode('utf-8'))
         s = line.find('{') ; l = line.find('}')
@@ -312,13 +313,13 @@ def Add(conf):
             bin_data = json.loads(line[s:(l+1)])
         except:
             # Arduino Error
-            MyLogger('WARNING',"Arduino Data: Error - Arduino Bin data")
+            MyLogger('WARNING',"Arduino Data: Error - json data load")
         if len(bin_data) <= 0:
             sleep(1)
             return bin_data
     except (Exception) as error:
         # Some other Arduino Error
-        MyLogger.log('WARNING','Some Arduine error in Add routine')
+        MyLogger.log('WARNING','Arduino error in Add routine: %s' % error)
         sleep(1)
         return {}
     if ('firmware' in conf.keys()) and ('version' in bin_data.keys()):
