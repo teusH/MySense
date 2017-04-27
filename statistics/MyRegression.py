@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 2.5 2017/04/23 15:54:07 teus Exp teus $
+# $Id: MyRegression.py,v 2.6 2017/04/27 19:52:11 teus Exp teus $
 
 """ Create and show best fit for two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -29,7 +29,7 @@
     Script uses: numpy package and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.5 $"[11:-2]
+__version__ = "0." + "$Revision: 2.6 $"[11:-2]
 
 try:
     import sys
@@ -61,6 +61,14 @@ tables = [
     # second (Y) range/array of regression values
     { 'name': 'BdP_3f18c330', 'column': 'pm25', 'type': 'Shinyei PPD42NS' },
 ]
+
+# xlsx and csv input file
+# TO DO: extent to use a row of files, add csv file input
+Pandas = {
+    'input' : None,     # input file name to parse with pandas
+    'module' : None,    # panda module to load
+}
+
 # period of time for the regression values
 timing = { 'start': time() - 24*60*60, 'end': time() }
 
@@ -129,19 +137,25 @@ def fromMySQL(fd,table):
     if not fnd:
         sys.exit("Column %s in table %s does not exists." % (table['column'],table['table']))
     # get the tuples (UNIX time stamp, valid value) for this period of time
-    qry = "SELECT UNIX_TIMESTAMP(datum),(if(isnull(%s),'nan',%s)) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d and %s_valid  order by datum" % \
-        (table['column'],table['column'],table['name'],timing['start'],timing['end'],table['column'])
+    qry = "SELECT UNIX_TIMESTAMP(%s),(if(isnull(%s),'nan',%s)) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d and %s_valid  order by datum" % \
+        (table['date'],table['column'],table['column'],table['name'],timing['start'],timing['end'],table['column'])
     return db_query(fd,qry, True)
 
 # we could first get average/std dev and omit the outliers
 def getColumn(resource,table,period, amin = 60, amax = 60*60):
     global interval
-    if (not 'type' in resource.keys()) or (not 'fd' in resource.keys()) or (resource['fd'] == None):
+    if (not 'type' in resource.keys()) or (not 'fd' in resource.keys()):
         sys.exit("Data resource error")
     if resource['type'] == 'mysql':
         values = fromMySQL(resource['fd'],table)
+    elif resource['type'] == 'xlsx':
+        if not 'read' in Pandas.keys():
+            Pandas['read'] = GetXLSX()
+        if not Pandas['read']:
+            return np.array([])
+        values = FromXLSX(table)
     else:
-        sys.exit("Data resource error")
+        sys.exit("Data resource error: unknown data type")
     if len(values) < 5:
         sys.exit("Only %d records in DB %s/%s. Need more values for proper regression." % (len(values),table['name'],table['column']))
     imin = None; imax = None; nr_records = len(values)
@@ -180,27 +194,33 @@ Xmax = None
 Xmin = None
 Xmin = None
 
+LastIndex = 0
 def pickValue(arr, time, sample):
+    global LastIndex
     value = 0.0; cnt = 0
-    index = 0
+    index = LastIndex
     while (index < len(arr)) and (arr[index][0] < time-sample): 
         index += 1
     if index >= len(arr): return None
     while (index < len(arr)) and (arr[index][0] < time+sample):
         cnt += 1; value += arr[index][1]
         index += 1
+    LastIndex = index - 2
+    if (LastIndex < 0) or (index >= len(arr)): LastIndex = 0
     if not cnt: return None
     return value/cnt
 
 def getData(net,tables,timing):
-    DB = None
-    if 'database' in net.keys():
-        DB = db_connect(net)
+    if Pandas['input'] == None:
+        resource = {"type": 'mysql', "fd": net['fd']}
+    else:
+        resource = {"type": 'xlsx', "fd": Pandas['fd']}
     Data = []
     for I in range(0,len(tables)):
-        Data.append(getColumn({"type": 'mysql', "fd": DB},tables[I],timing,60,60*60))
-    if DB != None:
-        DB.close()
+        Data.append(getColumn(resource,tables[I],timing,60,60*60))
+    if (resource['type'] == 'mysql') and (resource['fd'] != None):
+        resource['fd'].close()
+    elif resource['type'] == 'xlsx': Pandas['fd'] = None
     return Data
 
 def getArrays(net,tables,timing):
@@ -234,6 +254,7 @@ def getArrays(net,tables,timing):
 
 def date2secs(string):
     timing_re = re.compile("^([0-9]+)$")
+    string = string.replace('-','/')
     if timing_re.match(string): return int(string)
     try:
         number = subprocess.check_output(["/bin/date","--date=%s" % string,"+%s"])
@@ -265,8 +286,9 @@ def get_arguments():
     import argparse
     global progname
     global net, tables, timing, interval, order, show, normMinMax
-    global normAvgStd, pngfile, SHOW, MaxPerGraph
-    parser = argparse.ArgumentParser(prog=progname, description='Get from at least two tables for a period of time and calculate the regression best fit polynomial. The arguments define the row of table/column/type tables. Two default tables are defined and are overwritten by command arguments. For empty names the previous name will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nCopyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
+    global normAvgStd, pngfile, SHOW, MaxPerGraph, Pandas
+    parser = argparse.ArgumentParser(prog=progname, description='Get from at least two tables for a period of time and calculate the regression best fit polynomial. Each argument defines the [[table]/]column/[date]/[type] table use definition. For non DB use the table is sheet1 and should be omitted. Default definitions: the previous names or column numbers for table, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nCopyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
+    parser.add_argument("-I", "--input", help="XLSX or CSV input file (path/filename.{xlsx,csv}, default: None", default=Pandas['input'])
     parser.add_argument("-H", "--hostname", help="Database host name, default: %s" % net['hostname'], default="%s" % net['hostname'])
     parser.add_argument("--port", help="Database port number, default: %d" % net['port'], default="%d" % net['port'])
     parser.add_argument("-U", "--user", help="Database user name, default: %s" % net['user'], default="%s" % net['user'])
@@ -280,27 +302,71 @@ def get_arguments():
     parser.add_argument("-s", "--show", help="show graph, default: graph is not shown", default=show, choices=['False','True'])
     parser.add_argument("-S", "--SHOW", help="show value and scatter graphs, default: graph is not shown", default=SHOW, choices=['False','True'])
     parser.add_argument("-f", "--file", help="generate png graph file, default: no png", default=pngfile)
-    parser.add_argument("-g", "--graphs", help="plot N graps in one scatter plot, default: %d", default=MaxPerGraph, type=int, choices=range(1,6))
-    parser.add_argument('args', nargs=argparse.REMAINDER, help="Database table one/column name, default: %s/%s/%s %s/%s/%s" % (tables[0]['name'],tables[0]['column'],tables[0]['type'],tables[1]['name'],tables[1]['column'],tables[1]['type']))
+    parser.add_argument("-g", "--graphs", help="plot N graps in one scatter plot, default: %d" % MaxPerGraph, default=MaxPerGraph, type=int, choices=range(1,6))
+    parser.add_argument('args', nargs=argparse.REMAINDER, help="Database table one/column name, default: %s/%s/%s %s/%s/%s. Spreadsheet (sheet1) columns: name/value_colnr/[date_colnr][/type] (default date: col 0, name: pollutant nr, colum nr: 1, 2, type: ?)" % (tables[0]['name'],tables[0]['column'],tables[0]['type'],tables[1]['name'],tables[1]['column'],tables[1]['type']))
     # overwrite argument settings into configuration
     args = parser.parse_args()
+    Pandas['input'] = args.input
     net['hostname'] = args.hostname
     net['port'] = int(args.port)
     net['user'] = args.user
     net['password'] = args.password
     net['database'] = args.database
+    net['fd'] = None
     cnt = 0
-    for tbl in args.args:
-        atbl = tbl.split('/')
-        if cnt > len(tables)-1: tables.append(tables[cnt-1])
-        if len(atbl[0]): tables[cnt]['name'] = atbl[0]
-        if len(atbl[1]): tables[cnt]['column'] = atbl[1]
-        if len(atbl) > 2:
-            if len(atbl[2]): tables[cnt]['type'] = atbl[2]
-            else: tables[cnt] = 'unknown%d' % cnt
-        cnt += 1
+    if Pandas['input']:
+        try:
+            Pandas['module'] = __import__('pandas')
+        except:
+            sys.exit("Unable to load pandas module")
+        if (not os.path.isfile(Pandas['input'])) or (Pandas['input'][-4:].upper() != 'XLSX'):
+            sys.exit("File %s does not exists or is not an xlsx file." % Pandas['input'])
+        try:
+            Pandas['fd'] = Pandas['module'].read_excel(Pandas['input'])
+        except:
+            sys.exit("File %s not an xlsx file." % Pandas['input'])
+        # TO DO: add to use sheet nr's / names iso numbers
+        tables = [ {'date': 0 }]
+        if len(args.args) <= 1: showXLSX(args.args)
+        last_col = 0
+        for tbl in args.args:
+            atbl = tbl.split('/')
+            if cnt > len(tables)-1:
+                tables.append({'date': tables[cnt-1]['date']})
+            tables[cnt]['name'] = 'pollutant %d' % cnt
+            last_col += 1
+            tables[cnt]['column'] = last_col
+            tables[cnt]['type'] = 'unknown %d' % cnt
+            if len(atbl[0]): tables[cnt]['name'] = atbl[0]
+            if len(atbl[1]):
+                tables[cnt]['column'] = int(atbl[1])
+                last_col = int(atbl[1])
+            if (len(atbl) > 2) and (cnt < 1):
+                if len(atbl[2]): tables[cnt]['date'] = int(atbl[2])
+            if len(atbl) > 3:
+                if len(atbl[3]): tables[cnt]['type'] = atbl[3]
+                elif cnt: tables[cnt]['type'] = tables[cnt-1]['type']
+            cnt += 1
+    else:
+        net['fd'] = db_connect(net)
+        tables = [ {'date': 'datum' }]
+        if len(args.args) <= 1: showDB(net,args.args)
+        for tbl in args.args:
+            atbl = tbl.split('/')
+            if cnt > len(tables)-1:
+                tables.append({'date': tables[cnt-1]['date'] })
+            if len(atbl[0]): tables[cnt]['name'] = atbl[0]
+            if len(atbl[1]): tables[cnt]['column'] = atbl[1]
+            if len(atbl) > 2:
+                if len(atbl[2]): tables[cnt]['date'] = atbl[2]
+            if len(atbl) > 3:
+                if len(atbl[3]): tables[cnt]['type'] = atbl[3]
+                else: tables[cnt]['type'] = tables[cnt-1]['type']
+            cnt += 1
     timing['start'] = date2secs(args.timing.split('/')[0])
     timing['end'] = date2secs(args.timing.split('/')[1])
+    if timing['start'] > timing['end']:
+        (timing['start'],timing['end']) = (timing['end'],timing['start'])
     if args.interval != None: interval = int(args.interval)
     order = int(args.order)
     show = bool(args.show)
@@ -313,6 +379,104 @@ def get_arguments():
     normAvgStd = bool(args.NORM)
     if normAvgStd: normMinMax = False
 
+# print overview of columns in database
+def showDB(net,args):
+    print("Define arguments (at least 2) for tabel_name/column_name/[date_name]/[type]")
+    tbls = []
+    if len(args): tbls = args[0].split('/')
+    else:
+        for (tbl,) in db_query(net['fd'],"SHOW TABLES",True):
+            omit = False
+            for sub in ['_valid','_datums','_aqi','_dayly','_Max8HRS','_DayAVG','_norm','Sensors','stations']:
+                if tbl.find(sub) >= 0: omit = True      # omit some names
+            if not omit: tbls.append(tbl)
+        print("Will only print all table names in the database.")
+            
+    print("Database %s tables:" % net['database'])
+    cnt = 1
+    for tbl in tbls:
+        if len(args):
+            print("Table %s:" % tbl)
+            cnt = 1
+            for col in db_query(net['fd'],"DESCRIBE %s" % tbl,True):
+                if col[0] == 'id': continue
+                omit = False
+                for sub in ['_valid']:
+                    if col[0].find(sub) >= 0: omit = True      # omit some names
+                if omit: continue
+                if not (cnt%4): print("")
+                print "  %14s" % col[0].ljust(14),
+                cnt = cnt + 1
+            print("\n")
+        else:
+            if not (cnt%4): print("")
+            print "  %14s" % tbl.ljust(14),
+            cnt = cnt + 1
+    print("")
+    if len(args):
+        sys.exit("Please provide at least two column definition arguments.")
+    else:
+        sys.exit("How to get an overview of columns per table: use with one argument table1/table2/...")
+    
+        
+# print overview of columns in the spreadsheet
+def showXLSX(args):
+    print("Define arguments (at least 2) for short_name/column_nr/[date_column_nr]/[type]\nXLSX spreadsheet header info:\nColumn\tName")
+    nr = 0
+    wanted = []
+    if len(args):
+        strg = args[0].replace('\/','@')
+        strg = strg.replace('/','|')
+        strg = strg.replace('@','/')
+        wanted = strg.split('|') 
+    for I in list(Pandas['fd']):
+        if len(args) and (not I in wanted): continue
+        length = len(Pandas['fd'][I])
+        dstr = ''
+        if type(Pandas['fd'][I][0]) is Pandas['module'].tslib.Timestamp:
+            dstr = 'period: %s' % datetime.datetime.strftime(datetime.datetime.fromtimestamp(Pandas['fd'][I][0].value // 10**9),'%Y-%m-%d %H:%M:%S')       
+            dstr =  dstr + ' to %s' % datetime.datetime.strftime(datetime.datetime.fromtimestamp(Pandas['fd'][I][length-1].value // 10**9),'%Y-%m-%d %H:%M:%S')       
+        print("%d\t\"%s\"\tcount=%d\t%s" % (nr,I,length,dstr))
+        nr += 1
+    sys.exit("Please provide at least two column definition arguments.")
+
+# get the interesting part of the spreadsheet into the data area
+def GetXLSX():
+    header = list(Pandas['fd'])
+    needs = {}
+    try:
+        for I in range(0,len(tables)):
+            tables[I]['date'] = int(tables[I]['date'])
+            needs[tables[I]['date']] = 1
+            tables[I]['column'] = int(tables[I]['column'])
+            needs[tables[I]['column']] = 1
+        for I in range(0,len(header)):
+            if not I in needs.keys():
+                del Pandas['fd'][header[I]]
+        for I in range(0,len(tables)):
+            for key in ['date','column']:
+                tables[I][tables[I][key]] = header[tables[I][key]]
+        start = datetime.datetime.strftime(datetime.datetime.fromtimestamp(timing['start']),'%Y-%m-%d %H:%M:%S')
+        end = datetime.datetime.strftime(datetime.datetime.fromtimestamp(timing['end']),'%Y-%m-%d %H:%M:%S')
+        Array = Pandas['fd'][Pandas['fd'][header[tables[0]['date']]] >= start]
+        Pandas['fd'] = Array
+        Array = Pandas['fd'][Pandas['fd'][header[tables[0]['date']]] <= end]
+    except:
+        sys.exit("xlsx spreadsheet file: parse error or empty set.")
+        return False
+    Pandas['fd'] = Array
+    return True
+
+def FromXLSX(table):
+    values = []
+    length = len(Pandas['fd'][table[table['column']]])
+    for I in range(0,len(Pandas['fd'][table[table['date']]])):
+        if I >= length: break
+        values.append([Pandas['fd'][table[table['date']]][I].value // 10**9,
+        Pandas['fd'][table[table['column']]][I]])
+    return values
+
+        
 def regression(z,x):
     y = []
     for i in range(0,len(x)):
@@ -353,7 +517,11 @@ from_env('DB')          # get DB credentials from command environment
 get_arguments()         # get command line arguments
 
 print('Regression best fit calculation details for sensor type(s): %s' % ', '.join(set([elm['type'] for elm in tables]))) 
-print('Graphs based on data from %s:' % net['database'])
+if Pandas['input'] == None:
+    print('Graphs based on data MySQL from %s:' % net['database'])
+else:
+    print('Graphs based on spreadsheet xlsx data from file %s' % Pandas['input'])
+    
 
 # we have to take slices from the matrix: row = [time in secs, values 1, values 2, ...]
 Matrix = getArrays(net,tables,timing)
@@ -436,11 +604,21 @@ def SplinePlot(figure,gs,base):
     ax.set_title(string, fontsize=8)
     times = [int(elmt) for elmt in Matrix[:,0]]
     fds = dates.date2num(map(datetime.datetime.fromtimestamp, times))
-    ax.xaxis.set_major_locator(dates.DayLocator(interval=1))
-    ax.xaxis.set_major_formatter(dates.DateFormatter('%m/%d'))
-    ax.xaxis.set_minor_locator(dates.HourLocator(interval=4) )
-    ax.xaxis.set_minor_formatter(dates.DateFormatter('%Hh'))
-    ax.set_xticklabels(ax.xaxis.get_majorticklabels(), rotation=-45)
+    if (timing['end']-timing['start'])/24*60*60 < 7:
+        ax.xaxis.set_major_locator(dates.DayLocator(interval=1))
+        ax.xaxis.set_major_formatter(dates.DateFormatter('%m/%d'))
+        ax.xaxis.set_minor_locator(dates.HourLocator(interval=4) )
+        ax.xaxis.set_minor_formatter(dates.DateFormatter('%Hh'))
+    elif (timing['end']-timing['start'])/24*60*60 < 21:
+        ax.xaxis.set_major_locator(dates.DayLocator(interval=1))
+        ax.xaxis.set_major_formatter(dates.DateFormatter('%m/%d'))
+        ax.xaxis.set_minor_locator(dates.HourLocator(interval=4) )
+    else:
+        ax.xaxis.set_major_locator(dates.DayLocator(interval=7))
+        ax.xaxis.set_major_formatter(dates.DateFormatter('%m/%d'))
+        ax.xaxis.set_minor_locator(dates.HourLocator(interval=24) )
+        # ax.xaxis.set_minor_formatter(dates.DateFormatter(''))
+    # ax.set_xticklabels(ax.xaxis.get_majorticklabels(), rotation=-45)
     plt.xticks(rotation='vertical')
     plt.subplots_adjust(bottom=.3)
     ax.set_ylabel('scaled to avg %s/%s (%s)' %(tables[0]['name'],tables[0]['column'],
