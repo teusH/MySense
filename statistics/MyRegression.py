@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 2.8 2017/04/28 15:41:18 teus Exp teus $
+# $Id: MyRegression.py,v 2.9 2017/04/28 19:47:54 teus Exp teus $
 
 """ Create and show best fit for two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -29,7 +29,7 @@
     Script uses: numpy package and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.8 $"[11:-2]
+__version__ = "0." + "$Revision: 2.9 $"[11:-2]
 
 try:
     import sys
@@ -569,8 +569,10 @@ for I in range(0,len(tables)):
 Z  = np.polyfit(Matrix[:,1],Matrix[:,1:],order,full=True)
 # print("Rcond: %1.3e" % Z[4] )
 
-for I in range(0,len(tables)):
-    print("Data from table/sheet %s, column %s:" % (elm['name'],elm['column']))
+import statsmodels.api as sm
+
+for I in range(1,len(tables)):
+    print("Data from table/sheet %s, column %s:" % (tables[I]['name'],tables[I]['column']))
     print("\t#number %d, avg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (len(Matrix[:,I+1]),Stat['avg'][I],Stat['std'][I],Stat['min'][I],Stat['max'][I]))
     if I == 0: continue
     # if order == 1:
@@ -585,6 +587,17 @@ for I in range(0,len(tables)):
     string = "\t%s/%6s (%10s)-> best fit [ %s ]" % (tables[I]['name'],tables[I]['column'],tables[I]['type'],string)
     print(string)
 
+    print("Statistical summary linear regression for %s/%s with %s/%s:" % (tables[I]['name'],tables[I]['column'],tables[0]['name'],tables[0]['column']))
+    StatX = Matrix[:,I+1]; StatX = sm.add_constant(StatX)
+    try:
+        results = sm.OLS(Matrix[:,1],StatX).fit()
+    except ValueError as err:
+        print("ERROR: %s" % err)
+        continue
+    print(results.summary())
+            
+
+##############################   plotting part ####################
 def makeXgrid(mn,mx,nr):
     grid = (mx-mn)/(nr*1.0)
     # return np.linspace(mn, mx, 100)

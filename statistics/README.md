@@ -3,6 +3,7 @@
 operational: 11-04-2017
 ## DESCRIPTION
 Calculates the best fit polynomial for two timed rows of values. The (time,value) tuples are taken from a database MySQL table (default) or xlsx spreadsheet. Database credentials can be defined as environment variables.
+For linear regession give statistical summary (e.g. R-squared and others).
 
 For spreadsheet input you need to have Python pandas (`apt-get install python-pandas`) installed.
 
@@ -31,6 +32,7 @@ The output provide the polynomial factors (lowest order first) and R-square
 Normalisation details and regression polynomial can be used to obtain calibration factors for MySense configuration. Note that if R-square is near zero there is no best fit, so calibration does not make much sense.
 ## DEPENDENCES
 Install numpy (`pip install numpy`) for the regression calculations and pyplot (`pip install pyplot`) for displaying the graph.
+Install SciPy for linear regression summaries `apt-get install python-statsmodels`.
 ## TO DO
 0. Input to be read e.g. via `panda` python library for: CSV and other input formats.
 1. Add multi regression best fit (best fit hyper plane to more dependences per value (multi column). More columns in one table.
