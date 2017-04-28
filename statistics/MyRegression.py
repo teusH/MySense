@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 2.6 2017/04/27 19:52:11 teus Exp teus $
+# $Id: MyRegression.py,v 2.8 2017/04/28 15:41:18 teus Exp teus $
 
 """ Create and show best fit for two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -29,7 +29,7 @@
     Script uses: numpy package and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.6 $"[11:-2]
+__version__ = "0." + "$Revision: 2.8 $"[11:-2]
 
 try:
     import sys
@@ -287,15 +287,17 @@ def get_arguments():
     global progname
     global net, tables, timing, interval, order, show, normMinMax
     global normAvgStd, pngfile, SHOW, MaxPerGraph, Pandas
-    parser = argparse.ArgumentParser(prog=progname, description='Get from at least two tables for a period of time and calculate the regression best fit polynomial. Each argument defines the [[table]/]column/[date]/[type] table use definition. For non DB use the table is sheet1 and should be omitted. Default definitions: the previous names or column numbers for table, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nCopyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
-    parser.add_argument("-I", "--input", help="XLSX or CSV input file (path/filename.{xlsx,csv}, default: None", default=Pandas['input'])
+    parser = argparse.ArgumentParser(prog=progname, description='Get from at least two tables for a period of time and calculate the regression best fit polynomial. Each argument defines the [[table]/]column/[date]/[type] table use definition. For non DB use the table is sheet1 and should be omitted.\nDefault definitions: the previous names or column numbers for table, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nCopyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
+    parser.add_argument("-I", "--input", help="XLSX or CSV input file (path/filename.{xlsx,csv}, default: None\nOptions as <option>=<value> as command arguments.\nOptions: sheetname=0, header=0 (row with header or None), skiprows=0 (nr of rows to skip at start.", default=Pandas['input'])
     parser.add_argument("-H", "--hostname", help="Database host name, default: %s" % net['hostname'], default="%s" % net['hostname'])
     parser.add_argument("--port", help="Database port number, default: %d" % net['port'], default="%d" % net['port'])
     parser.add_argument("-U", "--user", help="Database user name, default: %s" % net['user'], default="%s" % net['user'])
     parser.add_argument("-P", "--password", help="Database password, default: %s" % net['password'], default="%s" % net['password'])
     parser.add_argument("-D", "--database", help="Database name, default: %s" % net['database'], default="%s" % net['database'])
     parser.add_argument("-i", "--interval", help="Interval sample timing (two values in same sample time) in seconds, default: auto detect", default=None)
-    parser.add_argument("-t", "--timing", help="Database period of time UNIX start-end seconds or use date as understood by UNIX date command: 'date --date=SOME_DATE_string', default: %d/%d or \"1 day ago/%s\"" % (timing['start'],timing['end'],datetime.datetime.fromtimestamp(timing['start']).strftime('%Y-%m-%d %H:%M')), default="%d/%d" % (timing['start'],timing['end']))
+    parser.add_argument("--first", help="Start of date/time period. Format as with -t option. Default: use of -t option", default=None)
+    parser.add_argument("--last", help="End of date/time period. Format as with -t option. Default: use of -t option", default=None)
+    parser.add_argument("-t", "--timing", help="Period of time UNIX start-end seconds or use date as understood by UNIX date command: 'date --date=SOME_DATE_string', default: %d/%d or \"1 day ago/%s\"" % (timing['start'],timing['end'],datetime.datetime.fromtimestamp(timing['start']).strftime('%Y-%m-%d %H:%M')), default="%d/%d" % (timing['start'],timing['end']))
     parser.add_argument("-o", "--order", help="best fit polynomium order, default: linear regression best fit line (order 2)", default=order)
     parser.add_argument("-n", "--norm", help="best fit polynomium min-max normalized to [0,1] space, default: no normalisation", choices=['False','True'], default=normMinMax)
     parser.add_argument("-N", "--NORM", help="best fit polynomium [avg-std,avg+std] normalized to [-1,1] space (overwrites norm option), default: no normalisation", choices=['False','True'], default=normMinMax)
@@ -315,6 +317,17 @@ def get_arguments():
     net['fd'] = None
     cnt = 0
     if Pandas['input']:
+        options = { 'header': 0, 'sheetname': 0, 'skiprows': 0 }
+        if len(args.args):
+            for I in range(len(args.args)-1,0):
+                if args.args[I].find('=') < 0: continue
+                use = args.args[I].split('=')
+                if use[0] in options.keys():
+                    if use[1].isdigit(): option[use[0]] = int(use[1])
+                    elif use[1] == 'None': option[use[0]] = None
+                    else: option[use[0]] = use[1]
+                    args.args.pop(I)
+                    I = I -1
         try:
             Pandas['module'] = __import__('pandas')
         except:
@@ -322,7 +335,9 @@ def get_arguments():
         if (not os.path.isfile(Pandas['input'])) or (Pandas['input'][-4:].upper() != 'XLSX'):
             sys.exit("File %s does not exists or is not an xlsx file." % Pandas['input'])
         try:
-            Pandas['fd'] = Pandas['module'].read_excel(Pandas['input'])
+            Pandas['fd'] = Pandas['module'].read_excel(Pandas['input'],
+                header=options['header'], sheetname=options['sheetname'],
+                skiprows=options['skiprows'])
         except:
             sys.exit("File %s not an xlsx file." % Pandas['input'])
         # TO DO: add to use sheet nr's / names iso numbers
@@ -363,8 +378,12 @@ def get_arguments():
                 if len(atbl[3]): tables[cnt]['type'] = atbl[3]
                 else: tables[cnt]['type'] = tables[cnt-1]['type']
             cnt += 1
-    timing['start'] = date2secs(args.timing.split('/')[0])
-    timing['end'] = date2secs(args.timing.split('/')[1])
+    DateTime = args.timing.split('/')[0]
+    if args.first != None: DateTime = args.first
+    timing['start'] = date2secs(DateTime)
+    DateTime = args.timing.split('/')[1]
+    if args.last != None: DateTime = args.last
+    timing['end'] = date2secs(DateTime)
     if timing['start'] > timing['end']:
         (timing['start'],timing['end']) = (timing['end'],timing['start'])
     if args.interval != None: interval = int(args.interval)
