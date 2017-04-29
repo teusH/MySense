@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 2.10 2017/04/29 11:43:26 teus Exp teus $
+# $Id: MyRegression.py,v 2.11 2017/04/29 13:19:32 teus Exp teus $
 
 """ Create and show best fit for two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -29,7 +29,7 @@
     Script uses: numpy package and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.10 $"[11:-2]
+__version__ = "0." + "$Revision: 2.11 $"[11:-2]
 
 try:
     import sys
@@ -68,6 +68,8 @@ Pandas = {
     'input' : None,     # input file name to parse with pandas
     'module' : None,    # panda module to load
 }
+# type of input and file handler
+resource = { 'type': None, 'fd': None }
 
 # period of time for the regression values
 timing = { 'start': time() - 24*60*60, 'end': time() }
@@ -142,13 +144,13 @@ def fromMySQL(fd,table):
     return db_query(fd,qry, True)
 
 # we could first get average/std dev and omit the outliers
-def getColumn(resource,table,period, amin = 60, amax = 60*60):
-    global interval
+def getColumn(table,period, amin = 60, amax = 60*60):
+    global interval, resource
     if (not 'type' in resource.keys()) or (not 'fd' in resource.keys()):
         sys.exit("Data resource error")
     if resource['type'] == 'mysql':
         values = fromMySQL(resource['fd'],table)
-    elif resource['type'] == 'xlsx':
+    elif (resource['type'] == 'elsx') or (resource['type'] == 'csv'):
         if not 'read' in Pandas.keys():
             Pandas['read'] = GetXLSX()
         if not Pandas['read']:
@@ -211,16 +213,13 @@ def pickValue(arr, time, sample):
     return value/cnt
 
 def getData(net,tables,timing):
-    if Pandas['input'] == None:
-        resource = {"type": 'mysql', "fd": net['fd']}
-    else:
-        resource = {"type": 'xlsx', "fd": Pandas['fd']}
+    global resource
     Data = []
     for I in range(0,len(tables)):
-        Data.append(getColumn(resource,tables[I],timing,60,60*60))
+        Data.append(getColumn(tables[I],timing,60,60*60))
     if (resource['type'] == 'mysql') and (resource['fd'] != None):
         resource['fd'].close()
-    elif resource['type'] == 'xlsx': Pandas['fd'] = None
+    else: Pandas['fd'] = None
     return Data
 
 def getArrays(net,tables,timing):
@@ -286,9 +285,9 @@ def get_arguments():
     import argparse
     global progname
     global net, tables, timing, interval, order, show, normMinMax
-    global normAvgStd, pngfile, SHOW, MaxPerGraph, Pandas
+    global normAvgStd, pngfile, SHOW, MaxPerGraph, Pandas, resource
     parser = argparse.ArgumentParser(prog=progname, description='Get from at least two tables for a period of time and calculate the regression best fit polynomial. Each argument defines the [[table]/]column/[date]/[type] table use definition. For non DB use the table is sheet1 and should be omitted.\nDefault definitions: the previous names or column numbers for table, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nCopyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
-    parser.add_argument("-I", "--input", help="XLSX or CSV input file (path/filename.{xlsx,csv}, default: None\nOptions as <option>=<value> as command arguments.\nOptions: sheetname=0, header=0 (row with header or None), skiprows=0 (nr of rows to skip at start.", default=Pandas['input'])
+    parser.add_argument("-I", "--input", help="XLSX or CSV input file (path/filename.{xlsx,csv}, default: None\nOptions as <option>=<value> as command arguments.\nOptions: sheetname=0 (xlsx), header=0 (row with header or None), skiprows=0 (nr of rows to skip at start, delimiter=',' (None: auto detect).", default=Pandas['input'])
     parser.add_argument("-H", "--hostname", help="Database host name, default: %s" % net['hostname'], default="%s" % net['hostname'])
     parser.add_argument("--port", help="Database port number, default: %d" % net['port'], default="%d" % net['port'])
     parser.add_argument("-U", "--user", help="Database user name, default: %s" % net['user'], default="%s" % net['user'])
@@ -315,11 +314,12 @@ def get_arguments():
     net['password'] = args.password
     net['database'] = args.database
     net['fd'] = None
+    resource = {"type": 'mysql', "fd": net['fd']}
     cnt = 0
     if Pandas['input']:
-        options = { 'header': 0, 'sheetname': 0, 'skiprows': 0 }
+        options = { 'header': 0, 'sheetname': 0, 'skiprows': 0, 'delimiter': ',' }
         if len(args.args):
-            for I in range(len(args.args)-1,0):
+            for I in range(len(args.args)-1,-1,-1):
                 if args.args[I].find('=') < 0: continue
                 use = args.args[I].split('=')
                 if use[0] in options.keys():
@@ -327,19 +327,33 @@ def get_arguments():
                     elif use[1] == 'None': option[use[0]] = None
                     else: option[use[0]] = use[1]
                     args.args.pop(I)
-                    I = I -1
         try:
             Pandas['module'] = __import__('pandas')
         except:
             sys.exit("Unable to load pandas module")
-        if (not os.path.isfile(Pandas['input'])) or (Pandas['input'][-4:].upper() != 'XLSX'):
-            sys.exit("File %s does not exists or is not an xlsx file." % Pandas['input'])
+        OK = True
+        if not os.path.isfile(Pandas['input']): OK = False
+        if Pandas['input'][-4:].upper() == 'XLSX':
+            resource['type'] = 'xlsx'
+        elif Pandas['input'][-3:].upper() == 'CSV':
+            resource['type'] = 'csv'
+        else: OK = False
+        if not OK:
+            sys.exit("File %s does not exists or is not an xlsx/csv file." % Pandas['input'])
         try:
-            Pandas['fd'] = Pandas['module'].read_excel(Pandas['input'],
-                header=options['header'], sheetname=options['sheetname'],
-                skiprows=options['skiprows'])
-        except:
-            sys.exit("File %s not an xlsx file." % Pandas['input'])
+            if resource['type'] == 'xlsx':
+                Pandas['fd'] = Pandas['module'].read_excel(Pandas['input'],
+                    header=options['header'], sheetname=options['sheetname'],
+                    skiprows=options['skiprows'])
+            elif resource['type'] == 'csv':
+                Pandas['fd'] = Pandas['module'].read_csv(Pandas['input'],
+                    header=options['header'], delimiter=options['delimiter'],
+                    skiprows=options['skiprows'])
+            else: raise TypeError
+            resource["fd"] = Pandas['fd']
+        except Exception as err:
+            sys.exit("File %s not an xlsx/csv file, error: %s." % (Pandas['input'],err))
+            
         # TO DO: add to use sheet nr's / names iso numbers
         tables = [ {'date': 0 }]
         if len(args.args) <= 1: showXLSX(args.args)
@@ -481,7 +495,7 @@ def GetXLSX():
         Pandas['fd'] = Array
         Array = Pandas['fd'][Pandas['fd'][header[tables[0]['date']]] <= end]
     except:
-        sys.exit("xlsx spreadsheet file: parse error or empty set.")
+        sys.exit("xlsx/csv spreadsheet file: parse error or empty set.")
         return False
     Pandas['fd'] = Array
     return True
@@ -539,7 +553,7 @@ print('Regression best fit calculation details for sensor type(s): %s' % ', '.jo
 if Pandas['input'] == None:
     print('Graphs based on data MySQL from %s:' % net['database'])
 else:
-    print('Graphs based on spreadsheet xlsx data from file %s' % Pandas['input'])
+    print('Graphs based on spreadsheet xlsx/csv data from file %s' % Pandas['input'])
     
 
 # we have to take slices from the matrix: row = [time in secs, values 1, values 2, ...]
