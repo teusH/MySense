@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 2.9 2017/04/28 19:47:54 teus Exp teus $
+# $Id: MyRegression.py,v 2.10 2017/04/29 11:43:26 teus Exp teus $
 
 """ Create and show best fit for two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -29,7 +29,7 @@
     Script uses: numpy package and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.9 $"[11:-2]
+__version__ = "0." + "$Revision: 2.10 $"[11:-2]
 
 try:
     import sys
@@ -636,29 +636,48 @@ def SplinePlot(figure,gs,base):
     ax.set_title(string, fontsize=8)
     times = [int(elmt) for elmt in Matrix[:,0]]
     fds = dates.date2num(map(datetime.datetime.fromtimestamp, times))
-    if (timing['end']-timing['start'])/24*60*60 < 7:
+    for tick in ax.get_xticklabels(which='minor'):
+        tick.set_fontsize(8) 
+    for tick in ax.get_xticklabels(which='major'):
+        tick.set_rotation(-45)
+    if (timing['end']-timing['start'])/(24*60*60) < 7:
         ax.xaxis.set_major_locator(dates.DayLocator(interval=1))
         ax.xaxis.set_major_formatter(dates.DateFormatter('%m/%d'))
-        ax.xaxis.set_minor_locator(dates.HourLocator(interval=4) )
-        ax.xaxis.set_minor_formatter(dates.DateFormatter('%Hh'))
-    elif (timing['end']-timing['start'])/24*60*60 < 21:
-        ax.xaxis.set_major_locator(dates.DayLocator(interval=1))
+        ax.xaxis.set_minor_locator(dates.HourLocator(byhour=[6,12,18]) )
+        ax.xaxis.set_minor_formatter(dates.DateFormatter('%0Hh'))
+    elif (timing['end']-timing['start'])/(24*60*60) < 21:
+        ax.xaxis.set_major_locator(dates.DayLocator(interval=2))
         ax.xaxis.set_major_formatter(dates.DateFormatter('%m/%d'))
-        ax.xaxis.set_minor_locator(dates.HourLocator(interval=4) )
+        ax.xaxis.set_minor_locator(dates.HourLocator(byhour=[6,12,18]) )
     else:
         ax.xaxis.set_major_locator(dates.DayLocator(interval=7))
         ax.xaxis.set_major_formatter(dates.DateFormatter('%m/%d'))
-        ax.xaxis.set_minor_locator(dates.HourLocator(interval=24) )
+        ax.xaxis.set_minor_locator(dates.HourLocator(byhour=12) )
         # ax.xaxis.set_minor_formatter(dates.DateFormatter(''))
-    # ax.set_xticklabels(ax.xaxis.get_majorticklabels(), rotation=-45)
-    plt.xticks(rotation='vertical')
     plt.subplots_adjust(bottom=.3)
     ax.set_ylabel('scaled to avg %s/%s (%s)' %(tables[0]['name'],tables[0]['column'],
                 tables[0]['type']), fontsize=8 , fontweight='bold')
 
     # fitMatrix = getFitMatrix()
-    for I in range(1,len(Matrix[0,:])):
-        ax.plot(fds,Matrix[:,I]*Stat['avg'][0]/Stat['avg'][I-1], '-', c=colors[I%len(colors)], label='%s/%s (%s)' % (tables[I-1]['name'],tables[I-1]['column'],tables[I-1]['type']))
+    for I in range(1,len(Matrix[0,:])): # leave gaps blank
+        last = 0; lbl = None
+        nr = len(Matrix[:,0])
+        for J in range(last,nr-1):
+            if abs(Matrix[J+1,0]-Matrix[J,0]) > interval*2: continue
+            strt = J; end = J+1
+            for end in range(strt+1,nr):
+                if abs(Matrix[end,0]-Matrix[end-1,0]) <= interval*2: continue
+            if end >= nr-1: end = nr
+            if (end - strt) < 2:
+                continue
+            J = end+1
+            scaled =  Stat['avg'][0]/Stat['avg'][I-1]*100.0
+            if (scaled > 99.0) and (scaled < 101.0): scaled = ''
+            else: scaled = ' %3.1f%% scaled' % scaled
+            if lbl == None:
+                lbl = '%s/%s %s(%s)' % (tables[I-1]['name'],tables[I-1]['column'],scaled,tables[I-1]['type'])
+            ax.plot(fds[strt:end+1],Matrix[strt:end+1,I]*Stat['avg'][0]/Stat['avg'][I-1], '-', c=colors[I%len(colors)], label=lbl)
+            lbl = ''
         #if I >= 1:       # add best fit correction graph
         #    ax.plot(fds,fitMatrix[:,I-1]*fitStat['avg'][0]/fitStat['avg'][I-1], ':', c=colors[I%len(colors)], label='%s/%s (best fit)' % (tables[I-1]['name'],tables[I-1]['column']))
 
