@@ -18,18 +18,20 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 2.11 2017/04/29 13:19:32 teus Exp teus $
+# $Id: MyRegression.py,v 3.1 2017/04/30 12:01:18 teus Exp teus $
 
-""" Create and show best fit for two columns of values from database.
+""" Create and show best fit for at least two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
     Print best fit polynomial graph up to order (default linear) and R-squared
+    Multi linear regression modus.
     Show the scatter graph and best fit graph (default: off).
+    Input from database, spreadsheet (XLSX) and CVS file formats.
     Database table/column over a period of time.
     Database credentials can be provided from command environment.
-    Script uses: numpy package and matplotlib from pyplot.
+    Script uses: numpy package, SciPy and statPY and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.11 $"[11:-2]
+__version__ = "0." + "$Revision: 3.1 $"[11:-2]
 
 try:
     import sys
@@ -83,6 +85,7 @@ MaxPerGraph = 4 # max graphs per subplot
 pngfile = None  # show the scatter graph and regression polynomial best fit graph
 normMinMax = False    # transform regression polynomial best fit graph to [0,1] space
 normAvgStd = False    # transform regression polynomial best fit graph to [-1,1] space
+ml_mode = False # multi linear regression mode (default False: regression polynomial)
 
 def db_connect(net):
     for M in ('user','password','hostname','database'):
@@ -285,7 +288,7 @@ def get_arguments():
     import argparse
     global progname
     global net, tables, timing, interval, order, show, normMinMax
-    global normAvgStd, pngfile, SHOW, MaxPerGraph, Pandas, resource
+    global normAvgStd, pngfile, SHOW, MaxPerGraph, Pandas, resource, ml_mode
     parser = argparse.ArgumentParser(prog=progname, description='Get from at least two tables for a period of time and calculate the regression best fit polynomial. Each argument defines the [[table]/]column/[date]/[type] table use definition. For non DB use the table is sheet1 and should be omitted.\nDefault definitions: the previous names or column numbers for table, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nCopyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
     parser.add_argument("-I", "--input", help="XLSX or CSV input file (path/filename.{xlsx,csv}, default: None\nOptions as <option>=<value> as command arguments.\nOptions: sheetname=0 (xlsx), header=0 (row with header or None), skiprows=0 (nr of rows to skip at start, delimiter=',' (None: auto detect).", default=Pandas['input'])
     parser.add_argument("-H", "--hostname", help="Database host name, default: %s" % net['hostname'], default="%s" % net['hostname'])
@@ -298,10 +301,11 @@ def get_arguments():
     parser.add_argument("--last", help="End of date/time period. Format as with -t option. Default: use of -t option", default=None)
     parser.add_argument("-t", "--timing", help="Period of time UNIX start-end seconds or use date as understood by UNIX date command: 'date --date=SOME_DATE_string', default: %d/%d or \"1 day ago/%s\"" % (timing['start'],timing['end'],datetime.datetime.fromtimestamp(timing['start']).strftime('%Y-%m-%d %H:%M')), default="%d/%d" % (timing['start'],timing['end']))
     parser.add_argument("-o", "--order", help="best fit polynomium order, default: linear regression best fit line (order 2)", default=order)
-    parser.add_argument("-n", "--norm", help="best fit polynomium min-max normalized to [0,1] space, default: no normalisation", choices=['False','True'], default=normMinMax)
-    parser.add_argument("-N", "--NORM", help="best fit polynomium [avg-std,avg+std] normalized to [-1,1] space (overwrites norm option), default: no normalisation", choices=['False','True'], default=normMinMax)
-    parser.add_argument("-s", "--show", help="show graph, default: graph is not shown", default=show, choices=['False','True'])
-    parser.add_argument("-S", "--SHOW", help="show value and scatter graphs, default: graph is not shown", default=SHOW, choices=['False','True'])
+    parser.add_argument("-n", "--norm", help="best fit polynomium min-max normalized to [0,1] space, default: no normalisation", type=bool, choices=[False,True], default=normMinMax)
+    parser.add_argument("-N", "--NORM", help="best fit polynomium [avg-std,avg+std] normalized to [-1,1] space (overwrites norm option), default: no normalisation", type=bool, choices=[False,True], default=normMinMax)
+    parser.add_argument("-s", "--show", help="show graph, default: graph is not shown", default=show, type=bool, choices=[False,True])
+    parser.add_argument("-S", "--SHOW", help="show value and scatter graphs, default: graph is not shown", default=SHOW, type=bool, choices=[False,True])
+    parser.add_argument("-m", "--multi", help="multi linear regression mode: second argument has more dependences defined by 3rd, etc argument, default: %s polynomial regression calculation" % ml_mode, default=ml_mode, type=bool, choices=[False,True])
     parser.add_argument("-f", "--file", help="generate png graph file, default: no png", default=pngfile)
     parser.add_argument("-g", "--graphs", help="plot N graps in one scatter plot, default: %d" % MaxPerGraph, default=MaxPerGraph, type=int, choices=range(1,6))
     parser.add_argument('args', nargs=argparse.REMAINDER, help="Database table one/column name, default: %s/%s/%s %s/%s/%s. Spreadsheet (sheet1) columns: name/value_colnr/[date_colnr][/type] (default date: col 0, name: pollutant nr, colum nr: 1, 2, type: ?)" % (tables[0]['name'],tables[0]['column'],tables[0]['type'],tables[1]['name'],tables[1]['column'],tables[1]['type']))
@@ -313,8 +317,7 @@ def get_arguments():
     net['user'] = args.user
     net['password'] = args.password
     net['database'] = args.database
-    net['fd'] = None
-    resource = {"type": 'mysql', "fd": net['fd']}
+    resource = {"type": 'mysql', "fd": None}
     cnt = 0
     if Pandas['input']:
         options = { 'header': 0, 'sheetname': 0, 'skiprows': 0, 'delimiter': ',' }
@@ -377,7 +380,7 @@ def get_arguments():
                 elif cnt: tables[cnt]['type'] = tables[cnt-1]['type']
             cnt += 1
     else:
-        net['fd'] = db_connect(net)
+        resource['fd'] = db_connect(net)
         tables = [ {'date': 'datum' }]
         if len(args.args) <= 1: showDB(net,args.args)
         for tbl in args.args:
@@ -405,6 +408,7 @@ def get_arguments():
     show = bool(args.show)
     SHOW = bool(args.SHOW)
     if SHOW: show=True
+    ml_mode = bool(args.multi)
     pngfile = args.file
     if pngfile != None: show = True
     MaxPerGraph = int(args.graphs)
@@ -418,7 +422,7 @@ def showDB(net,args):
     tbls = []
     if len(args): tbls = args[0].split('/')
     else:
-        for (tbl,) in db_query(net['fd'],"SHOW TABLES",True):
+        for (tbl,) in db_query(resource['fd'],"SHOW TABLES",True):
             omit = False
             for sub in ['_valid','_datums','_aqi','_dayly','_Max8HRS','_DayAVG','_norm','Sensors','stations']:
                 if tbl.find(sub) >= 0: omit = True      # omit some names
@@ -431,7 +435,7 @@ def showDB(net,args):
         if len(args):
             print("Table %s:" % tbl)
             cnt = 1
-            for col in db_query(net['fd'],"DESCRIBE %s" % tbl,True):
+            for col in db_query(resource['fd'],"DESCRIBE %s" % tbl,True):
                 if col[0] == 'id': continue
                 omit = False
                 for sub in ['_valid']:
@@ -556,12 +560,14 @@ else:
     print('Graphs based on spreadsheet xlsx/csv data from file %s' % Pandas['input'])
     
 
+################################ get core of data
 # we have to take slices from the matrix: row = [time in secs, values 1, values 2, ...]
 Matrix = getArrays(net,tables,timing)
 
 print('Samples period: %s up to %s, interval timing %dm:%ds.' % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M'),interval/60,interval%60))
 Stat = { 'min': [], 'max': [], 'avg': [], 'std': [] }
 
+# some simple statistics
 for I in range(0,len(tables)):
     # roll in arrays for regression calculation
     Stat['min'].append(np.nanmin(Matrix[:,I+1]))
@@ -579,38 +585,71 @@ for I in range(0,len(tables)):
         Matrix[:,I+1] = Matrix[:,I+1] - Stat['avg'][I]
         if Stat['std'][I] > 1.0: Matrix[:,I+1] /= Stat['std'][I]
 
-# calculate the polynomial best fit graph
-Z  = np.polyfit(Matrix[:,1],Matrix[:,1:],order,full=True)
-# print("Rcond: %1.3e" % Z[4] )
+
+Z = []
+R2 = None
+
+if not ml_mode:
+    # calculate the polynomial best fit graph
+    Z  = np.polyfit(Matrix[:,1],Matrix[:,1:],order,full=True)
+    # print("Rcond: %1.3e" % Z[4] )
 
 import statsmodels.api as sm
 
-for I in range(1,len(tables)):
-    print("Data from table/sheet %s, column %s:" % (tables[I]['name'],tables[I]['column']))
-    print("\t#number %d, avg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (len(Matrix[:,I+1]),Stat['avg'][I],Stat['std'][I],Stat['min'][I],Stat['max'][I]))
-    if I == 0: continue
-    # if order == 1:
-    #     R2 = get_r2_corrcoeff(Matrix[:,1],Matrix[:,2])
-    #     R2 = get_r2_python( list(Matrix[:,1]),list(Matrix[:,2]))
-    # else:
-    R2 = get_r2_numpy(Matrix[:,1],Matrix[:,I+1],Z[0][:,I])
-    print("\tR-squared R² with %s/%s: %6.4f" % (tables[0]['name'],tables[0]['column'],R2))
+yname = '%s/%s' % (tables[0]['name'],tables[0]['column'])
+if not ml_mode:
+    for I in range(1,len(tables)):
+        print("Data from table/sheet %s, column %s:" % (tables[I]['name'],tables[I]['column']))
+        print("\t#number %d, avg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (len(Matrix[:,I+1]),Stat['avg'][I],Stat['std'][I],Stat['min'][I],Stat['max'][I]))
+        if I == 0: continue
+        # if order == 1:
+        #     R2 = get_r2_corrcoeff(Matrix[:,1],Matrix[:,2])
+        #     R2 = get_r2_python( list(Matrix[:,1]),list(Matrix[:,2]))
+        # else:
+        R2 = get_r2_numpy(Matrix[:,1],Matrix[:,I+1],Z[0][:,I])
+        xname = [ '%s/%s' % (tables[I]['name'],tables[I]['column'])]
+        print("\tR-squared R² with %s: %6.4f" % (xname[0],R2))
+    
+        print("\tBest fit polynomial regression curve (a0*X^0 + a1*X^1 + a2*X^2 + ...): ")
+        string = ', '.join(reversed(["%4.3e" % i for i in Z[0][:,I]]))
+        string = "\t%s (%s)-> best fit [ %s ]" % (yname,tables[I]['type'],string)
+        print(string)
 
-    print("\tBest fit polynomial regression curve (a0*X^0 + a1*X^1 + a2*X^2 + ...): ")
-    string = ', '.join(reversed(["%4.3e" % i for i in Z[0][:,I]]))
-    string = "\t%s/%6s (%10s)-> best fit [ %s ]" % (tables[I]['name'],tables[I]['column'],tables[I]['type'],string)
-    print(string)
-
-    print("Statistical summary linear regression for %s/%s with %s/%s:" % (tables[I]['name'],tables[I]['column'],tables[0]['name'],tables[0]['column']))
-    StatX = Matrix[:,I+1]; StatX = sm.add_constant(StatX)
+        print("Statistical summary linear regression for %s with %s:" % (yname,xname))
+        StatX = Matrix[:,I+1]; StatX = sm.add_constant(StatX)
+        try:
+            results = sm.OLS(Matrix[:,1],StatX).fit()
+        except ValueError as err:
+            print("ERROR: %s" % err)
+            continue
+        print(results.summary(xname=xname,yname=yname))
+else:
+    print "Statistical multi linear regression for %s/%s with:" % (tables[0]['name'],tables[0]['column']),
+    xname = []
+    for I in range(1,len(tables)):
+        xname.append("%s/%s:" % (tables[I]['name'],tables[I]['column']))
+    print("%s" % ', '.join(xname))
+    StatX = Matrix[:,2:]; StatX = sm.add_constant(StatX)
     try:
         results = sm.OLS(Matrix[:,1],StatX).fit()
+        # TO DO: next needs some more thought
+        # results.tvalue, pvalues, fvaluea, nobs, rsquared, rsquared_adj, scale
+        # params
+        Z.append(results.params); Z[0] = np.array(Z[0])  # reversed??
+        R2 = results.rsquared
     except ValueError as err:
         print("ERROR: %s" % err)
-        continue
-    print(results.summary())
-            
+    print("\tR-squared R² with %s: %6.4f" % (xname[0],R2))
+    print("\tBest fit polynomial regression curve (a0 + a1*X1 + a2*X2 + ...): ")
+    string = '%e' % Z[0][0]
+    for I in range(1,len(Z[0])):
+        if len(string): string += ' + '
+        string += "%e (%s)" % (Z[0][I],xname[I-1])
+    string = "    %s (%s)-> best fit:\n    [ %s ]" % (yname,tables[I]['type'],string)
+    print(string)
 
+    print(results.summary(xname=xname, yname=yname))
+            
 ##############################   plotting part ####################
 def makeXgrid(mn,mx,nr):
     grid = (mx-mn)/(nr*1.0)
@@ -638,6 +677,17 @@ def getFitMatrix():
         for J in range(1,len(Matrix[I])):
             row.append(polyval(Matrix[I][J],newZ[J-1]))
         new.append(row)
+    return np.array(new)
+
+# calculate y values for calibration graph
+# TO DO: the following is probably only right for single linear regression
+def mlArray():
+    global Z, Matrix
+    new = []
+    for I in range(0,len(Matrix)):
+        val = Z[0][0]
+        for J in range(1,len(Z[0])): val += Matrix[I][J+1] * Z[0][J]
+        new.append(val)
     return np.array(new)
 
 # plot a spline of dates/measurements for each table
@@ -672,28 +722,52 @@ def SplinePlot(figure,gs,base):
     ax.set_ylabel('scaled to avg %s/%s (%s)' %(tables[0]['name'],tables[0]['column'],
                 tables[0]['type']), fontsize=8 , fontweight='bold')
 
-    # fitMatrix = getFitMatrix()
+    #fitMatrix = getFitMatrix()
     for I in range(1,len(Matrix[0,:])): # leave gaps blank
-        last = 0; lbl = None
+        if ml_mode and (I > 2): break
+        strt = -1; lbl = None
         nr = len(Matrix[:,0])
-        for J in range(last,nr-1):
-            if abs(Matrix[J+1,0]-Matrix[J,0]) > interval*2: continue
-            strt = J; end = J+1
-            for end in range(strt+1,nr):
-                if abs(Matrix[end,0]-Matrix[end-1,0]) <= interval*2: continue
-            if end >= nr-1: end = nr
-            if (end - strt) < 2:
-                continue
-            J = end+1
+        while strt < nr-1:
+            strt += 1
+            if abs(Matrix[strt,0]-Matrix[strt+1,0]) > interval*2: continue
+            end = strt
+            while True:
+                end += 1
+                if end >= nr: break
+                if abs(Matrix[end,0]-Matrix[end-1,0]) > interval*2: break
             scaled =  Stat['avg'][0]/Stat['avg'][I-1]*100.0
             if (scaled > 99.0) and (scaled < 101.0): scaled = ''
             else: scaled = ' %3.1f%% scaled' % scaled
             if lbl == None:
                 lbl = '%s/%s %s(%s)' % (tables[I-1]['name'],tables[I-1]['column'],scaled,tables[I-1]['type'])
-            ax.plot(fds[strt:end+1],Matrix[strt:end+1,I]*Stat['avg'][0]/Stat['avg'][I-1], '-', c=colors[I%len(colors)], label=lbl)
+            ax.plot(fds[strt:end],Matrix[strt:end,I]*Stat['avg'][0]/Stat['avg'][I-1], '-', c=colors[I%len(colors)], label=lbl)
             lbl = ''
+            strt = end-1
         #if I >= 1:       # add best fit correction graph
         #    ax.plot(fds,fitMatrix[:,I-1]*fitStat['avg'][0]/fitStat['avg'][I-1], ':', c=colors[I%len(colors)], label='%s/%s (best fit)' % (tables[I-1]['name'],tables[I-1]['column']))
+    if ml_mode:
+        lbl = None
+        nr = len(Matrix[:,0])
+        Array = mlArray()
+        strt = -1
+        while strt < nr-1:
+            strt += 1
+            if abs(Matrix[strt+1,0]-Matrix[strt,0]) > interval*2: continue
+            end = strt
+            while True:
+                end += 1
+                if end >= nr: break
+                if abs(Matrix[end,0]-Matrix[end-1,0]) > interval*2: break
+            if end >= nr-1: end = nr
+            scaled =  Stat['avg'][0]/Stat['avg'][I-1]*100.0
+            if (scaled > 99.0) and (scaled < 101.0): scaled = ''
+            else: scaled = ' %3.1f%% scaled' % scaled
+            if lbl == None:
+                lbl = 'corrected'
+            #y = a0+a1*x1+a2*x2+a3*x3+ ... ??? TO DO: VERIFY
+            ax.plot(fds[strt:end], Array[strt:end], ':', c='r', linewidth=2, label=lbl)
+            lbl = ''
+            strt = end -1
 
     # Set the fontsize
     legend = ax.legend(loc='upper left', labelspacing=-0.1, shadow=True)
@@ -720,11 +794,15 @@ def ScatterPlot(figure,gs,base):
         # box with text for each graph
         if (I%MaxPerGraph) == 1:
             strg2 = '\n\nBest fit polynomials (low order first):'
-            strg2 += "\n%s/%s: [%s]" % (tables[0]['name'],tables[0]['column'],', '.join(reversed(["%4.3e" % i for i in Z[0][:,0]])))
+            if not ml_mode:
+                strg2 += "\n%s/%s: [%s]" % (tables[0]['name'],tables[0]['column'],', '.join(reversed(["%4.3e" % i for i in Z[0][:,0]])))
+            else:
+                strg2 += "\n%s/%s: [%s]" % (tables[0]['name'],tables[0]['column'],'0, 1')
             strg1 = "R$^2$=%6.4f, order=%d" % (R2, order)
             strg1 += "\n%s/%s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" % (tables[0]['name'],tables[0]['column'],
                 Stat['avg'][0],Stat['std'][0],Stat['min'][0],Stat['max'][0])
         for J in range(I,I+MaxPerGraph):
+            if ml_mode and (I > 2): break
             if J == len(tables): break
             nr_graphs += 1
             strg1 += "\n%s/%s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" %(tables[J]['name'],tables[J]['column'],
@@ -732,8 +810,12 @@ def ScatterPlot(figure,gs,base):
         if normMinMax: strg1 += ', (min,max)->(0,1) normalized'
         if normAvgStd: strg1 += ', (avg, std dev) -> (0,1) normalized'
         for J in range(I,I+MaxPerGraph):
+            if ml_mode and (I > 2): break
             if J == len(tables): break
-            strg2 += "\n%s/%s: [%s]" % (tables[J]['name'],tables[J]['column'],', '.join(reversed(["%4.3e" % i for i in Z[0][:,J]])))
+            if not ml_mode:
+                strg2 += "\n%s/%s: [%s]" % (tables[J]['name'],tables[J]['column'],', '.join(reversed(["%4.3e" % i for i in Z[0][:,J]])))
+            else:
+                strg2 += "\n%s/%s: [%s]" % (tables[J]['name'],tables[J]['column'],', '.join(["%4.3e" % i for i in Z[0][:]]))
         if (I == (len(tables)-1)) or ((MaxPerGraph-1) == (I%MaxPerGraph)):
             ax.text(0.03, 0.96, strg1+strg2, transform=ax.transAxes, fontsize=8,
                 verticalalignment='top', bbox=props)
@@ -752,19 +834,25 @@ def ScatterPlot(figure,gs,base):
         
         # the scatter and best fit graph(s)
         for J in range(I,I+MaxPerGraph):
-            if J == len(tables): break
+            if J >= len(tables): break
             ax.plot(Matrix[:,1], Matrix[:,J+1], 'o', c=colors[J%MaxPerGraph],markersize=3, label='%s' % label)
-            ax.plot(sortedX, np.poly1d(Z[0][:,J])(sortedX), c=colors[J%MaxPerGraph], label='%s versus %s' % (tables[0]['type'],tables[J]['type']))
+            if ml_mode and (J != 1): continue # next in ml_mode does not make sense
+            if not ml_mode:
+                ax.plot(sortedX, np.poly1d(Z[0][:,J])(sortedX), c=colors[J%MaxPerGraph], label='%s versus %s' % (tables[0]['type'],tables[J]['type']))
+            else:
+                # TO DO: I am not sure what results.params is as array
+                ax.plot(sortedX, np.poly1d(Z[0][:]/Z[0][0])(sortedX), '-', c='r', label='%s versus %s' % (tables[0]['type'],tables[J]['type']))
         I = J-1    
 
-        # Set the fontsize
-        legend = ax.legend(loc='lower right', labelspacing=-0.1, shadow=True)
-        for label in legend.get_texts():
-            label.set_fontsize(7)
-        for label in legend.get_lines():
-            label.set_linewidth(1.5)  # the legend line width
-        legend.get_frame().set_facecolor('0.95')
-        legend.get_frame().set_linewidth(0.01)
+        if len(label):
+            # Set the fontsize
+            legend = ax.legend(loc='lower right', labelspacing=-0.1, shadow=True)
+            for label in legend.get_texts():
+                label.set_fontsize(7)
+            for label in legend.get_lines():
+                label.set_linewidth(1.5)  # the legend line width
+            legend.get_frame().set_facecolor('0.95')
+            legend.get_frame().set_linewidth(0.01)
     
 if show:
     import matplotlib.pyplot as plt

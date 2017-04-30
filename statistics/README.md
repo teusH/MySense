@@ -2,8 +2,11 @@
 ## STATE
 operational: 11-04-2017
 ## DESCRIPTION
-Calculates the best fit polynomial for two timed rows of values. The (time,value) tuples are taken from a database MySQL table (default) or xlsx spreadsheet. Database credentials can be defined as environment variables.
-For linear regession give statistical summary (e.g. R-squared and others).
+Calculates the best fit polynomial for at least two timed rows of values. The (time,value) tuples are taken from a database MySQL table (default), xlsx spreadsheet or CSV file.
+There is support for multi linear regression calculation (--multi modus).
+
+Database credentials can be defined as environment variables.
+For linear regression give statistical summary (e.g. R-squared and others).
 
 For spreadsheet input you need to have Python pandas (`apt-get install python-pandas`) installed.
 
@@ -18,23 +21,36 @@ The -show True will show in an X11 window the scatter graph. The -S True option 
 
 The script is able to generate an image on a provided file of the graphs.
 
-Example of use:
+## Examples of use:
 ```bash
     python MyRegression.py --help
-    python MyRegression.py --password XYZ -D database  \
-        -1 table/column/type -2 table2/column2/type2  \
+    python MyRegression.py --password XYZ -D luchtmetingen
+    python MyRegression.py --password XYZ -D luchtmetingen  \
+        table1/PM25/Datum/type table2/column_PM10//type2  \
         --timing yesterday/now --order 2 --show True
+    python MyRegression.py -t "3 days ago/now" --multi=True \
+        BdP_3f18c330/dhttemp//DHT22 BdP_8d5ba45f/dhttemp//DHT11
+    python MyRegression.py --input dylos_rivm_tm020417.xlsx --SHOW True \
+        -t '2017-03-14/2017-04-01 00:00:00' \
+        groot33/3/2/DylosDC1100 groot38/5/2/DylosDC1100
+    python MyRegression.py --input dylos_rivm_tm020417.xlsx --show True \
+        -t '2017-03-14/2017-04-01 00:00:00' \
+        groot33/3/2/DylosDC1100 groot38/5/2/DylosDC1100
 ```
-The timing format is using t5he format as accepted by the Unix date command.
+The timing format is using the format as accepted by the Unix date command.
 
 The output provide the polynomial factors (lowest order first) and R-square
 
 Normalisation details and regression polynomial can be used to obtain calibration factors for MySense configuration. Note that if R-square is near zero there is no best fit, so calibration does not make much sense.
+
+## OUTPUT
+Statistical report: method used, Rsquared, average/deviation, and much details.
+
+Output the graphs in an image file `--file`.
+
 ## DEPENDENCES
 Install numpy (`pip install numpy`) for the regression calculations and pyplot (`pip install pyplot`) for displaying the graph.
 Install SciPy for linear regression summaries `apt-get install python-statsmodels`.
 ## TO DO
-0. Input to be read e.g. via `panda` python library for: CSV and other input formats.
-1. Add multi regression best fit (best fit hyper plane to more dependences per value (multi column). More columns in one table.
-2. All multi dimentional regression to more then two tables.
+1. Add multi linear regression: needs more thought/review
 
