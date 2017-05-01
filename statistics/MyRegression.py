@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 3.1 2017/04/30 12:01:18 teus Exp teus $
+# $Id: MyRegression.py,v 3.2 2017/05/01 16:22:53 teus Exp teus $
 
 """ Create and show best fit for at least two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -26,12 +26,12 @@
     Multi linear regression modus.
     Show the scatter graph and best fit graph (default: off).
     Input from database, spreadsheet (XLSX) and CVS file formats.
-    Database table/column over a period of time.
+    Database table/column (sensor name) over a period of time.
     Database credentials can be provided from command environment.
     Script uses: numpy package, SciPy and statPY and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.1 $"[11:-2]
+__version__ = "0." + "$Revision: 3.2 $"[11:-2]
 
 try:
     import sys
@@ -58,10 +58,10 @@ net = {
     }
 # database identifiers
 # first range/array of regression values (second wil be calibrated against this one)
-tables = [
-    { 'name': 'BdP_8d5ba45f', 'column': 'pm_25', 'type': 'Dylos DC1100' },
+sensors = [
+    { 'table': 'BdP_8d5ba45f', 'column': 'pm_25', 'type': 'Dylos DC1100' },
     # second (Y) range/array of regression values
-    { 'name': 'BdP_3f18c330', 'column': 'pm25', 'type': 'Shinyei PPD42NS' },
+    { 'table': 'BdP_3f18c330', 'column': 'pm25', 'type': 'Shinyei PPD42NS' },
 ]
 
 # xlsx and csv input file
@@ -130,39 +130,39 @@ def getInterval(arr, amin = 60, amax = 60*60):
     # print("average sample interval: %3.1f, std dev: %3.1f" % (ivals_bar, ivals_std))
     return int(ivals_bar+ 2* ivals_std)
     
-def fromMySQL(fd,table):
-    # check table and column name for existance
-    if not (table['name'],) in db_query(fd,"SHOW TABLES", True):
-        sys.exit("Table with name %s does not exists in DB." % table['name'])
-    names = db_query(fd,"DESCRIBE %s" % table['name'],True)
+def fromMySQL(fd,sensor):
+    # check table and sensor (column) name for existance
+    if not (sensor['table'],) in db_query(fd,"SHOW TABLES", True):
+        sys.exit("Table with name %s does not exists in DB." % sensor['table'])
+    names = db_query(fd,"DESCRIBE %s" % sensor['table'],True)
     fnd = False
     for name in names:
-        if name[0] == table['column']:
+        if name[0] == sensor['column']:
             fnd = True ; break
     if not fnd:
-        sys.exit("Column %s in table %s does not exists." % (table['column'],table['table']))
+        sys.exit("Sensor (column) %s in table %s does not exists." % (sensor['column'],sensor['table']))
     # get the tuples (UNIX time stamp, valid value) for this period of time
     qry = "SELECT UNIX_TIMESTAMP(%s),(if(isnull(%s),'nan',%s)) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d and %s_valid  order by datum" % \
-        (table['date'],table['column'],table['column'],table['name'],timing['start'],timing['end'],table['column'])
+        (sensor['date'],sensor['column'],sensor['column'],sensor['table'],timing['start'],timing['end'],sensor['column'])
     return db_query(fd,qry, True)
 
 # we could first get average/std dev and omit the outliers
-def getColumn(table,period, amin = 60, amax = 60*60):
+def getColumn(sensor,period, amin = 60, amax = 60*60):
     global interval, resource
     if (not 'type' in resource.keys()) or (not 'fd' in resource.keys()):
         sys.exit("Data resource error")
     if resource['type'] == 'mysql':
-        values = fromMySQL(resource['fd'],table)
+        values = fromMySQL(resource['fd'],sensor)
     elif (resource['type'] == 'elsx') or (resource['type'] == 'csv'):
         if not 'read' in Pandas.keys():
             Pandas['read'] = GetXLSX()
         if not Pandas['read']:
             return np.array([])
-        values = FromXLSX(table)
+        values = FromXLSX(sensor)
     else:
         sys.exit("Data resource error: unknown data type")
     if len(values) < 5:
-        sys.exit("Only %d records in DB %s/%s. Need more values for proper regression." % (len(values),table['name'],table['column']))
+        sys.exit("Only %d records in DB %s/%s. Need more values for proper regression." % (len(values),sensor['table'],sensor['column']))
     imin = None; imax = None; nr_records = len(values)
     i = len(values)-1
     while ( i >= 0 ):
@@ -189,7 +189,7 @@ def getColumn(table,period, amin = 60, amax = 60*60):
         if ival < aval:
             interval = aval; strg = 'minimal- 50% -maximal'
         print("Auto interval samples is (re)set to %d (%s)" % (interval,strg))
-    print("Database table %s column %s: %d db records, deleted %d NaN records." % (table['name'],table['column'],len(values), nr_records-len(values)))
+    print("Database table %s sensor (column) %s: %d db records, deleted %d NaN records." % (sensor['table'],sensor['column'],len(values), nr_records-len(values)))
     return np.array(values)
 
 X = []
@@ -215,22 +215,22 @@ def pickValue(arr, time, sample):
     if not cnt: return None
     return value/cnt
 
-def getData(net,tables,timing):
+def getData(net,sensors,timing):
     global resource
     Data = []
-    for I in range(0,len(tables)):
-        Data.append(getColumn(tables[I],timing,60,60*60))
+    for I in range(0,len(sensors)):
+        Data.append(getColumn(sensors[I],timing,60,60*60))
     if (resource['type'] == 'mysql') and (resource['fd'] != None):
         resource['fd'].close()
     else: Pandas['fd'] = None
     return Data
 
-def getArrays(net,tables,timing):
+def getArrays(net,sensors,timing):
     """ Build a matrix with times and column values """
     global interval
 
     try:
-        Data = getData(net,tables,timing)
+        Data = getData(net,sensors,timing)
     except StandardError as err:
         sys.exit("Cannot obtain the records from the Database. Error: %s." % err)
 
@@ -240,7 +240,7 @@ def getArrays(net,tables,timing):
     for tx in range(0,len(Data[0][:,0])):
         row = [] ; row.append(Data[0][tx][0]); row.append(Data[0][tx][1])
         try:
-            for I in range(1,len(tables)):
+            for I in range(1,len(sensors)):
                 yval = pickValue(Data[I],row[0],interval/2)
                 if yval == None:
                     skipped += 1
@@ -287,9 +287,9 @@ def get_arguments():
     """ Command line argument roll in """
     import argparse
     global progname
-    global net, tables, timing, interval, order, show, normMinMax
+    global net, sensors, timing, interval, order, show, normMinMax
     global normAvgStd, pngfile, SHOW, MaxPerGraph, Pandas, resource, ml_mode
-    parser = argparse.ArgumentParser(prog=progname, description='Get from at least two tables for a period of time and calculate the regression best fit polynomial. Each argument defines the [[table]/]column/[date]/[type] table use definition. For non DB use the table is sheet1 and should be omitted.\nDefault definitions: the previous names or column numbers for table, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nCopyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
+    parser = argparse.ArgumentParser(prog=progname, description='Get from at least two sensors for a period of time and calculate the regression best fit polynomial. Each argument defines the [[table]/]sensor(column)/[date]/[type] DB table use definition. For non DB use the table is sheet1 and should be omitted.\nDefault definitions: the previous names or column numbers for table, sensor, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nCopyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
     parser.add_argument("-I", "--input", help="XLSX or CSV input file (path/filename.{xlsx,csv}, default: None\nOptions as <option>=<value> as command arguments.\nOptions: sheetname=0 (xlsx), header=0 (row with header or None), skiprows=0 (nr of rows to skip at start, delimiter=',' (None: auto detect).", default=Pandas['input'])
     parser.add_argument("-H", "--hostname", help="Database host name, default: %s" % net['hostname'], default="%s" % net['hostname'])
     parser.add_argument("--port", help="Database port number, default: %d" % net['port'], default="%d" % net['port'])
@@ -308,7 +308,7 @@ def get_arguments():
     parser.add_argument("-m", "--multi", help="multi linear regression mode: second argument has more dependences defined by 3rd, etc argument, default: %s polynomial regression calculation" % ml_mode, default=ml_mode, type=bool, choices=[False,True])
     parser.add_argument("-f", "--file", help="generate png graph file, default: no png", default=pngfile)
     parser.add_argument("-g", "--graphs", help="plot N graps in one scatter plot, default: %d" % MaxPerGraph, default=MaxPerGraph, type=int, choices=range(1,6))
-    parser.add_argument('args', nargs=argparse.REMAINDER, help="Database table one/column name, default: %s/%s/%s %s/%s/%s. Spreadsheet (sheet1) columns: name/value_colnr/[date_colnr][/type] (default date: col 0, name: pollutant nr, colum nr: 1, 2, type: ?)" % (tables[0]['name'],tables[0]['column'],tables[0]['type'],tables[1]['name'],tables[1]['column'],tables[1]['type']))
+    parser.add_argument('args', nargs=argparse.REMAINDER, help="Database table one/sensor or column name, default: %s/%s/%s %s/%s/%s. Spreadsheet (sheet1) columns: name/value_colnr/[date_colnr][/type] (default date: col 0, name: pollutant nr, colum nr: 1, 2, type: ?)" % (sensors[0]['table'],sensors[0]['column'],sensors[0]['type'],sensors[1]['table'],sensors[1]['column'],sensors[1]['type']))
     # overwrite argument settings into configuration
     args = parser.parse_args()
     Pandas['input'] = args.input
@@ -358,42 +358,42 @@ def get_arguments():
             sys.exit("File %s not an xlsx/csv file, error: %s." % (Pandas['input'],err))
             
         # TO DO: add to use sheet nr's / names iso numbers
-        tables = [ {'date': 0 }]
+        sensors = [ {'date': 0 }]
         if len(args.args) <= 1: showXLSX(args.args)
         last_col = 0
         for tbl in args.args:
             atbl = tbl.split('/')
-            if cnt > len(tables)-1:
-                tables.append({'date': tables[cnt-1]['date']})
-            tables[cnt]['name'] = 'pollutant %d' % cnt
+            if cnt > len(sensors)-1:
+                sensors.append({'date': sensors[cnt-1]['date']})
+            sensors[cnt]['table'] = 'pollutant %d' % cnt
             last_col += 1
-            tables[cnt]['column'] = last_col
-            tables[cnt]['type'] = 'unknown %d' % cnt
-            if len(atbl[0]): tables[cnt]['name'] = atbl[0]
+            sensors[cnt]['column'] = last_col
+            sensors[cnt]['type'] = 'unknown %d' % cnt
+            if len(atbl[0]): sensors[cnt]['table'] = atbl[0]
             if len(atbl[1]):
-                tables[cnt]['column'] = int(atbl[1])
+                sensors[cnt]['column'] = int(atbl[1])
                 last_col = int(atbl[1])
             if (len(atbl) > 2) and (cnt < 1):
-                if len(atbl[2]): tables[cnt]['date'] = int(atbl[2])
+                if len(atbl[2]): sensors[cnt]['date'] = int(atbl[2])
             if len(atbl) > 3:
-                if len(atbl[3]): tables[cnt]['type'] = atbl[3]
-                elif cnt: tables[cnt]['type'] = tables[cnt-1]['type']
+                if len(atbl[3]): sensors[cnt]['type'] = atbl[3]
+                elif cnt: sensors[cnt]['type'] = sensors[cnt-1]['type']
             cnt += 1
     else:
         resource['fd'] = db_connect(net)
-        tables = [ {'date': 'datum' }]
+        sensors = [ {'date': 'datum' }]
         if len(args.args) <= 1: showDB(net,args.args)
         for tbl in args.args:
             atbl = tbl.split('/')
-            if cnt > len(tables)-1:
-                tables.append({'date': tables[cnt-1]['date'] })
-            if len(atbl[0]): tables[cnt]['name'] = atbl[0]
-            if len(atbl[1]): tables[cnt]['column'] = atbl[1]
+            if cnt > len(sensors)-1:
+                sensors.append({'date': sensors[cnt-1]['date'] })
+            if len(atbl[0]): sensors[cnt]['table'] = atbl[0]
+            if len(atbl[1]): sensors[cnt]['column'] = atbl[1]
             if len(atbl) > 2:
-                if len(atbl[2]): tables[cnt]['date'] = atbl[2]
+                if len(atbl[2]): sensors[cnt]['date'] = atbl[2]
             if len(atbl) > 3:
-                if len(atbl[3]): tables[cnt]['type'] = atbl[3]
-                else: tables[cnt]['type'] = tables[cnt-1]['type']
+                if len(atbl[3]): sensors[cnt]['type'] = atbl[3]
+                else: sensors[cnt]['type'] = sensors[cnt-1]['type']
             cnt += 1
     DateTime = args.timing.split('/')[0]
     if args.first != None: DateTime = args.first
@@ -433,7 +433,7 @@ def showDB(net,args):
     cnt = 1
     for tbl in tbls:
         if len(args):
-            print("Table %s:" % tbl)
+            print("Table %s has the following sensors:" % tbl)
             cnt = 1
             for col in db_query(resource['fd'],"DESCRIBE %s" % tbl,True):
                 if col[0] == 'id': continue
@@ -451,9 +451,9 @@ def showDB(net,args):
             cnt = cnt + 1
     print("")
     if len(args):
-        sys.exit("Please provide at least two column definition arguments.")
+        sys.exit("Please provide at least two sensor (column) definition arguments.")
     else:
-        sys.exit("How to get an overview of columns per table: use with one argument table1/table2/...")
+        sys.exit("How to get an overview of sensors (columns) per table: use with one argument e.g. \"DB table 1/DB table 2/...\"")
     
         
 # print overview of columns in the spreadsheet
@@ -482,35 +482,35 @@ def GetXLSX():
     header = list(Pandas['fd'])
     needs = {}
     try:
-        for I in range(0,len(tables)):
-            tables[I]['date'] = int(tables[I]['date'])
-            needs[tables[I]['date']] = 1
-            tables[I]['column'] = int(tables[I]['column'])
-            needs[tables[I]['column']] = 1
+        for I in range(0,len(sensors)):
+            sensors[I]['date'] = int(sensors[I]['date'])
+            needs[sensors[I]['date']] = 1
+            sensors[I]['column'] = int(sensors[I]['column'])
+            needs[sensors[I]['column']] = 1
         for I in range(0,len(header)):
             if not I in needs.keys():
                 del Pandas['fd'][header[I]]
-        for I in range(0,len(tables)):
+        for I in range(0,len(sensors)):
             for key in ['date','column']:
-                tables[I][tables[I][key]] = header[tables[I][key]]
+                sensors[I][sensors[I][key]] = header[sensors[I][key]]
         start = datetime.datetime.strftime(datetime.datetime.fromtimestamp(timing['start']),'%Y-%m-%d %H:%M:%S')
         end = datetime.datetime.strftime(datetime.datetime.fromtimestamp(timing['end']),'%Y-%m-%d %H:%M:%S')
-        Array = Pandas['fd'][Pandas['fd'][header[tables[0]['date']]] >= start]
+        Array = Pandas['fd'][Pandas['fd'][header[sensors[0]['date']]] >= start]
         Pandas['fd'] = Array
-        Array = Pandas['fd'][Pandas['fd'][header[tables[0]['date']]] <= end]
+        Array = Pandas['fd'][Pandas['fd'][header[sensors[0]['date']]] <= end]
     except:
         sys.exit("xlsx/csv spreadsheet file: parse error or empty set.")
         return False
     Pandas['fd'] = Array
     return True
 
-def FromXLSX(table):
+def FromXLSX(sensor):
     values = []
-    length = len(Pandas['fd'][table[table['column']]])
-    for I in range(0,len(Pandas['fd'][table[table['date']]])):
+    length = len(Pandas['fd'][sensor[sensor['column']]])
+    for I in range(0,len(Pandas['fd'][sensor[sensor['date']]])):
         if I >= length: break
-        values.append([Pandas['fd'][table[table['date']]][I].value // 10**9,
-        Pandas['fd'][table[table['column']]][I]])
+        values.append([Pandas['fd'][sensor[sensor['date']]][I].value // 10**9,
+        Pandas['fd'][sensor[sensor['column']]][I]])
     return values
 
         
@@ -549,11 +549,11 @@ def get_r2_python(x_list,y_list):
     r = sum(zxi*zyi for zxi, zyi in zip(zx, zy))/(n-1)
     return r**2
 
-# to identify database, tables, columns and period
+# to identify database, tables, sensors and period
 from_env('DB')          # get DB credentials from command environment
 get_arguments()         # get command line arguments
 
-print('Regression best fit calculation details for sensor type(s): %s' % ', '.join(set([elm['type'] for elm in tables]))) 
+print('Regression best fit calculation details for sensor type(s): %s' % ', '.join(set([elm['type'] for elm in sensors]))) 
 if Pandas['input'] == None:
     print('Graphs based on data MySQL from %s:' % net['database'])
 else:
@@ -562,13 +562,13 @@ else:
 
 ################################ get core of data
 # we have to take slices from the matrix: row = [time in secs, values 1, values 2, ...]
-Matrix = getArrays(net,tables,timing)
+Matrix = getArrays(net,sensors,timing)
 
 print('Samples period: %s up to %s, interval timing %dm:%ds.' % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M'),interval/60,interval%60))
 Stat = { 'min': [], 'max': [], 'avg': [], 'std': [] }
 
 # some simple statistics
-for I in range(0,len(tables)):
+for I in range(0,len(sensors)):
     # roll in arrays for regression calculation
     Stat['min'].append(np.nanmin(Matrix[:,I+1]))
     Stat['max'].append(np.nanmax(Matrix[:,I+1]))
@@ -576,30 +576,38 @@ for I in range(0,len(tables)):
     Stat['std'].append(np.nanstd(Matrix[:,I+1]))
     if normMinMax:
         print('Normalisation (min,max):')
-        print('\t%s/%s [%6.2f,%6.2f] ->[0,1]' % (tables[I]['name'],tables[I]['column'],Stat['min'][I],Stat['max'][I]))
+        print('\t%s/%s [%6.2f,%6.2f] ->[0,1]' % (sensors[I]['table'],sensors[I]['column'],Stat['min'][I],Stat['max'][I]))
         Matrix[:,I+1] = Matrix[:,I+1] - Stat['min'][I]
         Matrix[:,I+1] /= (Stat['max'][I]-Stat['min'][I])
     if normAvgStd:
         print('Normalisation (avg-stddev,avg+stddev):')
-        print('\t%s/%s [%6.2f,%6.2f] ->[-1,+1]' % (tables[I]['name'],tables[I]['column'],Stat['avg'][I]-Stat['std'][I],Stat['avg'][I]+Stat['std'][I]))
+        print('\t%s/%s [%6.2f,%6.2f] ->[-1,+1]' % (sensors[I]['table'],sensors[I]['column'],Stat['avg'][I]-Stat['std'][I],Stat['avg'][I]+Stat['std'][I]))
         Matrix[:,I+1] = Matrix[:,I+1] - Stat['avg'][I]
         if Stat['std'][I] > 1.0: Matrix[:,I+1] /= Stat['std'][I]
 
+def getFit(fitMatrix):
+    global sensors
+    for sensor in range(0,len(sensors)): sensors[sensor]['fit'] = None
+    if (fitMatrix == None) or (len(sensors) != len(fitMatrix[0])):
+        return
+    for sensor in range(0,len(sensors)):
+        sensors[sensor]['fit'] = list(reversed(list(fitMatrix[:,sensor])))
 
-Z = []
 R2 = None
 
 if not ml_mode:
     # calculate the polynomial best fit graph
     Z  = np.polyfit(Matrix[:,1],Matrix[:,1:],order,full=True)
+    getFit(Z[0])
+    
     # print("Rcond: %1.3e" % Z[4] )
 
 import statsmodels.api as sm
 
-yname = '%s/%s' % (tables[0]['name'],tables[0]['column'])
+yname = '%s/%s' % (sensors[0]['table'],sensors[0]['column'])
 if not ml_mode:
-    for I in range(1,len(tables)):
-        print("Data from table/sheet %s, column %s:" % (tables[I]['name'],tables[I]['column']))
+    for I in range(1,len(sensors)):
+        print("Data from table/sheet %s, sensor (column) %s:" % (sensors[I]['table'],sensors[I]['column']))
         print("\t#number %d, avg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (len(Matrix[:,I+1]),Stat['avg'][I],Stat['std'][I],Stat['min'][I],Stat['max'][I]))
         if I == 0: continue
         # if order == 1:
@@ -607,12 +615,12 @@ if not ml_mode:
         #     R2 = get_r2_python( list(Matrix[:,1]),list(Matrix[:,2]))
         # else:
         R2 = get_r2_numpy(Matrix[:,1],Matrix[:,I+1],Z[0][:,I])
-        xname = [ '%s/%s' % (tables[I]['name'],tables[I]['column'])]
+        xname = [ '%s/%s' % (sensors[I]['table'],sensors[I]['column'])]
         print("\tR-squared R² with %s: %6.4f" % (xname[0],R2))
     
         print("\tBest fit polynomial regression curve (a0*X^0 + a1*X^1 + a2*X^2 + ...): ")
-        string = ', '.join(reversed(["%4.3e" % i for i in Z[0][:,I]]))
-        string = "\t%s (%s)-> best fit [ %s ]" % (yname,tables[I]['type'],string)
+        string = ', '.join(["%4.3e" % i for i in sensors[I]['fit']])
+        string = "\t%s (%s)-> best fit [ %s ]" % (yname,sensors[I]['type'],string)
         print(string)
 
         print("Statistical summary linear regression for %s with %s:" % (yname,xname))
@@ -624,10 +632,10 @@ if not ml_mode:
             continue
         print(results.summary(xname=xname,yname=yname))
 else:
-    print "Statistical multi linear regression for %s/%s with:" % (tables[0]['name'],tables[0]['column']),
+    print "Statistical multi linear regression for %s/%s with:" % (sensors[0]['table'],sensors[0]['column']),
     xname = []
-    for I in range(1,len(tables)):
-        xname.append("%s/%s:" % (tables[I]['name'],tables[I]['column']))
+    for I in range(1,len(sensors)):
+        xname.append("%s/%s:" % (sensors[I]['table'],sensors[I]['column']))
     print("%s" % ', '.join(xname))
     StatX = Matrix[:,2:]; StatX = sm.add_constant(StatX)
     try:
@@ -635,17 +643,18 @@ else:
         # TO DO: next needs some more thought
         # results.tvalue, pvalues, fvaluea, nobs, rsquared, rsquared_adj, scale
         # params
-        Z.append(results.params); Z[0] = np.array(Z[0])  # reversed??
+        sensors[0]['fit'] = [0,1.0]
+        sensors[1]['fit'] = results.params
         R2 = results.rsquared
     except ValueError as err:
         print("ERROR: %s" % err)
     print("\tR-squared R² with %s: %6.4f" % (xname[0],R2))
     print("\tBest fit polynomial regression curve (a0 + a1*X1 + a2*X2 + ...): ")
-    string = '%e' % Z[0][0]
-    for I in range(1,len(Z[0])):
+    string = '%4.3e' % sensors[1]['fit'][0]
+    for I in range(1,len(sensors[1]['fit'][I])):
         if len(string): string += ' + '
-        string += "%e (%s)" % (Z[0][I],xname[I-1])
-    string = "    %s (%s)-> best fit:\n    [ %s ]" % (yname,tables[I]['type'],string)
+        string += "%e (%s)" % (sensors[1]['fit'][I],xname[I-1])
+    string = "    %s (%s)-> best fit:\n    [ %s ]" % (yname,sensors[I]['type'],string)
     print(string)
 
     print(results.summary(xname=xname, yname=yname))
@@ -658,26 +667,23 @@ def makeXgrid(mn,mx,nr):
 
 # maybe numpy can do this simpler
 # create a new matrix with values calculated using best fit polynomial
-fitStat = {}
 def getFitMatrix():
-    global Matrix, Z, Stat, fitStat
+    global Matrix, sensors, Stat
     from numpy.polynomial.polynomial import polyval
     new = []
-    newZ = []
-    fitStat = {}
-    for I in range(0,len(Z[0])):        # reverse array ply constants low order first
-        newZ.append([])
-        for J in reversed(Z[0][I]): newZ[I].append(J)
-    for I in Stat.keys(): # get poly fit values for statistics values
-        fitStat[I] = []
-        for J in range(0,len(newZ[0])):
-            fitStat[I].append(polyval(Stat[I][J],newZ[J]))
     for I in range(0,len(Matrix)):      # best fit value for these measurements
         row = []
         for J in range(1,len(Matrix[I])):
-            row.append(polyval(Matrix[I][J],newZ[J-1]))
+            row.append(polyval(Matrix[I][J],sensors[J-1]['fit']))
         new.append(row)
-    return np.array(new)
+    new = np.array(new)
+    fitStat = {'min':[], 'max':[], 'avg':[], 'std':[] }
+    for I in range(0,len(sensors)):
+        fitStat['min'].append(np.min(new[:,I]))
+        fitStat['max'].append(np.max(new[:,I]))
+        fitStat['avg'].append(np.average(new[:,I]))
+        fitStat['std'].append(np.std(new[:,I]))
+    return (new,fitStat)
 
 # calculate y values for calibration graph
 # TO DO: the following is probably only right for single linear regression
@@ -686,13 +692,13 @@ def mlArray():
     new = []
     for I in range(0,len(Matrix)):
         val = Z[0][0]
-        for J in range(1,len(Z[0])): val += Matrix[I][J+1] * Z[0][J]
+        for J in range(1,len(Z[0])): val += Matrix[I][J+1] * (Z[0][J]/2)
         new.append(val)
     return np.array(new)
 
-# plot a spline of dates/measurements for each table
+# plot a spline of dates/measurements for each sensor
 def SplinePlot(figure,gs,base):
-    global Stat, fitStat, tables, Matrix, colors
+    global Stat, fitStat, sensors, Matrix, colors
     from matplotlib import dates
     ax = figure.add_subplot(gs[base,0])
     string = "Graphs of measurements for period: %s up to %s" % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M'))
@@ -719,15 +725,21 @@ def SplinePlot(figure,gs,base):
         ax.xaxis.set_minor_locator(dates.HourLocator(byhour=12) )
         # ax.xaxis.set_minor_formatter(dates.DateFormatter(''))
     plt.subplots_adjust(bottom=.3)
-    ax.set_ylabel('scaled to avg %s/%s (%s)' %(tables[0]['name'],tables[0]['column'],
-                tables[0]['type']), fontsize=8 , fontweight='bold')
+    ax.set_ylabel('scaled to avg %s/%s (%s)' %(sensors[0]['table'],sensors[0]['column'],
+                sensors[0]['type']), fontsize=8 , fontweight='bold')
 
-    #fitMatrix = getFitMatrix()
+    (fitMatrix,fitStat) = getFitMatrix()
     for I in range(1,len(Matrix[0,:])): # leave gaps blank
         if ml_mode and (I > 2): break
         strt = -1; lbl = None
         nr = len(Matrix[:,0])
-        while strt < nr-1:
+        # TO DO: why do we need scaling?
+        # scaled =  Stat['avg'][0]/Stat['avg'][I-1] #  ???? TO CORRECT
+        scaled = 1.0
+        fitscaled = fitStat['avg'][0]/fitStat['avg'][I-1]
+        if (scaled > 95.0) and (scaled < 105.0): scalemsg = ''
+        else: scalemsg = ' %3.1f%% scaled' % (scaled*100.0)
+        while strt < nr-2:
             strt += 1
             if abs(Matrix[strt,0]-Matrix[strt+1,0]) > interval*2: continue
             end = strt
@@ -735,16 +747,15 @@ def SplinePlot(figure,gs,base):
                 end += 1
                 if end >= nr: break
                 if abs(Matrix[end,0]-Matrix[end-1,0]) > interval*2: break
-            scaled =  Stat['avg'][0]/Stat['avg'][I-1]*100.0
-            if (scaled > 99.0) and (scaled < 101.0): scaled = ''
-            else: scaled = ' %3.1f%% scaled' % scaled
             if lbl == None:
-                lbl = '%s/%s %s(%s)' % (tables[I-1]['name'],tables[I-1]['column'],scaled,tables[I-1]['type'])
-            ax.plot(fds[strt:end],Matrix[strt:end,I]*Stat['avg'][0]/Stat['avg'][I-1], '-', c=colors[I%len(colors)], label=lbl)
-            lbl = ''
+                lbl = '%s/%s %s(%s)' % (sensors[I-1]['table'],sensors[I-1]['column'],scalemsg,sensors[I-1]['type'])
+            ax.plot(fds[strt:end],Matrix[strt:end,I]*scaled, '-', c=colors[I%len(colors)], label=lbl)
+            # TO DO: what is the fit polynomial?
+            if I > 1:       # add best fit correction graph
+                if len(lbl): lbl += ' best fit'
+                ax.plot(fds[strt:end],fitMatrix[strt:end,I-1] * fitscaled, ':', c=colors[I%len(colors)], linewidth=2, label=lbl)
             strt = end-1
-        #if I >= 1:       # add best fit correction graph
-        #    ax.plot(fds,fitMatrix[:,I-1]*fitStat['avg'][0]/fitStat['avg'][I-1], ':', c=colors[I%len(colors)], label='%s/%s (best fit)' % (tables[I-1]['name'],tables[I-1]['column']))
+            lbl = ''
     if ml_mode:
         lbl = None
         nr = len(Matrix[:,0])
@@ -765,7 +776,7 @@ def SplinePlot(figure,gs,base):
             if lbl == None:
                 lbl = 'corrected'
             #y = a0+a1*x1+a2*x2+a3*x3+ ... ??? TO DO: VERIFY
-            ax.plot(fds[strt:end], Array[strt:end], ':', c='r', linewidth=2, label=lbl)
+            ax.plot(fds[strt:end], Array[strt:end], ':', c=colors[2%len(colors)], linewidth=2, label=lbl)
             lbl = ''
             strt = end -1
 
@@ -780,9 +791,9 @@ def SplinePlot(figure,gs,base):
 
 # plot a scattered plot range of max MaxPerGraphs scatter plots in one subplot
 def ScatterPlot(figure,gs,base):
-    global Stat, tables, Matrix, MaxPerGraph, colors, props
+    global Stat, sensors, Matrix, MaxPerGraph, colors, props
     ax = None; strg1 = strg2 = ''
-    for I in range(1,len(tables)):
+    for I in range(1,len(sensors)):
         # the graphs
         nr_graphs = 0
         ax = figure.add_subplot(gs[base+(I/MaxPerGraph),0])
@@ -795,53 +806,53 @@ def ScatterPlot(figure,gs,base):
         if (I%MaxPerGraph) == 1:
             strg2 = '\n\nBest fit polynomials (low order first):'
             if not ml_mode:
-                strg2 += "\n%s/%s: [%s]" % (tables[0]['name'],tables[0]['column'],', '.join(reversed(["%4.3e" % i for i in Z[0][:,0]])))
+                strg2 += "\n%s/%s: [%s]" % (sensors[0]['table'],sensors[0]['column'],', '.join(reversed(["%4.3e" % i for i in Z[0][:,0]])))
             else:
-                strg2 += "\n%s/%s: [%s]" % (tables[0]['name'],tables[0]['column'],'0, 1')
+                strg2 += "\n%s/%s: [%s]" % (sensors[0]['table'],sensors[0]['column'],'0, 1')
             strg1 = "R$^2$=%6.4f, order=%d" % (R2, order)
-            strg1 += "\n%s/%s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" % (tables[0]['name'],tables[0]['column'],
+            strg1 += "\n%s/%s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" % (sensors[0]['table'],sensors[0]['column'],
                 Stat['avg'][0],Stat['std'][0],Stat['min'][0],Stat['max'][0])
         for J in range(I,I+MaxPerGraph):
             if ml_mode and (I > 2): break
-            if J == len(tables): break
+            if J == len(sensors): break
             nr_graphs += 1
-            strg1 += "\n%s/%s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" %(tables[J]['name'],tables[J]['column'],
+            strg1 += "\n%s/%s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" %(sensors[J]['table'],sensors[J]['column'],
                 Stat['avg'][J],Stat['std'][J],Stat['min'][J],Stat['max'][J])
         if normMinMax: strg1 += ', (min,max)->(0,1) normalized'
         if normAvgStd: strg1 += ', (avg, std dev) -> (0,1) normalized'
         for J in range(I,I+MaxPerGraph):
             if ml_mode and (I > 2): break
-            if J == len(tables): break
+            if J == len(sensors): break
             if not ml_mode:
-                strg2 += "\n%s/%s: [%s]" % (tables[J]['name'],tables[J]['column'],', '.join(reversed(["%4.3e" % i for i in Z[0][:,J]])))
+                strg2 += "\n%s/%s: [%s]" % (sensors[J]['table'],sensors[J]['column'],', '.join(reversed(["%4.3e" % i for i in Z[0][:,J]])))
             else:
-                strg2 += "\n%s/%s: [%s]" % (tables[J]['name'],tables[J]['column'],', '.join(["%4.3e" % i for i in Z[0][:]]))
-        if (I == (len(tables)-1)) or ((MaxPerGraph-1) == (I%MaxPerGraph)):
+                strg2 += "\n%s/%s: [%s]" % (sensors[J]['table'],sensors[J]['column'],', '.join(["%4.3e" % i for i in Z[0][:]]))
+        if (I == (len(sensors)-1)) or ((MaxPerGraph-1) == (I%MaxPerGraph)):
             ax.text(0.03, 0.96, strg1+strg2, transform=ax.transAxes, fontsize=8,
                 verticalalignment='top', bbox=props)
             strg1 = strg2 = ''
 
         # legend text(s)
         if not (I-1)%MaxPerGraph:
-            ax.set_xlabel('table %s column %s (%s)' %(tables[0]['name'],
-                tables[0]['column'],tables[0]['type']), fontsize=8, fontweight='bold')
+            ax.set_xlabel('table %s sensor (column) %s (%s)' %(sensors[0]['table'],
+                sensors[0]['column'],sensors[0]['type']), fontsize=8, fontweight='bold')
         label = ''
         if nr_graphs == 1:
-            ax.set_ylabel('table %s column %s (%s)' %(tables[I]['name'],tables[I]['column'],
-                tables[I]['type']), fontsize=8 , fontweight='bold')
+            ax.set_ylabel('table %s sensors (column) %s (%s)' %(sensors[I]['table'],sensors[I]['column'],
+                sensors[I]['type']), fontsize=8 , fontweight='bold')
         else:
-            label = '%s/%s (%s)' % (tables[I]['name'],tables[I]['column'],tables[I]['type'])
+            label = '%s/%s (%s)' % (sensors[I]['table'],sensors[I]['column'],sensors[I]['type'])
         
         # the scatter and best fit graph(s)
         for J in range(I,I+MaxPerGraph):
-            if J >= len(tables): break
+            if J >= len(sensors): break
             ax.plot(Matrix[:,1], Matrix[:,J+1], 'o', c=colors[J%MaxPerGraph],markersize=3, label='%s' % label)
             if ml_mode and (J != 1): continue # next in ml_mode does not make sense
             if not ml_mode:
-                ax.plot(sortedX, np.poly1d(Z[0][:,J])(sortedX), c=colors[J%MaxPerGraph], label='%s versus %s' % (tables[0]['type'],tables[J]['type']))
+                ax.plot(sortedX, np.poly1d(Z[0][:,J])(sortedX), c=colors[J%MaxPerGraph], label='%s versus %s' % (sensors[0]['type'],sensors[J]['type']))
             else:
                 # TO DO: I am not sure what results.params is as array
-                ax.plot(sortedX, np.poly1d(Z[0][:]/Z[0][0])(sortedX), '-', c='r', label='%s versus %s' % (tables[0]['type'],tables[J]['type']))
+                ax.plot(sortedX, np.poly1d(Z[0][:]/Z[0][0])(sortedX), '-', c='r', label='%s versus %s' % (sensors[0]['type'],sensors[J]['type']))
         I = J-1    
 
         if len(label):
@@ -869,7 +880,7 @@ if show:
         sortedX = makeXgrid(Stat['min'][0],Stat['max'][0],100)
 
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-    # fig = plt.figure(tight_layout=True, figsize=(7.5,(base+(len(tables)/MaxPerGraph)+1) *5.0))
+    # fig = plt.figure(tight_layout=True, figsize=(7.5,(base+(len(sensors)/MaxPerGraph)+1) *5.0))
     Width = 7.5
     Height = 5
     if SHOW: Height *= 2
@@ -878,9 +889,9 @@ if show:
     # left=0.1, bottom=0.1, right=0.97, top=0.93, wspace=0.25, hspace=0.25
     # fig.subplots_adjust(top=0.93, bottom=0.5, left=0.2, right=0.2)
     # create some bling bling
-    #fig.suptitle('Data from %s, best fit polynomial for type(s): %s' % (net['database'],', '.join(set([elmt['type'] for elmt in tables]))),
+    #fig.suptitle('Data from %s, best fit polynomial for type(s): %s' % (net['database'],', '.join(set([elmt['type'] for elmt in sensors]))),
     #    fontsize=9, fontweight='bold')
-    gs = gridspec.GridSpec(base + (len(tables)-1)/MaxPerGraph+1,1)
+    gs = gridspec.GridSpec(base + (len(sensors)-1)/MaxPerGraph+1,1)
     # bottom declaration
     fig.text(0.98, 0.015, 'generated %s by pyplot/numpy' % datetime.datetime.fromtimestamp(time()).strftime('%d %b %Y %H:%M'),
         verticalalignment='bottom', horizontalalignment='right',
