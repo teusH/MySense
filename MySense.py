@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.29 2017/04/28 14:04:25 teus Exp teus $
+# $Id: MySense.py,v 2.30 2017/05/02 08:59:20 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.29 $"[11:-2]
+__version__ = "0." + "$Revision: 2.30 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -834,8 +834,11 @@ def sensorread():
                     except StandardError as err:
                         if not 'ErrorCount' in Conf[Out].keys():
                             Conf[Out]['ErrorCount'] = 0
+                        Conf[Out]['ErrorCount'] += 1
                         MyLogger.log('ERROR',"Publish via %s failed with error: %s" % (Out,err))
-                        if Conf[Out]['ErrorCount'] < 10: continue
+                        if Conf[Out]['ErrorCount'] < 10:
+                            deQueue(Out)        # throw this output record away
+                            continue
                         MyLogger.log('ERROR',"Publish via %s is too much failing. Skipping this output stream." % Out)
                         while(deQueue(Out)): continue
                         Conf['outputs'].remove(Out)
