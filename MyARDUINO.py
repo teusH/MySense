@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.15 2017/04/26 10:07:04 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.16 2017/05/02 08:08:34 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -51,7 +51,7 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.15 $"[11:-2]
+__version__ = "0." + "$Revision: 1.16 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -168,6 +168,7 @@ def open_serial():
                 bytesize=serial.EIGHTBITS,
                 timeout=65*60)  # allow also monitor mode
             MyLogger.log('INFO',"Arduino serial USB: %s" % serial_dev)
+            sleep(2)    # give Arduino some time to reset
         except (Exception) as error:
             MyLogger.log('FATAL',"%s" % error)
             return False
