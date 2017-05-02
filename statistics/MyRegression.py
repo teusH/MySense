@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 3.2 2017/05/01 16:22:53 teus Exp teus $
+# $Id: MyRegression.py,v 3.3 2017/05/02 14:27:46 teus Exp teus $
 
 """ Create and show best fit for at least two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -31,7 +31,7 @@
     Script uses: numpy package, SciPy and statPY and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.2 $"[11:-2]
+__version__ = "0." + "$Revision: 3.3 $"[11:-2]
 
 try:
     import sys
@@ -587,25 +587,39 @@ for I in range(0,len(sensors)):
 
 def getFit(fitMatrix):
     global sensors
-    for sensor in range(0,len(sensors)): sensors[sensor]['fit'] = None
+    for sensor in range(0,len(sensors)): sensors[sensor]['Z0'] = None
     if (fitMatrix == None) or (len(sensors) != len(fitMatrix[0])):
         return
     for sensor in range(0,len(sensors)):
-        sensors[sensor]['fit'] = list(reversed(list(fitMatrix[:,sensor])))
+        # sensors[sensor]['Z0'] = list(reversed(list(fitMatrix[:,sensor])))
+        sensors[sensor]['Z0'] = fitMatrix[:,sensor]
 
-R2 = None
+import statsmodels.api as sm
+def getLMFit(sensor):
+    global Matrix, sensors
+    try:
+        StatX = Matrix[:,sensor+1:]; StatX = sm.add_constant(StatX)
+        reslts = sm.OLS(Matrix[:,1],StatX).fit()
+    except ValueError as err:
+        print("ERROR: %s" % err)
+        raise ValueError("Error in Linear Regression best fit calculation")
+    if not 'R2' in sensors[sensor].keys():
+        sensors[sensor]['R2'] = reslts.rsquared
+    if not 'fit' in sensors[sensor].keys():
+        sensors[sensor]['fit'] = reslts.params
+    return reslts
 
+Z  = np.polyfit(Matrix[:,1],Matrix[:,1:],order,full=True)
 if not ml_mode:
     # calculate the polynomial best fit graph
-    Z  = np.polyfit(Matrix[:,1],Matrix[:,1:],order,full=True)
     getFit(Z[0])
     
     # print("Rcond: %1.3e" % Z[4] )
 
-import statsmodels.api as sm
 
 yname = '%s/%s' % (sensors[0]['table'],sensors[0]['column'])
 if not ml_mode:
+    sensors[0]['fit'] = [0.0,1.0]; sensors[0]['R2'] = 0.0
     for I in range(1,len(sensors)):
         print("Data from table/sheet %s, sensor (column) %s:" % (sensors[I]['table'],sensors[I]['column']))
         print("\t#number %d, avg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (len(Matrix[:,I+1]),Stat['avg'][I],Stat['std'][I],Stat['min'][I],Stat['max'][I]))
@@ -614,44 +628,44 @@ if not ml_mode:
         #     R2 = get_r2_corrcoeff(Matrix[:,1],Matrix[:,2])
         #     R2 = get_r2_python( list(Matrix[:,1]),list(Matrix[:,2]))
         # else:
-        R2 = get_r2_numpy(Matrix[:,1],Matrix[:,I+1],Z[0][:,I])
+        sensors[I]['R2'] = get_r2_numpy(Matrix[:,1],Matrix[:,I+1],Z[0][:,I])
+        results = getLMFit(I)
         xname = [ '%s/%s' % (sensors[I]['table'],sensors[I]['column'])]
-        print("\tR-squared R² with %s: %6.4f" % (xname[0],R2))
+        print("\tR-squared R² with %s: %6.4f" % (xname[0],sensors[I]['R2']))
     
-        print("\tBest fit polynomial regression curve (a0*X^0 + a1*X^1 + a2*X^2 + ...): ")
+        # print("\tBest fit polynomial regression curve (a0*X^0 + a1*X^1 + a2*X^2 + ...): ")
+        # string = ', '.join(["%4.3e" % i for i in Z[0][:,I]])  # correct ???
+        print("\tBest fit linear single polynomial regression curve (a0*X^0 + a1*X^1): ")
         string = ', '.join(["%4.3e" % i for i in sensors[I]['fit']])
         string = "\t%s (%s)-> best fit [ %s ]" % (yname,sensors[I]['type'],string)
         print(string)
 
         print("Statistical summary linear regression for %s with %s:" % (yname,xname))
-        StatX = Matrix[:,I+1]; StatX = sm.add_constant(StatX)
-        try:
-            results = sm.OLS(Matrix[:,1],StatX).fit()
-        except ValueError as err:
-            print("ERROR: %s" % err)
-            continue
         print(results.summary(xname=xname,yname=yname))
+        # results.{params,tvalues,pvalues,fvalues,nobs,rsquared,rsquared_adj,scale,llf}
 else:
     print "Statistical multi linear regression for %s/%s with:" % (sensors[0]['table'],sensors[0]['column']),
     xname = []
     for I in range(1,len(sensors)):
-        xname.append("%s/%s:" % (sensors[I]['table'],sensors[I]['column']))
+        xname.append("%s/%s" % (sensors[I]['table'],sensors[I]['column']))
     print("%s" % ', '.join(xname))
     StatX = Matrix[:,2:]; StatX = sm.add_constant(StatX)
+    for sensor in range(0,len(sensors)):
+        sensors[sensor]['Z0'] = Z[0][:,I]
     try:
         results = sm.OLS(Matrix[:,1],StatX).fit()
-        # TO DO: next needs some more thought
-        # results.tvalue, pvalues, fvaluea, nobs, rsquared, rsquared_adj, scale
-        # params
-        sensors[0]['fit'] = [0,1.0]
-        sensors[1]['fit'] = results.params
-        R2 = results.rsquared
+        # TO DO: next needs some more thought: calibration polynomial or average poly?
+        # results.{params,tvalues,pvalues,fvalues,nobs,rsquared,rsquared_adj,scale,llf}
+        sensors[0]['fit'] = [0.0,1.0]     # is this correct to get polynomial coeffs???
+        sensors[1]['fit'] = []
+        for elm in results.params: sensors[1]['fit'].append(float(elm))
+        sensors[0]['R2'] = sensors[1]['R2'] = results.rsquared
     except ValueError as err:
         print("ERROR: %s" % err)
-    print("\tR-squared R² with %s: %6.4f" % (xname[0],R2))
+    print("\tR-squared R² with %s: %6.4f" % (xname[0],sensors[1]['R2']))
     print("\tBest fit polynomial regression curve (a0 + a1*X1 + a2*X2 + ...): ")
     string = '%4.3e' % sensors[1]['fit'][0]
-    for I in range(1,len(sensors[1]['fit'][I])):
+    for I in range(1,len(sensors[1]['fit'])):
         if len(string): string += ' + '
         string += "%e (%s)" % (sensors[1]['fit'][I],xname[I-1])
     string = "    %s (%s)-> best fit:\n    [ %s ]" % (yname,sensors[I]['type'],string)
@@ -686,19 +700,19 @@ def getFitMatrix():
     return (new,fitStat)
 
 # calculate y values for calibration graph
-# TO DO: the following is probably only right for single linear regression
+# TO DO: the following is probably only right for single linear regression ???
 def mlArray():
-    global Z, Matrix
+    global Matrix, sensors
     new = []
     for I in range(0,len(Matrix)):
-        val = Z[0][0]
-        for J in range(1,len(Z[0])): val += Matrix[I][J+1] * (Z[0][J]/2)
+        val = sensors[1]['fit'][0]
+        for J in range(1,len(sensors[1]['fit'])): val += Matrix[I][J+1] * float(sensors[1]['fit'][J])
         new.append(val)
     return np.array(new)
 
 # plot a spline of dates/measurements for each sensor
 def SplinePlot(figure,gs,base):
-    global Stat, fitStat, sensors, Matrix, colors
+    global Stat, fitStat, sensors, Matrix, colors, results
     from matplotlib import dates
     ax = figure.add_subplot(gs[base,0])
     string = "Graphs of measurements for period: %s up to %s" % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M'))
@@ -752,33 +766,10 @@ def SplinePlot(figure,gs,base):
             ax.plot(fds[strt:end],Matrix[strt:end,I]*scaled, '-', c=colors[I%len(colors)], label=lbl)
             # TO DO: what is the fit polynomial?
             if I > 1:       # add best fit correction graph
-                if len(lbl): lbl += ' best fit'
+                if len(lbl): lbl += ' correction fit'
                 ax.plot(fds[strt:end],fitMatrix[strt:end,I-1] * fitscaled, ':', c=colors[I%len(colors)], linewidth=2, label=lbl)
             strt = end-1
             lbl = ''
-    if ml_mode:
-        lbl = None
-        nr = len(Matrix[:,0])
-        Array = mlArray()
-        strt = -1
-        while strt < nr-1:
-            strt += 1
-            if abs(Matrix[strt+1,0]-Matrix[strt,0]) > interval*2: continue
-            end = strt
-            while True:
-                end += 1
-                if end >= nr: break
-                if abs(Matrix[end,0]-Matrix[end-1,0]) > interval*2: break
-            if end >= nr-1: end = nr
-            scaled =  Stat['avg'][0]/Stat['avg'][I-1]*100.0
-            if (scaled > 99.0) and (scaled < 101.0): scaled = ''
-            else: scaled = ' %3.1f%% scaled' % scaled
-            if lbl == None:
-                lbl = 'corrected'
-            #y = a0+a1*x1+a2*x2+a3*x3+ ... ??? TO DO: VERIFY
-            ax.plot(fds[strt:end], Array[strt:end], ':', c=colors[2%len(colors)], linewidth=2, label=lbl)
-            lbl = ''
-            strt = end -1
 
     # Set the fontsize
     legend = ax.legend(loc='upper left', labelspacing=-0.1, shadow=True)
@@ -791,7 +782,7 @@ def SplinePlot(figure,gs,base):
 
 # plot a scattered plot range of max MaxPerGraphs scatter plots in one subplot
 def ScatterPlot(figure,gs,base):
-    global Stat, sensors, Matrix, MaxPerGraph, colors, props
+    global Stat, sensors, Matrix, MaxPerGraph, colors, props, results, Z
     ax = None; strg1 = strg2 = ''
     for I in range(1,len(sensors)):
         # the graphs
@@ -804,14 +795,11 @@ def ScatterPlot(figure,gs,base):
 
         # box with text for each graph
         if (I%MaxPerGraph) == 1:
-            strg2 = '\n\nBest fit polynomials (low order first):'
-            if not ml_mode:
-                strg2 += "\n%s/%s: [%s]" % (sensors[0]['table'],sensors[0]['column'],', '.join(reversed(["%4.3e" % i for i in Z[0][:,0]])))
-            else:
-                strg2 += "\n%s/%s: [%s]" % (sensors[0]['table'],sensors[0]['column'],'0, 1')
-            strg1 = "R$^2$=%6.4f, order=%d" % (R2, order)
+            strg1 = "R$^2$=%6.4f, order=%d" % (sensors[I]['R2'], order)
             strg1 += "\n%s/%s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" % (sensors[0]['table'],sensors[0]['column'],
                 Stat['avg'][0],Stat['std'][0],Stat['min'][0],Stat['max'][0])
+            strg2 = '\n\nBest fit ml polynomials (low order first):'
+            strg2 += "\n%s/%s: [%s]" % (sensors[0]['table'],sensors[0]['column'],'0, 1')
         for J in range(I,I+MaxPerGraph):
             if ml_mode and (I > 2): break
             if J == len(sensors): break
@@ -823,10 +811,7 @@ def ScatterPlot(figure,gs,base):
         for J in range(I,I+MaxPerGraph):
             if ml_mode and (I > 2): break
             if J == len(sensors): break
-            if not ml_mode:
-                strg2 += "\n%s/%s: [%s]" % (sensors[J]['table'],sensors[J]['column'],', '.join(reversed(["%4.3e" % i for i in Z[0][:,J]])))
-            else:
-                strg2 += "\n%s/%s: [%s]" % (sensors[J]['table'],sensors[J]['column'],', '.join(["%4.3e" % i for i in Z[0][:]]))
+            strg2 += "\n%s/%s: [%s]" % (sensors[J]['table'],sensors[J]['column'],', '.join(["%4.3e" % i for i in sensors[J]['fit']]))
         if (I == (len(sensors)-1)) or ((MaxPerGraph-1) == (I%MaxPerGraph)):
             ax.text(0.03, 0.96, strg1+strg2, transform=ax.transAxes, fontsize=8,
                 verticalalignment='top', bbox=props)
@@ -849,10 +834,17 @@ def ScatterPlot(figure,gs,base):
             ax.plot(Matrix[:,1], Matrix[:,J+1], 'o', c=colors[J%MaxPerGraph],markersize=3, label='%s' % label)
             if ml_mode and (J != 1): continue # next in ml_mode does not make sense
             if not ml_mode:
-                ax.plot(sortedX, np.poly1d(Z[0][:,J])(sortedX), c=colors[J%MaxPerGraph], label='%s versus %s' % (sensors[0]['type'],sensors[J]['type']))
-            else:
-                # TO DO: I am not sure what results.params is as array
-                ax.plot(sortedX, np.poly1d(Z[0][:]/Z[0][0])(sortedX), '-', c='r', label='%s versus %s' % (sensors[0]['type'],sensors[J]['type']))
+                color = colors[J%MaxPerGraph]
+            else: color = 'r'
+            # ax.plot(sortedX, np.poly1d(list(reversed(sensors[J]['fit'])))(sortedX), '-', c=color, label='%s versus %s' % (sensors[0]['type'],sensors[J]['type']))
+            ax.plot(sortedX, np.poly1d(sensors[J]['Z0'])(sortedX), '-', c=color, label='%s versus %s' % (sensors[0]['type'],sensors[J]['type']))
+            xtxt = (np.max(sortedX)+np.min(sortedX))/2
+            ax.annotate("best fit\n%s/%s ~ %s/%s" % (sensors[0]['table'],sensors[0]['column'],sensors[I]['table'],sensors[I]['column']),
+                xy=(xtxt,np.poly1d(sensors[J]['Z0'])(xtxt)),
+                ha='center', va='top', fontsize=7.5, color='black',
+                bbox=dict(boxstyle='round,pad=0.2', fc='yellow', alpha=0.3),
+                xytext=(xtxt*1.02,np.poly1d(sensors[J]['Z0'])(xtxt) * 0.92),
+                arrowprops=dict(color='gray', arrowstyle='->', connectionstyle='arc3,rad=0.5'))
         I = J-1    
 
         if len(label):
