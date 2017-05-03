@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.30 2017/05/02 08:59:20 teus Exp teus $
+# $Id: MySense.py,v 2.31 2017/05/03 19:21:03 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,7 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.30 $"[11:-2]
+__version__ = "0." + "$Revision: 2.31 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -433,7 +433,7 @@ def integrate_options():
 # show the intension of this process
 def show_startup():
     """ On startup log configuration details """
-    global Conf, progname, __version__
+    global Conf, progname, __version__, INTERVAL
     MyLogger.log('ATTENT',"%s Started Sensor processing: %s Version:%s" % (datetime.datetime.strftime(datetime.datetime.today(), "%Y-%m-%d %H:%M:%S " ), progname, __version__))
     MyLogger.log('DEBUG',"Control-C to abort")
     MyLogger.log('DEBUG',"Engine: Python Version %s.%s.%s\n" % sys.version_info[:3])
@@ -441,6 +441,7 @@ def show_startup():
     for item in ('project','serial','geolocation'):
         if (item in Conf['id'].keys()) and (Conf['id'][item] != None):
             MyLogger.log('ATTENT',"\t %s:\t%s" % (item,Conf['id'][item]))
+    MyLogger.log('ATTENT',"\t main loop interval:\t%s minutes" % INTERVAL/60)
 
     MyLogger.log('INFO',"Available INPUT SENSORS: %s" % ', '.join(INPUTS+INPUTS_I))
     for Sensor in INPUTS+INPUTS_I:
