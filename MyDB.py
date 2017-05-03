@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.20 2017/05/02 08:59:00 teus Exp teus $
+# $Id: MyDB.py,v 2.21 2017/05/03 19:02:42 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.20 $"[11:-2]
+__version__ = "0." + "$Revision: 2.21 $"[11:-2]
 
 try:
     import MyLogger
@@ -89,7 +89,8 @@ def db_connect(net):
                 password=Conf['password'],
                 host=Conf['hostname'],
                 port=Conf['port'],
-                database=Conf['database'])
+                database=Conf['database'],
+                connection_timeout=2*60)
             Conf['last'] = 0 ; Conf['waiting'] = 5 * 30 ; Conf['waitCnt'] = 0
             return True
         except IOError:
