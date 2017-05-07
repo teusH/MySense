@@ -8,6 +8,9 @@ Make sure you use the latest firmware of the GrovePi for this module: https://ww
 
 To use both dust sensor outputs: Attach a fourth white cable to the cable sockets. For wiring instructions see the sketch MyArduino.ino.
 
+## USE comments
+Experiences show that there are Shinyei modules which values correlates quite well with the Dylos DC1100 output (see e.g. the aqicn.org notes). However the experiences with MySense show that a considerable amout of dust readings are NULL valued and measurements become unusable. Maybe the tresholt resister can improve this. For test manpower reasons the focus is on an alternative module from Nova SDS011. This module is manufactured only since Sept 2016. The USB TTL type of interface is simple to use.
+
 ## literature
 There are a lot of references how to use the Shinyei dust sensor. Thas the Shinyei dust sensor is a very popular one. Mostly one uses the sensor in combination with the Arduino controller.
 
@@ -80,7 +83,7 @@ Literature shows also that humidity play a role in the dust size countings. So m
 
 Make sure to calibrate the sensor against other dust sensors of a higher quality as eg a Dylos dust sensor. Make sure you clean up the dust sensor once an a while.
 
-The MySense Shinyei/Arduino plugin will provride handles to calibrate the sensor measurements.
+The MySense Shinyei/Arduino plugin will provide handles to calibrate the sensor measurements.
 * ref: https://www.ijirset.com/upload/2015/february/76_Evaluation.pdf 
 International Journal of Innovative Research in Science, Engineering and Technology Vol. 4, Issue 2, February 2015
 Day to day variation of particulate matter was observed indoor: Shinyei’s PPD42NS data agreed well with the
