@@ -89,6 +89,7 @@ International Journal of Innovative Research in Science, Engineering and Technol
 Day to day variation of particulate matter was observed indoor: Shinyei’s PPD42NS data agreed well with the
 large particles data obtained using Dylos DC1100 Pro. A good correlation was found with R2
 = 0.818. Lineair correlation factor `PM10/PPD45NS = 2.124\*PM10/Dylos - 113.3`
+* another calibration article Shinyei versus BAM1020: http://www.atmos-meas-tech-discuss.net/7/605/2014/amtd-7-605-2014.pdf
 
 
 
