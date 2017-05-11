@@ -40,8 +40,9 @@ A working example of MySense in todays operation:
     Dylos-dust-sensor RS232----| Jessie  |-- Mosquitto pub---|-Mysense-|--MySQL
     Grove-Loudness ---GPIO-----| \-----/ |-- HTTP-Post       |  Linux  |--CSV
     Adafruit EMS280 --I2C------|         |-- email           | \-----/ |--console
-    Shinyei PPD42NS --Arduino--|         |-- Google gspread
-    (LoRaWan) -----------------|
+    Shinyei PPD42NS --Arduino--|         |-- Google gspread            |--InFlux
+    Nova SDS011 dust--USBser.--|         |-- InFlux (planned)
+    (LoRaWan) -----------------|         |-- Dweet.io (planned)
     Mosquitto sub ----server --|
 ```
 
@@ -81,7 +82,7 @@ Available input plugins:
 The Pi allows to install a wifi connectivity with internet as well a virtual wifi Access Point. A backdoor configuration is provided via direct access to `webmin` and `ssh` (Putty), as well via a proxy as *ssh tunneling* and/or using the proxy service of Weaved (`https://www.remot3.it/web/index.html`).
 
 ## Platform:
-Sensors have a hardware inrface to I2C, GPIO: those sensors are tested on RaspBerry Pi (and Arduino Uno)
+Sensors have a hardware interface to I2C, GPIO: those sensors are tested on RaspBerry Pi (and Arduino Uno)
 Sensors with USB serial are tested on Linux Debian platforms which run Python.
 
 ## Installation
