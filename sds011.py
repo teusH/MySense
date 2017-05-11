@@ -144,7 +144,7 @@ class SDS011(object):
                                     baudrate=9600, stopbits=serial.STOPBITS_ONE,
                                     parity=serial.PARITY_NONE,
                                     bytesize=serial.EIGHTBITS,
-                                    timeout=self.timeout)
+                                    timeout=2)
             if self.device.isOpen() is False:
                 if not self.device.open():
                     raise IOError("Unable to open USB to SDS011")
@@ -174,6 +174,7 @@ class SDS011(object):
         # at this point, device is awake, shure. So store this state
         self.__workstate = self.WorkStates.Measuring
         self.__get_current_config()
+        self.device.timeout = self.timeout
         self.debugPrt(1,"Sensor has firmware %s" % self.__firmware)
         self.debugPrt(1,"Sensor is in reportmode %s" % self.__reportmode)
         self.debugPrt(1,"Sensor is in workstate %s" % self.__workstate)
@@ -194,7 +195,7 @@ class SDS011(object):
         pi = 3.14159
         density = 1.65 * pow (10, 12)
         rts = []
-        for i in range(1):
+        for i in range(2):
             radius = 0.44
             if i == 0: radius = 2.60
             radius *= pow(10,-6)
@@ -363,7 +364,7 @@ class SDS011(object):
             if len(response_data):
                 self.debugPrt(1,"Received response from sensor %d bytes" % len(response_data))
             return self.Mass2Con(self.__extract_values_from_response(response_data))
-        raise TimeoutError(
+        raise IOError(
             "No data within read timeout of %s has been received", self.__read_timeout)
 
     def request(self):
