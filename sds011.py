@@ -164,13 +164,15 @@ class SDS011(object):
         first_response = self.__response()
         if len(first_response) == 0:
             # Device might be sleeping. So wake it up
-            self.log("WARNING","While constructing the instance"
-                            "the sensor is not responding "
-                            "Who did  set it sleeping in passive mode or in a "
-                            "duty cycle? I'm going to wake it up!'")
+            self.log("WARNING","While constructing the instance "
+                            "the sensor is not responding. "
+                            "Maybe in sleeping in passive mode or in a "
+                            "duty cycle? Will wake it up!")
             self.__send(self.Command.WorkState,
                         self.__construct_data(self.CommandMode.Setting,
                                               self.WorkStates.Measuring))
+            self.__send(self.Command.DutyCycle, self.__construct_data(
+                self.CommandMode.Setting, 0))
         # at this point, device is awake, shure. So store this state
         self.__workstate = self.WorkStates.Measuring
         self.__get_current_config()
@@ -189,22 +191,19 @@ class SDS011(object):
     def debugPrt(self,level,string):
         if self.debug >= level and self.logger != None: self.logger('DEBUG',string)
 
-    def Mass2Con(self,values):
-        """Convert ug/m3 back to concentration pcs/0.01sqf"""
-        if not self.pcs: return values
+    def Mass2Con(self,pm,value):
+        """Convert pm size from ug/m3 back to concentration pcs/0.01sqf"""
+        if not self.pcs: return value
         pi = 3.14159
         density = 1.65 * pow (10, 12)
-        rts = []
-        for i in range(2):
-            radius = 0.44
-            if i == 0: radius = 2.60
-            radius *= pow(10,-6)
-            volume = (4.0/3.0) * pi * pow(radius,3)
-            mass = density * volume
-            K = 3531.5
-            concentration = values[i] / (K * mass)
-            rts.append(int(concentration+0.5))
-        return rts
+        radius = 0.44
+        if pm == 'pm10': radius = 2.60
+        radius *= pow(10,-6)
+        volume = (4.0/3.0) * pi * pow(radius,3)
+        mass = density * volume
+        K = 3531.5
+        concentration = value / (K * mass)
+        return int(concentration+0.5)
 
     # Destructor
     def __del__(self):
@@ -356,6 +355,7 @@ class SDS011(object):
                                      "and will not automaticly send values. "
                                      "You have to call Request() to get values.")
 
+        self.__dutycycle_start = time.time()
         while self.dutycycle == 0 or \
                 time.time() < self.__dutycycle_start + self.__read_timeout:
             response_data = self.__response()
@@ -363,9 +363,9 @@ class SDS011(object):
             #    "Received from sensor a response with values %s.", response_data)
             if len(response_data):
                 self.debugPrt(1,"Received response from sensor %d bytes" % len(response_data))
-            return self.Mass2Con(self.__extract_values_from_response(response_data))
+            return self.__extract_values_from_response(response_data)
         raise IOError(
-            "No data within read timeout of %s has been received", self.__read_timeout)
+            "No data within read timeout of %d has been received" % self.__read_timeout)
 
     def request(self):
         """Request measurement data as a tuple from sensor when its in ReporMode.Passiv"""
@@ -379,8 +379,8 @@ class SDS011(object):
         value_of_2point5micro = None
         value_of_10micro = None
         if len(data) == 4:
-            value_of_2point5micro = float(data[0] + data[1] * 256) / 10.0
-            value_of_10micro = float(data[2] + data[3] * 256) / 10.0
+            value_of_2point5micro = self.Mass2Con('pm2.5',float(data[0] + data[1] * 256) / 10.0)
+            value_of_10micro = self.Mass2Con('pm10',float(data[2] + data[3] * 256) / 10.0)
             self.debugPrt(4,"get_values is successfully executed.")
             if self.dutycycle != 0:
                 self.__dutycycle_start = time.time()

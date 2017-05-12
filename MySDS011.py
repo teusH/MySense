@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySDS011.py,v 1.2 2017/05/11 20:43:58 teus Exp teus $
+# $Id: MySDS011.py,v 1.3 2017/05/12 18:59:22 teus Exp teus $
 
 # Defeat: output average PM count over 59(?) or 60 seconds:
 #         continious mode: once per 59 minutes and 59 seconds!,
@@ -31,7 +31,7 @@
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MySDS011.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -148,14 +148,19 @@ def get_device():
         else:
             concentration = False
             Conf['units'] = ['ug/m3','ug/m3']
-        MyLogger.log('INFO',"SDS011 PM2.5/PM10 values are in %s/%s" % (Conf['units'][0],Conf['units'][1]))
+        MyLogger.log('INFO',"SDS011 (PM2.5,PM10) values are in (%s,%s)" % (Conf['units'][0],Conf['units'][1]))
         try:
             Conf['fd'] = SDS011(serial_dev, logger=MyLogger.log, debug=Conf['debug'], timeout=Conf['sample']*2, concentration=concentration)
             MyLogger.log('INFO',"COM used for serial USB: %s" % serial_dev)
             Conf['id'] = Conf['fd'].device_id
             Conf['firmware'] = Conf['fd'].firmware
             MyLogger.log('INFO','SDS011 device id %s, firmware %s' % (Conf['id'],Conf['firmware']))
-            Conf['fd'].workstate = SDS011.WorkStates.Sleeping # switch fan off
+            #Conf['fd'].workstate = SDS011.WorkStates.Sleeping # switch fan off
+        except IOError as error:
+            MyLogger.log("WARNING","SDS011 connectivity: %s" % error)
+            Conf['fd'].device.close()
+            Conf['fd'] = SDS011(serial_dev, logger=MyLogger.log, debug=Conf['debug'], timeout=Conf['sample']*2, concentration=concentration)
+            Conf['fd'].workstate = SDS011.WorkStates.Measuring
         except (Exception) as error:
             MyLogger.log('FATAL',"%s" % error)
             return False
@@ -205,44 +210,50 @@ timing = 0
 Conf['Serial_Errors'] = 0
 def Add(conf):
     global timing
-    PM25 = 1 ; PM10 = 0 # array index defs
-    if time() < timing: sleep(timing-time())
+    PM25 = 0 ; PM10 = 1 # array index defs
+    if conf['fields'][0][-2:] == '10':
+        PM25 = 1; PM10 = 0
+    if time() < timing:
+        MyLogger.log("DEBUG","Interval wait a bit for %d seconds" % (timing-time()))
+        sleep(timing-time())
     timing = time()
     values = []
     skip = 0
     try:
-        if Conf['Serial_Errors'] > 10:
-            Conf['fd'].reset()
-            Conf['Serial_Errors'] = 0
+        if conf['Serial_Errors'] > 10:
+            conf['fd'].reset()
+            conf['Serial_Errors'] = 0
             MyLogger("WARNING","SDS011 reset on errors.")
-        if not Conf['fd'].workstate:
-            Conf['fd'].workstate = SDS011.WorkStates.Measuring
-            # skip = 1
-        if Conf['fd'].dutycycle != Conf['sample']/60:
-            Conf['fd'].dutycycle = Conf['sample']/60 # in minutes
-            # skip = 1
-        # is first measurement reliable? to be skipped? Not yet
+        if conf['fd'].workstate != SDS011.WorkStates.Measuring:
+            conf['fd'].workstate = SDS011.WorkStates.Measuring
+            # skip = 1  # seems we do not need to skip first reading
+            if conf['fd'].dutycycle != conf['sample']/60:
+                conf['fd'].dutycycle = conf['sample']/60 # in minutes
         for nr in range(skip+1):
-            values = Conf['fd'].get_values()
+            values = conf['fd'].get_values()
     except IOError:     # timeout
-        Conf['Serial_Errors'] += 1
+        conf['Serial_Errors'] += 1
     except (Exception) as error:
-        Conf['Serial_Errors'] += 1
+        conf['Serial_Errors'] += 1
         MyLogger.log('WARNING',error)
-    if len(values) != 2:
-        Conf['Serial_Errors'] += 1
+    if conf['Serial_Errors'] > 20:
+        conf['fd'].device.close()
+        conf['fd'] = None
         return {}
-    Conf['Serial_Errors'] = 0
+    if len(values) != 2:
+        conf['Serial_Errors'] += 1
+        return {}
+    conf['Serial_Errors'] = 0
     timing = time()-timing
-    timing = Conf['interval'] - timing
+    timing = conf['interval'] - timing
     if timing < 0: timing = 0
     if timing > 20: # switch fan off
-        Conf['fd'].workstate = SDS011.WorkStates.Sleeping
+        conf['fd'].workstate = SDS011.WorkStates.Sleeping
     timing += time()
-    # take notice: index 0 is PM2.5, index 1 is PM10 values
+    # take notice: values 0 is PM10, 1 is PM2.5
     return { "time": int(time()),
-            conf['fields'][PM25]: calibrate(PM25,conf,values[PM25]),
-            conf['fields'][PM10]: calibrate(PM10,conf,values[PM10]) }
+            conf['fields'][PM25]: calibrate(PM25,conf,values[1]),
+            conf['fields'][PM10]: calibrate(PM10,conf,values[0]) }
 
 def getdata():
     global Conf, MyThread
@@ -260,10 +271,11 @@ Conf['getdata'] = getdata	# Add needs this global viariable
 if __name__ == '__main__':
     from time import sleep
     Conf['input'] = True
-    Conf['sync'] = True
-    Conf['debug'] = 3
+    # Conf['sync'] = True         #multi threading on?
+    Conf['debug'] = 1
     Conf['interval'] = 120      # sample once per 2 minutes
     Conf['sample'] = 60         # sample of 1 minute
+    Conf['units'] = ['pcs/qf','pcs/qf'] # do values not in mass weight
 
     for cnt in range(0,10):
         timings = time()
@@ -274,8 +286,9 @@ if __name__ == '__main__':
             break
         print("Getdata returned:")
         print(data)
-        timing = 30 - (time()-timing)
+        timings = 30 - (time()-timings)
         if timings > 0:
+            print("Sleep for %d seconds" % timings)
             sleep(timings)
     if MyThread != None:
         MyThread.stop_thread()
