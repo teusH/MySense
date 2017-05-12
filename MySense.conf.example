@@ -73,6 +73,26 @@ level    = INFO
 #fields = temp,rv
 #units = C,%
 
+## Nova SD011 dust module connected via USB
+#[sds011]
+#input = True
+#type = Nova SDS011
+## search tty device in /dev/serial/by-id with
+#usbid = .*-port
+#fields = pm25,pm10
+## values should be as
+#units = ug/m3,ug/m3
+## units = pcs/qf,pcs/qf
+#calibrations = [[0,1],[0,1]]
+## duty cycle time of the module
+#sample = 60
+## interval time for one measurement in the plugin
+#interval = 120
+# average ring buffer size
+bufsize = 30
+# do not use multi trheading
+sync = False
+
 # Loudness measurement
 # GrovePi+ analogue port
 #[dbgrove]
