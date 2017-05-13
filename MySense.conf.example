@@ -88,10 +88,10 @@ level    = INFO
 #sample = 60
 ## interval time for one measurement in the plugin
 #interval = 120
-# average ring buffer size
-bufsize = 30
-# do not use multi trheading
-sync = False
+## average ring buffer size
+#bufsize = 30
+## do not use multi trheading
+#sync = False
 
 # Loudness measurement
 # GrovePi+ analogue port
