@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySDS011.py,v 1.4 2017/05/13 11:41:26 teus Exp teus $
+# $Id: MySDS011.py,v 1.5 2017/05/13 13:38:42 teus Exp teus $
 
 # Defeat: output average PM count over 59(?) or 60 seconds:
 #         continious mode: once per 59 minutes and 59 seconds!,
@@ -31,7 +31,7 @@
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MySDS011.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -218,7 +218,7 @@ def Add(conf):
         PM25 = 1; PM10 = 0
     timing = timing - time()
     if timing >= 1.0:
-        MyLogger.log("DEBUG","SDS011 Interval wait a bit for %d seconds" % timing)
+        # MyLogger.log("DEBUG","SDS011 Interval wait a bit for %d seconds" % timing)
         sleep(timing)
     timing = time()
     values = []
@@ -243,9 +243,11 @@ def Add(conf):
     if conf['Serial_Errors'] > 20:
         conf['fd'].device.close()
         conf['fd'] = None
+	MyLogger.log("WARNING","SDS011 has serial errors")
         return {}
     if len(values) != 2:
         conf['Serial_Errors'] += 1
+	MyLogger.log("WARNING","SDS011 has serial errors: only %d values" % len(values))
         return {}
     conf['Serial_Errors'] = 0
     timing = time()-timing
@@ -255,9 +257,11 @@ def Add(conf):
         conf['fd'].workstate = SDS011.WorkStates.Sleeping
     timing += time()
     # take notice: values 0 is PM10, 1 is PM2.5
-    return { "time": int(time()),
+    values = { "time": int(time()),
             conf['fields'][PM25]: calibrate(PM25,conf,values[1]),
             conf['fields'][PM10]: calibrate(PM10,conf,values[0]) }
+    MyLogger.log("DEBUG","SDS011 readings PM2.5:%5.1f PM10:%5.1f" % (values[conf['fields'][PM25]],values[conf['fields'][PM10]]))
+    return values
 
 def getdata():
     global Conf, MyThread
