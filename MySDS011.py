@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySDS011.py,v 1.3 2017/05/12 18:59:22 teus Exp teus $
+# $Id: MySDS011.py,v 1.4 2017/05/13 11:41:26 teus Exp teus $
 
 # Defeat: output average PM count over 59(?) or 60 seconds:
 #         continious mode: once per 59 minutes and 59 seconds!,
@@ -31,7 +31,7 @@
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MySDS011.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -71,7 +71,8 @@ try:
     import subprocess           # needed to find the USB serial
     import MyThreading          # needed for multi threaded input
 except ImportError as e:
-    MyLogger.log('FATAL',"Missing module %s" % e)
+    print("FATAL: Missing module %s" % e)
+    exit(1)
 
 # convert pcs/qf (counter) to ug/m3 (weight)
 # ref: https://github.com/andy-pi/weather-monitor/blob/master/air_quality.py
@@ -111,7 +112,7 @@ def get_device():
             # try serial with product ID
             byId = "/dev/serial/by-id/"
             if not os.path.exists(byId):
-                MyLogger.log('FATAL',"There is no USBserial connected. Abort.")
+                MyLogger.log('FATAL',"SDS011 There is no USBserial connected. Abort.")
             device_re = re.compile(".*%s\d.*(?P<device>ttyUSB\d+)$" % Conf['usbid'], re.I)
             devices = []
             try:
@@ -124,20 +125,22 @@ def get_device():
                             serial_dev = '/dev/%s' % dinfo.pop('device')
                             break
             except CalledProcessError:
-                MyLogger.log('ERROR',"No serial USB connected.")
+                MyLogger.log('ERROR',"SDS011 No serial USB connected.")
             except (Exception) as error:
-                MyLogger.log('ERROR',"Serial USB %s not found, error:%s"%(Conf['usbid'], error))
+                MyLogger.log('ERROR',"SDS011 Serial USB %s not found, error:%s"%(Conf['usbid'], error))
                 Conf['usbid'] = None
         if serial_dev == None:
-            MyLogger.log('WARNING',"Please provide serial USB producer info.")
-            MyLogger.log('FATAL',"No input stream defined.")
+            MyLogger.log('WARNING',"SDS011 Please provide serial USB producer info.")
+            MyLogger.log('FATAL',"SDS011 No input stream defined.")
             return False
         # check operational arguments
         for item in ['sample','interval','debug']:
             if type(Conf[item]) is str:
                 if not Conf[item].isdigit():
                     MyLogger.log('FATAL','SDS011 %s should be nr of seconds' % item)
-                Conf['item'] = int(Conf['item'])
+                Conf[item] = int(Conf[item])
+	    if type(Conf[item]) is bool:
+		Conf[item] = 1 if Conf[item] else 0
         Conf['sample'] = 60 if Conf['sample'] < 60 else ((Conf['sample']+30)/60)*60
         if (Conf['sample'] <= 0 or Conf['sample'] >= 30*60) or Conf['sample'] > (Conf['interval']-2):
             MyLogger.log("FATAL","SDS011 sample not 1..30 or sample > interval")
@@ -151,7 +154,7 @@ def get_device():
         MyLogger.log('INFO',"SDS011 (PM2.5,PM10) values are in (%s,%s)" % (Conf['units'][0],Conf['units'][1]))
         try:
             Conf['fd'] = SDS011(serial_dev, logger=MyLogger.log, debug=Conf['debug'], timeout=Conf['sample']*2, concentration=concentration)
-            MyLogger.log('INFO',"COM used for serial USB: %s" % serial_dev)
+            MyLogger.log('INFO',"SDS011 COM used for serial USB: %s" % serial_dev)
             Conf['id'] = Conf['fd'].device_id
             Conf['firmware'] = Conf['fd'].firmware
             MyLogger.log('INFO','SDS011 device id %s, firmware %s' % (Conf['id'],Conf['firmware']))
@@ -162,7 +165,7 @@ def get_device():
             Conf['fd'] = SDS011(serial_dev, logger=MyLogger.log, debug=Conf['debug'], timeout=Conf['sample']*2, concentration=concentration)
             Conf['fd'].workstate = SDS011.WorkStates.Measuring
         except (Exception) as error:
-            MyLogger.log('FATAL',"%s" % error)
+            MyLogger.log('FATAL',"SDS011 %s" % error)
             return False
     else:
        Logger.log('ERROR', "Failed access SDS011 module")
@@ -213,9 +216,10 @@ def Add(conf):
     PM25 = 0 ; PM10 = 1 # array index defs
     if conf['fields'][0][-2:] == '10':
         PM25 = 1; PM10 = 0
-    if time() < timing:
-        MyLogger.log("DEBUG","Interval wait a bit for %d seconds" % (timing-time()))
-        sleep(timing-time())
+    timing = timing - time()
+    if timing >= 1.0:
+        MyLogger.log("DEBUG","SDS011 Interval wait a bit for %d seconds" % timing)
+        sleep(timing)
     timing = time()
     values = []
     skip = 0
@@ -235,7 +239,7 @@ def Add(conf):
         conf['Serial_Errors'] += 1
     except (Exception) as error:
         conf['Serial_Errors'] += 1
-        MyLogger.log('WARNING',error)
+        MyLogger.log('WARNING','SDS011 ' + error)
     if conf['Serial_Errors'] > 20:
         conf['fd'].device.close()
         conf['fd'] = None
@@ -271,7 +275,7 @@ Conf['getdata'] = getdata	# Add needs this global viariable
 if __name__ == '__main__':
     from time import sleep
     Conf['input'] = True
-    # Conf['sync'] = True         #multi threading on?
+    Conf['sync'] = True         #multi threading on?
     Conf['debug'] = 1
     Conf['interval'] = 120      # sample once per 2 minutes
     Conf['sample'] = 60         # sample of 1 minute
