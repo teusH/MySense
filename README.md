@@ -35,15 +35,16 @@ A working example of MySense in todays operation:
                                     ||
                                |    ||   |
     DHT11/22-sensor --GPIO-----| /-----\ |-- CSV
-    GPS-locator ------RS232----|-MySense-|-- console
+    GPS-locator ------RS232----|-MySense-|-- console         |         |
     RSSI-wifi-signal-strength -|  Pi     |-- MYSQL           | /-----\ |--gspread
     Dylos-dust-sensor RS232----| Jessie  |-- Mosquitto pub---|-Mysense-|--MySQL
     Grove-Loudness ---GPIO-----| \-----/ |-- HTTP-Post       |  Linux  |--CSV
     Adafruit EMS280 --I2C------|         |-- email           | \-----/ |--console
-    Shinyei PPD42NS --Arduino--|         |-- Google gspread            |--InFlux
-    Nova SDS011 dust--USBser.--|         |-- InFlux (planned)
-    (LoRaWan) -----------------|         |-- Dweet.io (planned)
+    Shinyei PPD42NS --Arduino--|         |-- Google gspread (alpha)    |--InFlux pub (alpha)
+    Nova SDS011 dust -USB -----|         |-- InFlux (alpha) -|         |
+    LoRaWan (planned) ---------|         |-- Dweet.io (planned)
     Mosquitto sub ----server --|
+    InFlux sub planned -server-|
 ```
 
 ## Interaction data format
