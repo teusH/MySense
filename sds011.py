@@ -191,6 +191,8 @@ class SDS011(object):
     def debugPrt(self,level,string):
         if self.debug >= level and self.logger != None: self.logger('DEBUG',string)
 
+    # conversion parameters come from:
+    # http://ir.uiowa.edu/cgi/viewcontent.cgi?article=5915&context=etd
     def Mass2Con(self,pm,value):
         """Convert pm size from ug/m3 back to concentration pcs/0.01sqf"""
         if not self.pcs: return value
