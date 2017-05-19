@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyINFLUXPUB.py,v 1.4 2017/05/19 10:30:18 teus Exp teus $
+# $Id: MyINFLUXPUB.py,v 1.5 2017/05/19 16:13:33 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,12 +27,13 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyINFLUXPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 
 try:
     import MyLogger
     import sys
     from influxdb import InfluxDBClient
+    from influxdb import exceptions
     import datetime
     from time import time
 except ImportError as e:
@@ -136,9 +137,10 @@ def Influx_write(database, data, tags):
             else:
                 data_values.append("{}={}".format(item,value))
     data_line = ','.join(data_tags) + ' ' + ','.join(data_values)
+    # client.write, client.write_points etc do not work between versions!
     try:
-        return Conf['fd'].write(data_line,{'db':database,'precision':'s'},204)
-    except InfluxDBClientError as err:
+        return Conf['fd'].request('write','POST',{'db':database,'precision':'s'},data_line,204)
+    except exceptions.InfluxDBClientError as err:
         MyLogger("ERROR","Influx: error: {}".format(err))
     ErrorCnt += 1
     return False
