@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.19 2017/05/13 10:39:46 teus Exp teus $
+# $Id: INSTALL.sh,v 1.20 2017/05/19 18:44:40 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -223,6 +223,7 @@ function MQTT(){
 PLUGINS+=" INFLUX"
 function INFLUX(){
     DEPENDS ON pip influxdb
+    DEPENDS ON pip requests
     return $?
 }
 
