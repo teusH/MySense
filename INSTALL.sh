@@ -220,6 +220,12 @@ function MQTT(){
     return $?
 }
 
+PLUGINS+=" INFLUX"
+function INFLUX(){
+    DEPENDS ON pip influxdb
+    return $?
+}
+
 INSTALLS+=" GROVEPI"
 # this will install the grovepi library
 function GROVEPI(){
