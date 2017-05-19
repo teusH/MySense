@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyINFLUXPUB.py,v 1.5 2017/05/19 16:13:33 teus Exp teus $
+# $Id: MyINFLUXPUB.py,v 1.6 2017/05/19 21:22:39 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyINFLUXPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+__version__ = "0." + "$Revision: 1.6 $"[11:-2]
 
 try:
     import MyLogger
@@ -130,14 +130,16 @@ def Influx_write(database, data, tags):
         for item in strg.keys():
             if (strg == tags) and (item == 'type'): continue
             value = strg[item]
-            if type(strg[item]) is str:
+            if type(value) is list:
+                value = [ "{}".format(a) for a in value ]
+                value = ','.join(value)
+            if (type(value) is str) or (type(value) is unicode):
                 value = '"{}"'.format(value.replace(',','\,'))
             if strg == tags:
                 data_tags.append("{}={}".format(item,value))
             else:
                 data_values.append("{}={}".format(item,value))
     data_line = ','.join(data_tags) + ' ' + ','.join(data_values)
-    # client.write, client.write_points etc do not work between versions!
     try:
         return Conf['fd'].request('write','POST',{'db':database,'precision':'s'},data_line,204)
     except exceptions.InfluxDBClientError as err:
@@ -239,7 +241,7 @@ def publish(**args):
 if __name__ == '__main__':
     from time import sleep
     Conf['output'] = True
-    Conf['hostname'] = 'localhost'     # host InFlux server
+    Conf['hostname'] = 'lunar'         # host InFlux server
     Conf['user'] = 'ios'               # user with insert permission of InFlux DB
     Conf['password'] = 'acacadabra'    # DB credential secret to use InFlux DB
     net = { 'module': True, 'connected': True }
