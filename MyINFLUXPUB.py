@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyINFLUXPUB.py,v 1.6 2017/05/19 21:22:39 teus Exp teus $
+# $Id: MyINFLUXPUB.py,v 1.7 2017/05/21 13:09:16 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,13 +27,12 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyINFLUXPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.6 $"[11:-2]
+__version__ = "0." + "$Revision: 1.7 $"[11:-2]
 
 try:
     import MyLogger
     import sys
     from influxdb import InfluxDBClient
-    from influxdb import exceptions
     import datetime
     from time import time
 except ImportError as e:
@@ -88,16 +87,21 @@ def db_connect(net):
                 Conf['hostname'], Conf['port'],
                 Conf['user'], Conf['password'],
                 Conf['database'], timeout=2*60)
-            all_dbs_list = Conf['fd'].get_list_database()
-            if { 'name': Conf['database'] } not in all_dbs_list:
-                try:
-                    if not Conf['fd'].create_database(Conf['database']):
-                        MyLogger.log("WARNING", "InFlux unable to create the database %s" % Conf['database'])
-                        return False
-                except:
-                    raise IOError
-                MyLogger.log("ATTENT", "Created InFlux db: {0}".format(Conf['database']))
-            Conf['fd'].switch_database(Conf['database'])
+            try:
+                # only allowed to inlfux admin credentials
+                all_dbs_list = Conf['fd'].get_list_database()
+                if { 'name': Conf['database'] } not in all_dbs_list:
+                    try:
+                        if not Conf['fd'].create_database(Conf['database']):
+                            MyLogger.log("WARNING", "InFlux unable to create the database %s" % Conf['database'])
+                            return False
+                    except:
+                        raise IOError
+                    MyLogger.log("ATTENT", "Created InFlux db: {0}".format(Conf['database']))
+                Conf['fd'].switch_database(Conf['database'])
+            except:
+                MyLogger.log('ATTENT',"InFlux publish admin failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
+                pass
             Conf['last'] = 0 ; Conf['waiting'] = 5 * 30 ; Conf['waitCnt'] = 0
             return True
         except IOError:
@@ -142,8 +146,8 @@ def Influx_write(database, data, tags):
     data_line = ','.join(data_tags) + ' ' + ','.join(data_values)
     try:
         return Conf['fd'].request('write','POST',{'db':database,'precision':'s'},data_line,204)
-    except exceptions.InfluxDBClientError as err:
-        MyLogger("ERROR","Influx: error: {}".format(err))
+    except:
+        MyLogger.log('ERROR',"InFlux publish request error: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
     ErrorCnt += 1
     return False
 
