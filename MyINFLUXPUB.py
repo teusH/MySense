@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyINFLUXPUB.py,v 1.7 2017/05/21 13:09:16 teus Exp teus $
+# $Id: MyINFLUXPUB.py,v 1.8 2017/05/21 14:55:15 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyINFLUXPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 
 try:
     import MyLogger
@@ -201,6 +201,7 @@ def publish(**args):
     # TO DO: get the transaltion table from the MySense.conf file
     def db_name(my_name):
         DBnames = {
+            'time': 'timestamp',
         }
         if my_name in DBnames.keys(): return DBnames[my_name]
         return my_name
