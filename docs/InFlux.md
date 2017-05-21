@@ -18,8 +18,27 @@ The InFlux software is available from github:
     sudo dpkg -i influxdb_1.2.2_amd64.deb`
 
 ### SECURITY
-Access control is per user (read/write/all) per database. Make sure to have the credentials confugured in the server. By default the security is disabled.
+Access control is per user (read/write/all) per database. Make sure to have the credentials configured in the server. By default the security is disabled.
+```
+influx # comman line interface
+> create user root with password 'acacadabra' with all privileges
+> quit
+```
+In `/etc/influxdb/influsdb.conf` set in section `[http]` `auth-enabled = true`.
 https as transport method is not yet used in this application.
+
+MySense is using user.password credentials (no https yet). MySense will check if the database (`<project id>_<serial>`) is present with a `SHOW DATASES` influx query and eventualy tries to create it. This will fail on non admin rights and output a warning which is passed. 
+Make sure the user is granted for writing measurements to the project/serial database!
+```
+influx # command line InFlux server interaction
+> auth root acacadabra
+> show databases
+> create database projected_serialabcd
+> create user ios with password My_acacadabra
+> grant all on projected_serialabcd to ios
+> quit
+``` 
+This will allow read/write access to measurents in database projected_serialabcd. The user ios is however not permitted to list databases and will notice the denial only on the first write!
 
 ### INSTALLATION
 ```shell
