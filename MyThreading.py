@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyThreading.py,v 2.7 2017/04/12 13:08:26 teus Exp teus $
+# $Id: MyThreading.py,v 2.9 2017/05/22 09:28:37 teus Exp teus $
 
 # the values provided are rounded (3 decimals) of values in the
 # thread buffer (max BUFSIZE). INTERVAL and the thread interval (TINTERV)
@@ -30,11 +30,12 @@
     
 import threading
 import atexit
+import numpy as np
 
 class MyThreading:
     from time import time,sleep
 
-    __version__ = "0." + "$Revision: 2.7 $"[11:-2]
+    __version__ = "0." + "$Revision: 2.9 $"[11:-2]
     __license__ = 'GPLV4'
 
     STOP = False    # stop all threads
@@ -52,6 +53,8 @@ class MyThreading:
         inits['name'] = 'MySensor' # sensor name for this thread
         inits['sync'] = False      # in debug mode no threading
         inits['DEBUG'] = False     # be more versatile
+        inits['minPerc'] = 25      # minimal perc on outliers filtering on average
+        inits['maxPerc'] = 75      # maximal perc on outliers filtering on average
         inits['conf'] = None       # dict with Conf keys e.g. pin/port for Add method
         for key in args.keys():
             inits[key] = args[key]
@@ -62,6 +65,10 @@ class MyThreading:
         self.DEBUG = inits['DEBUG']       # debug modus
         self.callback = args['callback']  # routine to add sensor value
 	self.conf = inits['conf']         # arg valuees for callback
+        self.pmin = float(inits['minPerc']) # minimal perc on avarage calc
+        if self.pmin < 0: self.pmin = 0
+        self.pmax = float(inits['maxPerc']) # maximal perc on avarage calc
+        if self.pmax > 100: self.pmax = 100
 
         self.BufAvg = {}      # record avg of values in buffer (dynamic window)
         self.Buffer = []      # time ordered list of measurements of sensor
@@ -111,8 +118,27 @@ class MyThreading:
                 if key == 'time': avg[key] = int(self.time())
                 else: avg[key] = None
             with self.threadLock: self.BufAvg = avg
+
+    def filterOutliers(self,data):
+        ''' filter on outliers pmin/pmax are percentages '''
+        if not len(data): return None
+        Q1 = np.percentile(data,self.pmin)
+        Q3 = np.percentile(data,self.pmax)
+        L = Q1-1.5*(Q3-Q1)
+        H = Q1+1.5*(Q3-Q1)
+        total = 0.0; cnt = 0
+        for i in data:
+            if L <= i <= H:
+                total += i; cnt += 1
+        if cnt == 0: return None
+        return round(total/cnt,3)
             
     def bufCollect(self,callback,conf):
+        ''' routine uses buffersize to calculate sliding average values
+            average is calculated dflt 25%-75% spread to delete outliers
+            use minPerc=0 and maxPerc=100 to turn this off
+            use bufsize=1 to turn average calculation off
+        '''
         self.STOP = False
         if self.SYNC:
             #import random ; cnt = random.randint(1,5)
@@ -132,15 +158,15 @@ class MyThreading:
             avg = {}
             for key in self.Buffer[0]:
                 if key == 'time': continue
-                cnt = 0 ; total = 0
+                total = []
                 for i in range(0,len(self.Buffer)):
                     if self.Buffer[i][key] == None: continue
                     if not len(avg):
                         avg = { 'time': self.Buffer[i]['time'] }
-                    total += self.Buffer[i][key] ; cnt += 1
+                    total.append(self.Buffer[i][key])
                     last = self.Buffer[i]['time']
-                if cnt:
-                    avg[key] = round(total/cnt,3)
+                if len(total):
+                    avg[key] = self.filterOutliers(total)
             if len(avg):
                 avg['time'] = (avg['time']+last)/2        # timestamp in the middle
             with self.threadLock: self.BufAvg = avg
