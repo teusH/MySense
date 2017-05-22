@@ -114,11 +114,13 @@ A picture of the breadboard with Dylos and Raspberry Pi3
 The gas sensor development (NO2, O3, NH3, CO) is just (Febr 2017) started.
 
 ## Calibration
-Calibration of dust counters like Shinyei and Dylos is started in April 2017.
+Calibration of dust counters like Shinyei, Nova SDS011 and Dylos is started in April 2017.
 
-Calibration of gas sensors is a problematic area. Probably May.
+Calibration of gas sensors is a problematic area. Probably July.
 
-For calibration the Python tool `statistics/Calibration.py` has been developped. The script uses pyplot and is based on numpy (numeric analyses library). The calibration uses two database column values as input and provides a best fit polynomial (dflt order 1/linear), the R square and shows the scattered plot and best fit graph.
+To avoid *outliers* the MySense input multi threading module will maintain a sliding average of a window using the buffersize and interval as window parameters. Python numpa is used to delete the outliers in this window. The parameters for this filtering technique are default set to a spread interval of 25% (minPerc MyThreading class parameter)) - 75% (maxPerc). Set the parameters to 0% and 100% to disable outlier filtering. Set busize to 1 to disable sliding average calculation of the measurements.
+
+For calibration the Python tool `statistics/Calibration.py` has been developped. The script uses pyplot and is based on numpy (numeric analyses library). The calibration uses values from two or more database columns, or (XLSX) spreadsheets, or CSV files as input and provides a best fit polynomial (dflt order 1/linear), the R square and shows the scattered plot and best fit graph to visualize the difference between the sensors. Make sure to use a long period of measurements in a fluctuating environment (a fixed indoor temperature measurement comparison between two temp sensors does not make much sense).
 
 ## Funding
 There is no funding (costs to many time of the developers).
@@ -144,3 +146,4 @@ A list of references for the documentation and/or code used in MySense.py:
 * AirCastingAndroidClient
 * Mosquitto
 * smart-city-air-challenge (USA GOV)
+* InFluxData.com
