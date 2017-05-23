@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySDS011.py,v 1.5 2017/05/13 13:38:42 teus Exp teus $
+# $Id: MySDS011.py,v 1.6 2017/05/23 13:15:09 teus Exp teus $
 
 # Defeat: output average PM count over 59(?) or 60 seconds:
 #         continious mode: once per 59 minutes and 59 seconds!,
@@ -31,7 +31,7 @@
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MySDS011.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+__version__ = "0." + "$Revision: 1.6 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -44,7 +44,7 @@ Conf = {
     'input': False,      # SDS011 input sensor is required
     'fd': None,          # input handler
     'type': "Nova SDS011",         # type of device
-    'usbid': '.*-port',    # Qin Heng Electronics usb ID via lsusb
+    'usbid': 'usb-1a86.*-port',    # Qin Heng Electronics usb ID via lsusb
     'firmware': '161121',# firmware number
     'serial': 'ED56',    # ID number
     'fields': ['pm25','pm10'],     # types of pollutants
