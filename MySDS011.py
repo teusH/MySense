@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySDS011.py,v 1.6 2017/05/23 13:15:09 teus Exp teus $
+# $Id: MySDS011.py,v 1.7 2017/05/24 10:12:49 teus Exp teus $
 
 # Defeat: output average PM count over 59(?) or 60 seconds:
 #         continious mode: once per 59 minutes and 59 seconds!,
@@ -31,7 +31,7 @@
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MySDS011.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.6 $"[11:-2]
+__version__ = "0." + "$Revision: 1.7 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -157,6 +157,7 @@ def get_device():
             MyLogger.log('INFO',"SDS011 COM used for serial USB: %s" % serial_dev)
             Conf['id'] = Conf['fd'].device_id
             Conf['firmware'] = Conf['fd'].firmware
+            Conf['type'] += " (%s/%s)" % (Conf['id'],Conf['firmware'])
             MyLogger.log('INFO','SDS011 device id %s, firmware %s' % (Conf['id'],Conf['firmware']))
             #Conf['fd'].workstate = SDS011.WorkStates.Sleeping # switch fan off
         except IOError as error:
