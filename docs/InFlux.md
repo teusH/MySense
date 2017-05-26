@@ -3,7 +3,7 @@ status beta test 2017-05-19
 ### DESCRIPTION
 InFlux from InFluxdata.com is a http oriented telegram timed data infrastructure with a simple sql type of functionality.
 
-The documentation e.g. `https://docs.influxdata.com/influxdb/v0.8/api/reading_and_writing_data/` is in development. Versions vary abit in functionality. Documentation is changing and provided examples have to be used with care. The json support seems to be deprecated. So json is not used in this MySense application.
+The documentation e.g. `https://docs.influxdata.com/influxdb/v1.2/api/reading_and_writing_data/` is in development. Versions vary abit in functionality. Make sureuse the right version of the InFlux documentation. Documentation is changing and provided examples have to be used with care. The json support seems to be deprecated. So json is not used in this MySense application.
 
 The type of data acquision is simular to mosquitto, which has full json support.
 The retention and sql capability are of help in the data acquisition with InFlux.
@@ -42,7 +42,7 @@ This will allow read/write access to measurents in database projected_serialabcd
 
 ### INSTALLATION
 ```shell
-sudo apt-get install influxdb # installso the server
+sudo apt-get install influxdbs       # installso the server
 sudo apt-get install influxdb-client # command line interface to server
 sudo apt-get install python-influxdb # installs the python client module
 ```
@@ -57,6 +57,8 @@ If allowed by the InFlux server a database with `<project>_<serial>` name will b
 * *info* and *data* series are tagged with the *label* identifier. *data* series will also be tagged with the *new* tag (first data values joined with the *info* record).
 * InFlux timing is time of record entry.
 * All strings are sent double quoted. Comma's will have an backslash escape.
+
+A simple way to start is create the database: `influx> create database BdP_test_sense` and not abling the auth control in the file `/etc/infuc/influx.config`.
 
 On the server `influx` command, it will look like this:
 ```
@@ -108,5 +110,5 @@ show series
 select * from info
 select * from data
 ```
-
-
+The default InFlux retention time of the data is *forever*. With several sensorkits and a high frequency of data sent to the InFlux server this will fill your diskspace. So one might configure the retention time to a better period of time. Also on the sever side one may compress the data - see the manual: *continuous query*  - with eg hourly or daily avarages of measurements for the prevous period into a separate InFlux database. See the how to Influx documentation:
+* https://docs.influxdata.com/influxdb/v1.2/guides/downsampling_and_retention/
