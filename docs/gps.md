@@ -18,8 +18,8 @@ Use with GrovePi shield the Grove-GPS (€ 36.-) to hook it up to the RASP-seria
 If you prefer to use serial eg USB TTL cable:
 Adafruit Ultimate Pi GPSHAT minikit € 50.- (more dynamic board)
 This needs soldering on the Ultimate board.
-You can use TTL serial USB cale eg CP2102 € 12.-,
-so you have  less soldering (use 4 pin connectors to 3V3!) and can use it on every computer.
+You can use TTL serial USB cable eg CP2102 € 12.-,
+so you have  less soldering (use 4 pin connectors to 3V3!) and can use it on every computer. Make sure you use the right voltage leads: V3.3.
 Optional:
 CR1220 battery (€ 2.-) if you have a bad power and need to keep the real time clock.
 External antenna 3-5V 28 DB to work in house € 15.- Order this with a pig-tail SMA uFL/u RF cable € 5.- (https://www.kiwi-electronics.nl/SMA-naar-UFL-kabel?search=SMA)
@@ -87,6 +87,8 @@ Or
 Power off/on and reboot (and wait at least 15 minutes to get a lock with satillites.
 
 ## Hardware test:
+On Debian you should use the path as provided by `ls -l /dev/serial/by-id`.
+
 Use from github `GrovePi/Software/Python/grove_gps` the `grove_gps_hardware_test.py` to see if you get data and `GroveGPS.py` to get human readable data. If not make sure you use the right serial */dev/ttyS0* (and change this in the Grove python script) or the standard */dev/ttyAMA0*. Make sure you are in the group dialout (use the command groups).
 
 See also [ultimate python setup](https://learn.adafruit.com/adafruit-ultimate-gps-hat-for-raspberry-pi/pi-setup)
@@ -96,6 +98,8 @@ Note that it can take 20 minutes to get a good lock with the satellites.
 
 ## SOFTWARE:
 NMEA serial or preferably use the GPSD daemon
+
+If you use the *gpsd* daemon for the Debian config default see `/etc/default/gpsd` to define the device. See via `ls -l /dev/serial/by-id` for the USB serial and use that iso `/dev/ttyUSBn` as device name. This as the USB number might change on a reboot and the path from *by-id* will be more stable.
 
 ### INSTALLING NMEA lib
 ```shell
