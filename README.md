@@ -40,11 +40,11 @@ A working example of MySense in todays operation:
     Dylos-dust-sensor RS232----| Jessie  |-- Mosquitto pub---|-Mysense-|--MySQL
     Grove-Loudness ---GPIO-----| \-----/ |-- HTTP-Post       |  Linux  |--CSV
     Adafruit EMS280 --I2C------|         |-- email           | \-----/ |--console
-    Shinyei PPD42NS --Arduino--|         |-- Google gspread (alpha)    |--InFlux pub (alpha)
-    Nova SDS011 dust -USB -----|         |-- InFlux (alpha) -|         |
+    Shinyei PPD42NS --Arduino--|         |-- Google gspread (alpha)    |--InFlux pub
+    Nova SDS011 dust -USB -----|         |-- InFlux pub-sub -|         |
     LoRaWan (planned) ---------|         |-- Dweet.io (planned)
     Mosquitto sub ----server --|
-    InFlux sub planned -server-|
+    InFlux sub -------server --|
 ```
 
 ## Interaction data format
@@ -90,7 +90,7 @@ Sensors with USB serial are tested on Linux Debian platforms which run Python.
 See README.pi for installation of the Raspberry Pi platform.
 MySense plugins: Use the shell file `INSTALL.sh [DHT GPS DB plugin ...]` to download all dependent modules.
 
-The sensor plugins can be tested standalone, e.g. for BME280 Bosch chip, use `python MyBME280.py`. See the script for the use of sync and debug options.
+The sensor plugins can be tested in standalone mode, e.g. for BME280 Bosch chip, use `python MyBME280.py`. See the script for the use of sync and debug options at the end of the script to test.
 
 ## Documentation
 See the REAME's and docs directory for descriptions how to prepair the HW, python software and Pi OS for the different modules.
