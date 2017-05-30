@@ -1,6 +1,7 @@
 ## output channel InFlux publicize
-status beta test 2017-05-19
-### DESCRIPTION
+* status publish beta test 2017-05-19
+* status subscribe alpha test 2017-05-30
+### INTRODUCTION
 InFlux from InFluxdata.com is a http oriented telegram timed data infrastructure with a simple sql type of functionality.
 
 The documentation e.g. `https://docs.influxdata.com/influxdb/v1.2/api/reading_and_writing_data/` is in development. Versions vary abit in functionality. Make sureuse the right version of the InFlux documentation. Documentation is changing and provided examples have to be used with care. The json support seems to be deprecated. So json is not used in this MySense application.
@@ -17,10 +18,31 @@ The InFlux software is available from github:
 *   `wget https://dl.influxdata.com/influxdb/releases/influxdb_1.2.2_amd64.deb
     sudo dpkg -i influxdb_1.2.2_amd64.deb`
 
-### SECURITY
-Access control is per user (read/write/all) per database. Make sure to have the credentials configured in the server. By default the security is disabled.
+### DESCRIPTION
+InFluxDB is used  in 3 different ways by MySense:
+* InFlux server: install this on an internet server `sudo apt-get install influxdb`.
+* InFlux client publisher MyINFLUXPUB.py. Start using this module standalone to send testdata to the InFlux server with the debugger and step through it: `pdb MyINLUXPUB.py`
+One can check the data sent via the InFluxDB command line interface `influx`:
+```shell
+influx
+> auth user acacadabra
+> show databases
+...
+> use PrJ_12345678
+> show series
+...
+> select * from info
+...
+> select * from data
+...
 ```
-influx # comman line interface
+* InFlux client subscriber. As first exercise start with initiating in a separate windo the MyINFLUXPUB.py to send records to the server. Check the `Conf[option]` in the MyINFLUXSUB.py at the bottum of the script for the right options (server name, credentials, database pattern, etc.).
+Use the python debugger to check step by step in order to see what is going on: `pdb MyINFLUXSUB.py`. Finally add the channel in the MySense.conf. Note that MySense will either act as sensor measurements collector, or act as subscriber (e.g. MQTT subscriber or InFlux subscriber).
+
+### SECURITY
+
+```
+influx # command line interface
 > create user root with password 'acacadabra' with all privileges
 > quit
 ```
