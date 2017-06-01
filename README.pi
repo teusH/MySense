@@ -72,7 +72,7 @@ The following creates a backdoor to the PI via internet
 ssh or if the PI is behind a firewall/router one can use simply weaved, ssh tunneling or VPN.
 WEAVED
 Install Weaved:
-create account with weaved.com: teus@theunis.org/6apLpWGr14DL
+create account with weaved.com: user@host.org/acacadabra
     respond with email verify email
 add names:
     name: PI_IoS-BdP_01
