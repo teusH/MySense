@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyCSV.py,v 2.4 2017/02/04 13:13:44 teus Exp teus $
+# $Id: MyCSV.py,v 2.6 2017/06/04 09:40:55 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,7 +26,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyCSV.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.4 $"[11:-2]
+__version__ = "0." + "$Revision: 2.6 $"[11:-2]
 
 # configurable options
 __options__ = ['output','file','ttl']
@@ -48,7 +48,7 @@ try:
     from datetime import date
     from time import time
 except ImportError:
-    MyLogger.log('FATAL',"CSV module missing for CSV output.")
+    MyLogger.log(modulename,'FATAL',"module missing.")
     Conf['output'] = False
 
 # ========================================================
@@ -71,7 +71,7 @@ def show_ident(ident,path):
         except TypeError:
             IDtxt=open(path, 'wt')
     except:
-        MyLogger.log('ERROR',"CSV unable to info file %s. Abort CSV." % path)
+        MyLogger.log(modulename,'ERROR',"Unable to info file %s. Abort." % path)
         return False
     IDtxt.write(datetime.datetime.fromtimestamp(time()).strftime('%b %d %Y %H:%M:%S')+"\n")
     IDtxt.write("Identification info of sensor: project %s, S/N %s\n" % (ident['project'], ident['serial']))
@@ -93,7 +93,7 @@ def registrate(args):
     global Conf, CSV
     for key in ['ident']:
         if not key in args.keys():
-            MyLogger.log('FATAL',"CSV %s argument missing." % key)
+            MyLogger.log(modulename,'FATAL',"%s argument missing." % key)
     ID = args['ident']['serial']
     if not ID in CSV.keys():
         if len(CSV) >= 20:
@@ -131,14 +131,14 @@ def registrate(args):
     new = True
     if os.path.exists(ID['cur_name']):
         if not os.access(ID['cur_name'],os.W_OK):
-            MyLogger.log('FATAL',"CSV: cannot write to %s. Abort." % ID['cur_name'])
+            MyLogger.log(modulename,'FATAL',"Cannot write to %s. Abort." % ID['cur_name'])
         try:
             try:
                 ID['fd']=open(ID['cur_name'], 'at', newline='', encoding="utf-8")
             except TypeError:
                 ID['fd']=open(ID['cur_name'], 'at')
         except:
-            MyLogger.log('FATAL',"CSV: cannot write to %s. Abort." % ID['cur_name'])
+            MyLogger.log(modulename,'FATAL',"Cannot write to %s. Abort." % ID['cur_name'])
         new = False
     else:
         #Otherwise: create it
@@ -148,7 +148,7 @@ def registrate(args):
             except TypeError:
                 ID['fd']=open(ID['cur_name'], 'wt')
         except:
-            MyLogger.log('ERROR',"CSV unable to create file %s. Abort CSV." % ID['cur_name'])
+            MyLogger.log(modulename,'ERROR',"Unable to create file %s. Abort CSV." % ID['cur_name'])
             Conf['output'] = False
             raise IOError
             return False
@@ -167,10 +167,10 @@ def registrate(args):
                     Row.append("%s(%s)" % (cells['fields'][i],cells['units'][i]))
             ID['writer'].writerow(Row)
     except:
-        MyLogger.log('ERROR',"Failed to open CSV file %s for writing." % ID['cur_name'])
+        MyLogger.log(modulename,'ERROR',"Failed to open file %s for writing." % ID['cur_name'])
         raise IOError
         return False
-    MyLogger.log('INFO',"Created and can add CSV records to file:" + os.getcwd() + '/' + ID['cur_name'])
+    MyLogger.log(modulename,'INFO',"Created and will add records to file:" + os.getcwd() + '/' + ID['cur_name'])
     return True
     
 # add record to the CSV file
@@ -180,9 +180,9 @@ def publish(**args):
         return False
     for key in ['data','ident']:
         if not key in args.keys():
-            MyLogger.log('FATAL',"CSV method: missing argument %s." % key)
+            MyLogger.log(modulename,'FATAL',"Method: missing argument %s." % key)
     if not registrate(args):
-        MyLogger.log('ERROR',"CSV method CSV file creation/opening.")
+        MyLogger.log(modulename,'ERROR',"Failed file creation/opening.")
         return False
     Row = []
     for Fld in args['ident']['fields']:
@@ -201,6 +201,6 @@ def publish(**args):
     #CCSV[]SV[ID]['writer'].writerow(Row)
     #CSV[ID]['fd'].flush()
     #CSV[ID]['last'] = int(time())
-    MyLogger.log('DEBUG',"CSVrecord in %s, timestamp: %s" % (ID['cur_name'], args['data']['time']) )
+    MyLogger.log(modulename,'DEBUG',"Record in %s, timestamp: %s" % (ID['cur_name'], args['data']['time']) )
     return True
     

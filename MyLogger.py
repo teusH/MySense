@@ -18,20 +18,20 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLogger.py,v 2.3 2017/02/01 12:47:13 teus Exp teus $
+# $Id: MyLogger.py,v 3.4 2017/06/04 15:01:58 teus Exp teus $
 
 # TO DO:
 
 """ Push logging to the external world.
 """
 modulename='$RCSfile: MyLogger.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.3 $"[11:-2]
+__version__ = "0." + "$Revision: 3.4 $"[11:-2]
 
 # configurable options
 __options__ = ['level','file']
 
 Conf = {
-    'level': None,
+    'level': 0,
     'istty': False,
     'file' : None,
     'fd': None,
@@ -58,7 +58,7 @@ FATAL    = 70
 
 log_levels = ['NOTSET','DEBUG','INFO','ATTENT','WARNING','ERROR','CRITICAL','FATAL']
 # TO DO: install remote logging
-def log(level,message): # logging to console or log file
+def log(name,level,message): # logging to console or log file
     global Conf
     # seems python3 logging module does not allow logging on stdout or stderr
     def IsTTY():
@@ -78,6 +78,8 @@ def log(level,message): # logging to console or log file
             return
     except:
         pass
+    name = name.replace('.py','')
+    if name != 'MySense': name = 'MySense ' + name.replace('My','')
     if Conf['fd'] == None and not IsTTY():
         try:
             import logging, logging.handlers
@@ -97,18 +99,18 @@ def log(level,message): # logging to console or log file
         Conf['fd'].addHandler(log_handle)
     if not Conf['istty']:
         try:
-            Conf['fd'].MyLogger.log(level,message)
+            Conf['fd'].MyLogger.log(level,name + ': ' + message)
         except:
-            sys.exit("IoS: Unable to log to %s. Program aborted." % Conf["log"]['file'])
+            sys.exit("Unable to log to %s. Program aborted." % Conf["log"]['file'])
         if level == FATAL:
-            Conf['fd'].MyLogger.log(CRITICAL,"IoS Program aborted.")
+            Conf['fd'].MyLogger.log(CRITICAL,"Program aborted.")
             sys.exit("FATAL error. Program Aborted.")
     else:
-        sys.stderr.write("IoS: %s: " % log_levels[int(level / 10)] + message + "\n")
+        sys.stderr.write("%s %s: %s" % (name,log_levels[int(level / 10)], message + "\n"))
         if level == FATAL:
             sys.exit("FATAL error. IoS Program Aborted.")
     
 def show_error():               # print sys error
-    log('ERROR',"IoS Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
+    log('ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
     return
 

@@ -114,9 +114,29 @@ A picture of the breadboard with Dylos and Raspberry Pi3
 The gas sensor development (NO2, O3, NH3, CO) is just (Febr 2017) started.
 
 ## Calibration
-Calibration of dust counters like Shinyei, Nova SDS011 and Dylos is started in April 2017.
+Calibration of dust counters like Shinyei, Nova SDS011 and Dylos is started in May/June 2017.
 
-Calibration of gas sensors is a problematic area. Probably July.
+Calibration of Alpha Sense gas sensors is a problematic area. Probably June 2017.
+
+To facilitate measurements for calibration purposes all sensor plugins are optionaly (set `raw` option to `True` for the particular sensor in `MySense.conf`) able to display on stdout *raw* measurements values, as follows:
+```
+    raw,sensor=<type> <field1>=<value1>,<field2>=<value2>,... <nano timestamp>
+```
+This is an InFlux type of telegram, where the UNIX timestamp is in nano seconds. Example: `raw,sensor=bme280 temp=25.4,rh=35.6,pha=1024 1496503325005000`. Direct stdoutput to e.g. an InFlux server, and download the *serie* for eg correlation calculation from this server or into a CVS file (`awk` maybe your friend in this).
+Collect the lines on stad output in a file, say `InFlux.txt` and delete the `database=db_name` in that file. If Influx is running on `localhost` try to upload the bulk data via:
+```shell
+    curl -i -XPOST 'http://localhost:8086/write?db=db_name&u=myname&p=acacadabra' --data-binary @InFlux.txt
+```
+Using the Influx CLI (command line interface) one is able to convert the columnized output into whatever format, e.g. to CSV:
+```
+    influx | sed -e 's/  */;/g' -e 's/\t/;/g' | grep -v -e _  -e database= >InFlux.csv
+    >auth myname acacadabra
+    >use db_name
+    >select * from raw
+    >quit
+```
+
+After the correlation calculation set for the sensor the `calibration` option: e.g. `calibration=[[25.3,-0.5],[13.5,63.203,0.005]]` for here two fields with a linear regression: `<calibrated value> = 25.3 - 0.5 * <measured value>` for the first field values. The second field has a 2-order polynomial as calibration.
 
 To avoid *outliers* the MySense input multi threading module will maintain a sliding average of a window using the buffersize and interval as window parameters. Python numpa is used to delete the outliers in this window. The parameters for this filtering technique are default set to a spread interval of 25% (minPerc MyThreading class parameter)) - 75% (maxPerc). Set the parameters to 0% and 100% to disable outlier filtering. Set busize to 1 to disable sliding average calculation of the measurements.
 

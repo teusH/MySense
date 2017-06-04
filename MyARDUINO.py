@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.16 2017/05/02 08:08:34 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.18 2017/06/04 14:40:20 teus Exp $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -51,7 +51,7 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.16 $"[11:-2]
+__version__ = "0." + "$Revision: 1.18 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -61,6 +61,7 @@ __options__ = [
     'bufsize', 'sync',   # multithead buffer size and search for input
     'fields',            # record names for values collected
     # 'units',           # Arduino is defining record names and units
+    'raw',               # display raw measurements
     'file',              # records input file for debugging
 ]
 
@@ -85,6 +86,7 @@ Conf = {
     'sync': False,      # use thread or not to collect data
     'debug': False,     # be more versatile on input data collection
     'keys': [],         # set of keys from firmware to be exported
+    'raw': False,       # dflt value, no raw measurements displayed
     'file': None,       # debug records from input file
 
 }
@@ -100,13 +102,13 @@ try:
         try:
             import Serial as serial
         except ImportError as e:
-            MyLogger.log('FATAL',"Missing module %s" % e)
+            MyLogger.log(modulename,'FATAL',"Missing module %s" % e)
     import re
     import subprocess           # needed to find the USB serial
     import MyThreading          # needed for multi threaded input
     import json                 # Arduino will export json data
 except ImportError as e:
-    MyLogger.log('FATAL',"Missing module %s" % e)
+    MyLogger.log(modulename,'FATAL',"Missing module %s" % e)
 
 # calibrate as ordered function order defined by length calibration factor array
 def calibrate(nr,conf,value):
@@ -137,7 +139,7 @@ def open_serial():
             # try serial with product ID
             byId = "/dev/serial/by-id/"
             if not os.path.exists(byId):
-                MyLogger.log('FATAL',"There is no USBserial connected. Abort.")
+                MyLogger.log(modulename,'FATAL',"There is no USBserial connected. Abort.")
             device_re = re.compile(".*\s%s.*(?P<device>ttyACM\d+)$" % Conf['usbid'], re.I)
             devices = []
             try:
@@ -150,13 +152,13 @@ def open_serial():
                             serial_dev = '/dev/%s' % dinfo.pop('device')
                             break
             except CalledProcessError:
-                MyLogger.log('ERROR',"No serial USB connected.")
+                MyLogger.log(modulename,'ERROR',"No serial USB connected.")
             except (Exception) as error:
-                MyLogger.log('ERROR',"Serial USB %s not found, error:%s"%(Conf['usbid'], error))
+                MyLogger.log(modulename,'ERROR',"Serial USB %s not found, error:%s"%(Conf['usbid'], error))
                 Conf['usbid'] = None
         if Conf['usbid'] == None:
-            MyLogger.log('WARNING',"Please provide serial USB producer info.")
-            MyLogger.log('FATAL',"No USB Arduino input stream defined.")
+            MyLogger.log(modulename,'WARNING',"Please provide serial USB producer info.")
+            MyLogger.log(modulename,'FATAL',"No USB input stream defined.")
             return False
         #Initialize Serial Port
         try:
@@ -167,10 +169,10 @@ def open_serial():
                 stopbits=serial.STOPBITS_ONE,
                 bytesize=serial.EIGHTBITS,
                 timeout=65*60)  # allow also monitor mode
-            MyLogger.log('INFO',"Arduino serial USB: %s" % serial_dev)
+            MyLogger.log(modulename,'INFO',"Serial USB: %s" % serial_dev)
             sleep(2)    # give Arduino some time to reset
         except (Exception) as error:
-            MyLogger.log('FATAL',"%s" % error)
+            MyLogger.log(modulename,'FATAL',"%s" % error)
             return False
         # configure the Arduino with interval and sample timing
         if type(Conf['interval']) is str: Conf['interval'] = int(Conf['interval'])
@@ -179,10 +181,10 @@ def open_serial():
         if type(Conf['sample']) is str: Conf['sample'] = int(Conf['sample'])
         if Conf['sample'] <= 10:
             Conf['sample'] = 10
-            MyLogger.log('WARNING','Shinyei dust adjusted sample time to 10 secs')
+            MyLogger.log(modulename,'WARNING','Shinyei dust adjusted sample time to 10 secs')
         if Conf['sample'] > Conf['interval']/2:
             Conf['interval'] = 2 * Conf['sample']
-            MyLogger.log('WARNING','Shinyei dust adjusted interval time to %d secs' % Conf['interval'])
+            MyLogger.log(modulename,'WARNING','Shinyei dust adjusted interval time to %d secs' % Conf['interval'])
         cnt = 0
         # start arduino with config details, try to synchronize
         while True:
@@ -206,30 +208,30 @@ def open_serial():
             try:
                 config = json.loads(line[line.index('{'):line.index('}')+1])
                 if (Conf['interval'] != config['interval']) or (Conf['sample'] != config['sample']):
-                    MyLogger.log('WARNING',"Conf != Arduino conf: interval %d~%d sample %d~%d" % (Conf['interval'],config['interval'],Conf['sample'],config['sample']))
+                    MyLogger.log(modulename,'WARNING',"Conf != Arduino conf: interval %d~%d sample %d~%d" % (Conf['interval'],config['interval'],Conf['sample'],config['sample']))
                 Conf['interval'] = config['interval']
                 Conf['sample'] = config['sample']
                 if Conf['firmware'][0] != config['version'][0]:
-                    MyLogger.log('ERROR',"Firmware Aduino %s incompatible, need version %s" % (Conf['firmware'][0],config['version'][0]))
+                    MyLogger.log(modulename,'ERROR',"Firmware %s incompatible, need version %s" % (Conf['firmware'][0],config['version'][0]))
                     return False 
                 Conf['firmware'] = config['version']
                 if 'type' in config.keys():
                     if Conf['type'] != config['type']:
-                        MyLogger.log('ATTENT','%s sensor(s) type: %s' % (Conf['type'],config['type']));
+                        MyLogger.log(modulename,'ATTENT','%s sensor(s) type: %s' % (Conf['type'],config['type']));
                     Conf['type'] = config['type']
                 # if 'fields' in config.keys(): Conf['fields'] = config['fields']
                 break
             except:
                 continue
             if cnt > 12:
-                MyLogger.log('ERROR', "Arduino: unable to start Arduino")
+                MyLogger.log(modulename,'ERROR', "Unable to start")
                 return False
     elif Conf['file']:
         try:
             Conf['fd'] = open(Conf['file'])
             Conf['sync'] = True
         except:
-            MyLogger.log('FATAL', "Failed top open Arduino test input from %s" % Conf['file'])
+            MyLogger.log(modulename,'FATAL', "Failed top open test input from %s" % Conf['file'])
             return False
     else: return False
     return True
@@ -289,20 +291,20 @@ def Add(conf):
             Serial_Errors = 0
         except IOError as er:
             conf['Serial_Errors'] += 1
-            MyLogger.log('ATTENT',"Arduino serial error: %s, retry close/open serial." % er)
+            MyLogger.log(modulename,'ATTENT',"Serial error: %s, retry close/open serial." % er)
             try:
                 conf['fd'].close()
             except:
                 pass
             conf['fd'] = None
             if conf['Serial_Errors'] > 10:
-                MyLogger.log('ERROR',"Arduino to many serial errors. Disabled.")
+                MyLogger.log(modulename,'ERROR',"To many serial errors. Disabled.")
                 sleep(1)
                 conf['output'] = False
                 return {}
             return conf['getdata']()
         except StandardError as er:
-            MyLogger.log('ATTENT',"Arduino serial access error: %s" % er)
+            MyLogger.log(modulename,'ATTENT',"Serial access error: %s" % er)
             pass
         line = str(line.strip().decode('utf-8'))
         s = line.find('{') ; l = line.find('}')
@@ -320,16 +322,16 @@ def Add(conf):
             return bin_data
     except (Exception) as error:
         # Some other Arduino Error
-        MyLogger.log('WARNING','Arduino error in Add routine: %s' % error)
+        MyLogger.log(modulename,'WARNING','Error in Add routine: %s' % error)
         sleep(1)
         return {}
     if ('firmware' in conf.keys()) and ('version' in bin_data.keys()):
         if conf['firmware'][0] != bin_data['version'][0]:
-            MyLogger.log('FATAL','Arduino version/firmware incompatible')
+            MyLogger.log(modulename,'FATAL','Version/firmware incompatible')
         del bin_data['version']
     if 'type' in bin_data.keys():
         if conf['type'] != bin_data['type']:
-            MyLogger.log('ATTENT','%s sensor(s) type: %s' % (conf['type'],bin_data['type']));
+            MyLogger.log(modulename,'ATTENT','%s sensor(s) type: %s' % (conf['type'],bin_data['type']));
             conf['type'] = bin_data['type']
         del bin_data['type']
     if len(conf['keys']):
@@ -338,7 +340,7 @@ def Add(conf):
                 del bin_data[key]
                 if not 'keys_skipped' in conf.keys(): conf['keys_skipped'] = []
                 if not key in conf['keys_skipped']:
-                    MyLogger.log('ATTENT','Skip value with Arduino name %s.' % key)
+                    MyLogger.log(modulename,'ATTENT','Skip value with name %s.' % key)
                     conf['keys_skipped'].append(key)
     else:       # at start: denote all record names/units from Arduino firmware
         conf['keys'] = []; conf['names'] = []
@@ -353,12 +355,16 @@ def Add(conf):
             if nr > len(conf['calibrations']): conf['calibrations'].append = [0,1]
             conf['names'].append(id_un[0])
             conf['units'].append(id_un[1].replace('#',''))
-            MyLogger.log('ATTENT','New Arduino nr %d sensor added: %s units %s' % (nr,id_un[0],id_un[1]))
+            MyLogger.log(modulename,'ATTENT','New nr %d sensor added: %s units %s' % (nr,id_un[0],id_un[1]))
+    raw = []
     for i in range(0,len(conf['fields'])):
         dataKey = '%s_%s' % (conf['names'][i],conf['units'][i])
+        raw.append('%s=%.1f' % (dataKey.replace('/','').replace('.',''),bin_data[dataKey]))
         if dataKey in bin_data.keys():
             bin_data.update( {conf['fields'][i]:calibrate(i,conf,bin_data[dataKey])})
             del bin_data[dataKey]
+    if ('raw' in conf.keys()) and conf['raw'] and len(raw):
+        print("raw,sensor=%s %s %d000\n" % ('dylos',','.join(raw),int(time()*1000)))
     bin_data.update( {"time": int(time())} )
     return bin_data
 
@@ -369,7 +375,7 @@ def getdata():
     try:
         return MyThread.getRecord()     # pick up a record
     except IOError as er:
-        MyLogger.log('WARNING',"Sensor Dylos input failure: %s" % er)
+        MyLogger.log(modulename,'WARNING',"Sensor input failure: %s" % er)
     return {}
 
 Conf['getdata'] = getdata	# Add needs this global viariable

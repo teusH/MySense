@@ -44,6 +44,8 @@ level    = INFO
 #usbid = Prolific_Technology
 #fields = pm25,pm10
 #units = 0.01pcs/qf,0.01pcs/qf
+## display raw measurements
+#raw = True
 
 # sensors via Arduino controller
 # PM serie Shinyei PPD42NS
@@ -72,13 +74,15 @@ level    = INFO
 #pin   = 22
 #fields = temp,rv
 #units = C,%
+## display raw measurements
+#raw = True
 
 ## Nova SD011 dust module connected via USB
 #[sds011]
 #input = True
 #type = Nova SDS011
 ## search tty device in /dev/serial/by-id with
-#usbid = .*-port
+#usbid = -1a86.*-port
 #fields = pm25,pm10
 ## values should be as
 #units = ug/m3,ug/m3
@@ -92,6 +96,8 @@ level    = INFO
 #bufsize = 30
 ## do not use multi trheading
 #sync = False
+## display raw measurements
+#raw = True
 
 # Loudness measurement
 # GrovePi+ analogue port
@@ -101,6 +107,8 @@ level    = INFO
 #port = A0
 #fields = dbv
 #units = dBv
+## display raw measurements
+#raw = True
 
 # dynamic GPS sensor location grabber
 #[gps]
@@ -110,6 +118,8 @@ level    = INFO
 # port = 2745 default
 #type    = UltimateGPS
 ##pin    = TrX
+## display raw measurements
+#raw = True
 
 # wifi with internet is present in the node
 # will output 0 if wifi is not activated or not wireless
@@ -118,6 +128,8 @@ level    = INFO
 #type = None
 #fields = rssi
 #units = dB
+## display raw measurements
+#raw = True
 
 # LOCAL OUTPUT:
 

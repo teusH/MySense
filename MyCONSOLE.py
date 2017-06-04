@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyCONSOLE.py,v 2.5 2017/04/05 09:10:05 teus Exp teus $
+# $Id: MyCONSOLE.py,v 2.6 2017/06/04 09:40:55 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,7 +26,7 @@
     Relies on Conf setting biy main program
 """
 modulename='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.5 $"[11:-2]
+__version__ = "0." + "$Revision: 2.6 $"[11:-2]
 
 try:
     import MyLogger
@@ -34,7 +34,7 @@ try:
     from time import time
     import datetime
 except ImportError as e:
-    MyLogger.log("FATAL","One of the import modules not found: %s" % e)
+    MyLogger.log(modulename,"FATAL","One of the import modules not found: %s" % e)
 
 # configurable options
 __options__ = ['output','file']
@@ -68,7 +68,7 @@ def publish(**args):
         return
     for key in ['data','ident']:
         if not key in args.keys():
-            MyLogger.log('FATAL',"Broker publish call missing argument %s." % key)
+            MyLogger.log(modulename,'FATAL',"publish call missing argument %s." % key)
     registrate(args['ident'])
     print "    %-14s: %s (%s)" % ('time',args['data']['time'],datetime.datetime.fromtimestamp(args['data']['time']).strftime("%Y-%m-%d %H:%M:%S"))
     for item in sorted(args['data'].iterkeys()):

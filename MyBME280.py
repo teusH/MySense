@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyBME280.py,v 2.9 2017/04/18 18:14:59 teus Exp teus $
+# $Id: MyBME280.py,v 2.11 2017/06/04 14:40:20 teus Exp $
 
 """ Get measurements from BME280 Bosch chip via the I2C-bus.
     Measurements have a calibration factor (calibrated to Oregon weather station)
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyBME280.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.9 $"[11:-2]
+__version__ = "0." + "$Revision: 2.11 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -33,12 +33,13 @@ try:
     import MyThreading          # needed for multi threaded input
     import MyLogger
 except ImportError:
-    MyLogger.log('FATAL',"Missing modules for %s" % modulename)
+    MyLogger.log(modulename,'FATAL',"Missing modules")
 
 # configurable options
 __options__ = [
     'input','i2c','type','calibrations',
     'fields','units',
+    'raw',
     'interval','bufsize','sync']       # multithead buffer size and search for input secs
 
 Conf ={
@@ -52,7 +53,8 @@ Conf ={
     'bufsize': 20,       # size of the window of values readings max
     'sync': False,       # use thread or not to collect data
     'debug': False,      # be more versatile
-    'Ada_import': None,      # Adafruit BME280 imported module
+    'raw': False,        # no raw measurements displayed
+    'Ada_import': None,  # Adafruit BME280 imported module
 #    'fd' : None          # input handler
 }
 
@@ -81,34 +83,36 @@ def Add(conf):
                 pascals = conf['fd'].read_pressure()
                 humidity = conf['fd'].read_humidity()
             except ValueError:
-                MyLogger.log('ATTENT',"BME280 read error")
+                MyLogger.log(modulename,'ATTENT',"Read error")
                 return rec
         else:
-            MyLogger.log('ERROR',"BME280 configuration error.")
+            MyLogger.log(modulename,'ERROR',"Configuration error.")
             return rec
     except:
-        MyLogger.log('ERROR',"BME280 i2c access error. /dev/gpiomem permissions correct?")
+        MyLogger.log(modulename,'ERROR',"i2c access error. /dev/gpiomem permissions correct?")
         return rec
     if (temp == None) or (humidity == None) or (pascals == None):
-        MyLogger.log('ERROR',"BME280 access error. Connection problem?")
+        MyLogger.log(modulename,'ERROR',"Access error. Connection problem?")
         raise IOError("BME280 lost connection.")
         return rec
     if type(temp) is float:
         if conf['debug']:
-            MyLogger.log('DEBUG',"Temperature : %5.2f oC not calibrated" % temp)
+            MyLogger.log(modulename,'DEBUG',"Temperature : %5.2f oC not calibrated" % temp)
     else:
-        MyLogger.log('DEBUG',"Temperature : None")
+        MyLogger.log(modulename,'DEBUG',"Temperature : None")
     if type(humidity) is float:
         if conf['debug']:
-            MyLogger.log('DEBUG',"Rel.Humidity: %5.2f %% not calibrated" % humidity)
+            MyLogger.log(modulename,'DEBUG',"Rel.Humidity: %5.2f %% not calibrated" % humidity)
     else:
-        MyLogger.log('DEBUG',"Rel.Humidity: None")
+        MyLogger.log(modulename,'DEBUG',"Rel.Humidity: None")
     if type(pascals) is float:
         if conf['debug']:
-            MyLogger.log('DEBUG',"Air pressure: %5.2f Pa not calibrated" % pascals)
+            MyLogger.log(modulename,'DEBUG',"Air pressure: %5.2f Pa not calibrated" % pascals)
     else:
-        MyLogger.log('DEBUG',"Air pressure: None")
+        MyLogger.log(modulename,'DEBUG',"Air pressure: None")
     if (temp == 0.0) and (humidity == 0.0) and (pascals == 0.0): return rec
+    if ('raw' in conf.keys()) and conf['raw']:
+        print("raw,sensor=%s temp=%.1f,rh=%.1f,pha=%.1f %d000\n" % ('bme280',temp,humidity,pascals,int(time()*1000)))
     temp = calibrate(0,conf,temp)
     humidity = calibrate(1,conf,humidity)
     pascals = calibrate(2,conf,pascals)
@@ -125,23 +129,23 @@ def registrate():
         return True
     Conf['input'] = False
     if (int(Conf['i2c'],0) != 0x77) and (int(Conf['i2c'],0) != 0x76):
-        MyLogger.log('ERROR',"BME280 I2C address %s not correct. Disabled." % Conf['i2c'])
+        MyLogger.log(modulename,'ERROR',"I2C address %s not correct. Disabled." % Conf['i2c'])
         Conf['Ada_import'] = None
     else:
         try:
             Conf['Ada_import'] = __import__('Adafruit_BME280')
         except ImportError:
-            MyLogger.log('ERROR',"Unable to import BME Adafruit module. Disabled.")
+            MyLogger.log(modulename,'ERROR',"Unable to import BME Adafruit module. Disabled.")
             Conf['Ada_import'] = None
         try:
             Conf['fd'] = Conf['Ada_import'].BME280(mode=Conf['Ada_import'].BME280_OSAMPLE_8, address=int(Conf['i2c'],0))
         except IOError:
-            MyLogger.log('WARNING','BME280 try another I2C address.')
+            MyLogger.log(modulename,'WARNING','Try another I2C address.')
             if int(Conf['i2c'],0) == 0x77: Conf['i2c'] = '0x76'
             else: Conf['i2c'] = '0x77'
             Conf['fd'] = Conf['Ada_import'].BME280(mode=Conf['Ada_import'].BME280_OSAMPLE_8, address=int(Conf['i2c'],0))
     if Conf['Ada_import'] == None:
-        MyLogger.log('ERROR',"BME280 configuration error.")
+        MyLogger.log(modulename,'ERROR',"Configuration error.")
         return False
     Conf['input'] = True
     if MyThread == None: # only the first time
@@ -175,7 +179,7 @@ def getdata():
     try:
         return MyThread.getRecord()     # pick up a record
     except IOError as er:
-        MyLogger.log('WARNING',"Sensor BME280 input failure: %s" % er)
+        MyLogger.log(modulename,'WARNING',"Sensor input failure: %s" % er)
     return {}
 
 # test main loop

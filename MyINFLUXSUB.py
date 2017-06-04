@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyINFLUXSUB.py,v 1.3 2017/05/30 14:36:54 teus Exp teus $
+# $Id: MyINFLUXSUB.py,v 1.4 2017/06/04 09:40:55 teus Exp teus $
 
 """
     Get sensor values from InFlux server. Needs influxdb python client module.
@@ -32,7 +32,7 @@
 # TO DO: we should keep track on latest records in order a restart will not start all over
 
 modulename='$RCSfile: MyINFLUXSUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -82,7 +82,7 @@ try:
     import subprocess           # needed to find the USB serial
     import MyThreading          # needed for multi threaded input
 except ImportError as e:
-    MyLogger.log('FATAL',"Missing module %s" % e)
+    MyLogger.log(modulename,'FATAL',"Missing module %s" % e)
 
 # module data records info and buffer space
 # Conf['databases'] is used as resource, filled with databases to be subscribed to
@@ -171,16 +171,16 @@ def db_list():
                 if not item in Conf['databases']: Conf['databases'].append(item['name'])
     except:     # error on no admin acces on Influ DB, guess a list of names from ('name1'|..)
         if not len(Conf['databases']):
-            MyLogger.log('ATTENT',"InFlux publish admin failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
+            MyLogger.log(modulename,'ATTENT',"Publish admin failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
         for item in create_list(Conf['projects'],Conf['serials']):
             if not item in Conf['databases']: Conf['databases'].append(item)
     for i in range(len(Conf['databases'])-1,-1,-1):
         if not db_exists(Conf['databases'][i]): Conf['databases'].pop(i)
     Conf['updated'] = time()
     if len(Conf['databases']):
-        MyLogger.log('ATTENT','Influx sub has access to: %s' % ', '.join(Conf['databases']))
+        MyLogger.log(modulename,'ATTENT','Has access to: %s' % ', '.join(Conf['databases']))
         return True
-    MyLogger.log('ERROR','Influx %s server, user %s: no databases with allowed access.' % (Conf['hostname'],Conf['user']))
+    MyLogger.log(modulename,'ERROR','%s server, user %s: no databases with allowed access.' % (Conf['hostname'],Conf['user']))
     return False
 
 def InFluxConnect():
@@ -193,7 +193,7 @@ def InFluxConnect():
     for key in ['user','password','hostname']:
         if (not key in Conf.keys()) or (Conf[key] == None):
             Conf['input'] = False
-            MyLogger.log('FATAL',"InFlux subscribe: missing login %s credentials." % key)
+            MyLogger.log(modulename,'FATAL',"Missing login %s credentials." % key)
             return False
     try:
         Conf['fd'] = InfluxDBClient(
@@ -229,7 +229,7 @@ def SaveState(path,jsonString):
         fd.close()
         # print('ATTENT: InFlux subscriber: saved state into %s' % path)
     except:
-        MyLogger.log('ERROR','InFlux subscriber failed to write state into %s.' % path)
+        MyLogger.log(modulename,'ERROR','Failed to write state into %s.' % path)
         pass
 
 nextSave = 0
@@ -263,15 +263,15 @@ def InitInfo():
         if (not 'version' in state.keys()) or (state['version'][0] != __version__[0]):
             raise ValueError
         InfoRecords =  state['InfoRecords']
-        MyLogger.log('ATTENT','Loaded for InFlux subscriber state file: %s (d.d. %s)' % (Conf['state'],datetime.datetime.fromtimestamp(state['time']).strftime('%Y-%m-%d %H:%M:%S')))
+        MyLogger.log(modulename,'ATTENT','Loaded subscriber state file: %s (d.d. %s)' % (Conf['state'],datetime.datetime.fromtimestamp(state['time']).strftime('%Y-%m-%d %H:%M:%S')))
         StateInJson = None
         RememberInfo()
     except:
         if exists(Conf['state']):
-            MyLogger.log('ERROR','Failed to load InFlux state from %s' % Conf['state'])
+            MyLogger.log(modulename,'ERROR','Failed to load state file: %s' % Conf['state'])
             return False
         else:
-            MyLogger.log('ATTENT','InFlux subscriber will save state in new file %s' % Conf['state'])
+            MyLogger.log(modulename,'ATTENT','Will save state in new file: %s' % Conf['state'])
     return True
 
 def initInfo(database):
@@ -306,7 +306,7 @@ def doQuery(database,query):
         response = list(Conf['fd'].query(query,database=database,expected_response_code=200).get_points())
         waitReset()
     except:
-        MyLogger.log('ERROR',"InFlux publish query data request error: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
+        MyLogger.log(modulename,'ERROR',"Query data request error: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
         wait()
         return []
     timing = None
@@ -357,7 +357,7 @@ def getIdent(database,timing):
     query += ' LIMIT 1'
     rts = doQuery(database,query)
     if not len(rts):
-        MyLogger.log('ERROR','Influx sub, unable to get ident info')
+        MyLogger.log(modulename,'ERROR','Unable to get ident info')
         return False
     if 'InFluxStamp' in rts[0].keys(): # for recovery need InFlux time stamp
         InFluxTime = rts[0]['InFluxStamp']
@@ -375,7 +375,7 @@ def getData(database):
     global Conf, InfoRecords, DataRecords
     if len(DataRecords): return True
     if not database in InfoRecords.keys():
-        MyLogger.log('WARNING','No ident info for this Influx sub db: %s' % database)
+        MyLogger.log(modulename,'WARNING','No ident info for db: %s' % database)
         initInfo(database)
         getIdent(database,0)
     ''' get an array of data values from the InFlux server '''
@@ -469,9 +469,9 @@ def getdata():
 if __name__ == '__main__':
     from time import sleep
     Conf['input'] = True
-    Conf['hostname'] = 'localhost'
-    Conf['user'] = 'ios'
-    Conf['password'] = 'acacadabra'
+    Conf['hostname'] = 'lunar'
+    Conf['user'] = 'teus'
+    Conf['password'] = 'live4ever'
     Conf['projects'] = 'BdP'
     Conf['serials'] = '3.{7}'
     Conf['bufsize'] = 5

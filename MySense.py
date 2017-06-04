@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 2.31 2017/05/03 19:21:03 teus Exp teus $
+# $Id: MySense.py,v 3.2 2017/06/04 12:36:33 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -54,7 +54,8 @@
         connection is established again.
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.31 $"[11:-2]
+modulename = progname
+__version__ = "0." + "$Revision: 3.2 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -102,6 +103,7 @@ OUTPUTS    = []         # local output channels
 INPUTS_I   = []         # inputs from internet (disables other input channels)
 INPUTS     = []         # local input channels
 INTERVAL   = 60*60      # dflt main loop interval in seconds
+RAW        = False      # display raw measurements for all sensors
 
 Archive = {}            # archived queues per channel, has links to heap
 Heap = {}               # heap for storing data indexed by Archive
@@ -110,7 +112,7 @@ HeapSze = 100000        # max of bytes in heap
 
 def defFields(name,conf):
     if not 'module' in conf.keys():
-        MyLogger.log("WARNING", 'no module for this sensor %s defined' % name)
+        MyLogger.log(modulename,"WARNING", 'no module for this sensor %s defined' % name)
         return
     if not 'fields' in conf.keys():
         if not 'fields' in conf['module'].Conf.keys():
@@ -132,7 +134,7 @@ def defFields(name,conf):
                     new = json.loads(new)
                     if not type(new) is list: raise TypeError
                 except:
-                    MyLogger.log('FATAL',"Sensor %s calibration configuration error" % name)
+                    MyLogger.log(modulename,'FATAL',"Sensor %s calibration configuration error" % name)
         elif not type(new) is list: new = []
         while len(new) > nr: new.pop() 
         while len(new) < nr:
@@ -158,7 +160,7 @@ def read_configuration():
             sys.exit("Config/init file %shas configuration errors." % initFile)
     else:
         config = None
-        MyLogger.log('WARNING',"No configuration file %s.conf found." % (progname.replace('.py','')))
+        MyLogger.log(modulename,'WARNING',"No configuration file %s.conf found." % (progname.replace('.py','')))
 
     if config:
         for key in config.sections():
@@ -171,12 +173,12 @@ def read_configuration():
                 try:
                     Conf[key]['module'] = __import__(Conf[key]['import'])
                     if not CheckVersion(Conf[key]['module'].__version__):
-                        MyLogger.log('FATAL',"Module %s version is not compatible." % key)
+                        MyLogger.log(modulename,'FATAL',"Module %s version is not compatible." % key)
                 except NameError:
-                    MyLogger.log('FATAL',"Module %s has no version defined." % key)
+                    MyLogger.log(modulename,'FATAL',"Module %s has no version defined." % key)
                     Conf[key]['module'] = False
                 except ImportError:
-                    MyLogger.log('WARNING',"Unable to install plugin My%s. Try running the plugin for the failure message." % key.upper())
+                    MyLogger.log(modulename,'WARNING',"Unable to install plugin My%s. Try running the plugin for the failure message." % key.upper())
                     Conf[key]['module'] = False
                 if not Conf[key]['module']:
                     del Conf[key]
@@ -184,7 +186,7 @@ def read_configuration():
                     options = Conf[key]['module'].__options__
                     for InOut in ['input','output']:
                         if InOut in options:
-                            #MyLogger.log('DEBUG',"Importing %s plugin: %s" % (InOut,Conf[key]['import']))
+                            #MyLogger.log(modulename,'DEBUG',"Importing %s plugin: %s" % (InOut,Conf[key]['import']))
                             Conf[key][InOut] = False
                             if (InOut == 'input') and (not InOut in INPUTS+INPUTS_I):
                                 if 'hostname' in options:
@@ -204,13 +206,13 @@ def read_configuration():
                     options = ['home','pid','user','group','start_dir']
                 elif key == 'logging':
                     options = ['level','file']
-            #MyLogger.log('DEBUG','Configuring module %s: options %s.' % (key,', '.join(config.options(key))) )
+            #MyLogger.log(modulename,'DEBUG','Configuring module %s: options %s.' % (key,', '.join(config.options(key))) )
             # get options allowed to be redefined by the plugin
             for opt in config.options(key):
                 if not opt in options: continue
                 try:
                     Conf[key][opt.lower()] = config.get(key,opt)
-                    if opt in ['input','output']:
+                    if opt in ['input','output','raw','sync']:
                         Conf[key][opt.lower()] = config.getboolean(key,opt)
                     elif opt.lower() == 'port':
                         if re.compile("^[0-9]+$").match(Conf[key][opt.lower()]):
@@ -316,7 +318,7 @@ def get_config():
         OUTPUTS.append('console')
     # Configuration or init file handling
     if not read_configuration():
-       MyLogger.log('WARNING',"Init/configuration skipped.")
+       MyLogger.log(modulename,'WARNING',"Init/configuration skipped.")
 
 # ===================================================================
 # Commandline arguments parsing
@@ -326,15 +328,16 @@ def get_arguments():
     global Conf, progname, INTERVAL, HeapSze
     parser = argparse.ArgumentParser(prog=progname, description='Sensor datalogger - Behoud de Parel\nCommand arguments overwrite optional config file.', epilog="Copyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
     parser.add_argument("-d", "--debug", help="List of input sensors and show the raw sensor values.", default="")
+    parser.add_argument("-D", "--DYLOS", help="Read pm sensor input from an input file instead. Debugging simulation.")
     parser.add_argument("-i", "--input", help="Input sensor(s), comma separated list of %s" % ','.join(INPUTS+INPUTS_I), default="%s" % ','.join(Conf['inputs']))
     parser.add_argument("-o", "--output", help="Output mode(s), comma separated list of %s" % ','.join(OUTPUTS+OUTPUTS_I), default="%s" % ','.join(Conf['outputs']))
     parser.add_argument("-l", "--level", help="Be less verbose, default='%s'" % Conf['logging']['level'], default=Conf['logging']['level'], type=str.upper, choices=MyLogger.log_levels)
-    parser.add_argument("-P", "--project", help="Project XYZ, default='%s'" % Conf['id']['project'], default=Conf['id']['project'], choices=['BdP','VW'])
-    parser.add_argument("-S", "--node", help="Sensor node serial number, default='%s'" % Conf['id']['serial'], default=Conf['id']['serial'])
     parser.add_argument("-G", "--geolocation", help="Sensor node geolocation (latitude,longitude), default='%s'" % Conf['id']['geolocation'], default=Conf['id']['geolocation'])
     parser.add_argument("-I", "--interval", help="Sensor read cycle interval in minutes, default='%d'" % (INTERVAL/60), default=(INTERVAL/60))
     parser.add_argument("-M", "--memory", help="Allocated memory space in Kbytes for queuing data, default='%d'" % (HeapSze/1000), default=(HeapSze/1000))
-    parser.add_argument("-D", "--DYLOS", help="Read pm sensor input from an input file instead. Debugging simulation.")
+    parser.add_argument("-P", "--project", help="Project XYZ, default='%s'" % Conf['id']['project'], default=Conf['id']['project'], choices=['BdP','VW'])
+    parser.add_argument("-R", "--raw", help="Display raw measurements of all sensors on stdout in InFlux http timestamped format (calibration purposes), default=False", default=False)
+    parser.add_argument("-S", "--node", help="Sensor node serial number, default='%s'" % Conf['id']['serial'], default=Conf['id']['serial'])
     parser.add_argument("process", help="Process start/stop/status. Default: interactive", default='interactive', choices=['interactive','start','stop','status'], nargs='?')
     # overwrite argument settings into configuration
     return parser.parse_args()
@@ -360,7 +363,7 @@ def from_env(name):
 def integrate_options():
     """ Command line arguments overwrite configuration option values
     """
-    global Conf, OUTPUTS, OUTPUTS_I, INPUTS, INPUTS_I, INTERVAL
+    global Conf, OUTPUTS, OUTPUTS_I, INPUTS, INPUTS_I, INTERVAL, RAW
     
     cmd_args = get_arguments()
 
@@ -369,6 +372,7 @@ def integrate_options():
     Conf['id']['geolocation'] = cmd_args.geolocation
     INTERVAL = int(cmd_args.interval) * 60
     HeapSze = int(cmd_args.memory) * 1000
+    RAW = bool(cmd_args.raw)
 
     Conf['outputs'] = []
     # TO DO: enable MQTT to be used on output as well on input
@@ -397,7 +401,7 @@ def integrate_options():
         Conf['console']['output'] = True
         if not Nme in Conf['outputs']:
             Conf['outputs'].append('console')
-        MyLogger.log('WARNING',"No output channels defined. Enabled output to console.")
+        MyLogger.log(modulename,'WARNING',"No output channels defined. Enabled output to console.")
 
     # TO DO: enable MQTT to be used on output as well on input
     Conf['inputs'] = []
@@ -412,6 +416,8 @@ def integrate_options():
                 Conf['inputs'].append(Nme)
             if Nme in INPUTS_I:
                 from_env(Nme)
+            elif RAW:
+                Conf[Nme]['raw'] = True
         try:    # allow to display raw sensor values from a sensor thread
             Conf[Nme]['debug'] = cmd_args.debug.rindex(Nme) >= 0
         except:
@@ -425,7 +431,7 @@ def integrate_options():
             Conf['dylos'].update({ 'input': True, 'sync': True, 'file': cmd_args.DYLOS })
 
     if not len(Conf['inputs']):
-        MyLogger.log('FATAL',"No sensor input is defined.")
+        MyLogger.log(modulename,'FATAL',"No sensor input is defined.")
 
     Conf['logging']['level']    = cmd_args.level.upper()     # how much we log
     return cmd_args.process
@@ -433,46 +439,51 @@ def integrate_options():
 # show the intension of this process
 def show_startup():
     """ On startup log configuration details """
-    global Conf, progname, __version__, INTERVAL
-    MyLogger.log('ATTENT',"%s Started Sensor processing: %s Version:%s" % (datetime.datetime.strftime(datetime.datetime.today(), "%Y-%m-%d %H:%M:%S " ), progname, __version__))
-    MyLogger.log('DEBUG',"Control-C to abort")
-    MyLogger.log('DEBUG',"Engine: Python Version %s.%s.%s\n" % sys.version_info[:3])
-    MyLogger.log('DEBUG',"Startup parameters:")
+    global Conf, progname, __version__, INTERVAL, RAW, INPUTS
+    MyLogger.log(modulename,'INFO',"Project: %s, Serial_ID=%s" % (Conf['id']['project'],Conf['id']['serial']))
+    for item in INPUTS:
+        if 'raw' in Conf[item].keys() and Conf[item]['raw']:
+            print("database=%s_%s" % (Conf['id']['project'],Conf['id']['serial']))
+            break
+    MyLogger.log(modulename,'ATTENT',"%s Started Sensor processing: %s Version:%s" % (datetime.datetime.strftime(datetime.datetime.today(), "%Y-%m-%d %H:%M:%S " ), progname, __version__))
+    MyLogger.log(modulename,'DEBUG',"Control-C to abort")
+    MyLogger.log(modulename,'DEBUG',"Engine: Python Version %s.%s.%s\n" % sys.version_info[:3])
+    MyLogger.log(modulename,'DEBUG',"Startup parameters:")
     for item in ('project','serial','geolocation'):
         if (item in Conf['id'].keys()) and (Conf['id'][item] != None):
-            MyLogger.log('ATTENT',"\t %s:\t%s" % (item,Conf['id'][item]))
-    MyLogger.log('ATTENT',"\t main loop interval:\t%s minutes" % INTERVAL/60)
+            MyLogger.log(modulename,'ATTENT',"\t %s:\t%s" % (item,Conf['id'][item]))
+    MyLogger.log(modulename,'ATTENT',"\t main loop interval:\t%d minutes" % (INTERVAL/60))
 
-    MyLogger.log('INFO',"Available INPUT SENSORS: %s" % ', '.join(INPUTS+INPUTS_I))
+    MyLogger.log(modulename,'INFO',"Available INPUT SENSORS: %s" % ', '.join(INPUTS+INPUTS_I))
     for Sensor in INPUTS+INPUTS_I:
         if (not Sensor in Conf.keys()) or (not 'input' in Conf[Sensor].keys()):
-            MyLogger.log('INFO',"Sensor %s not installed." % Sensor)
+            MyLogger.log(modulename,'INFO',"Sensor %s not installed." % Sensor)
             continue
         if Conf[Sensor]['input']:
-            MyLogger.log('ATTENT',"Sensor %s (plugin %s) is switched ON." % (Sensor,Conf[Sensor]['import']))
+            MyLogger.log(modulename,'ATTENT',"Sensor %s (plugin %s) is switched ON." % (Sensor,Conf[Sensor]['import']))
             for Opt in Conf[Sensor].keys():
                 if Opt == 'input' or Opt == 'module': continue
-                MyLogger.log('INFO',"\t%s:\t%s" % (Opt,Conf[Sensor][Opt]))
+                MyLogger.log(modulename,'INFO',"\t%s:\t%s" % (Opt,Conf[Sensor][Opt]))
         else:
-            MyLogger.log('INFO',"Sensor %s (plugin %s) is switched OFF." % (Sensor,Conf[Sensor]['import']))
+            MyLogger.log(modulename,'INFO',"Sensor %s (plugin %s) is switched OFF." % (Sensor,Conf[Sensor]['import']))
                 # continue
             for Opt in Conf[Sensor].keys():
                 if Opt == 'input' or Opt == 'module': continue
-                MyLogger.log('DEBUG',"\t%s:\t%s" % (Opt,Conf[Sensor][Opt]))
+                MyLogger.log(modulename,'DEBUG',"\t%s:\t%s" % (Opt,Conf[Sensor][Opt]))
 
-    MyLogger.log('INFO',"Available OUTPUT CHANNELS: %s" % ', '.join(OUTPUTS+OUTPUTS_I))
+    MyLogger.log(modulename,'INFO',"Available OUTPUT CHANNELS: %s" % ', '.join(OUTPUTS+OUTPUTS_I))
     for Mode in OUTPUTS+OUTPUTS_I:
         if Conf[Mode]['output']:
-            MyLogger.log('ATTENT',"Ouput channel %s (plugin %s) is ENABLED." % (Mode,Conf[Mode]['import']))
+            MyLogger.log(modulename,'ATTENT',"Ouput channel %s (plugin %s) is ENABLED." % (Mode,Conf[Mode]['import']))
             for Attr in Conf[Mode].keys():
                 if (Attr != 'output') and (Attr != 'password') and (Attr != 'module'):
-                    MyLogger.log('INFO',"\t%s:\t%s" % (Attr,Conf[Mode][Attr]))
+                    MyLogger.log(modulename,'INFO',"\t%s:\t%s" % (Attr,Conf[Mode][Attr]))
         else:
-           MyLogger.log('DEBUG',"Ouput channel %s (plugin %s) is DISABLED, attributes:" % (Mode,Conf[Mode]['import']))
+           MyLogger.log(modulename,'DEBUG',"Ouput channel %s (plugin %s) is DISABLED, attributes:" % (Mode,Conf[Mode]['import']))
            # continue
            for Attr in Conf[Mode].keys():
                if (Attr != 'output') and (Attr != 'password') and (Attr != 'module'):
-                   MyLogger.log('DEBUG',"\t%s:\t%s" % (Attr,Conf[Mode][Attr]))
+                   MyLogger.log(modulename,'DEBUG',"\t%s:\t%s" % (Attr,Conf[Mode][Attr]))
     
 # ===========================================================
 # Routines needed to run as UNIX deamon
@@ -719,7 +730,7 @@ def sensorread():
     # TO DO: handle multiple input channels with select and threads
     while True:
         if not len(Conf['outputs']):
-            MyLogger.log('FATAL',"No output available any more. Abort.")
+            MyLogger.log(modulename,'FATAL',"No output available any more. Abort.")
         data = {'time': data['time']}
         ident = Conf['id']
         local = True
@@ -747,13 +758,13 @@ def sensorread():
                     t_time += sensed['time']                       
                 for key in sensed.keys():
                     if (not type(sensed[key]) is str) and math.isnan(sensed[key]):
-                        MyLogger.log('ATTENT','Sensor %s has NaN value.' % Sensor)
+                        MyLogger.log(modulename,'ATTENT','Sensor %s has NaN value.' % Sensor)
                         sensed[key] = None
                     if key == 'time': continue
                     if (key in data.keys()) and (sensed[key] != None):
                         # some sensor key are the same, except only 2 of them
                         # examples are meteo values eg temp, humidity
-                        MyLogger.log('DEBUG',"There is more then one %s in data stream: collected: %5.1f, new %5.1f" % (key,data[key],sensed[key]))
+                        MyLogger.log(modulename,'DEBUG',"There is more then one %s in data stream: collected: %5.1f, new %5.1f" % (key,data[key],sensed[key]))
                         if (type(data[key]) is int) and (type(sensed[key]) is int):
                             sensed[key] = int((sensed[key]+data[key]+0.5)/2)
                         else:
@@ -763,10 +774,10 @@ def sensorread():
             except KeyboardInterrupt:
                 exit(0)
             except (Exception) as error:
-                MyLogger.log('ERROR',"%s Error : %s. Disabled." % (Sensor,error))
+                MyLogger.log(modulename,'ERROR',"%s Error : %s. Disabled." % (Sensor,error))
                 Conf['inputs'].remove(Sensor)
                 if not len(Conf['inputs']):
-                    MyLogger.log('FATAL',"No input sensors active any more. Exiting.")
+                    MyLogger.log(modulename,'FATAL',"No input sensors active any more. Exiting.")
                 continue
             if first and local:
                 for i in range(0,len(Conf[Sensor]['module'].Conf['fields'])):
@@ -825,22 +836,22 @@ def sensorread():
                                 if type(Conf[Out]['module'].Conf['fd']) is file:
                                     close(Conf[Out]['module'].Conf['fd'])     # try again later
                                 Conf[Out]['module'].Conf['fd'] = 0
-                                MyLogger.log('WARNING','Publishing for %s has temporary failure. Try again.' % Out)
+                                MyLogger.log(modulename,'WARNING','Publishing for %s has temporary failure. Try again.' % Out)
                                 break
                             else:
                                 while(deQueue(Out)): continue
                                 Conf['outputs'].remove(Out)
-                                MyLogger.lof('ERROR','Publishing for %s permanent error.' % Out)
+                                MyLogger.log(modulename,'ERROR','Publishing for %s permanent error.' % Out)
                                 break
                     except StandardError as err:
                         if not 'ErrorCount' in Conf[Out].keys():
                             Conf[Out]['ErrorCount'] = 0
                         Conf[Out]['ErrorCount'] += 1
-                        MyLogger.log('ERROR',"Publish via %s failed with error: %s" % (Out,err))
+                        MyLogger.log(modulename,'ERROR',"Publish via %s failed with error: %s" % (Out,err))
                         if Conf[Out]['ErrorCount'] < 10:
                             deQueue(Out)        # throw this output record away
                             continue
-                        MyLogger.log('ERROR',"Publish via %s is too much failing. Skipping this output stream." % Out)
+                        MyLogger.log(modulename,'ERROR',"Publish via %s is too much failing. Skipping this output stream." % Out)
                         while(deQueue(Out)): continue
                         Conf['outputs'].remove(Out)
                         Conf[Out]['module'].Conf['output'] = False
@@ -882,7 +893,7 @@ def FreeConfMem(*IO):
                     except:
                         pass
                 del Conf[key]
-                MyLogger.log('DEBUG',"Deleted plugin My%s (unused)." % key.upper())
+                MyLogger.log(modulename,'DEBUG',"Deleted plugin My%s (unused)." % key.upper())
     return True
 
 # load optional configured input/output module plugins
@@ -915,21 +926,21 @@ def LoadWrapup(io):
         if Nme in INPUTS_I + OUTPUTS_I: # need internet connectivity?
             try:
                 if not Conf['internet']['module']:      # only once
-                    MyLogger.log('DEBUG',"Importing module: %s" % Conf['internet']['import'])
+                    MyLogger.log(modulename,'DEBUG',"Importing module: %s" % Conf['internet']['import'])
                     Conf['internet']['module'] = __import__(Conf['internet']['import'])
                     Conf['internet']['connected']=Conf['internet']['module'].internet(Conf['id'])
             except:
-                MyLogger.log('FATAL',"Unable to install internet access.")
+                MyLogger.log(modulename,'FATAL',"Unable to install internet access.")
         if ('import' in Conf[Nme].keys()) and (not 'module' in Conf[Nme].keys()):
-            MyLogger.log('DEBUG',"Importing %s plugin: %s" % (io,Conf[Nme]['import']))
+            MyLogger.log(modulename,'DEBUG',"Importing %s plugin: %s" % (io,Conf[Nme]['import']))
             try:
                 Conf[Nme]['module'] = __import__(Conf[Nme]['import'])
                 if not CheckVersion(Conf[Nme]['module'].__version__):
-                    MyLogger.log('FATAL',"Module %s version is not compatible." % Nme)
+                    MyLogger.log(modulename,'FATAL',"Module %s version is not compatible." % Nme)
             except NameError:
-                MyLogger.log('FATAL',"Module %s has no version defined." % Nme)
+                MyLogger.log(modulename,'FATAL',"Module %s has no version defined." % Nme)
             except ImportError:
-                MyLogger.log('FATAL',"Unable to import input/output module %s" % Conf[Nme]['import'])
+                MyLogger.log(modulename,'FATAL',"Unable to import input/output module %s" % Conf[Nme]['import'])
         # handle options for the module
         if ('module' in Conf[Nme].keys()):
             Conf[Nme]['module'].Conf.update(Conf[Nme])  # set module attributes
@@ -952,7 +963,7 @@ if ('start_dir' in Conf['process'].keys()) and Conf['process']['start_dir']:
     try:
         os.chdir(Conf['process']['start_dir'])
     except:
-        MyLogger.log('FATAL',"Could not change directory to %s." % Conf['process']['start_dir'])
+        MyLogger.log(modulename,'FATAL',"Could not change directory to %s." % Conf['process']['start_dir'])
 
 if process == 'interactive':  ## interactive mode ===========
     print("Stop this process NOT via <cntrl>c, but via <cntrl>z and kill %1")
@@ -971,9 +982,9 @@ else:                              ## service mode     ===========
         if ('gid' in Conf['process'].keys()) and (Conf['process']['gid']):
             setgid(Conf['process']['gid'])
     except:
-        MyLogger.log('ERROR',"Cannot set process uid (%d) or gid (%d)." % (setuid(Conf['process']['uid'],etgid(Conf['process']['gid']))))
+        MyLogger.log(modulename,'ERROR',"Cannot set process uid (%d) or gid (%d)." % (setuid(Conf['process']['uid'],etgid(Conf['process']['gid']))))
     if geteuid() == 0:
-        MyLogger.log('ERROR',"Process deamon is running under root permissions!")
+        MyLogger.log(modulename,'ERROR',"Process deamon is running under root permissions!")
     pidfile = Conf['process']['pid'] + progname + '.pid'
     os.chdir(Conf['process']['home'])    # current directory now is here
     if process == 'start':
@@ -997,7 +1008,7 @@ else:                              ## service mode     ===========
                         except:
                             pass
                         Conf[name,'fd'] = None
-                MyLogger.log('ERROR',"IO error %s, try to restart" % e)
+                MyLogger.log(modulename,'ERROR',"IO error %s, try to restart" % e)
             if (time() - LastTime) > 60:
                 WaitTime = 60
             else:

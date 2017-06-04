@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyGPS.py,v 2.10 2017/04/18 18:14:59 teus Exp teus $
+# $Id: MyGPS.py,v 2.12 2017/06/04 14:40:20 teus Exp $
 
 # TO DO:
 #
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyGPS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.10 $"[11:-2]
+__version__ = "0." + "$Revision: 2.12 $"[11:-2]
 
 import os
 from time import time, sleep
@@ -42,6 +42,7 @@ except ImportError as e:
 __options__ = [
         'input',
         'host','port',
+        'raw',
         'interval','sync'
 ]
 
@@ -54,6 +55,7 @@ Conf = {
     'port': 2947,       # default unix socket port for gpsd
     'interval': 60,     # read location every interval seconds
     'sync': False,	# get geo info in sync with main process
+    'raw': False,       # print raw measurements
     'debug': False,     # be more versatile
 }
 
@@ -75,6 +77,7 @@ class GPSthread(threading.Thread):
         inits['host'] = '127.0.0.1' # localhost gpsd socket
         inits['port'] = '2947'      # default GPS daemon port
         inits['sync'] = False       # run in multi threaded modus
+        inits['raw'] = False        # display raw geo values
         for key in args.keys():
             inits[key] = args[key]
         self.TINTERV = inits['interval']  # internal max interval for new values
@@ -83,6 +86,7 @@ class GPSthread(threading.Thread):
         self.port = inits['port']
         self.name = 'GPS client'
         self.sync = inits['sync']
+        self.raw = inits['raw']
         self.cur_val = {}                 # current location record
 
     def getRecord(self):
@@ -112,6 +116,7 @@ class GPSthread(threading.Thread):
 		        continue
                 rec = { 'time': int(self.time()) }
                 geo = []
+                rvals = []
                 for item in ['lat','lon','alt']:
                     if GPSdata.TPV[item] != 'n/a':
                         try:
@@ -124,6 +129,7 @@ class GPSthread(threading.Thread):
                             strg = strg + '.0' if not '.' in strg else strg
                             strg = strg.strip(' ')
                             geo.append(strg)
+                            rvals.append('%s=%s' % (item, strg.replace(' ','')))
                         except:
                             pass
                     elif self.DEBUG:
@@ -132,6 +138,8 @@ class GPSthread(threading.Thread):
                     rec['geo'] = ','.join(geo)
                     if self.DEBUG:
                         print("Got new GPS rec: %s (lat,lon,alt)" % rec['geo'])
+                    if self.raw and len(rvals):
+                        print("raw,sensor=%s %s %d000\n" % ('location',','.join(rvals),int(time()*1000)))
                     if (prev_l[0] != geo[0]) or (prev_l[1] != geo[1]):
                         prev_t = rec['time']; prev_l = geo
                         with self.threadLock: self.cur_val = rec
@@ -172,7 +180,7 @@ def start_thread():
             GPSthreads = threading.Thread(target=MyThread.GPSclient)
             GPSthreads.start()
         except StandardError as e:
-            MyLogger.log('ERROR',"Unable to start GPS thread." % e)
+            MyLogger.log(modulename,'ERROR',"Unable to start thread." % e)
             return False
         sleep(1)      # allow some data to come in
     return True
@@ -183,7 +191,7 @@ def stop_thread():
         threading.join()
     except:
         pass
-    MyLogger.log('WARNING',"Stopped GPS thread.")
+    MyLogger.log(modulename,'WARNING',"Stopped thread.")
     return
 
 # set inital configuration values and ready GPSD thread
@@ -200,6 +208,7 @@ def registrate():
                 port = Conf['port'],
                 host=['host'],
                 sync=Conf['sync'],
+                raw=Conf['raw'],
                 DEBUG=Conf['debug'])
             # first call is interval secs delayed by definition
             if Conf['sync']: return True
@@ -227,7 +236,7 @@ def getdata():
             return {}                  # for 5 minutes no geo change
         return rec
     except IOError as er:
-        MyLogger.log('WARNING',"Sensor GPS input failure: %s" % er)
+        MyLogger.log(modulename,'WARNING',"Sensor input failure: %s" % er)
     return {}
 
 # test main loop
@@ -235,7 +244,8 @@ if __name__ == '__main__':
     from time import sleep
     Conf['input'] = True
     # Conf['sync'] = True      # sync = False will start async collect
-    Conf['debug'] = True     # True will print GPSD collect info from thread
+    Conf['debug'] = True       # True will print GPSD collect info from thread
+    Conf['raw'] = True
     for cnt in range(0,10):
         timing = time()
         try:

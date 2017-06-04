@@ -46,6 +46,7 @@ import time
 import struct
 import serial
 import math
+import signal
 
 class SDS011(object):
     """Class representing the SD011 dust sensor and its methods.
@@ -120,6 +121,10 @@ class SDS011(object):
         The device_path on Win is one of your COM ports.
         On Linux one of "/dev/ttyUSB..." or "/dev/ttyAMA..."
         '''
+        def timeoutHdlr(signum,frame):
+            signal.alarm(0)
+            raise IOError("timeout on sds011 initialisation")
+
         self.logger = None
         if 'logger' in args.keys():             # log routine
             self.logger = args['logger']
@@ -139,57 +144,75 @@ class SDS011(object):
             self.log("DEBUG","Start of the constructor with device_path {0}\n".format(device_path))
         self.__device_path = device_path
         self.device = None
-        try:
-            self.device = serial.Serial(device_path,
+        signal.signal(signal.SIGALRM, timeoutHdlr)
+        tried = 0
+        while True:
+            if self.device != None:
+                self.device.close()
+                self.device = None
+            try:
+                self.device = serial.Serial(device_path,
                                     baudrate=9600, stopbits=serial.STOPBITS_ONE,
                                     parity=serial.PARITY_NONE,
                                     bytesize=serial.EIGHTBITS,
                                     timeout=2)
-            if self.device.isOpen() is False:
-                if not self.device.open():
-                    raise IOError("Unable to open USB to SDS011")
-        except:
-            raise IOError("SDS011: unable to set serial device %s" % device_path)
+                if self.device.isOpen() is False:
+                    if not self.device.open():
+                        raise IOError("Unable to open USB to SDS011")
+            except:
+                raise IOError("SDS011: unable to set serial device %s" % device_path)
 
-        # ToDo: initiate whith the values, the sensor has to be queried for that
-        self.__firmware = None
-        self.__reportmode = None
-        self.__workstate = None
-        self.__dutycycle = None
-        self.__device_id = None
-        self.__read_timeout = 0
-        self.__dutycycle_start = time.time()
-        self.__read_timeout_drift_percent = 2
-        # within response the __device_id will be set
-        first_response = self.__response()
-        if len(first_response) == 0:
-            # Device might be sleeping. So wake it up
-            self.log("WARNING","While constructing the instance "
+            # ToDo: initiate whith the values, the sensor has to be queried for that
+            self.__firmware = None
+            self.__reportmode = None
+            self.__workstate = None
+            self.__dutycycle = None
+            self.__device_id = None
+            self.__read_timeout = 0
+            self.__dutycycle_start = time.time()
+            self.__read_timeout_drift_percent = 2
+            try:
+                signal.alarm(self.timeout)
+                # within response the __device_id will be set
+                first_response = self.__response()
+                if len(first_response) == 0:
+                    # Device might be sleeping. So wake it up
+                    self.log("WARNING","While constructing the instance "
                             "the sensor is not responding. "
                             "Maybe in sleeping in passive mode or in a "
                             "duty cycle? Will wake it up!")
-            self.__send(self.Command.WorkState,
-                        self.__construct_data(self.CommandMode.Setting,
+                    self.__send(self.Command.WorkState,
+                            self.__construct_data(self.CommandMode.Setting,
                                               self.WorkStates.Measuring))
-            self.__send(self.Command.DutyCycle, self.__construct_data(
-                self.CommandMode.Setting, 0))
-        # at this point, device is awake, shure. So store this state
-        self.__workstate = self.WorkStates.Measuring
-        self.__get_current_config()
-        self.device.timeout = self.timeout
-        self.debugPrt(1,"Sensor has firmware %s" % self.__firmware)
-        self.debugPrt(1,"Sensor is in reportmode %s" % self.__reportmode)
-        self.debugPrt(1,"Sensor is in workstate %s" % self.__workstate)
-        self.debugPrt(1,"Sensor is in dutycycle %s, None if Zero" % self.__dutycycle)
-        self.debugPrt(1,"Sensor has Device ID: %s" % self.device_id)
-        self.debugPrt(3,"The constructor is successfully executed.")
+                    self.__send(self.Command.DutyCycle, self.__construct_data(
+                            self.CommandMode.Setting, 0))
+                # at this point, device is awake, shure. So store this state
+                self.__workstate = self.WorkStates.Measuring
+                self.__get_current_config()
+            except IOError:
+                if tried > 3:
+                    self.debugPrt(1,"Failed to initialize sds011 settings")
+                    raise IOError("Initializing sds1011")
+                self.debugPrt(1,"Timeout on initial sds011 settings")
+                tried += 1
+                continue
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, signal.SIG_IGN)
+            self.device.timeout = self.timeout
+            self.debugPrt(1,"Sensor has firmware %s" % self.__firmware)
+            self.debugPrt(1,"Sensor is in reportmode %s" % self.__reportmode)
+            self.debugPrt(1,"Sensor is in workstate %s" % self.__workstate)
+            self.debugPrt(1,"Sensor is in dutycycle %s, None if Zero" % self.__dutycycle)
+            self.debugPrt(1,"Sensor has Device ID: %s" % self.device_id)
+            self.debugPrt(3,"The constructor is successfully executed.")
+            break
 
     def log(self,level,string):
         if self.logger != None:
-            self.logger(level,string)
+            self.logger('sds011 class',level,string)
 
     def debugPrt(self,level,string):
-        if self.debug >= level and self.logger != None: self.logger('DEBUG',string)
+        if self.debug >= level and self.logger != None: self.logger('sds011 class','DEBUG',string)
 
     # conversion parameters come from:
     # http://ir.uiowa.edu/cgi/viewcontent.cgi?article=5915&context=etd
@@ -482,7 +505,7 @@ class SDS011(object):
                         break
             else:
                 if self.__dutycycle == 0:
-                    self.log("ERROR","A sensor response has not arrived within timeout limit. "
+                    self.log('sds011 class',"ERROR","A sensor response has not arrived within timeout limit. "
                                   "If the sensor is in sleeping mode wake it up first!"
                                   " Returning an empty byte array as response!")
                 else:

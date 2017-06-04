@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyEMAIL.py,v 2.5 2017/04/09 17:44:20 teus Exp teus $
+# $Id: MyEMAIL.py,v 2.6 2017/06/04 09:40:55 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyEMAIL.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.5 $"[11:-2]
+__version__ = "0." + "$Revision: 2.6 $"[11:-2]
 
 # send email once on startup when broker is used
 
@@ -56,7 +56,7 @@ try:
     import datetime
     import smtplib
 except ImportError:
-    MyLogger.log('FATAL',"Unable to import MIMEText or  smtplib. Send session email aborted.")
+    MyLogger.log(modulename,'FATAL',"Unable to import needed module.")
 
 def get_from():
     """ get from address for sending emails. """
@@ -68,7 +68,7 @@ def get_from():
         import socket
         Conf['from'] = getpass.getuser() + '@' + socket.getfqdn()
     except:
-        MyLogger.log('ERROR',"For sending email missing getpass or socket module.")
+        MyLogger.log(modulename,'ERROR',"For sending email missing getpass or socket module.")
         return None
     return Conf['from']
 
@@ -123,7 +123,7 @@ def registrate(ident,net):
             except:
                 Conf[frm] = None
     if (not 'to' in Conf.keys()) or (Conf['to'] == None):
-        MyLogger.log('ERROR',"Email To address is defined. Email aborted.")
+        MyLogger.log(modulename,'ERROR',"Email To address is defined. Email aborted.")
         Conf['output'] = False
         return False
     msg['To'] = Conf['to']
@@ -144,14 +144,14 @@ def registrate(ident,net):
             smtpserver.login(Conf['user'], Conf['password'])
         else:
             if msg['From'] == None:
-                MyLogger.log('ERROR',"Email From address is not defined. Email aborted.")
+                MyLogger.log(modulename,'ERROR',"From address is not defined. Email aborted.")
                 Conf['output'] = False
                 return False
             smtpserver = smtplib.SMTP('localhost')
         smtpserver.sendmail(msg['From'], [msg['To']], msg.as_string())
         smtpserver.quit()
     except:
-        MyLogger.log(WARNING,"SMTP error, unable to send session email")
+        MyLogger.log(modulename,WARNING,"SMTP error, unable to send session email")
         Conf['registrated'] = False
         Conf['last'] = time() ; Conf['fd'] = 0 ; Conf['waitCnt'] += 1
         if not (Conf['waitCnt'] % 5):
@@ -177,6 +177,6 @@ def publish(**args):
     # time to send registration email
     for key in ['data','internet','ident']:
         if not key in args.keys():
-            MyLogger.log('FATAL',"Broker publish call missing argument %s." % key)
+            MyLogger.log(modulename,'FATAL',"Publish call missing argument %s." % key)
     return registrate(args['ident'],args['internet'])
 

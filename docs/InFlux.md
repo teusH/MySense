@@ -17,6 +17,8 @@ The InFlux software is available from github:
 * https://github.com/influxdata/influxdb-python
 *   `wget https://dl.influxdata.com/influxdb/releases/influxdb_1.2.2_amd64.deb
     sudo dpkg -i influxdb_1.2.2_amd64.deb`
+* https://github.com/influxdata/influxdb/blob/master/influxql/README.md reference manual for query
+* https://docs.influxdata.com/influxdb/v1.2/guides/writing_data/ writing data with http API, examples with `curl` command.
 
 ### DESCRIPTION
 InFluxDB is used  in 3 different ways by MySense:

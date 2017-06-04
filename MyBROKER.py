@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyBROKER.py,v 2.5 2017/04/07 15:49:18 teus Exp teus $
+# $Id: MyBROKER.py,v 2.6 2017/06/04 09:40:55 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,7 +26,7 @@
     Relies on Conf setting biy main program
 """
 modulename='$RCSfile: MyBROKER.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.5 $"[11:-2]
+__version__ = "0." + "$Revision: 2.6 $"[11:-2]
 
 try:
     import MyLogger
@@ -36,7 +36,7 @@ try:
     socket.setdefaulttimeout(30)
     import requests
 except ImportError as e:
-    MyLogger.log("FATAL","One of the import modules not found: %s" % e)
+    MyLogger.log(modulename,"FATAL","One of the import modules not found: %s" % e)
 
 # configurable options
 __options__ = ['output','hostname','port','url','apikey']
@@ -101,13 +101,13 @@ def registrate(ident,net):
         # and check cookie for new regsitration
         Conf['registrated'] = True
         Conf['fd'] = 1
-        MyLogger.log('DEBUG',"Registration request sent to broker")
+        MyLogger.log(modulename,'DEBUG',"Registration request sent to broker")
     except IOError:
-        MyLogger.log('ERROR','Internet connection is failing')
+        MyLogger.log(modulename,'ERROR','Internet connection is failing')
         raise IOError('Broker connectivity error')
         return False
     except:
-        MyLogger.log('ERROR',"Sending registration to url %s" % Conf['url'])
+        MyLogger.log(modulename,'ERROR',"Sending registration to url %s" % Conf['url'])
         Conf['registrated'] = False
     return Conf['registrated']
 
@@ -117,10 +117,10 @@ def publish(**args):
         return
     for key in ['data','internet','ident']:
         if not key in args.keys():
-            MyLogger.log('FATAL',"Broker publish call missing argument %s." % key)
+            MyLogger.log(modulename,'FATAL',"Broker publish call missing argument %s." % key)
     if not args['internet']['module'].internet(ident,args['internet']):
         Conf['output'] = False # to do: add recovery time out
-        MyLogger.log('ERROR',"No internet access. Abort broker output.")
+        MyLogger.log(modulename,'ERROR',"No internet access. Abort broker output.")
         return False
     if not 'fd' in Conf.keys(): Conf['fd'] = None
     if not 'last' in Conf.keys():
@@ -137,16 +137,16 @@ def publish(**args):
         if ('cookie' in Conf.keys()) and len(Conf['cookie']):
             request['cookie'] = Conf['cookie']
         r = requests.post('https://'+Conf['hostname']+':'+Conf['port']+'/'+Conf['url'], data=json.dumps(request), headers=headers)
-        MyLogger.log('DEBUG',"Data send to broker")
+        MyLogger.log(modulename,'DEBUG',"Data send to broker")
     except IOError:
-        MyLogger.log('WARNING','Broker internet connectivity error.')
+        MyLogger.log(modulename,'WARNING','Broker internet connectivity error.')
         Conf['last'] = time() ; Conf['fd'] = 0 ; Conf['waitCnt'] += 1
         Conf['registrated'] = None      # force registrate
         if not (Conf['waitCnt'] % 5): Conf['waiting'] *= 2
         raise IOError("Broker repeated access try failed")
         return False
     except:
-        MyLogger.log('ERROR',"Sending data to url %s" % Conf['url'])
+        MyLogger.log(modulename,'ERROR',"Sending data to url %s" % Conf['url'])
         Conf['output'] = False
         return False
     Conf['last'] = time(); Conf['waitCnt'] = 0

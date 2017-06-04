@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyInternet.py,v 2.3 2017/02/01 12:47:13 teus Exp teus $
+# $Id: MyInternet.py,v 2.5 2017/06/04 09:40:55 teus Exp teus $
 
 # TO DO:
 
 """ Maintain internet connection and info about the ip and rssi values
 """
 modulename='$RCSfile: MyInternet.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.3 $"[11:-2]
+__version__ = "0." + "$Revision: 2.5 $"[11:-2]
 
 # configurable options
 __options__ = []
@@ -49,7 +49,7 @@ try:
         import urllib.request as urlreq
         from urllib.error import URLError
 except ImportError as e:
-    MyLogger.log('FATAL',"Unable to load module %s" % e)
+    MyLogger.log(modulename,'FATAL',"Unable to load module %s" % e)
 
 # see if there is an internet connection.
 # on wifi provide rssi strength
@@ -95,13 +95,13 @@ def internet(ident):
         for U in Us:
             try:
                 # allow max wait as 30 seconds
-                MyLogger.log('DEBUG',"External IP address, try http://%s" % U)
+                MyLogger.log(modulename,'DEBUG',"External IP address, try http://%s" % U)
                 site = urlreq.urlopen('http://'+U, timeout=30).read()
                 grap = re.findall('([1-9][0-9]{0,2}(\.[1-9][0-9]{0,2}){3}|[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){3,6})', site)
                 if len(grap):
                     break
             except URLError as e:
-                MyLogger.log('ERROR',"No external due to " + e.reason)
+                MyLogger.log(modulename,'ERROR',"No external due to " + e.reason)
                 return False
             except:
                 pass

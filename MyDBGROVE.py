@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDBGROVE.py,v 2.7 2017/04/18 18:14:59 teus Exp teus $
+# $Id: MyDBGROVE.py,v 2.8 2017/06/04 09:40:55 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDBGROVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.7 $"[11:-2]
+__version__ = "0." + "$Revision: 2.8 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -38,7 +38,7 @@ try:
     import grovepi
     import math
 except ImportError:
-    MyLogger.log('FATAL',"Missing modules for %" % modulename)
+    MyLogger.log(modulename,'FATAL',"Missing modules for %" % modulename)
 
 # configurable options
 __options__ = [
@@ -79,12 +79,12 @@ def Add(conf):
     try:
         db = grovepi.analogRead(conf['fd'])
     except:
-        MyLogger.log('ERROR',"Grove dB access error.")
+        MyLogger.log(modulename,'ERROR',"Loudness access error.")
         return {'time': int(time()),conf['fields'][0]:None}
     if conf['debug']:
-        MyLogger.log('DEBUG',"Grove dB: %s" % str(db))
+        MyLogger.log(modulename,'DEBUG',"Loudness: %s" % str(db))
     if not type(db) is int:
-	MyLogger.log('ATTENT','Grove dB has not an int as value: %s' % str(db))
+	MyLogger.log(modulename,'ATTENT','Has not an int as value: %s' % str(db))
 	return {'time': int(time()),conf['fields'][0]:None}
     db = calibrate(0,conf,db)
     rec = {'time': int(time()),conf['fields'][0]:int(db)}
@@ -100,11 +100,11 @@ def registrate():
         return True
     Conf['input'] = False
     if Conf['port'] == None:
-        MyLogger.log('ERROR',"Grove port not defined. Disabled.")
+        MyLogger.log(modulename,'ERROR',"Port not defined. Disabled.")
     elif Conf['port'].upper()[0] != 'A': 
-        MyLogger.log('ERROR',"Grove port %s not correct. Disabled." % Conf['port'])
+        MyLogger.log(modulename,'ERROR',"Port %s not correct. Disabled." % Conf['port'])
     elif not int(Conf['port'][1]) in [0,1,2]:
-        MyLogger.log('ERROR',"Grove Loudness port nr number %s. Disabled." % Conf['port'])
+        MyLogger.log(modulename,'ERROR',"Loudness port nr number %s. Disabled." % Conf['port'])
     else:
         Conf['input'] = True
         Conf['fd'] = int(Conf['port'][1])
@@ -141,7 +141,7 @@ def getdata():
         rec['dbv'] = int(rec['dbv'])
 	return rec
     except IOError as er:
-        MyLogger.log('WARNING',"Sensor Grove dB input failure: %s" % er)
+        MyLogger.log(modulename,'WARNING',"Loudness input failure: %s" % er)
     return {}
 
 # test main loop

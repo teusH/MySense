@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.21 2017/05/03 19:02:42 teus Exp teus $
+# $Id: MyDB.py,v 2.22 2017/06/04 09:40:55 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.21 $"[11:-2]
+__version__ = "0." + "$Revision: 2.22 $"[11:-2]
 
 try:
     import MyLogger
@@ -37,7 +37,7 @@ try:
     import datetime
     from time import time
 except ImportError as e:
-    MyLogger.log("FATAL","One of the import modules not found: %s" % e)
+    MyLogger.log(modulename,"FATAL","One of the import modules not found: %s" % e)
 
 # configurable options
 __options__ = ['output','hostname','port','database','user','password']
@@ -70,12 +70,12 @@ def db_connect(net):
         Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
     if (Conf['fd'] == None) or (not Conf['fd']):
         if (Conf['hostname'] != 'localhost') and ((not net['module']) or (not net['connected'])):
-            MyLogger.log('ERROR',"Local access database %s / %s."  % (Conf['hostname'], Conf['database']))      
+            MyLogger.log(modulename,'ERROR',"Access database %s / %s."  % (Conf['hostname'], Conf['database']))      
             Conf['output'] = False
             return False
         for M in ('user','password','hostname','database'):
             if (not M in Conf.keys()) or not Conf[M]:
-                MyLogger.log('ERROR','Define DB details and credentials.')
+                MyLogger.log(modulename,'ERROR','Define DB details and credentials.')
                 Conf['output'] = False
                 return False
         if (Conf['fd'] != None) and (not Conf['fd']):
@@ -99,7 +99,7 @@ def db_connect(net):
             raise IOError
         except:
             Conf['output'] = False; del Conf['fd']
-            MyLogger.log('ERROR',"MySQL Connection failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
+            MyLogger.log(modulename,'ERROR',"MySQL Connection failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
             return False
     else:
         return Conf['output']
@@ -170,7 +170,7 @@ def db_registrate(ident):
             if item[1] == ident['geolocation']:
                 db_query("UPDATE Sensors SET last_check = now(), active = 1, sensors = %s, description = %s WHERE coordinates like '%s%%'  AND serial = '%s'" % (fld_units,fld_types,','.join(ident['geolocation'].split(',')[0:2]),ident['serial']) , False)
                 Conf["registrated"] = True
-                MyLogger.log('ATTENT',"Registrated to database table Sensors.")
+                MyLogger.log(modulename,'ATTENT',"Registrated to database table Sensors.")
                 db_WhereAmI(ident)
                 return True
     db_query("UPDATE Sensors SET active = 0 WHERE project = '%s' AND serial = '%s'" % (ident['project'],ident['serial']),False)
@@ -178,7 +178,7 @@ def db_registrate(ident):
         db_query("INSERT INTO Sensors (project,serial,coordinates,sensors,description,last_check,first) VALUES ('%s','%s','%s',%s,%s,now(),%s)" % (ident['project'],ident['serial'],ident['geolocation'],fld_units,fld_types,first),False)
     except:
         pass
-    MyLogger.log('ATTENT',"New registration to database table Sensors.")
+    MyLogger.log(modulename,'ATTENT',"New registration to database table Sensors.")
     Conf["registrated"] = True
     db_WhereAmI(ident)
     return True
@@ -189,7 +189,7 @@ def db_query(query,answer):
     global Conf
     # testCnt = 0 # just for testing connectivity failures
     # if testCnt > 0: raise IOError
-    MyLogger.log('DEBUG',"DB query: %s" % query)
+    MyLogger.log(modulename,'DEBUG',"Query: %s" % query)
     try:
         c = Conf['fd'].cursor()
         c.execute (query)
@@ -200,7 +200,7 @@ def db_query(query,answer):
     except IOError:
         raise IOError
     except:
-        MyLogger.log('ERROR',"MySQL Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
+        MyLogger.log(modulename,'ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
         return False
     return True
 
@@ -222,9 +222,9 @@ def db_table(ident,table):
         ) ENGINE=InnoDB DEFAULT CHARSET=latin1
             COMMENT='Sensor located at: %s'""" % (ident['project'],ident['serial'],ident['geolocation']),False):
         Conf[table] = False
-        MyLogger.log('ERROR',"Unable to create sensor table in database.")
+        MyLogger.log(modulename,'ERROR',"Unable to create sensor table in database.")
     else:
-        MyLogger.log('ATTENT',"Created table %s_%s" % (ident['project'],ident['serial']))
+        MyLogger.log(modulename,'ATTENT',"Created table %s_%s" % (ident['project'],ident['serial']))
     Conf[table] = True
     return Conf[table]
 
@@ -237,7 +237,7 @@ def publish(**args):
         return
     for key in ['data','internet','ident']:
         if not key in args.keys():
-            MyLogger.log('FATAL',"Broker publish call missing argument %s." % key)
+            MyLogger.log(modulename,'FATAL',"Publish call missing argument %s." % key)
 
     # translate MySense filed names into MySQL column field names
     # TO DO: get the transaltion table from the MySense.conf file
@@ -285,11 +285,11 @@ def publish(**args):
         if len(add):
             try:
                 db_query("ALTER TABLE %s_%s %s" % (args['ident']['project'],args['ident']['serial'],','.join(add)),False)
-                MyLogger.log('ATTENT',"Added new field to table %s_%s" % (args['ident']['project'],args['ident']['serial']))
+                MyLogger.log(modulename,'ATTENT',"Added new field to table %s_%s" % (args['ident']['project'],args['ident']['serial']))
             except IOError:
                 raise IOError
             except:
-                MyLogger.log('FATAL',"Unable to add columns: %s" % ', '.join(add))
+                MyLogger.log(modulename,'FATAL',"Unable to add columns: %s" % ', '.join(add))
                 Conf['output'] = False
                 return False
         Conf["fields"] = fields
@@ -298,7 +298,7 @@ def publish(**args):
     if not db_connect(args['internet']):
         return False
     if not db_registrate(args['ident']):
-        MyLogger.log('WARNING',"Unable to registrate the sensor.")
+        MyLogger.log(modulename,'WARNING',"Unable to registrate the sensor.")
         return False
    
     if not db_table(args['ident'],args['ident']["project"]+'_'+args['ident']["serial"]) or \
@@ -319,7 +319,7 @@ def publish(**args):
             cols.append(Nm); vals.append("'%s'" % args['data'][Fld])
         elif type(args['data'][Fld]) is list:
             # TO DO: this needs more thought
-            MyLogger.log('WARNING',"Found list for sensor %s." % Fld)
+            MyLogger.log(modulename,'WARNING',"Found list for sensor %s." % Fld)
             for i in range(0,len(args['data'][Fld])):
                 nwe = "%s_%d" % (Nm,i,args['data'][Fld][i])
                 if  not nwe in Fields:
@@ -341,7 +341,7 @@ def publish(**args):
     except IOError:
         raise IOError
     except:
-        MyLogger.log('ERROR','MySQL error in qry %s' % query)
+        MyLogger.log(modulename,'ERROR','Error in query: %s' % query)
         ErrorCnt += 1
     if ErrorCnt > 10:
         return False

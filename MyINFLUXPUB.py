@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyINFLUXPUB.py,v 1.8 2017/05/21 14:55:15 teus Exp teus $
+# $Id: MyINFLUXPUB.py,v 1.9 2017/06/04 09:40:55 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyINFLUXPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__version__ = "0." + "$Revision: 1.9 $"[11:-2]
 
 try:
     import MyLogger
@@ -36,7 +36,7 @@ try:
     import datetime
     from time import time
 except ImportError as e:
-    MyLogger.log("FATAL","One of the import modules not found: %s" % e)
+    MyLogger.log(modulename,"FATAL","One of the import modules not found: %s" % e)
 
 # configurable options
 __options__ = ['output','hostname','port','database','user','password','identification']
@@ -70,12 +70,12 @@ def db_connect(net):
         Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
     if (Conf['fd'] == None) or (not Conf['fd']):
         if (Conf['hostname'] != 'localhost') and ((not net['module']) or (not net['connected'])):
-            MyLogger.log('ERROR',"Local access database %s / %s."  % (Conf['hostname'], Conf[database]))      
+            MyLogger.log(modulename,'ERROR',"Access database %s / %s."  % (Conf['hostname'], Conf[database]))      
             Conf['output'] = False
             return False
         for M in ('user','password','hostname','database'):
             if (not M in Conf.keys()) or not Conf[M]:
-                MyLogger.log('ERROR','Define InFlux details and credentials.')
+                MyLogger.log(modulename,'ERROR','Define details and credentials.')
                 Conf['output'] = False
                 return False
         if (Conf['fd'] != None) and (not Conf['fd']):
@@ -93,14 +93,14 @@ def db_connect(net):
                 if { 'name': Conf['database'] } not in all_dbs_list:
                     try:
                         if not Conf['fd'].create_database(Conf['database']):
-                            MyLogger.log("WARNING", "InFlux unable to create the database %s" % Conf['database'])
+                            MyLogger.log(modulename,"WARNING", "Unable to create the database %s" % Conf['database'])
                             return False
                     except:
                         raise IOError
-                    MyLogger.log("ATTENT", "Created InFlux db: {0}".format(Conf['database']))
+                    MyLogger.log(modulename,"ATTENT", "Created db: {0}".format(Conf['database']))
                 Conf['fd'].switch_database(Conf['database'])
             except:
-                MyLogger.log('ATTENT',"InFlux publish admin failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
+                MyLogger.log(modulename,'ATTENT',"Publish admin failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
                 pass
             Conf['last'] = 0 ; Conf['waiting'] = 5 * 30 ; Conf['waitCnt'] = 0
             return True
@@ -110,7 +110,7 @@ def db_connect(net):
             raise IOError
         except:
             Conf['output'] = False; del Conf['fd']
-            MyLogger.log('ERROR',"InFlux Connection failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
+            MyLogger.log(modulename,'ERROR',"Connection failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
             return False
     else:
         return Conf['output']
@@ -147,7 +147,7 @@ def Influx_write(database, data, tags):
     try:
         return Conf['fd'].request('write','POST',{'db':database,'precision':'s'},data_line,204)
     except:
-        MyLogger.log('ERROR',"InFlux publish request error: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
+        MyLogger.log(modulename,'ERROR',"Publish request error: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
     ErrorCnt += 1
     return False
 
@@ -182,7 +182,7 @@ def db_registrate(net,ident):
     # data is sent as json dump as UDP to server
     if not Influx_write(Conf['database'], data, tags):
         raise IOError("InFlux connection/send problem")
-    MyLogger.log('ATTENT',"New registration to InFlux Sensors series.")
+    MyLogger.log(modulename,'ATTENT',"New info registration to sensors series.")
     Conf['new'] = 1
     Conf["registrated"] = True
     return True
@@ -195,7 +195,7 @@ def publish(**args):
         return
     for key in ['data','internet','ident']:
         if not key in args.keys():
-            MyLogger.log('FATAL',"Broker publish call missing argument %s." % key)
+            MyLogger.log(modulename,'FATAL',"Publish call missing argument %s." % key)
 
     # translate MySense field names into InFlux column field names
     # TO DO: get the transaltion table from the MySense.conf file
@@ -208,7 +208,7 @@ def publish(**args):
 
     if Conf['fd'] == None: Conf['registrated'] = None
     if not db_registrate(args['internet'],args['ident']):
-        MyLogger.log('WARNING',"Unable to registrate the sensor.")
+        MyLogger.log(modulename,'WARNING',"Unable to registrate the sensor.")
         return False
     if Conf['fd'] == None:
         return False
@@ -219,7 +219,7 @@ def publish(**args):
         if not args['data'][item]: continue
         Nm = db_name(item)
         if type(args['data'][item]) is list:
-            MyLogger.log('WARNING',"Influx: Found list for sensor %s." % item)
+            MyLogger.log(modulename,'WARNING',"Found list for sensor %s." % item)
             for i in range(0,len(args['data'][item])):
                 fields["%s_%d" % (Nm,i)] = args['data'][item][i]
         else:

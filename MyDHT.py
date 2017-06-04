@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.22 2017/04/18 18:14:59 teus Exp teus $
+# $Id: MyDHT.py,v 2.24 2017/06/04 14:40:20 teus Exp $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.22 $"[11:-2]
+__version__ = "0." + "$Revision: 2.24 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -36,12 +36,13 @@ try:
     import MyThreading          # needed for multi threaded input
     import MyLogger
 except ImportError:
-    MyLogger.log('FATAL',"Missing modules for %s" % modulename)
+    MyLogger.log(modulename,'FATAL',"Missing modules for %s" % modulename)
 
 # configurable options
 __options__ = [
     'input','pin','port','type','calibrations',
     'fields','units',
+    'raw', 
     'interval','bufsize','sync']       # multithead buffer size and search for input secs
 
 Conf ={
@@ -56,6 +57,7 @@ Conf ={
     'bufsize': 20,       # size of the window of values readings max
     'sync': False,       # use thread or not to collect data
     'debug': False,      # be more versatile
+    'raw': False,        # no raw measurements displayed by dflt
     'Ada_import': None,      # imported module either DHT or Grove
 #    'fd' : None          # input handler
 }
@@ -88,26 +90,28 @@ def Add(conf):
         elif (conf['port'] != None) and (conf['Ada_import'] != None):
             temp, humidity = conf['Ada_import'].dht(conf['port'],conf['fd'])
         else:
-            MyLogger.log('ERROR',"DHT configuration error.")
+            MyLogger.log(modulename,'ERROR',"Configuration error.")
             return rec
     except:
-        MyLogger.log('ERROR',"DHT gpio access error. /dev/gpiomem permissions correct?")
+        MyLogger.log(modulename,'ERROR',"GPIO access error. /dev/gpiomem permissions correct?")
         return {'time': int(time()),conf['fields'][0]:None,conf['fields'][1]:None}
     if (temp == None) or (humidity == None):
-        MyLogger.log('ERROR',"DHT access error. Connection problem?")
+        MyLogger.log(modulename,'ERROR',"Access error. Connection problem?")
         raise IOError("DHT lost connection.")
         return rec
     if type(temp) is float:
         if conf['debug']:
-            MyLogger.log('DEBUG',"Temperature : %5.2f oC not calibrated" % temp)
+            MyLogger.log(modulename,'DEBUG',"Temperature : %5.2f oC not calibrated" % temp)
     else:
-        MyLogger.log('DEBUG',"Temperature : None")
+        MyLogger.log(modulename,'DEBUG',"Temperature : None")
     if type(humidity) is float:
         if conf['debug']:
-            MyLogger.log('DEBUG',"Rel.Humidity: %5.2f %% not calibrated" % humidity)
+            MyLogger.log(modulename,'DEBUG',"Rel.Humidity: %5.2f %% not calibrated" % humidity)
     else:
-        MyLogger.log('DEBUG',"Rel.Humidity: None")
+        MyLogger.log(modulename,'DEBUG',"Rel.Humidity: None")
     if (temp == 0.0) and (humidity == 0.0): return rec
+    if ('raw' in conf.keys()) and conf['raw']:
+        print("raw,sensor=%s temp=%.1f,rh=%.1f %d000\n" % ('dht',temp,humidity,int(time()*1000)))
     temp = calibrate(0,conf,temp)
     humidity = calibrate(1,conf,humidity)
     rec = {'time': int(time()),conf['fields'][0]:temp,conf['fields'][1]:humidity}
@@ -123,12 +127,12 @@ def registrate():
         return True
     Conf['input'] = False
     if (Conf['type'] == None) or ((Conf['pin'] == None) and (Conf['port'] == None)):
-        MyLogger.log('ERROR',"DHT type or pin/port not defined. Disabled.")
+        MyLogger.log(modulename,'ERROR',"Type or pin/port not defined. Disabled.")
     elif not Conf['type'].upper() in DHT_types.keys():
-        MyLogger.log('ERROR',"DHT type %s not correct. Disabled." % Conf['type'])
+        MyLogger.log(modulename,'ERROR',"Type %s not correct. Disabled." % Conf['type'])
     elif Conf['pin'] != None: 
         if not int(Conf['pin']) in [4,5,6,12,13,17,18,22,23,24,25,26,27]:
-            MyLogger.log('ERROR',"DHT GPIO pin number %s not correct. Disabled." % Conf['pin'])
+            MyLogger.log(modulename,'ERROR',"GPIO pin number %s not correct. Disabled." % Conf['pin'])
         else:
             Conf['Ada_import'] = __import__('Adafruit_DHT')
             DHT_types = {
@@ -139,13 +143,13 @@ def registrate():
             Conf['fd'] = DHT_types[Conf['type'].upper()]
     elif Conf['port'] != None:
         if (Conf['port'][0].upper() != 'D') or (not int(Conf['port'][1]) in range(0,8)):
-            MyLogger.log('ERROR',"DHT Grove port number %s not correct. Disabled." % Conf['port'])
+            MyLogger.log(modulename,'ERROR',"Grove port number %s not correct. Disabled." % Conf['port'])
         else:
             Conf['Ada_import'] = __import__('grovepi')
             Conf['fd'] = 0 if Conf['type'].upper() == 'DHT11' else 1
             Conf['port'] = int(Conf['port'][1])
     if Conf['Ada_import'] == None:
-        MyLogger.log('ERROR',"DHT pin or port configuration error.")
+        MyLogger.log(modulename,'ERROR',"Pin or port configuration error.")
         return False
     Conf['input'] = True
     if MyThread == None: # only the first time
@@ -179,7 +183,7 @@ def getdata():
     try:
         return MyThread.getRecord()     # pick up a record
     except IOError as er:
-        MyLogger.log('WARNING',"Sensor DHT input failure: %s" % er)
+        MyLogger.log(modulename,'WARNING',"Sensor input failure: %s" % er)
     return {}
 
 # test main loop

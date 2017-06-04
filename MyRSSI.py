@@ -18,17 +18,17 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRSSI.py,v 1.4 2017/04/12 19:02:02 teus Exp teus $
+# $Id: MyRSSI.py,v 1.6 2017/06/04 14:40:20 teus Exp $
 
 # TO DO:
 
 """ wifi rssi values
 """
 modulename='$RCSfile: MyRSSI.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 1.6 $"[11:-2]
 
 # configurable options
-__options__ = ['input','fields','units',]
+__options__ = ['input','fields','units','raw']
 
 Conf = {
     'input': False,
@@ -36,6 +36,7 @@ Conf = {
     # 'last':     None,   # last time checked to throddle connection info
     'fields': ['rssi'],   # strength or signal level
     'units' : ['dBm'],    # per field the measurement unit
+    'raw': False,         # no raw measurements displayed by dflt
 }
 
 try:
@@ -46,7 +47,7 @@ try:
     from threading import Timer
     from time import time
 except ImportError as e:
-    MyLogger.log('FATAL',"Unable to load module %s" % e)
+    MyLogger(modulename,'FATAL',"Unable to load module %s" % e)
 
 class Command(object):
     def __init__(self, cmd):
@@ -112,6 +113,9 @@ def getdata():
                 return {}
         except:
             return {}
+    if ('raw' in Conf.keys()) and Conf['raw']:
+        print("raw,sensor=%s dBa=%.1f %d000\n" % ('wifi',Conf['rssi'],int(time()*1000)))
+
     return {'time': int(time()),'rssi': Conf['rssi']}
 
 # test main loop

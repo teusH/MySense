@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDYLOS.py,v 2.16 2017/04/19 20:29:29 teus Exp teus $
+# $Id: MyDYLOS.py,v 2.18 2017/06/04 14:40:20 teus Exp $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add version number, firmware number
@@ -34,12 +34,13 @@
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MyDYLOS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.16 $"[11:-2]
+__version__ = "0." + "$Revision: 2.18 $"[11:-2]
 
 # configurable options
 __options__ = [
     'input','type','usbid','file','firmware', 'calibrations',
     'fields','units',            # one may change this as name and/or ug/m3 units
+    'raw',                       # display raw measurements
     'interval','bufsize','sync'  # multithead buffer size and search for input
 ]
 
@@ -60,6 +61,7 @@ Conf = {
     'interval': 50,     # read dht interval in secs (dflt)
     'bufsize': 30,      # size of the window of values readings max
     'sync': False,      # use thread or not to collect data
+    'raw': False,       # dflt display raw measurements
     'debug': False,     # be more versatile on input data collection
 
 }
@@ -75,12 +77,12 @@ try:
         try:
             import Serial as serial
         except ImportError as e:
-            MyLogger.log('FATAL',"Missing module %s" % e)
+            MyLogger.log(modulename,'FATAL',"Missing module %s" % e)
     import re
     import subprocess           # needed to find the USB serial
     import MyThreading          # needed for multi threaded input
 except ImportError as e:
-    MyLogger.log('FATAL',"Missing module %s" % e)
+    MyLogger.log(modulename,'FATAL',"Missing module %s" % e)
 
 # convert pcs/qf (counter) to ug/m3 (weight)
 # ref: https://github.com/andy-pi/weather-monitor/blob/master/air_quality.py
@@ -132,7 +134,7 @@ def open_serial():
             # try serial with product ID
             byId = "/dev/serial/by-id/"
             if not os.path.exists(byId):
-                MyLogger.log('FATAL',"There is no USBserial connected. Abort.")
+                MyLogger.log(modulename,'FATAL',"There is no USBserial connected. Abort.")
             device_re = re.compile(".*-%s.*_USB-Serial.*(?P<device>ttyUSB\d+)$" % Conf['usbid'], re.I)
             devices = []
             try:
@@ -145,16 +147,16 @@ def open_serial():
                             serial_dev = '/dev/%s' % dinfo.pop('device')
                             break
             except CalledProcessError:
-                MyLogger.log('ERROR',"No serial USB connected.")
+                MyLogger.log(modulename,'ERROR',"No serial USB connected.")
             except (Exception) as error:
-                MyLogger.log('ERROR',"Serial USB %s not found, error:%s"%(Conf['usbid'], error))
+                MyLogger.log(modulename,'ERROR',"Serial USB %s not found, error:%s"%(Conf['usbid'], error))
                 Conf['usbid'] = None
         if (Conf['port'] == None) and (serial_dev == None):
-            MyLogger.log('WARNING',"Please provide serial USB producer info.")
+            MyLogger.log(modulename,'WARNING',"Please provide serial USB producer info.")
             for n,s in scan_serial():
                 port=n+1
-                MyLogger.log('WARNING',"%d --> %s" % (port,s) )
-            MyLogger.log('FATAL',"No input stream defined.")
+                MyLogger.log(modulename,'WARNING',"%d --> %s" % (port,s) )
+            MyLogger.log(modulename,'FATAL',"No input stream defined.")
             return False
         #Initialize Serial Port for Dylos
         if serial_dev == None:
@@ -168,9 +170,9 @@ def open_serial():
                 bytesize=serial.EIGHTBITS,
                 writeTimeout = 1,   # only needed if there was a firm upgrade on dylos
                 timeout=65*60)      # allow also monitor mode
-            MyLogger.log('INFO',"COM used for serial USB: %s" % serial_dev)
+            MyLogger.log(modulename,'INFO',"COM used for serial USB: %s" % serial_dev)
         except (Exception) as error:
-            MyLogger.log('FATAL',"%s" % error)
+            MyLogger.log(modulename,'FATAL',"%s" % error)
             return False
     else:
         # input is read from a file
@@ -180,7 +182,7 @@ def open_serial():
         try:
             Conf['fd'] = open(Conf['file'])
         except:
-            MyLogger.log('FATAL', "Failed top open input for %s" % sensor)
+            MyLogger.log(modulename,'FATAL', "Failed top open input for %s" % sensor)
             return False
     return True
 
@@ -242,14 +244,14 @@ def Add(conf):
             Serial_Errors = 0
         except SerialException:
             conf['Serial_Errors'] += 1
-            MyLogger.log('ATTENT',"Dylos serial exception. Close/Open serial.")
+            MyLogger.log(modulename,'ATTENT',"Serial exception. Close/Open serial.")
             try:
                 conf['fd'].close()
             except:
                 pass
             conf['fd'] = None
             if conf['Serial_Errors'] > 10:
-                MyLogger.log('ERROR',"Dylos to many serial errors. Disabled.")
+                MyLogger.log(modulename,'ERROR',"To many serial errors. Disabled.")
                 conf['output'] = False
                 return {}
             return conf['getdata']()
@@ -265,15 +267,17 @@ def Add(conf):
             MyLogger('WARNING',"Dylos Data: Error - Dylos Bin data")
             bin_data = [None] * MAX
         if (len(bin_data) > MAX) or (len(bin_data) < MAX): 
-            MyLogger.log('WARNING',"Dylos Data error")
+            MyLogger.log(modulename,'WARNING',"Data error")
         while len(bin_data) > MAX:
             del bin_data[len(bin_data)]
         while len(bin_data) < MAX:
             bin_data.append(None)
     except (Exception) as error:
         # Some other Dylos Error
-        MyLogger.log('WARNING',error)
+        MyLogger.log(modulename,'WARNING',error)
     # take notice: index 0 is PM2.5, index 1 is PM10 values
+    if ('raw' in conf.keys()) and conf['raw']:
+        print("raw,sensor=%s PM25=%.1f,PM10=%.1f %d000\n" % ('dylos',bin_data[PM25],bin_data[PM10],int(time()*1000)))
     return { "time": int(time()),
             conf['fields'][PM25]: calibrate(PM25,conf,bin_data[PM25]),
             conf['fields'][PM10]: calibrate(PM10,conf,bin_data[PM10]) }
@@ -285,7 +289,7 @@ def getdata():
     try:
         return MyThread.getRecord()     # pick up a record
     except IOError as er:
-        MyLogger.log('WARNING',"Sensor Dylos input failure: %s" % er)
+        MyLogger.log(modulename,'WARNING',"Sensor input failure: %s" % er)
     return {}
 
 Conf['getdata'] = getdata	# Add needs this global viariable

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyMQTTPUB.py,v 1.6 2017/04/13 11:11:25 teus Exp teus $
+# $Id: MyMQTTPUB.py,v 1.7 2017/06/04 09:40:55 teus Exp teus $
 
 # module mqtt: git clone https://github.com/eclipse/paho.mqtt.python.git
 # cd paho.mqtt.python ; python setup.py install
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyMQTTPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.6 $"[11:-2]
+__version__ = "0." + "$Revision: 1.7 $"[11:-2]
 
 try:
     import MyLogger
@@ -42,7 +42,7 @@ try:
     socket.setdefaulttimeout(30)
     import paho.mqtt.client as mqtt
 except ImportError as e:
-    MyLogger.log("FATAL","One of the import modules not found: %s" % e)
+    MyLogger.log(modulename,"FATAL","One of the import modules not found: %s" % e)
 
 # configurable options
 __options__ = ['output','hostname','user','password','apikey','prefix','topic','cert','ttl']
@@ -90,23 +90,23 @@ def PubOrSub(topic,telegram):
             waiting = False
             raise IOError("MQTT broker publish connect failure: %s." % rc)
         else:
-            MyLogger.log('DEBUG',"Connected to MQTT publishing broker")
+            MyLogger.log(modulename,'DEBUG',"Connected to publishing broker")
             pass
     
     def on_publish(client, obj, MiD):
         global waiting, mid
         waiting = False
         mid = MiD
-        MyLogger.log('DEBUG',"MQTT publish mid: " + str(mid))
+        MyLogger.log(modulename,'DEBUG',"Publish mid: " + str(mid))
     
     def on_log(client, obj, level, string):
-        MyLogger.log('DEBUG',"MQTT publishing Broker: %s" % string)
+        MyLogger.log(modulename,'DEBUG',"Broker: %s" % string)
 
     def on_disconnect(client, obj, MiD):
         global waiting, mid
         waiting = False
         mid = MiD
-        MyLogger.log('DEBUG',"MQTT publishing On disconnect mid: " + str(mid) )
+        MyLogger.log(modulename,'DEBUG',"On disconnect mid: " + str(mid) )
 
     Conf['fd'] = 1
     try:
@@ -137,14 +137,14 @@ def PubOrSub(topic,telegram):
         # mqttc.disconnect()
         mqttc.loop_stop()
     except:
-        MyLogger.log('ERROR',"IoS MQTT publishing Failure type: %s; value: %s. MQTT broker aborted." % (sys.exc_info()[0],sys.exc_info()[1]) )
+        MyLogger.log(modulename,'ERROR',"Failure type: %s; value: %s. MQTT broker aborted." % (sys.exc_info()[0],sys.exc_info()[1]) )
         raise IOError
         return False
     if waiting:
-        MyLogger.log('ATTENT',"Sending telegram to MQTT broker")
+        MyLogger.log(modulename,'ATTENT',"Sending telegram: wait")
         raise IOError
         return False
-    MyLogger.log('DEBUG',"Sent telegram to MQTT broker, waiting = %s, message id: %s" % (str(waiting),str(mid)) )
+    MyLogger.log(modulename,'DEBUG',"Sent telegram, waiting = %s, message id: %s" % (str(waiting),str(mid)) )
     return True
 
 # mqttc = mosquitto.Mosquitto()
@@ -168,7 +168,7 @@ def registrate(args):
     global Conf, mqtt
     for key in ['ident','internet','data']:
         if not key in args.keys():
-            MyLogger.log('FATAL',"Broker publish call missing argument %s." % key)
+            MyLogger.log(modulename,'FATAL',"Register call missing argument %s." % key)
     if (not args['internet']['module'].internet(args['ident'])):
         Conf['output'] = False
         return False
@@ -208,7 +208,7 @@ def registrate(args):
     except IOError as e:
         Conf['last'] = time() ; Conf['fd'] = 0 ; Conf['waitCnt'] += 1
         if not (Conf['waitCnt'] % 5): Conf['waiting'] *= 2
-        MyLogger.log('ERROR',"Sending registration to MQTT broker %s: error: %s" % (Conf['host'],e))
+        MyLogger.log(modulename,'ERROR',"Sending registration to %s, error: %s" % (Conf['host'],e))
         raise IOError
         return False
     return True
@@ -220,10 +220,10 @@ def publish(**args):
         return False
     for key in ['ident','data','internet']:
         if not key in args.keys():
-            MyLogger.log('FATAL',"Broker publish call missing argument %s." % key)
+            MyLogger.log(modulename,'FATAL',"Publish call missing argument %s." % key)
     if not args['internet']['module'].internet(args['ident']):
         Conf['output'] = False # to do: add recovery time out
-        MyLogger.log('ERROR',"No internet access. Abort MQTT broker output.")
+        MyLogger.log(modulename,'ERROR',"No internet access. Abort broker output.")
         return False
     for key in ['apikey']:      # force to ident
         if (key in Conf.keys()) and (Conf[key] != None) and len(Conf[key]):

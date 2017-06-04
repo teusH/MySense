@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyMQTTSUB.py,v 2.2 2017/02/02 19:31:25 teus Exp teus $
+# $Id: MyMQTTSUB.py,v 2.5 2017/06/04 09:40:55 teus Exp teus $
 
 # module mqtt: git clone https://github.com/eclipse/paho.mqtt.python.git
 # cd paho.mqtt.python ; python setup.py install
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyMQTTSUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.2 $"[11:-2]
+__version__ = "0." + "$Revision: 2.5 $"[11:-2]
 
 try:
     import MyLogger
@@ -43,7 +43,7 @@ try:
     socket.setdefaulttimeout(60)
     import paho.mqtt.client as mqtt
 except ImportError as e:
-    MyLogger.log("FATAL","One of the import modules not found: %s" % e)
+    MyLogger.log(modulename,"FATAL","One of the import modules not found: %s" % e)
 
 # configurable options
 __options__ = ['input','hostname','user','password','prefix','cert','ttl','projects','serials','apikey','topic']
@@ -86,45 +86,45 @@ def PubOrSub(topic,option):
     def on_connect(client, obj, rc):
         global waiting
         if rc != 0:
-            MyLogger.log('ERROR',"MQTTsub con error nr: %s" % str(rc))
+            MyLogger.log(modulename,'ERROR',"Connection error nr: %s" % str(rc))
             Conf['input'] = False
             waiting = False
             if 'fd' in Conf.keys():
                 Conf['fd'] = None
             raise IOError("MQTTsub connect failure.")
         else:
-            MyLogger.log('DEBUG',"MQTTsub connected.")
+            MyLogger.log(modulename,'DEBUG',"Connected.")
             pass
     
     def on_message(client, obj, msg):
         global waiting, telegrams
         waiting = False
-        #MyLogger.log('DEBUG','MQTTsub msg: topic: ' + msg.topic + ", qos: " + str(msg.qos) + ", msg: " + str(msg.payload))
+        #MyLogger.log(modulename,'DEBUG','MQTTsub msg: topic: ' + msg.topic + ", qos: " + str(msg.qos) + ", msg: " + str(msg.payload))
         try:
             if len(telegrams) > 100:    # 100 * 250 bytes
-                MyLogger.log('ERROR',"MQTTsub input buffer is full.")
+                MyLogger.log(modulename,'ERROR',"Input buffer is full.")
                 return
             telegrams.append( {
                 'topic': msg.topic,
                 'payload': str(msg.payload),
                 })
         except:
-            MyLogger.log('DEBUG','ERROR in MQTTsub message.')
+            MyLogger.log(modulename,'DEBUG','In message.')
     
     def on_subscribe(client, obj, MiD, granted_qos):
         global waiting, mid, ErrorCnt
         mid = MiD
-        MyLogger.log('DEBUG',"MQTTsub sub: mid: " + str(mid) + ",qos:" + str(granted_qos))
+        MyLogger.log(modulename,'DEBUG',"mid: " + str(mid) + ",qos:" + str(granted_qos))
     
     def on_log(client, obj, level, string):
         global PingTimeout, Conf, ErrorCnt
-        # MyLogger.log('DEBUG',"MQTTsub log: %s" % string)
+        # MyLogger.log(modulename,'DEBUG',"log: %s" % string)
         if string.find('PINGREQ') >= 0:
             if not PingTimeout:
                 PingTimeout = int(time())
-                #MyLogger.log('DEBUG',"MQTTsub log: ping")
+                #MyLogger.log(modulename,'DEBUG',"log: ping")
             elif int(time())-PingTimeout > 10*60: # should receive pong in 10 minutes
-                MyLogger.log('ATTENT',"MQTTsub: ping/pong timeout exceeded.")
+                MyLogger.log(modulename,'ATTENT',"Ping/pong timeout exceeded.")
                 if ('fd' in Conf.keys()) and (Conf['fd'] != None):
                     Conf['fd'].disconnect()
                     waiting = False
@@ -134,10 +134,10 @@ def PubOrSub(topic,option):
                     PingTimeout = 0
         elif string.find('PINGRESP') >= 0:
             if int(time())-PingTimeout != 0:
-                MyLogger.log('DEBUG',"MQTTsub log: ping/pong time: %d secs" % (int(time())-PingTimeout))
+                MyLogger.log(modulename,'DEBUG',"Log: ping/pong time: %d secs" % (int(time())-PingTimeout))
             PingTimeout = 0
         else:
-            MyLogger.log('DEBUG',"MQTTsub log: %s..." % string[:17])
+            MyLogger.log(modulename,'DEBUG',"Log: %s..." % string[:17])
 
     def on_disconnect(client, obj, MiD):
         global waiting, mid, Conf
@@ -145,7 +145,7 @@ def PubOrSub(topic,option):
         if 'fd' in Conf.keys():
             Conf['fd'] = None
         mid = MiD
-        MyLogger.log('DEBUG',"MQTTsub discon mid: " + str(mid) )
+        MyLogger.log(modulename,'DEBUG',"Disconnect mid: " + str(mid) )
         raise IOError("MQTTsub: disconnected")
 
     try:
@@ -178,16 +178,16 @@ def PubOrSub(topic,option):
         # Conf['fd'].disconnect()
         #Conf['fd'].loop_stop()
     except:
-        MyLogger.log('ERROR',"IoS MQTT Failure type: %s; value: %s. MQTT broker aborted." % (sys.exc_info()[0],sys.exc_info()[1]) )
+        MyLogger.log(modulename,'ERROR',"Failure type: %s; value: %s. MQTT broker aborted." % (sys.exc_info()[0],sys.exc_info()[1]) )
         Conf['output'] = False
         del Conf['fd']
         raise IOError("%s" % str(mid))
         return telegram
     if waiting:
-        MyLogger.log('ATTENT',"Sending telegram to MQTT broker")
+        MyLogger.log(modulename,'ATTENT',"Sending telegram to broker")
         raise IOError("%s" % str(mid))
         return telegram
-    MyLogger.log('DEBUG',"Received telegram from MQTT broker, waiting = %s, message id: %s" % (str(waiting),str(mid)) )
+    MyLogger.log(modulename,'DEBUG',"Received telegram from broker, waiting = %s, message id: %s" % (str(waiting),str(mid)) )
     if len(telegrams):
         return telegrams.pop(0)
     return telegram
@@ -222,7 +222,7 @@ def getdata():
     
     if (not 'registrated' in Conf.keys()) or (Conf['registrated'] == None):
         if 'registrated' in Conf.keys():
-            MyLogger.log('ATTENT',"MQTTsub: try to reconnect to MQTT broker.")
+            MyLogger.log(modulename,'ATTENT',"Try to reconnect to broker.")
         if (not 'projects' in Conf.keys()) or (not len(Conf['projects'])):
             Conf['projects'] = ['ALL']
         if (not 'topic' in Conf.keys()) or (Conf['topic'] == None):
@@ -230,12 +230,12 @@ def getdata():
         for key in ['user','password','hostname']:
             if (not key in Conf.keys()) or (Conf[key] == None):
                 Conf['input'] = False
-                MyLogger.log('FATAL',"MQTTpub: missing login %s credentials." % key)
+                MyLogger.log(modulename,'FATAL',"Missing login %s credentials." % key)
         try:
             Conf['projects'] = re.compile(Conf['projects'], re.I)
             Conf['serials'] = re.compile(Conf['serials'], re.I)
         except:
-            MyLogger.log('FATAL','Regular expression is wrong for project or serial.')
+            MyLogger.log(modulename,'FATAL','Regular expression for project or serial.')
         Conf['registrated'] = True
 
     try:
@@ -248,9 +248,9 @@ def getdata():
         msg['payload'] = json.loads(msg['payload'])
     except IOError as e:
         if ErrorCnt > 40:
-            MyLogger.log('FATAL',"Subscription on MQTT broker failed Mid: %s. Aborted." % e)
+            MyLogger.log(modulename,'FATAL',"Subscription failed Mid: %s. Aborted." % e)
         ErrorCnt += 1
-        MyLogger.log('WARNING',"Subscription to MQTT broker is failing Mid: %s. Slowing down." % e)
+        MyLogger.log(modulename,'WARNING',"Subscription is failing Mid: %s. Slowing down." % e)
     if (len(msg['topic']) < 3) or (msg['topic'][0] != Conf['topic']) or (not type(msg['payload']) is dict) or (not 'id' in msg['payload'].keys()):
         sleep(0.1)
         return getdata()
@@ -270,7 +270,7 @@ def getdata():
     # TO DO: check serial to api key (mqtt broker checks user with project/serial)
     for key in ['project','serial']:
         if (not Conf[key+'s'].match(msg[key])) or (not key in msg['payload']['id'].keys()) or (msg[key] != msg['payload']['id'][key]):
-            MyLogger.log('WARNING',"MQTT subscript: no proper telegram. Skipped.")
+            MyLogger.log(modulename,'WARNING',"Not a proper telegram. Skipped.")
             sleep(0.1)
             return getdata()
     return { 'register': msg['id'], 'data': msg['payload']['data'] }

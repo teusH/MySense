@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySDS011.py,v 1.7 2017/05/24 10:12:49 teus Exp teus $
+# $Id: MySDS011.py,v 1.11 2017/06/04 14:40:20 teus Exp $
 
 # Defeat: output average PM count over 59(?) or 60 seconds:
 #         continious mode: once per 59 minutes and 59 seconds!,
@@ -31,12 +31,13 @@
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MySDS011.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__version__ = "0." + "$Revision: 1.11 $"[11:-2]
 
 # configurable options
 __options__ = [
     'input','type','usbid','firmware', 'calibrations',
     'fields','units',                 # one may change this as name and/or ug/m3 units
+    'raw',                            # display raw measurements on stderr
     'interval','sample', 'bufsize','sync',  # multithead buffer size and search for input
 ]
 
@@ -44,7 +45,7 @@ Conf = {
     'input': False,      # SDS011 input sensor is required
     'fd': None,          # input handler
     'type': "Nova SDS011",         # type of device
-    'usbid': 'usb-1a86.*-port',    # Qin Heng Electronics usb ID via lsusb
+    'usbid': '-1a86.*-port',    # Qin Heng Electronics usb ID via lsusb
     'firmware': '161121',# firmware number
     'serial': 'ED56',    # ID number
     'fields': ['pm25','pm10'],     # types of pollutants
@@ -58,11 +59,13 @@ Conf = {
     'bufsize': 30,      # size of the window of values readings max
     'sync': False,      # use thread or not to collect data
     'debug': 0,         # level 0 .. 5, be more versatile on input data collection
+    'raw': False,       # display raw measurement data with timestamps
 
 }
 #    from MySense import log
 try:
     import os
+    import sys
     from time import time
     from time import sleep
     from sds011 import SDS011
@@ -112,7 +115,7 @@ def get_device():
             # try serial with product ID
             byId = "/dev/serial/by-id/"
             if not os.path.exists(byId):
-                MyLogger.log('FATAL',"SDS011 There is no USBserial connected. Abort.")
+                MyLogger.log(modulename,'FATAL',"There is no USBserial connected. Abort.")
             device_re = re.compile(".*%s\d.*(?P<device>ttyUSB\d+)$" % Conf['usbid'], re.I)
             devices = []
             try:
@@ -125,48 +128,48 @@ def get_device():
                             serial_dev = '/dev/%s' % dinfo.pop('device')
                             break
             except CalledProcessError:
-                MyLogger.log('ERROR',"SDS011 No serial USB connected.")
+                MyLogger.log(modulename,'ERROR',"No serial USB connected.")
             except (Exception) as error:
-                MyLogger.log('ERROR',"SDS011 Serial USB %s not found, error:%s"%(Conf['usbid'], error))
+                MyLogger.log(modulename,'ERROR',"Serial USB %s not found, error:%s"%(Conf['usbid'], error))
                 Conf['usbid'] = None
         if serial_dev == None:
-            MyLogger.log('WARNING',"SDS011 Please provide serial USB producer info.")
-            MyLogger.log('FATAL',"SDS011 No input stream defined.")
+            MyLogger.log(modulename,'WARNING',"Please provide serial USB producer info.")
+            MyLogger.log(modulename,'FATAL',"No input stream defined.")
             return False
         # check operational arguments
         for item in ['sample','interval','debug']:
             if type(Conf[item]) is str:
                 if not Conf[item].isdigit():
-                    MyLogger.log('FATAL','SDS011 %s should be nr of seconds' % item)
+                    MyLogger.log(modulename,'FATAL','%s should be nr of seconds' % item)
                 Conf[item] = int(Conf[item])
 	    if type(Conf[item]) is bool:
 		Conf[item] = 1 if Conf[item] else 0
         Conf['sample'] = 60 if Conf['sample'] < 60 else ((Conf['sample']+30)/60)*60
         if (Conf['sample'] <= 0 or Conf['sample'] >= 30*60) or Conf['sample'] > (Conf['interval']-2):
-            MyLogger.log("FATAL","SDS011 sample not 1..30 or sample > interval")
-        MyLogger.log('INFO',"SDS011 sample duty cycle is set to %d minutes." % (Conf['sample']/60))
+            MyLogger.log(modulename,"FATAL","Sample not 1..30 or sample > interval")
+        MyLogger.log(modulename,'INFO',"Sample duty cycle is set to %d minutes." % (Conf['sample']/60))
         if Conf['units'][0][-2:].upper() != 'M3':
             concentration = True
             Conf['units'] = ['pcs/qf','pcs/qf']
         else:
             concentration = False
             Conf['units'] = ['ug/m3','ug/m3']
-        MyLogger.log('INFO',"SDS011 (PM2.5,PM10) values are in (%s,%s)" % (Conf['units'][0],Conf['units'][1]))
+        MyLogger.log(modulename,'INFO',"(PM2.5,PM10) values are in (%s,%s)" % (Conf['units'][0],Conf['units'][1]))
         try:
             Conf['fd'] = SDS011(serial_dev, logger=MyLogger.log, debug=Conf['debug'], timeout=Conf['sample']*2, concentration=concentration)
-            MyLogger.log('INFO',"SDS011 COM used for serial USB: %s" % serial_dev)
+            MyLogger.log(modulename,'INFO',"Serial used for USB: %s" % serial_dev)
             Conf['id'] = Conf['fd'].device_id
             Conf['firmware'] = Conf['fd'].firmware
             Conf['type'] += " (%s/%s)" % (Conf['id'],Conf['firmware'])
-            MyLogger.log('INFO','SDS011 device id %s, firmware %s' % (Conf['id'],Conf['firmware']))
+            MyLogger.log(modulename,'INFO','Device id %s, firmware %s' % (Conf['id'],Conf['firmware']))
             #Conf['fd'].workstate = SDS011.WorkStates.Sleeping # switch fan off
         except IOError as error:
-            MyLogger.log("WARNING","SDS011 connectivity: %s" % error)
+            MyLogger.log(modulename,"WARNING","Connectivity: %s" % error)
             Conf['fd'].device.close()
             Conf['fd'] = SDS011(serial_dev, logger=MyLogger.log, debug=Conf['debug'], timeout=Conf['sample']*2, concentration=concentration)
             Conf['fd'].workstate = SDS011.WorkStates.Measuring
         except (Exception) as error:
-            MyLogger.log('FATAL',"SDS011 %s" % error)
+            MyLogger.log(modulename,'FATAL',"%s" % error)
             return False
     else:
        Logger.log('ERROR', "Failed access SDS011 module")
@@ -219,7 +222,7 @@ def Add(conf):
         PM25 = 1; PM10 = 0
     timing = timing - time()
     if timing >= 1.0:
-        # MyLogger.log("DEBUG","SDS011 Interval wait a bit for %d seconds" % timing)
+        # MyLogger.log(modulename,"DEBUG","Interval wait a bit for %d seconds" % timing)
         sleep(timing)
     timing = time()
     values = []
@@ -240,15 +243,15 @@ def Add(conf):
         conf['Serial_Errors'] += 1
     except (Exception) as error:
         conf['Serial_Errors'] += 1
-        MyLogger.log('WARNING','SDS011 ' + error)
+        MyLogger.log(modulename,'WARNING',error)
     if conf['Serial_Errors'] > 20:
         conf['fd'].device.close()
         conf['fd'] = None
-	MyLogger.log("WARNING","SDS011 has serial errors")
+	MyLogger.log(modulename,"WARNING","Serial errors")
         return {}
     if len(values) != 2:
         conf['Serial_Errors'] += 1
-	MyLogger.log("WARNING","SDS011 has serial errors: only %d values" % len(values))
+	MyLogger.log(modulename,"WARNING","Serial error: only %d values" % len(values))
         return {}
     conf['Serial_Errors'] = 0
     timing = time()-timing
@@ -261,7 +264,9 @@ def Add(conf):
     values = { "time": int(time()),
             conf['fields'][PM25]: calibrate(PM25,conf,values[1]),
             conf['fields'][PM10]: calibrate(PM10,conf,values[0]) }
-    MyLogger.log("DEBUG","SDS011 readings PM2.5:%5.1f PM10:%5.1f" % (values[conf['fields'][PM25]],values[conf['fields'][PM10]]))
+    MyLogger.log(modulename,"DEBUG","Readings PM2.5:%5.1f PM10:%5.1f" % (values[conf['fields'][PM25]],values[conf['fields'][PM10]]))
+    if ('raw' in conf.keys()) and conf['raw']:
+        print("raw,sensor=%s PM25=%.1f,PM10=%.1f %d000\n" % ('sds011',values[conf['fields'][PM25]],values[conf['fields'][PM10]],int(time()*1000)))
     return values
 
 def getdata():
@@ -271,7 +276,7 @@ def getdata():
     try:
         return MyThread.getRecord()     # pick up a record
     except IOError:
-        MyLogger.log('WARNING',"Sensor SDS011 input failure")
+        MyLogger.log(modulename,'WARNING',"Sensor input failure")
     return {}
 
 Conf['getdata'] = getdata	# Add needs this global viariable
@@ -285,6 +290,7 @@ if __name__ == '__main__':
     Conf['interval'] = 120      # sample once per 2 minutes
     Conf['sample'] = 60         # sample of 1 minute
     Conf['units'] = ['pcs/qf','pcs/qf'] # do values not in mass weight
+    Conf['raw'] = True          # display raw data with timestamps
 
     for cnt in range(0,10):
         timings = time()

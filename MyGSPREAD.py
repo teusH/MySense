@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyGSPREAD.py,v 2.8 2017/04/09 18:15:35 teus Exp teus $
+# $Id: MyGSPREAD.py,v 2.9 2017/06/04 09:40:55 teus Exp teus $
 
 # TO DO:  OPERATIONAL TESTS
 
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyGSPREAD.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.8 $"[11:-2]
+__version__ = "0." + "$Revision: 2.9 $"[11:-2]
 
 # configurable options
 __options__ = ['output','sheet','credentials','user','ttl','hostname','apikey']
@@ -43,7 +43,7 @@ Conf = {
     'sheet': 'IoS_',      # sheet name prepend: <name><ttl>
 }
 
-# CSV spreadsheets dispatcher
+# spreadsheets dispatcher
 CSV = {}                  # keys are serials with dict to GSPREAD CSV file handling
 try:
     import MyLogger
@@ -54,7 +54,7 @@ try:
     from datetime import date
     from time import time
 except ImportError:
-    MyLogger.log('FATAL',"GSPREAD module missing for spreadsheet output.")
+    MyLogger.log(modulename,'FATAL',"Module missing for spreadsheet output.")
     Conf['output'] = False
 
 # ========================================================
@@ -80,7 +80,7 @@ def authenticate_google_docs():
     #if ('apikey' in Conf.keys()) and (Conf['apikey'] != None):
     #    return gspread.open_by_key(Conf['apikey'])
     if (Conf['credentials'] == None) or (not os.access(Conf['credentials'],os.R_OK)):
-        MyLogger.log('ERROR','Gspread unable to read Google credentials file %s.' % Conf['credentials'])
+        MyLogger.log(modulename,'ERROR','Unable to read credentials file %s.' % Conf['credentials'])
         return False
     scope = ['https://spreadsheets.google.com/feeds']
     gc = None
@@ -88,7 +88,7 @@ def authenticate_google_docs():
         credentials = ServiceAccountCredentials.from_json_keyfile_name(Conf['credentials'], scope)
         gc =  gspread.authorize(credentials)
     except Exception as ex:
-        MyLogger.log('ERROR','Gspread unable to get Google gspread access. Error: %s' % ex)
+        MyLogger.log(modulename,'ERROR','Unable to get gspread access. Error: %s' % ex)
     return gc
 
 # update project sheet with identification details, subjected to PII rulings
@@ -116,7 +116,7 @@ def show_ident(ident):
             IDtxt.append_rows(row1)
         IDtxt.append_rows(row2)
     except:
-        MyLogger.log('WARNING","Gspread unable to created/update info sheet')
+        MyLogger.log(modulename,'WARNING","Unable to created/update info sheet')
         return False
     MyLogger('DEBUG','Gspread added identification to %s_%s.info sheet.' % (ident['project'],ident['serial']))
     return True
@@ -127,7 +127,7 @@ def registrate(args):
     global Conf, CSV, gspread
     for key in ['ident']:
         if not key in args.keys():
-            MyLogger.log('FATAL',"GSPREAD %s argument missing." % key)
+            MyLogger.log(modulename,'FATAL',"%s argument missing." % key)
     if (Conf['fd'] != None) and (not Conf['fd']):
         if ('waiting' in Conf.keys()) and ((Conf['waiting']+Conf['last']) >= time()):
             CSV = {}
@@ -153,7 +153,7 @@ def registrate(args):
         except:
             Conf['auth'] = False
     if ID['auth'] == False:
-        MyLogger.log('ERROR','Gspread unable to get access to Google gspread. Disabled.')
+        MyLogger.log(modulename,'ERROR','Unable to get access to gspread. Disabled.')
         Conf['output'] = False
         return False
     # get the spreadsheet
@@ -173,7 +173,7 @@ def registrate(args):
                 ID['fd'].share('%s@%s' % (Conf['user'],Conf['hostname']), perm_type='user', role='reader')
     except:
         Conf['output'] = False
-        MyLogger.log('ERROR','Gspread: unable to authorize or access spreadsheet.')
+        MyLogger.log(modulename,'ERROR','Unable to authorize or access spreadsheet.')
         return False
     try:
         show_ident(args['ident'],ID['fd'])
@@ -202,12 +202,12 @@ def registrate(args):
             # would be nice to give them a color
             ID['cur_sheet'].append_rows(Row)
         except:
-            MyLogger.log('ERROR','GSPREAD Unable to create new %s sheet in %s.' % (newNme, ID['worksheet'])) 
+            MyLogger.log(modulename,'ERROR','Unable to create new %s sheet in %s.' % (newNme, ID['worksheet'])) 
             Conf['last'] = time() ; Conf['fd'] = 0 ; Conf['waitCnt'] += 1
             if not (Conf['waitCnt'] % 5): Conf['waiting'] *= 2
             raise IOError
             return False
-        MyLogger.log('INFO',"Created and can add gspread records to file:" + ID['sheet'])
+        MyLogger.log(modulename,'INFO',"Created and can add gspread records to file:" + ID['sheet'])
         Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
     return True
     
@@ -218,7 +218,7 @@ def publish(**args):
         return False
     for key in ['data','ident']:
         if not key in args.keys():
-            MyLogger.log('FATAL',"GSPREAD method: missing argument %s." % key)
+            MyLogger.log(modulename,'FATAL',"Method: missing argument %s." % key)
     if not 'fd' in Conf.keys(): Conf['fd'] = None
     if not 'last' in Conf.keys():
         Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
@@ -227,11 +227,11 @@ def publish(**args):
         if Conf['waitCnt'] <= 5:
             raise IOError
         Conf['output'] = False  # give up
-        MyLogger.log('ERROR',"GSPREAD method spreadsheet creation/opening.")
+        MyLogger.log(modulename,'ERROR',"Method spreadsheet creation/opening.")
         return False
     ID = CSV[args['ident']['serial']]
     if (not 'cur_sheet' in ID.keys()) or (not ID['cur_sheet']):
-        MyLogger.log('ERROR',"GSPREAD method spreadsheet creation/opening.")
+        MyLogger.log(modulename,'ERROR',"Method spreadsheet creation/opening.")
         return False
     try:
         Row = []
@@ -251,9 +251,9 @@ def publish(**args):
         raise IOError
         return False
     except:
-        MyLogger.log('ERROR',"CSVrecord error in %s, timestamp: %s" % (ID['cur_name'], args['data']['time']) )
+        MyLogger.log(modulename,'ERROR',"Error in %s, timestamp: %s" % (ID['cur_name'], args['data']['time']) )
         return False
-    MyLogger.log('DEBUG',"CSVrecord in %s, timestamp: %s" % (ID['cur_name'], args['data']['time']) )
+    MyLogger.log(modulename,'DEBUG',"Record in %s, timestamp: %s" % (ID['cur_name'], args['data']['time']) )
     Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
     return True
     
