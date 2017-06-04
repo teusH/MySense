@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyINFLUXPUB.py,v 1.9 2017/06/04 09:40:55 teus Exp teus $
+# $Id: MyINFLUXPUB.py,v 1.10 2017/06/04 19:52:10 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyINFLUXPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.9 $"[11:-2]
+__version__ = "0." + "$Revision: 1.10 $"[11:-2]
 
 try:
     import MyLogger
@@ -159,7 +159,7 @@ def db_registrate(net,ident):
         return Conf['registrated']
     if len(ident['fields']) == 0:
         return False
-    if (not 'database' in ident.keys()) or (ident[database] == None):
+    if (not 'database' in ident.keys()) or (ident['database'] == None):
         Conf['database'] = ident['project']+'_'+ident['serial']
     if not db_connect(net):
         return False
