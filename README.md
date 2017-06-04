@@ -123,8 +123,10 @@ To facilitate measurements for calibration purposes all sensor plugins are optio
     raw,sensor=<type> <field1>=<value1>,<field2>=<value2>,... <nano timestamp>
 ```
 This is an InFlux type of telegram, where the UNIX timestamp is in nano seconds. Example: `raw,sensor=bme280 temp=25.4,rh=35.6,pha=1024 1496503325005000`. Direct stdoutput to e.g. an InFlux server, and download the *serie* for eg correlation calculation from this server or into a CVS file (`awk` maybe your friend in this).
-Collect the lines on stad output in a file, say `InFlux.txt` and delete the `database=db_name` in that file. If Influx is running on `localhost` try to upload the bulk data via:
+Collect the lines on standard output in a file, say `InFlux.txt` and delete the `database=db_name` in that file. If Influx is running on `localhost` try to upload the bulk data via:
 ```shell
+    python MySense.py -R True | grep "^raw" >InFlux.txt # run for some time <cntrlZ>; kill %1
+    # and send the file to the InFluxdb server
     curl -i -XPOST 'http://localhost:8086/write?db=db_name&u=myname&p=acacadabra' --data-binary @InFlux.txt
 ```
 Using the Influx CLI (command line interface) one is able to convert the columnized output into whatever format, e.g. to CSV:
