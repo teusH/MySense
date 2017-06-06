@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyINFLUXPUB.py,v 1.10 2017/06/04 19:52:10 teus Exp teus $
+# $Id: MyINFLUXPUB.py,v 1.11 2017/06/04 20:04:52 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyINFLUXPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.10 $"[11:-2]
+__version__ = "0." + "$Revision: 1.11 $"[11:-2]
 
 try:
     import MyLogger
@@ -233,7 +233,7 @@ def publish(**args):
                 del fields[item]
     # keep data for 12 hours, indicate this is the first data sent, label data
     if not Influx_write(Conf['database'], fields, tags):
-        MyLogger("ATTENT","Sending data to InFlux server failed")
+        MyLogger.log(modulename,"ATTENT","Sending data to InFlux server failed")
         if ErrorCnt > 10:
             Conf['fd'] = None
             raise IOError("Influx server connection failure.")

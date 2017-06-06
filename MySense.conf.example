@@ -22,7 +22,7 @@ geolocation  = 15.1243,6.112,32
 label        = aLabel
 description  = IoS Sensors AlphaTestPhase
 # overwrite PII rules default: do not send
-street       = Hallway
+street       = Hallway 25
 village      = Maastricht
 province     = Limburg
 municipality = MyMajor
@@ -35,6 +35,17 @@ file     = /dev/stderr
 # lowest level to log messages
 #level    = WARNING
 level    = INFO
+
+# raw sensor measurements output to file or InFlux DB server
+#[raw]
+#hostname = localhost
+#user = InternetOfSense
+#password = acacadabra
+#port = 8086
+# default database name is <project>_<serial>
+##database = name
+# file def will disable output to InFlux DB server
+#file = raw-sensors-records
 
 # pm serie dylos, shinyei
 #[dylos]
@@ -194,8 +205,8 @@ file     = /dev/stdout
 ## access broker credentials
 #hostname = lunar.theunis.org
 ##port     = 1883
-#user     = IoS
-#password = BehoudDeParel
+#user     = InternetOfSense
+#password = acacadabra
 #apikey   = uniqID defaults to project_serial
 #cert     = to do
 #prefix    = IoS_
@@ -212,8 +223,8 @@ file     = /dev/stdout
 # access broker credentials
 #hostname = lunar
 #port     = 1883
-#user     = ios
-#password = BeoudDeParhehl
+#user     = InternetOfSense
+#password = acacadabra
 #prefix    = IoS_
 #topic     = IoS
 #qos       = 0
