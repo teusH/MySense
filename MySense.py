@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.5 2017/06/06 18:09:00 teus Exp teus $
+# $Id: MySense.py,v 3.6 2017/06/06 19:04:53 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.5 $"[11:-2]
+__version__ = "0." + "$Revision: 3.6 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -206,6 +206,8 @@ def read_configuration():
                     options = ['home','pid','user','group','start_dir']
                 elif key == 'logging':
                     options = ['level','file']
+		elif key == 'raw':
+		    options = ['raw','hostname','user','password','file','database']
             #MyLogger.log(modulename,'DEBUG','Configuring module %s: options %s.' % (key,', '.join(config.options(key))) )
             # get options allowed to be redefined by the plugin
             for opt in config.options(key):
