@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.4 2017/06/06 17:46:32 teus Exp teus $
+# $Id: MySense.py,v 3.5 2017/06/06 18:09:00 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.4 $"[11:-2]
+__version__ = "0." + "$Revision: 3.5 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -979,9 +979,13 @@ def ConfRawModule(inputs):
     ''' Configure and initialize the RAW module '''
     # to do: put this code into a class module
     global Conf
-    if Conf['raw'] == None: return
     RawSenses = []
     for item in inputs:
+        if Conf['raw'] == None: # clean up raw refs
+            if 'raw' in Conf[item].keys(): del Conf[item]['raw']
+            if 'raw' in Conf[item]['module'].Conf.keys():
+                del Conf[item]['module'].Conf['raw']
+            continue
         # raw module configuration (to do: put the code in a class module)
         if 'raw' in Conf[item].keys() and Conf[item]['raw'] and ('module' in Conf['raw'].keys()):
             Conf[item]['module'].Conf['raw'] = Conf['raw']['module']
