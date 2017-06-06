@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDYLOS.py,v 2.18 2017/06/04 14:40:20 teus Exp $
+# $Id: MyDYLOS.py,v 2.19 2017/06/06 14:15:01 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add version number, firmware number
@@ -34,7 +34,7 @@
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MyDYLOS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.18 $"[11:-2]
+__version__ = "0." + "$Revision: 2.19 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -276,8 +276,10 @@ def Add(conf):
         # Some other Dylos Error
         MyLogger.log(modulename,'WARNING',error)
     # take notice: index 0 is PM2.5, index 1 is PM10 values
-    if ('raw' in conf.keys()) and conf['raw']:
-        print("raw,sensor=%s PM25=%.1f,PM10=%.1f %d000\n" % ('dylos',bin_data[PM25],bin_data[PM10],int(time()*1000)))
+    if ('raw' in conf.keys()) and (Conf['raw'] != None):
+        conf['raw'].publish(
+            tag='dylos',
+            data="pm25=%.1f,pm10=%.1f" % (bin_data[PM25]*1.0,bin_data[PM10]*1.0))
     return { "time": int(time()),
             conf['fields'][PM25]: calibrate(PM25,conf,bin_data[PM25]),
             conf['fields'][PM10]: calibrate(PM10,conf,bin_data[PM10]) }

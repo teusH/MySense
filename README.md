@@ -118,23 +118,32 @@ Calibration of dust counters like Shinyei, Nova SDS011 and Dylos is started in M
 
 Calibration of Alpha Sense gas sensors is a problematic area. Probably June 2017.
 
-To facilitate measurements for calibration purposes all sensor plugins are optionaly (set `raw` option to `True` for the particular sensor in `MySense.conf`) able to display on stdout *raw* measurements values, as follows:
+To facilitate measurements for calibration purposes all sensor plugins are optionaly (set `raw` option to `True` for the particular sensor in `MySense.conf`) able to output on file or to an InFlux DB server the *raw* measurements values, as follows:
 ```
     raw,sensor=<type> <field1>=<value1>,<field2>=<value2>,... <nano timestamp>
 ```
-This is an InFlux type of telegram, where the UNIX timestamp is in nano seconds. Example: `raw,sensor=bme280 temp=25.4,rh=35.6,pha=1024 1496503325005000`. Direct stdoutput to e.g. an InFlux server, and download the *serie* for eg correlation calculation from this server or into a CVS file (`awk` maybe your friend in this).
-Collect the lines on standard output in a file, say `InFlux.txt` and delete the `database=db_name` in that file. If Influx is running on `localhost` try to upload the bulk data via:
-```shell
-    python MySense.py -R True | grep "^raw" >InFlux.txt # run for some time <cntrlZ>; kill %1
-    # and send the file to the InFluxdb server
-    curl -i -XPOST 'http://localhost:8086/write?db=db_name&u=myname&p=acacadabra' --data-binary @InFlux.txt
+This is an InFlux type of telegram, where the UNIX timestamp is in nano seconds. Example for database BdP_02345pa0:
 ```
+    raw,sensor=bme280 temp=25.4,rh=35.6,pha=1024 1496503325005000
+    raw,sensor=dylos pm25=250,pm10=15 1496503325045000
+```
+E.g. download the *serie* for eg correlation calculation from this server or into a CVS file (`awk` maybe your friend in this).
+Or use a file, say `MyMeasurements_BdP_02345pa0.influx`.
+```shell
+    # send the file to the InFluxdb server via e.g.
+    curl -i -XPOST 'http://localhost:8086/write?db=BdP_02345pa0&u=myname&p=acacadabra' --data-binary @MyMeasurements_BdP_02345pa0.influx
+```
+InFlux query reference manual:
+* https://docs.influxdata.com/influxdb/v1.2/query_language/
+
 Using the Influx CLI (command line interface) one is able to convert the columnized output into whatever format, e.g. to CSV:
 ```
-    influx | sed -e 's/  */;/g' -e 's/\t/;/g' | grep -v -e _  -e database= >InFlux.csv
+    influx --format csv | tee InFlux.csv
     >auth myname acacadabra
     >use db_name
-    >select * from raw
+    >show series
+    >select * from raw order by time desc limit 1
+    >select * from raw where time > now() - 2d and time < now() - 1d order by time desc
     >quit
 ```
 

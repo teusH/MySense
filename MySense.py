@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.2 2017/06/04 12:36:33 teus Exp teus $
+# $Id: MySense.py,v 3.3 2017/06/05 18:46:47 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.2 $"[11:-2]
+__version__ = "0." + "$Revision: 3.3 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -306,6 +306,17 @@ def get_config():
         'module': None,         # last time connected to internet
         'connected': None       # connected to internet?
     }
+    # rawmeasurements values to be send to InFlux server or file
+    # configuration used by MyRaw.py module if RAW is enabled/True
+    Conf['raw'] = {
+        'raw': False,           # raw measurement output enabled?
+        'hostname': None,       # InFlux server
+        'port': 8086,           # InFlux port number
+        'user': None,           # credited user name
+        'password': None,
+        'file': None,           # local file name for records
+        'database': None,       # identifier for database name dflt: <proj>_<serial>
+    }
     # default loaded modules
     Conf['console'] = {
         'output': False,
@@ -336,7 +347,7 @@ def get_arguments():
     parser.add_argument("-I", "--interval", help="Sensor read cycle interval in minutes, default='%d'" % (INTERVAL/60), default=(INTERVAL/60))
     parser.add_argument("-M", "--memory", help="Allocated memory space in Kbytes for queuing data, default='%d'" % (HeapSze/1000), default=(HeapSze/1000))
     parser.add_argument("-P", "--project", help="Project XYZ, default='%s'" % Conf['id']['project'], default=Conf['id']['project'], choices=['BdP','VW'])
-    parser.add_argument("-R", "--raw", help="Display raw measurements of all sensors on stdout in InFlux http timestamped format (calibration purposes), default=False", default=False)
+    parser.add_argument("-R", "--raw", help="Display raw measurements of all sensors on stdout in InFlux http timestamped format (calibration purposes), default=False", default=False, choices=[True])
     parser.add_argument("-S", "--node", help="Sensor node serial number, default='%s'" % Conf['id']['serial'], default=Conf['id']['serial'])
     parser.add_argument("process", help="Process start/stop/status. Default: interactive", default='interactive', choices=['interactive','start','stop','status'], nargs='?')
     # overwrite argument settings into configuration
@@ -372,7 +383,16 @@ def integrate_options():
     Conf['id']['geolocation'] = cmd_args.geolocation
     INTERVAL = int(cmd_args.interval) * 60
     HeapSze = int(cmd_args.memory) * 1000
-    RAW = bool(cmd_args.raw)
+    RAW = False; RAWok = True
+    if Conf['file'] != None:
+        RAWok = True
+    else:
+        for key in ['hostname','user','password']:
+            if Conf['raw'][key] == None: RAWok = False
+    if RAWok: RAW = bool(cmd_args.raw)
+    else:
+        del Conf['raw']['module']
+        del Conf['raw']['import']
 
     Conf['outputs'] = []
     # TO DO: enable MQTT to be used on output as well on input
@@ -411,6 +431,7 @@ def integrate_options():
             Conf[Nme]['input'] = cmd_args.input.rindex(Nme) >= 0
         except:
             Conf[Nme]['input'] = False
+        RawOnce = False
         if Conf[Nme]['input']:
             if not Nme in Conf['inputs']:
                 Conf['inputs'].append(Nme)
@@ -418,11 +439,16 @@ def integrate_options():
                 from_env(Nme)
             elif RAW:
                 Conf[Nme]['raw'] = True
+            elif (not RAWok) and (not Conf[Nme]['raw']):
+                Conf[Nme]['raw'] = False
+            if Conf[Nme]['raw']: RawOnce = True
         try:    # allow to display raw sensor values from a sensor thread
             Conf[Nme]['debug'] = cmd_args.debug.rindex(Nme) >= 0
         except:
             Conf[Nme]['debug'] = False
 
+    if not RawOnce:
+        Conf['raw'] = None
     if 'dylos' in Conf['inputs']:
         if ('usbPID' in Conf['dylos'].keys()):
             if re.compile("^[0-9a-zA-Z_,]{7,}").match(Conf['dylos']['usbPID']) == None:
@@ -441,10 +467,15 @@ def show_startup():
     """ On startup log configuration details """
     global Conf, progname, __version__, INTERVAL, RAW, INPUTS
     MyLogger.log(modulename,'INFO',"Project: %s, Serial_ID=%s" % (Conf['id']['project'],Conf['id']['serial']))
+    RawSenses = []
     for item in INPUTS:
-        if 'raw' in Conf[item].keys() and Conf[item]['raw']:
-            print("database=%s_%s" % (Conf['id']['project'],Conf['id']['serial']))
-            break
+        if 'raw' in Conf[item].keys() and Conf[item]['raw'] and Conf['raw'] != None:
+            Conf[item]['rawCnf'] = Conf['raw']
+            RawSenses.append(item)
+        else: del Conf[item]['raw']
+    if len(RawSenses):
+        Conf['raw']['database'] = "%s_%s" % (Conf['id']['project'],Conf['id']['serial'])
+        MyLogger.log(modulename,'ATTENT',"Raw measurements for (%s) on db %s is ENABLED." % (', '.join(RawSenses),Conf['raw']['database']))
     MyLogger.log(modulename,'ATTENT',"%s Started Sensor processing: %s Version:%s" % (datetime.datetime.strftime(datetime.datetime.today(), "%Y-%m-%d %H:%M:%S " ), progname, __version__))
     MyLogger.log(modulename,'DEBUG',"Control-C to abort")
     MyLogger.log(modulename,'DEBUG',"Engine: Python Version %s.%s.%s\n" % sys.version_info[:3])

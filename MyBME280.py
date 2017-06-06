@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyBME280.py,v 2.11 2017/06/04 14:40:20 teus Exp $
+# $Id: MyBME280.py,v 2.12 2017/06/06 14:15:01 teus Exp teus $
 
 """ Get measurements from BME280 Bosch chip via the I2C-bus.
     Measurements have a calibration factor (calibrated to Oregon weather station)
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyBME280.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.11 $"[11:-2]
+__version__ = "0." + "$Revision: 2.12 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -111,6 +111,10 @@ def Add(conf):
     else:
         MyLogger.log(modulename,'DEBUG',"Air pressure: None")
     if (temp == 0.0) and (humidity == 0.0) and (pascals == 0.0): return rec
+    if ('raw' in conf.keys()) and (Conf['raw'] != None):
+        conf['raw'].publish(
+            tag='%s' % conf['type'].lower(),
+            data='temp=%.1f,rh=%.1f,pha=%.1f' % (temp*1.0,humidity*1.0,pascals*1.0))
     if ('raw' in conf.keys()) and conf['raw']:
         print("raw,sensor=%s temp=%.1f,rh=%.1f,pha=%.1f %d000\n" % ('bme280',temp,humidity,pascals,int(time()*1000)))
     temp = calibrate(0,conf,temp)

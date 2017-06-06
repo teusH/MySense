@@ -18,20 +18,19 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySDS011.py,v 1.11 2017/06/04 14:40:20 teus Exp $
+# $Id: MySDS011.py,v 1.16 2017/06/06 13:36:32 teus Exp teus $
 
 # Defeat: output average PM count over 59(?) or 60 seconds:
 #         continious mode: once per 59 minutes and 59 seconds!,
 #         monitor mode: 60 times per hour 
 
-""" Get sensor values: PM2.5 and PM10 from Dylos Particular Matter senor
+""" Get sensor values: PM2.5 and PM10 from Nova Particular Matter sensor
     Relies on Conf setting by main program
     Output dict with PM2.5 (fields index 0) and PM10 (fields index 1) elements
     if units is not defined as pcs the values are converted to ug/m3 (report Philadelphia)
-    MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MySDS011.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.11 $"[11:-2]
+__version__ = "0." + "$Revision: 1.16 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -203,14 +202,12 @@ def registrate():
         except:
             pass
         MyThread = None
-    raise IOError("Unable to registrate/start Dylos thread.")
+    raise IOError("Unable to registrate/start SDS011 thread.")
     Conf['input'] = False
     return False
 
 # ================================================================
-# Dylos PM count per minute per cubic food input via serial USB
-# Dylos upgraded: Modified Firmware (v1.16f2) MAX = 4
-# Dylos MAX = 2 PM2.5 PM10 counts
+# Nova SDS011 PM count per minute per ug/m3 input via serial USB
 # ================================================================
 # get a record
 timing = 0
@@ -240,18 +237,19 @@ def Add(conf):
         for nr in range(skip+1):
             values = conf['fd'].get_values()
     except IOError:     # timeout
+        MyLogger.log(modulename,'WARNING','timeout on reset/get_values.')
         conf['Serial_Errors'] += 1
-    except (Exception) as error:
+    except Exception:
         conf['Serial_Errors'] += 1
-        MyLogger.log(modulename,'WARNING',error)
+        MyLogger.log(modulename,'WARNING','sds011 class error on reset.')
     if conf['Serial_Errors'] > 20:
         conf['fd'].device.close()
         conf['fd'] = None
-	MyLogger.log(modulename,"WARNING","Serial errors")
-        return {}
+	MyLogger.log(modulename,"WARNING","Serial errors limit of 20 errors reached")
+        raise IOError("SDS011 serial errors")
     if len(values) != 2:
         conf['Serial_Errors'] += 1
-	MyLogger.log(modulename,"WARNING","Serial error: only %d values" % len(values))
+	MyLogger.log(modulename,"WARNING","Serial error: only %d of 2 values" % len(values))
         return {}
     conf['Serial_Errors'] = 0
     timing = time()-timing
@@ -265,8 +263,12 @@ def Add(conf):
             conf['fields'][PM25]: calibrate(PM25,conf,values[1]),
             conf['fields'][PM10]: calibrate(PM10,conf,values[0]) }
     MyLogger.log(modulename,"DEBUG","Readings PM2.5:%5.1f PM10:%5.1f" % (values[conf['fields'][PM25]],values[conf['fields'][PM10]]))
-    if ('raw' in conf.keys()) and conf['raw']:
-        print("raw,sensor=%s PM25=%.1f,PM10=%.1f %d000\n" % ('sds011',values[conf['fields'][PM25]],values[conf['fields'][PM10]],int(time()*1000)))
+    if ('raw' in conf.keys()) and (Conf['raw'] != None):
+        conf['raw'].publish(
+            tag='sds011',
+            data="pm25=%.1f,pm10=%.1f" % (values[conf['fields'][PM25]],values[conf['fields'][PM10]]))
+    if conf['debug']:
+        print("raw,sensor=sds011 pm25=%.1f,pm10=%.1f %d000" % (values[conf['fields'][PM25]]*1.0,values[conf['fields'][PM10]],values['time']*1.0))
     return values
 
 def getdata():

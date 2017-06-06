@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.18 2017/06/04 14:40:20 teus Exp $
+# $Id: MyARDUINO.py,v 1.19 2017/06/06 14:15:01 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -51,7 +51,7 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.18 $"[11:-2]
+__version__ = "0." + "$Revision: 1.19 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -359,12 +359,14 @@ def Add(conf):
     raw = []
     for i in range(0,len(conf['fields'])):
         dataKey = '%s_%s' % (conf['names'][i],conf['units'][i])
-        raw.append('%s=%.1f' % (dataKey.replace('/','').replace('.',''),bin_data[dataKey]))
+        raw.append('%s=%.1f' % (dataKey.replace('/','').replace('.',''),bin_data[dataKey]*1.0))
         if dataKey in bin_data.keys():
             bin_data.update( {conf['fields'][i]:calibrate(i,conf,bin_data[dataKey])})
             del bin_data[dataKey]
-    if ('raw' in conf.keys()) and conf['raw'] and len(raw):
-        print("raw,sensor=%s %s %d000\n" % ('dylos',','.join(raw),int(time()*1000)))
+    if ('raw' in conf.keys()) and (Conf['raw'] != None):
+        conf['raw'].publish(
+            tag='"%s"' % conf['type'].lower(),
+            data='%s' % ','.join(raw))
     bin_data.update( {"time": int(time())} )
     return bin_data
 

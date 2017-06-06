@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRSSI.py,v 1.6 2017/06/04 14:40:20 teus Exp $
+# $Id: MyRSSI.py,v 1.7 2017/06/06 14:15:01 teus Exp teus $
 
 # TO DO:
 
 """ wifi rssi values
 """
 modulename='$RCSfile: MyRSSI.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.6 $"[11:-2]
+__version__ = "0." + "$Revision: 1.7 $"[11:-2]
 
 # configurable options
 __options__ = ['input','fields','units','raw']
@@ -111,10 +111,12 @@ def getdata():
                 Conf['rssi'] = int(ips[0])
             else:
                 return {}
+            if ('raw' in Conf.keys()) and Conf['raw'] != None:
+                conf['raw'].publish(
+                    tag='rssi',
+                    data="dBa=%.1f" % Conf['rssi'])
         except:
             return {}
-    if ('raw' in Conf.keys()) and Conf['raw']:
-        print("raw,sensor=%s dBa=%.1f %d000\n" % ('wifi',Conf['rssi'],int(time()*1000)))
 
     return {'time': int(time()),'rssi': Conf['rssi']}
 
@@ -133,5 +135,3 @@ if __name__ == '__main__':
         timing = 30 - (time()-timing)
         if timing > 0:
             sleep(timing)
-    if (not Conf['sync']) and (MyThread != None):
-        MyThread.stop_thread()
