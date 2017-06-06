@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyMQTTSUB.py,v 2.5 2017/06/04 09:40:55 teus Exp teus $
+# $Id: MyMQTTSUB.py,v 2.6 2017/06/06 14:42:50 teus Exp teus $
 
 # module mqtt: git clone https://github.com/eclipse/paho.mqtt.python.git
 # cd paho.mqtt.python ; python setup.py install
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyMQTTSUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.5 $"[11:-2]
+__version__ = "0." + "$Revision: 2.6 $"[11:-2]
 
 try:
     import MyLogger
@@ -112,7 +112,7 @@ def PubOrSub(topic,option):
             MyLogger.log(modulename,'DEBUG','In message.')
     
     def on_subscribe(client, obj, MiD, granted_qos):
-        global waiting, mid, ErrorCnt
+        global waiting, mid
         mid = MiD
         MyLogger.log(modulename,'DEBUG',"mid: " + str(mid) + ",qos:" + str(granted_qos))
     

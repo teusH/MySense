@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.22 2017/06/04 09:40:55 teus Exp teus $
+# $Id: MyDB.py,v 2.23 2017/06/06 14:45:02 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.22 $"[11:-2]
+__version__ = "0." + "$Revision: 2.23 $"[11:-2]
 
 try:
     import MyLogger
@@ -254,7 +254,7 @@ def publish(**args):
 
     # check if fields in table exists if not add them
     def db_fields(types):
-        global Conf
+        global Conf, ErrorCnt
         if ("fields") in Conf.keys():
             return True
         Sensor_fields = {

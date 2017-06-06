@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyINFLUXPUB.py,v 1.11 2017/06/04 20:04:52 teus Exp teus $
+# $Id: MyINFLUXPUB.py,v 1.12 2017/06/06 14:41:15 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyINFLUXPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.11 $"[11:-2]
+__version__ = "0." + "$Revision: 1.12 $"[11:-2]
 
 try:
     import MyLogger
@@ -123,7 +123,7 @@ def Influx_write(database, data, tags):
         measurement is type: info or data
         telegram structure: measurement,column=string,... column=int_float,...
     '''
-    global Conf
+    global Conf, ErrorCnt
     if (not 'type' in tags.keys()) or not len(tags['type']):
         MyLogger("ERROR","Influx: unknown type of data.")
         return True
