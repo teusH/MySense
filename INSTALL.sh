@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.20 2017/05/19 18:44:40 teus Exp teus $
+# $Id: INSTALL.sh,v 1.21 2017/06/06 17:29:57 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -104,8 +104,8 @@ function MYSENSE(){
     return $?
 }
 
-PLUGINS+=" MySQL"
-function MySQL(){
+PLUGINS+=" MYSQL"
+function MYSQL(){
     DEPENDS_ON apt python-mysql.connector
     # mysql shell client command
     DEPENDS_ON  apt mysql-client
