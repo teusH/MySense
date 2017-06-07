@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyGPS.py,v 2.12 2017/06/04 14:40:20 teus Exp $
+# $Id: MyGPS.py,v 2.13 2017/06/07 18:53:14 teus Exp teus $
 
 # TO DO:
 #
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyGPS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.12 $"[11:-2]
+__version__ = "0." + "$Revision: 2.13 $"[11:-2]
 
 import os
 from time import time, sleep
@@ -138,11 +138,14 @@ class GPSthread(threading.Thread):
                     rec['geo'] = ','.join(geo)
                     if self.DEBUG:
                         print("Got new GPS rec: %s (lat,lon,alt)" % rec['geo'])
-                    if self.raw and len(rvals):
-                        print("raw,sensor=%s %s %d000\n" % ('location',','.join(rvals),int(time()*1000)))
                     if (prev_l[0] != geo[0]) or (prev_l[1] != geo[1]):
                         prev_t = rec['time']; prev_l = geo
                         with self.threadLock: self.cur_val = rec
+                        if self.raw != None and len(geo):
+                            self.raw.publish(
+                                tag='geo',
+                                data='lat=%s,lon=%s,alt=%s' % (geo[0],geo[1],geo[2])
+                                )
                         if self.sync:
                             GPSsock.close()
                             GPSsock = None
