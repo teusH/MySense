@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyBME280.py,v 2.13 2017/06/07 10:43:43 teus Exp teus $
+# $Id: MyBME280.py,v 2.14 2017/06/07 10:59:56 teus Exp teus $
 
 """ Get measurements from BME280 Bosch chip via the I2C-bus.
     Measurements have a calibration factor (calibrated to Oregon weather station)
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyBME280.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.13 $"[11:-2]
+__version__ = "0." + "$Revision: 2.14 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -152,8 +152,8 @@ def registrate():
     Conf['input'] = True
     if MyThread == None: # only the first time
         MyThread = MyThreading.MyThreading(
-            bufsize=Conf['bufsize'],
-            interval=Conf['interval'],
+            bufsize=int(Conf['bufsize']),
+            interval=int(Conf['interval']),
             name='BME280 sensor',
             callback=Add,
 	    conf=Conf,

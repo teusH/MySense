@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.25 2017/06/06 14:15:01 teus Exp teus $
+# $Id: MyDHT.py,v 2.26 2017/06/07 10:58:07 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.25 $"[11:-2]
+__version__ = "0." + "$Revision: 2.26 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -156,8 +156,8 @@ def registrate():
     Conf['input'] = True
     if MyThread == None: # only the first time
         MyThread = MyThreading.MyThreading(
-            bufsize=Conf['bufsize'],
-            interval=Conf['interval'],
+            bufsize=int(Conf['bufsize']),
+            interval=int(Conf['interval']),
             name='DHT sensor',
             callback=Add,
 	    conf=Conf,
