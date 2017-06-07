@@ -28,23 +28,26 @@ If needed it can be switched to read only in sync with the other input sensors.
 
 A working example of MySense in todays operation:
 ```
-                                     |  INTERNET (wired/wifi)
+          remote access             |  INTERNET (wired/wifi)
           syst.mgt.     webmin -----||_ wifi AP -- webmin/ssh system mgt
                     ssh tunnel -----||
                     Weaved IoT -----||
                                     ||
-                               |    ||   |
-    DHT11/22-sensor --GPIO-----| /-----\ |-- CSV
-    GPS-locator ------RS232----|-MySense-|-- console         |         |
-    RSSI-wifi-signal-strength -|  Pi     |-- MYSQL           | /-----\ |--gspread
-    Dylos-dust-sensor RS232----| Jessie  |-- Mosquitto pub---|-Mysense-|--MySQL
-    Grove-Loudness ---GPIO-----| \-----/ |-- HTTP-Post       |  Linux  |--CSV
-    Adafruit EMS280 --I2C------|         |-- email           | \-----/ |--console
-    Shinyei PPD42NS --Arduino--|         |-- Google gspread (alpha)    |--InFlux pub
-    Nova SDS011 dust -USB -----|         |-- InFlux pub-sub -|         |
-    LoRaWan (planned) ---------|         |-- Dweet.io (planned)
-    Mosquitto sub ----server --|
-    InFlux sub -------server --|
+                                    ||    
+    INPUT PLUGINs                 _____      OUTPUT CHANNELS    GATEWAY/BROKER
+    DHT11/22-meteo ---GPIO---->| /     \ |>- CSV                _____
+    GPS-locator ------RS232--->|=MySense=|>- console         | /     \ |
+    RSSI-wifi signal-strength >|| Pi    ||>- MYSQL           |=MySense=|>-gspread
+    Dylos-dust -USB-- RS232--->||Jessie ||>- Mosquitto pub-->||  any  ||>-MySQL
+    Grove-loudness ---GPIO---->| \_____/ |>- HTTP-Post       || Linux ||>-CSV
+    EMS280 -meteo ----I2C----->|    |    |>- email info      | \_____/ |>-console
+    PPD42NS -dust-Arduino-USB->|    |    |>- Google gspread (alpha)    |>-InFlux pub
+    Nova SDS011 -dust -USB --->|    |    |>- InFlux publish >|         |
+    LoRaWan (planned) -------->|    |    |>- broker? (planned)
+    Mosquitto sub ----server ->|    |    |>- display SSD1306
+    InFlux subscribe -server ->|    |
+                                    |>-raw measurement values -> InFlux server or file
+                                           calibration
 ```
 
 ## Interaction data format
