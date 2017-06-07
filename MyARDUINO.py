@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyARDUINO.py,v 1.20 2017/06/06 19:26:01 teus Exp teus $
+# $Id: MyARDUINO.py,v 1.21 2017/06/07 21:38:45 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add more sensors
@@ -51,7 +51,7 @@
     Request mode timeout is 1 hour.
 """
 modulename='$RCSfile: MyARDUINO.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.20 $"[11:-2]
+__version__ = "0." + "$Revision: 1.21 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -364,7 +364,7 @@ def Add(conf):
         if dataKey in bin_data.keys():
             bin_data.update( {conf['fields'][i]:calibrate(i,conf,bin_data[dataKey])})
             del bin_data[dataKey]
-    if ('raw' in conf.keys()) and (Conf['raw'] != None):
+    if ('raw' in conf.keys()) and (Conf['raw'] != None) and len(raw):
         conf['raw'].publish(
             tag='%s' % conf['type'].lower(),
             data='%s' % ','.join(raw))
