@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRAW.py,v 1.6 2017/06/08 18:32:36 teus Exp teus $
+# $Id: MyRAW.py,v 1.7 2017/06/08 19:29:11 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyRAW.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.6 $"[11:-2]
+__version__ = "0." + "$Revision: 1.7 $"[11:-2]
 
 try:
     import MyLogger
@@ -147,14 +147,8 @@ def raw_registrate():
     return True
 
 # simple way to check correctness of field record for InFlux query data format
-def checkArg(field):
-    if not len(field): return True
-    if field.count('=')-field.count(',') != 1:
-        MyLogger.log(modulename,'ERROR','Incorrect field format: %s.',field)
-        return False
-    return True
-
 def checkData(field):
+    if not len(field): return ''
     fields = field.split(',')
     for i in range(len(fields)-1,-1,-1):
         if fields[i].count('=') != 1:
@@ -179,8 +173,6 @@ def publish(**args):
             return False
     args['data'] = checkData(args['data'])
     if not len(args['data']): return True       # no record to publish
-    if (not checkArg(args['tag'])) or (not checkArg(args['data'])):
-        return False
     if not 'lock' in Conf.keys(): Conf['lock'] = threading.Lock()
     if Conf['fd'] == None: Conf['DoRaw'] = None
     if not raw_registrate():
