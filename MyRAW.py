@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRAW.py,v 1.7 2017/06/08 19:29:11 teus Exp teus $
+# $Id: MyRAW.py,v 1.8 2017/06/08 21:13:20 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyRAW.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 
 try:
     import MyLogger
@@ -106,7 +106,7 @@ def raw_write(data, tags, timing):
     '''
     global Conf
     if not len(data): return True
-    if len(tags): tags = 'type="%s"' % tags
+    if len(tags): tags = ',type="%s"' % tags
     data = 'raw%s %s %d' % (tags,data,timing)
     if type(Conf['fd']) is file:
         try:
