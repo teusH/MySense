@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDBGROVE.py,v 2.8 2017/06/04 09:40:55 teus Exp teus $
+# $Id: MyDBGROVE.py,v 2.9 2017/06/08 08:18:19 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDBGROVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.8 $"[11:-2]
+__version__ = "0." + "$Revision: 2.9 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -44,11 +44,12 @@ except ImportError:
 __options__ = [
     'input','port','type','calibrations',
     'fields','units',
+    'raw',                             # raw measurements publishing
     'interval','bufsize','sync']       # multithead buffer size and search for input secs
 
 Conf ={
     'input': False,      # no loudnes sensors installed
-    'type': None,        # type of the lodness chip eg Grove dB
+    'type': 'audio',        # type of the lodness chip eg Grove dB
     'fields': ['dbv'],   # filtered audio loudness
     'units' : ['dBV'],   # dB
     # TO DO next is expected as linear fie which is wrong
@@ -58,6 +59,7 @@ Conf ={
     'interval': 30,      # read lodness interval in secs (dflt)
     'bufsize': 20,       # size of the window of values readings max
     'sync': False,       # use thread or not to collect data
+    'raw': False,        # raw measurements publishing
     'debug': False,      # be more versatile
 #    'fd' : None         # input handler
 }
@@ -86,6 +88,10 @@ def Add(conf):
     if not type(db) is int:
 	MyLogger.log(modulename,'ATTENT','Has not an int as value: %s' % str(db))
 	return {'time': int(time()),conf['fields'][0]:None}
+    if ('raw' in conf.keys()) and (Conf['raw'] != None):
+        conf['raw'].publish(
+            tag='%s' % conf['type'].lower(),
+            data="dbv=%.1f" % db*1.0)
     db = calibrate(0,conf,db)
     rec = {'time': int(time()),conf['fields'][0]:int(db)}
     return rec
