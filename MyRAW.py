@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRAW.py,v 1.4 2017/06/08 07:19:15 teus Exp teus $
+# $Id: MyRAW.py,v 1.6 2017/06/08 18:32:36 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyRAW.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 1.6 $"[11:-2]
 
 try:
     import MyLogger
@@ -105,7 +105,9 @@ def raw_write(data, tags, timing):
         telegram structure: measurement,column=string,... column=int_float,...
     '''
     global Conf
-    data = 'raw,type="%s" %s %d' % (tags,data,timing)
+    if not len(data): return True
+    if len(tags): tags = 'type="%s"' % tags
+    data = 'raw%s %s %d' % (tags,data,timing)
     if type(Conf['fd']) is file:
         try:
             # TO DO: add lock on write as threading is used
@@ -152,6 +154,18 @@ def checkArg(field):
         return False
     return True
 
+def checkData(field):
+    fields = field.split(',')
+    for i in range(len(fields)-1,-1,-1):
+        if fields[i].count('=') != 1:
+            fields.pop(i)
+        (unused,v) = fields[i].split('=')    # v should be int or float
+        if not v.replace('.','').isdigit(): fields.pop(i)
+    fields = ','.join(fields)
+    if len(field) != len(fields):
+        MyLogger.log(modulename,'ATTENT','Changed raw measurements data %s -> %s.' % (field,fields))
+    return fields
+
 def publish(**args):
     global Conf
     """ add raw measurement records to the database or file,
@@ -163,6 +177,7 @@ def publish(**args):
         if not key in args.keys():
             MyLogger.log(modulename,'FATAL',"Publish call missing argument %s." % key)
             return False
+    args['data'] = checkData(args['data'])
     if not len(args['data']): return True       # no record to publish
     if (not checkArg(args['tag'])) or (not checkArg(args['data'])):
         return False
