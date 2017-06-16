@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.21 2017/06/06 17:29:57 teus Exp teus $
+# $Id: INSTALL.sh,v 1.22 2017/06/16 20:36:46 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -220,10 +220,27 @@ function MQTT(){
     return $?
 }
 
+EXTRA+=" DISPLAY"
+function DISPLAY(){
+    # this needs to be tested
+    echo "Installing Display service and plugin"
+    DEPENDS_ON pip Image
+    DEPENDS_ON pip ImageDraw
+    DEPENDS_ON pip ImageFont
+    DEPENDS_ON pip Adafruit_GPIO.SPI
+    if [ ! -f ./Adafruit_SSD1306.py ]
+    then
+        git clone https://github.com/adafruit/Adafruit_SSD1306.git
+        /bin/cp ./Adafruit_SSD1306/Adafruit_SSD1306.py .
+        /bin/rm -rf ./Adafruit_SSD1306/
+    fi
+    return $?
+}
+
 PLUGINS+=" INFLUX"
 function INFLUX(){
-    DEPENDS ON pip influxdb
-    DEPENDS ON pip requests
+    DEPENDS_ON pip influxdb
+    DEPENDS_ON pip requests
     return $?
 }
 
@@ -911,6 +928,12 @@ UPDATE
 for M in $MODS
 do
     # TO BE ADDED: check config if the plugin is really used
+    case M in
+    mysql|MySQL) M=MYSQL
+    ;;
+    INFLUX*) M=INFLUX
+    ;;
+    esac
     if echo "$INSTALLS $PLUGINS $EXTRA" | grep -q -i "$M"
     then
         if echo "$INSTALLS" | /bin/grep -q "$M"
