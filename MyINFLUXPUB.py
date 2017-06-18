@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyINFLUXPUB.py,v 1.12 2017/06/06 14:41:15 teus Exp teus $
+# $Id: MyINFLUXPUB.py,v 1.14 2017/06/18 19:06:36 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyINFLUXPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.12 $"[11:-2]
+__version__ = "0." + "$Revision: 1.14 $"[11:-2]
 
 try:
     import MyLogger
@@ -96,11 +96,12 @@ def db_connect(net):
                             MyLogger.log(modulename,"WARNING", "Unable to create the database %s" % Conf['database'])
                             return False
                     except:
+                        MyLogger.log(modulename,'ERROR',"InFlux DB create: %s" % sys.exc_info()[1])
                         raise IOError
                     MyLogger.log(modulename,"ATTENT", "Created db: {0}".format(Conf['database']))
                 Conf['fd'].switch_database(Conf['database'])
             except:
-                MyLogger.log(modulename,'ATTENT',"Publish admin failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
+                MyLogger.log(modulename,'ATTENT',"Publish admin: %s" % sys.exc_info()[1])
                 pass
             Conf['last'] = 0 ; Conf['waiting'] = 5 * 30 ; Conf['waitCnt'] = 0
             return True
@@ -144,6 +145,7 @@ def Influx_write(database, data, tags):
             else:
                 data_values.append("{}={}".format(item,value))
     data_line = ','.join(data_tags) + ' ' + ','.join(data_values)
+    if not len(data_values): return True
     try:
         return Conf['fd'].request('write','POST',{'db':database,'precision':'s'},data_line,204)
     except:
