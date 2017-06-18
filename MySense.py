@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.7 2017/06/07 10:25:12 teus Exp teus $
+# $Id: MySense.py,v 3.9 2017/06/18 13:56:58 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.7 $"[11:-2]
+__version__ = "0." + "$Revision: 3.9 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -530,7 +530,7 @@ def pid_kill(pidfile):
     os.lseek(fd, 0, os.SEEK_SET)
 
     try:
-        os.kill(pid, SIGTERM)
+        os.kill(pid, signal.SIGTERM)
         sleep(0.1)
     except OSError as err:
         err = str(err)
@@ -627,7 +627,7 @@ def deamon_stop(pidfile):
         exit(0)
 
     # Try killing the daemon process
-    error = os.kill(pid,SIGTERM)
+    error = os.kill(pid,signal.SIGTERM)
     if error:
         sys.exit(error)
 
@@ -774,6 +774,11 @@ def sensorread():
             try:
                 sensed = Conf[Sensor]['module'].getdata()
                 if (not type(sensed) is dict) or (not len(sensed)):
+                    if not 'notSensed' in Conf[Sensor].keys():
+                        Conf[Sensor]['notSensed'] = 0
+                    Conf[Sensor]['notSensed'] += 1
+                    if not Conf[Sensor]['notSensed']%10:
+                        MyLogger.log(modulename,'ATTENT','Sensor %s off line?' % Sensor)
                     continue
                 if 'hostname' in Conf[Sensor].keys():
                     # if len(Conf['inputs'])-1:
@@ -788,11 +793,13 @@ def sensorread():
                 if ('time' in sensed.keys()) and sensed['time']:
                     t_cnt += 1
                     t_time += sensed['time']                       
+                notSensed = True
                 for key in sensed.keys():
+                    if key == 'time': continue
                     if (not type(sensed[key]) is str) and math.isnan(sensed[key]):
                         MyLogger.log(modulename,'ATTENT','Sensor %s has NaN value.' % Sensor)
                         sensed[key] = None
-                    if key == 'time': continue
+                    else: notSensed = False
                     if (key in data.keys()) and (sensed[key] != None):
                         # some sensor key are the same, except only 2 of them
                         # examples are meteo values eg temp, humidity
@@ -803,6 +810,13 @@ def sensorread():
                             sensed[key] = (sensed[key]+data[key])/2
                 data.update(sensed)
                 gotData = True
+                if notSensed:
+                    if not 'notSensed' in Conf[Sensor].keys():
+                        Conf[Sensor]['notSensed'] = 0
+                    Conf[Sensor]['notSensed'] += 1
+                    if not Conf[Sensor]['notSensed']%10:
+                        MyLogger.log(modulename,'ATTENT','Sensor %s off line?' % Sensor)
+                elif 'notSensed' in Conf[Sensor].keys(): del Conf[Sensor]['notSensed']
             except KeyboardInterrupt:
                 exit(0)
             except (Exception) as error:
@@ -842,7 +856,8 @@ def sensorread():
         # TO DO: push inputs into an array with idents and data and publish them
         # next have threads to fill and empty the buffer supervised with a semaphore
         
-        if gotData:      # data collected?
+        if gotData:      # any data from some sensor collected
+            if 'notSensed' in Conf[Sensor].keys(): del Conf[Sensor]['notSensed']
             # queue for all channels the data tuple
             Queue(Conf['outputs'],ident,data)
             for Out in Conf['outputs']:
