@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyMQTTPUB.py,v 1.7 2017/06/04 09:40:55 teus Exp teus $
+# $Id: MyMQTTPUB.py,v 1.8 2017/06/18 18:36:01 teus Exp teus $
 
 # module mqtt: git clone https://github.com/eclipse/paho.mqtt.python.git
 # cd paho.mqtt.python ; python setup.py install
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyMQTTPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 
 try:
     import MyLogger
@@ -238,3 +238,33 @@ def publish(**args):
         return False
     ErrorCnt = 0
     return True
+
+# test main loop
+if __name__ == '__main__':
+    from time import sleep
+    Conf['output'] = True
+    Conf['hostname'] = 'lunar'         # host InFlux server
+    Conf['user'] = 'ios'               # user with insert permission of InFlux DB
+    Conf['password'] = 'acacadabra'    # DB credential secret to use InFlux DB
+    net = { 'module': True, 'connected': True }
+    try:
+        import Output_test_data
+    except:
+        print("Please provide input test data: ident and data.")
+        exit(1)
+
+    for cnt in range(0,len(Output_test_data.data)):
+        timings = time()
+        try:
+            publish(
+                ident=Output_test_data.ident,
+                data = Output_test_data.data[cnt],
+                internet = net
+            )
+        except Exception as e:
+            print("output channel error was raised as %s" % e)
+            break
+        timings = 30 - (time()-timings)
+        if timings > 0:
+            print("Sleep for %d seconds" % timings)
+            sleep(timings)
