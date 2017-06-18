@@ -105,6 +105,18 @@ See the various README/docs directory for the plugin's and modules for the statu
 
 Failures on internet connectivity and so retries of access is provided.
 
+## Test support
+Use the following if one starts: test each sensor input or output channel one at a time first.
+Use the Conf dictionary to set configuration for the test of the module.
+
+The sensor plugin as well the output pugin channels *all* have a `__main__` test loop in the script.
+This enables one to test each plugin (one at a time) in standalone modus: `pdb MyPLUGIN.py`.
+Use for the sensor input plugins `Conf['sync']=False` (to disable multithreading) and switch debug on: `Conf['debug']=True`.
+Set the python debugger `pdb` to break on `break getdata` (input plugin) or `break publish` for stepping through the script. Failures in configuration are shown in this way easily.
+
+After you have tested the needed input/output modules: To test the central script `MySense.py` use first the python debugger. The main routine after the initiation and configuration phase is `sensorread`. Break on this function and use `print Conf` to show you the configuration settings. Step to the first `getdata` call or `publish` call to go into the input or output module.
+Note that the `getdata` inout call may need some time to allow the module to collect measurement(s) from the sensor module.
+
 ## Current development focus
 The MySense framework/infrastructure is operational. By default MySense uses a so called lightweight process (multithreaded) to allow sensor data to be collected asynchronously..
 Input is tested with serial, I2C-bus and GPIO sensors.
