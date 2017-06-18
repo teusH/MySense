@@ -36,6 +36,13 @@ file     = /dev/stderr
 #level    = WARNING
 level    = INFO
 
+## display measurements on Adafruit mini display
+#[display]
+## will be switched off if no display attached
+#output = True
+## port = 2017
+## host = localhost  # do not change this
+
 # raw sensor measurements output to file or InFlux DB server
 #[raw]
 #hostname = localhost
