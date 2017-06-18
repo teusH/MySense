@@ -82,21 +82,26 @@ def addLine(text,**args):
     global Lines, font, fntSize, draw
     if ('font' in args.keys()) and (type(args['font']) is str):
         if 'size' in args.keys(): fntSize = int(args['size'])
+        if fntSize < 4: fintSize = 8
         try:
             font = ImageFont.truetype(args['font'],fntSize)
         except:
             font = None
     if font == None:
         font = ImageFont.load_default(); fntSize = 8
+    clear = (False if (not 'clear' in args.keys()) else args['clear'])
         
-    MaxW, MaxH = draw.textsize(text, font=font)
+    unused, MaxH = draw.textsize(text, font=font)
     if Lines == None: Lines = []
+    while True:
+        if len(Lines) > 100: sleep(5)   # wait till more lines are displayed
+        else: break
     Lines.append( {
         'x':1,'MaxH': MaxH,
         'txt':text,
         'fnt': font,
         'fill': 255 if not 'fill' in args.keys() else args['fill'],
-        'maxW': MaxW,
+        'clear': clear,    # clear display and push this line on top display
         'timing': int(time.time()),
         })
     return True
@@ -106,20 +111,22 @@ def scroll(linenr,yPos):
     global Lines, width, height, draw
     # baseY = yPos+Lines[linenr]['MaxH']
     if yPos > height: return False
-    if not 'trimmed' in Lines[linenr].keys(): Lines[linenr]['trimmed'] = False 
-    if (not Lines[linenr]['trimmed']) and (Lines[linenr]['maxW'] > width):
-        Lines[linenr]['trimmed'] = True
-        Lines[linenr]['txt'] += '  '
-        Lines[linenr]['maxW'], unused = draw.textsize(Lines[linenr]['txt'], font=Lines[linenr]['fnt'])
+    if not 'strt' in Lines[linenr].keys(): Lines[linenr]['strt'] = -6
     txt = Lines[linenr]['txt']
-    if Lines[linenr]['trimmed']:
-        twidth = Lines[linenr]['maxW']
-        Lines[linenr]['txt'] = Lines[linenr]['txt'][1:] + Lines[linenr]['txt'][0]
-        while twidth >= width:
-            txt = txt[0:-1]
-            twidth, unused = draw.textsize(txt, font=Lines[linenr]['fnt'])
+    if Lines[linenr]['strt'] > 0:
+        txt = Lines[linenr]['txt'][Lines[linenr]['strt']:]
+    twidth, unused = draw.textsize(txt, font=Lines[linenr]['fnt'])
+    trimmed = False
+    while twidth > width:
+        trimmed = True
+        txt = txt[:-1]
+        twidth, unused = draw.textsize(txt, font=Lines[linenr]['fnt'])
     draw.text((1, yPos), txt, font=Lines[linenr]['fnt'], fill=Lines[linenr]['fill'])
-    return Lines[linenr]['trimmed']
+    if trimmed:
+        Lines[linenr]['strt'] += 1
+    else:
+        Lines[linenr]['strt'] = -6
+    return True
 
 # display as much lines as possible
 def Display(lock):
@@ -127,22 +134,35 @@ def Display(lock):
     if Lines == None or not len(Lines): return (False,False)
     # ClearDisplay()
     # Clear image buffer by drawing a black filled box.
-    draw.rectangle((0,0,width,height), outline=0, fill=0)
-    Ypos = 0; trimmedX = False; trimmedY = False
-    try:
-        with lock: nrLines = len(Lines)
-    except:
-        nrLines = len(Lines)
-    for linenr in range(0,nrLines):
+    linenr = 0; Ypos = 1
+    while True:
+        if lock != None:
+            with lock: nrLines = len(Lines)
+        else:
+            nrLines = len(Lines)
+        if not linenr:    # clear display
+            if Ypos:
+                draw.rectangle((0,0,width,height), outline=0, fill=0)
+            Ypos = 0; trimmedY = False
+        if linenr >= nrLines: break
         if Ypos > height:
            trimmedY = True
            break
-        if scroll(linenr,Ypos): trimmedX = True
+        if Lines[linenr]['clear']:
+            Lines[linenr]['clear'] = False
+            for i in range(0,linenr):
+                Lines.pop(0)
+            linenr = 0
+            continue
+        if not linenr:      # clear display
+            draw.rectangle((0,0,width,height), outline=0, fill=0)
+        scroll(linenr,Ypos)
         Ypos += Lines[linenr]['MaxH']
+        linenr += 1
     # Draw the image buffer.
     disp.image(image)
     disp.display()
-    return (trimmedX, trimmedY)
+    return trimmedY
 
 # run forever this function
 def Show(lock, conf):
@@ -158,14 +178,14 @@ def Show(lock, conf):
               time.sleep(5)   # first line has a delay of 5 seconds
               count = 0
               continue
-        (trimmedx, trimmedy) = Display(lock)
-        if trimmedy:          # scroll vertical, allow 3 seconds for top line to read
-            if int(time.time()) - Lines[0]['timing'] > 3:
-                try:
+        trimmedy = Display(lock)
+        if trimmedy:          # scroll vertical, allow 10 seconds for top line to read
+            if int(time.time()) - Lines[0]['timing'] > 10:
+                if lock != None:
                     with lock: Lines.pop(0)
-                except:
+                else:
                     if len(Lines): Lines.pop(0)
-        time.sleep(0.1)
+        time.sleep(0.3)
         
 
 if __name__ == "__main__":
@@ -177,5 +197,7 @@ if __name__ == "__main__":
     addLine('Fifth short line.')
     addLine('This might be the last line to be displayed.')
     addLine('Seventh line will scroll the display')
+    addLine('Eight line will scroll the display', clear=True)
+    addLine('Nine  line will scroll the display')
 
-    Show(False,{})
+    Show(None,{})

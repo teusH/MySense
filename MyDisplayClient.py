@@ -19,7 +19,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDisplayClient.py,v 1.1 2017/06/16 19:58:16 teus Exp teus $
+# $Id: MyDisplayClient.py,v 1.2 2017/06/17 12:24:42 teus Exp teus $
 
 # script to send text to SSD1306 display server
 
@@ -32,19 +32,29 @@ def displayMsg(msg):
     port = 2017
     degree = u'\N{DEGREE SIGN}'
     micro = u'\N{MICRO SIGN}'
+
+    if not len(msg): return True
+    if not type(msg) is list: msg = msg.split("\n")
+    for i in range(len(msg)-1,-1,-1):
+        if not len(msg[i]):
+            msg.pop(i)
+            continue
+        msg[i] = format(msg[i])
+        if msg[i][-1] == "\n": msg[i] = msg[i][:-1]
+        msg[i] = msg[i].replace('oC',degree + 'C')
+        #msg[i] = msg[i].replace('ug/m3',micro + 'g/m³')
+        msg[i] = msg[i].replace('ug/m3',micro + 'g/m3')
+    msg = "\n".join(msg) + "\n"
+    if not len(msg): return True
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((host,port))
-        if msg[-1] != "\n": msg += "\n"
-        msg.replace('oC',degree + 'C')
-        #msg.replace('ug/m3',micro + 'g/m³')
-        msg.replace('ug/m3',micro + 'g/m3')
         sock.send(msg)
         sock.close()
         return True
     except:
+        raise IOError("Unable to talk to display service")
         return False
-
 
 if __name__ == '__main__':
     for msg in sys.argv[1:]:

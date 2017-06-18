@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDisplayServer.py,v 1.1 2017/06/16 19:58:16 teus Exp teus $
+# $Id: MyDisplayServer.py,v 1.2 2017/06/18 13:55:49 teus Exp teus $
 
 # script will run standalone, collects text lines from sockets streams and
 # displays the scrolled lines on an Adafruit display
@@ -53,6 +53,7 @@ PID_FILE = '/var/tmp/' + progname + '.pid'
 # Multithreaded Python server : TCP Server Socket Thread Pool
 
 class DisplayThread(object):
+    ''' manage the display in a thread '''
     def __init__(self,conf):
         self.SSD1306 = __import__("MySSD1306_display")
         self.logger = conf['logging']
@@ -74,6 +75,7 @@ class DisplayThread(object):
         threading.Thread(target = self.SSD1306.Show,args = (self.lock,self.conf)).start()
 
 class ClientThread(object):
+    ''' socket listening threads '''
     def __init__(self, host, port, conf):
         self.logger = conf['logging']
         self.host = host
@@ -88,6 +90,7 @@ class ClientThread(object):
         else: self.lock = threading.Lock()
         self.logger.debug("[+] New server socket thread started for " + host + ":" + str(port) )
 
+    # no multi threaded listening in debug modus
     def listen(self):
         self.sock.listen(5)
         while True:
@@ -97,7 +100,51 @@ class ClientThread(object):
             else:
                 threading.Thread(target = self.listenToClient,args = (client,address)).start()
 
+    def getAttr(self,string,search):
+        ''' handle text attributes '''
+        start = string.find(search)
+        if start < 0: return ''
+        start += len(search)
+        end = string.find('"', start)
+        if end < 0: return ''
+        return string[start:end]
+
+    def getFont(self,font):
+        ''' find ttf file in the system '''
+        import subprocess
+        if not font: return ''
+        try:
+            df = subprocess.check_output(["/usr/bin/find","/usr/share/fonts/truetype/","-name",font + ".ttf"])
+            for i in df.split('\n'):
+                if i:
+                    if i.find(font+".ttf") > 0:
+                        return i
+        except:
+            pass
+        return ''
+
+    # TO DO: add text color and <img>
+    def getArgs(self,string):
+        ''' strip style xml attribute from string and return dict with style attributes '''
+        attrs = {}
+        if string[0] != '<': return {}
+        if string[1:6] == 'clear': return { 'clear': True }
+        elif string[1:5] == 'text':
+            # <text> has attrubutes: fill, font, size
+            fill = self.getAttr(string,'fill="')
+            if fill and fill.isdigit():
+                fill = int(fill)
+                if fill > 255: fill = 255
+                attrs['fill'] = fill
+            font = self.getFont(self.getAttr(string,'font="'))
+            if not font: return attrs
+            size = self.getAttr(string,'size="')
+            if (not size) or (not size.isdigit()): size = 8
+            attrs.update({ 'font': font, 'size': int(size) })
+            return attrs
+            
     def listenToClient(self, client, address):
+        ''' manage one connection to a socket '''
         if self.debug:
             self.conf['addLine']("New client accepted")
         client.settimeout(60)
@@ -106,12 +153,18 @@ class ClientThread(object):
                 data = self.linesplit(client) # generator object
                 if data:
                     for txt in data:
-                        txt = txt[:-1]
+                        txt = txt[:-1]     # delete end of line delimeter
                         self.logger.debug("Received a line: %s" % txt)
-                        if self.conf['addLine'] != None:
-                            self.conf['addLine'](txt)
-                        else:
+                        if self.conf['addLine'] == None:
                             raise NameError("Unable to use addLine routine of Display")
+                        args = {}
+                        while True:
+                            if (not len(txt)) or txt[0] != '<': break
+                            newArgs = self.getArgs(txt)
+                            if not len(newArgs): break
+                            txt = txt[txt.find('>')+1:]
+                            args.update(newArgs)
+                        self.conf['addLine'](txt, **args)
                     client.close()
                     return True
                 else:
@@ -122,6 +175,7 @@ class ClientThread(object):
                 return False
  
     def linesplit(self,client):                    # linesplit is a line generator
+        ''' generator: list of lines '''
         size = 1024
         buffer = client.recv(size)
         buffering = True
@@ -143,15 +197,17 @@ class ClientThread(object):
 # ===========================================================
 
 def delpid():
+    ''' clean up pid file '''
     global PID_FILE
     os.remove(PID_FILE)
 
 def pid_kill(pidfile):
+    ''' stop this main process '''
     pid = int(os.read(fd, 4096))
     os.lseek(fd, 0, os.SEEK_SET)
 
     try:
-        os.kill(pid, signal.SIGTERM)
+        os.kill(pid, SIGTERM)
         sleep(0.1)
     except OSError as err:
         err = str(err)
@@ -165,6 +221,7 @@ def pid_kill(pidfile):
         sys.exit("Failed to kill %d" % pid)
 
 def pid_is_running(pidfile):
+    ''' status of this main process '''
     try:
         fd = os.open(pidfile, os.O_RDONLY)
     except:
@@ -184,6 +241,7 @@ def pid_is_running(pidfile):
         return int(contents)
 
 def deamon_daemonize(pidfile):
+    ''' disconnect from terminal IO and deamonize '''
     global progname
     try:
         pid = os.fork()
@@ -227,6 +285,7 @@ def deamon_daemonize(pidfile):
     os.dup2(se.fileno(), sys.stderr.fileno())
 
 def deamon_detach(pidfile):
+    ''' start as deamon '''
     if pidfile == None:
         sys.exit("Cannot start deamon: no pid file defined.")
     # Check for a pidfile to see if the daemon already runs
@@ -236,6 +295,7 @@ def deamon_detach(pidfile):
     deamon_daemonize(pidfile)
 
 def deamon_stop(pidfile):
+    ''' stop the deamon '''
     if pidfile == None:
         sys.exit("Cannot stop deamon: no pid file defined.")
     # Get the pid from the pidfile
@@ -245,39 +305,43 @@ def deamon_stop(pidfile):
         exit(0)
 
     # Try killing the daemon process
-    error = os.kill(pid,signal.SIGTERM)
+    error = os.kill(pid,SIGTERM)
     if error:
         sys.exit(error)
 
 def deamon_status(pidfile):
+    ''' get status of this deamon '''
     global progname
     if pid_is_running(pidfile):
         sys.stderr.write("%s is running.\n" % progname)
     else:
         sys.stderr.write("%s is NOT running.\n" % progname)
 
+############## main process
 if __name__ == "__main__":
     import logging
-    for i in range(len(sys.argv)-1,-1,-1):
+    for i in range(len(sys.argv)-1,-1,-1):   # parse the command line arguments
         if sys.argv[i][0] != '-': continue
-        if sys.argv[i][0:1] == '-d':
+        if sys.argv[i][0:1] == '-d':         # debug modus
             Conf['debug'] = True
             pop(i)
-        elif sys.argv[i][0:1] == '-h':
+        elif sys.argv[i][0:1] == '-h':       # help/usage
             print("Adafruit display server arguments: -debug, -help, -port, [start|stop|status]")
             print("No argument: process is run in foreground and not deamonized.")
             exit(0)
-        elif sys.argv[i][0:1] == '-p':
+        elif sys.argv[i][0:1] == '-p':       # port to listen to on localhost address
             TCP_PORT = int(sys.argv[i+1])
             pop(i+1); pop(i)
-    # Conf['debug'] = True
+
     if Conf['debug']:
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
+
     logging.info("Display Server starts up")
     Conf['logging'] = logging
-    if len(sys.argv) > 1:
+
+    if len(sys.argv) > 1:                   ###### non interactive modus
         import atexit
         import subprocess
         from os import geteuid, getegid
@@ -294,13 +358,16 @@ if __name__ == "__main__":
             exit(1)
         else:
             deamon_detach(PID_FILE)
+    else:
+	Conf['debug'] = True
+
     Active = False
     try:
         if not Active:
             DisplayThread(Conf).start()
             Active = True
             time.sleep(1)
-            Conf['addLine']("Welcome to MySense")
+            Conf['addLine']("Welcome to MySense", clear=True)
         ClientThread(TCP_IP,TCP_PORT,Conf).listen()
     except:
         Conf['stop'] = True
