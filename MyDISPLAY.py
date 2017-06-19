@@ -18,32 +18,46 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDISPLAY.py,v 1.1 2017/06/17 14:10:34 teus Exp teus $
+# $Id: MyDISPLAY.py,v 1.2 2017/06/19 12:54:43 teus Exp teus $
 
 """ Publish measurements to display service
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDISPLAY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.1 $"[11:-2]
+__version__ = "0." + "$Revision: 1.2 $"[11:-2]
 
 try:
     import MyLogger
     import sys
     import datetime
     import socket
-    from time import time
+    from time import time, sleep
 except ImportError as e:
     MyLogger.log(modulename,"FATAL","One of the import modules not found: %s" % e)
 
 # configurable options
-__options__ = ['output','port',]
+__options__ = ['output','port']
 
 Conf = {
     'output': False,
-    'hostname': 'localhost', # host InFlux server
+    'host': 'localhost', # host InFlux server, key 'host': no need for internet access
     'port': 2017,        # default display port number
     'fd': None,          # have sent to db: current fd descriptor, 0 on IO error
     'omit' : ['time','geolocation',],  # fields not archived
+    'match': [		 # translation table for db abd unit names
+        ('pm_','PM'),
+        ('PM25','PM2.5'),
+        ('PM1','PM1'),
+        ('C','oC'),
+        ('F','oF'),
+        ('o3','O3'),
+        ('co','CO'),
+        ('no','NO'),
+        ('nh','NH'),
+        ('pha','air'),
+        ('pcs/0.01qf','pcs/qf'),
+        ('pcs','#'),
+           ],
 }
 
 # ========================================================
@@ -57,8 +71,8 @@ def attributes(**t):
 
 def displayMsg(msg):
     global Conf
-    degree = u'\N{DEGREE SIGN}'
-    micro = u'\N{MICRO SIGN}'
+    # degree = u'\N{DEGREE SIGN}'
+    # micro = u'\N{MICRO SIGN}'
         
     if not len(msg): return True
     if not type(msg) is list: msg = msg.split("\n")
@@ -68,9 +82,10 @@ def displayMsg(msg):
             continue
         msg[i] = format(msg[i])
         if msg[i][-1] == "\n": msg[i] = msg[i][:-1]
-        msg[i] = msg[i].replace('oC',degree + 'C')
+        # no unicode for socket send
+        # msg[i] = msg[i].replace('oC',degree + 'C')
         #msg[i] = msg[i].replace('ug/m3',micro + 'g/m³')
-        msg[i] = msg[i].replace('ug/m3',micro + 'g/m3')
+        # msg[i] = msg[i].replace('ug/m3',micro + 'g/m3')
     msg = "\n".join(msg) + "\n"
     if not len(msg): return True
     try:
@@ -90,8 +105,8 @@ def db_connect(geo,name):
     if not 'fd' in Conf.keys(): Conf['fd'] = False
     if not Conf['fd']:
         Conf['port'] = int(Conf['port'])
-        if (Conf['hostname'] != 'localhost') and (not Conf['port']):
-            MyLogger.log(modulename,'ERROR',"Access display service %s / %d."  % (Conf['hostname'], Conf['port']))      
+        if (Conf['host'] != 'localhost') and (not Conf['port']):
+            MyLogger.log(modulename,'ERROR',"Access display service %s / %d."  % (Conf['host'], Conf['port']))      
             Conf['output'] = False
             return False
         if (Conf['fd'] != None) and (not Conf['fd']): # should not happen, internal error
@@ -99,17 +114,20 @@ def db_connect(geo,name):
             Conf['output'] = False
             return False
         try:
-            displayMsg(datetime.datetime.fromtimestamp(time()).strftime('%Hh %Mm%Ss ') + ' MySense activated')
-            if len(name): displayMsg(name)
+            lines = []
+            lines.append(datetime.datetime.fromtimestamp(time()).strftime('At %Hh %Mm%Ss ') + ' MySense activated')
+            if len(name): lines.append(name)
             if geo:
                 geo = geo.split(',')
                 if len(geo) == 3:
-                    displayMsg('long: %8.5f, lat: %8.5f, alt: %dm' % (float(geo[0]),float(geo[1]),int(geo[2])))
+                    lines.append('long: %8.5f, lat: %8.5f, alt: %dm' % (float(geo[0]),float(geo[1]),int(float(geo[2]))))
                 elif len(geo) == 2:
-                    displayMsg('long: %8.5f, lat: %8.5f' % (float(geo[0]),float(geo[1])))
+                    lines.append('long: %8.5f, lat: %8.5f' % (float(geo[0]),float(geo[1])))
+            displayMsg(lines)
+            sleep(30)   # allow some time to read the ident info
             Conf['fd'] = True
         except IOError:
-            MyLogger.log(modulename,'ERROR',"Access database %s / %s."  % (Conf['hostname'], Conf[database]))      
+            MyLogger.log(modulename,'ERROR',"Access database %s / %s."  % (Conf['host'], Conf[database]))      
             Conf['output'] = False
     return Conf['fd']
 
@@ -130,16 +148,6 @@ def db_registrate(ident):
             name += item + ': ' + ident[item]
     if not db_connect(geo,name):
         return False
-
-    # next fails on non admin priv users
-    Conf['tags'] = {}
-    # the fields: information about the sensor
-    if (not 'fields' in ident.keys()) or (not 'units' in ident.keys()) or (len(Conf['fields']) != len(Conf['units'])):
-        MyLogger.log(modulename,'Error','fields and/or units key mising or incorrect.')
-        return False
-    for i in range(0,len(Conf['fields'])):
-        if Conf['fields'][i] in Conf['omit']: continue
-        Conf['tags'][Conf['fields'][i]] = ( (u'\N{DEGREE SIGN}'+'C') if Conf['units'][i] == 'C' else Conf['units'][i])
     Conf["registrated"] = True
     return True
 
@@ -154,11 +162,26 @@ def publish(**args):
             MyLogger.log(modulename,'FATAL',"Publish call missing argument %s." % key)
 
     # TO DO: get the transaltion table from the MySense.conf file
-    def db_name(my_name):
-        DBnames = {
-        }
-        if my_name in DBnames.keys(): return DBnames[my_name]
-        return my_name
+    def trans(name):
+        global Conf
+        if (not 'match' in Conf.keys()) or (not type(Conf['match']) is list):
+            return name
+        for item in Conf['match']:
+             if not type(item) is tuple: continue
+             if name.find(item[0]) < 0: continue
+             name = name.replace(item[0],item[1])
+        return name
+
+    def findInfo(ident,field):
+        UT = ['','']   # (unit,sensor type)
+        try:
+            indx = ident['fields'].index(field)
+            UT[0] = ident['units'][indx]
+            UT[1] = ident['types'][indx]
+        except:
+            pass
+        finally:
+            return (UT[0],UT[1])
 
     if Conf['fd'] == None: Conf['registrated'] = None
     if not db_registrate(args['ident']):
@@ -167,36 +190,41 @@ def publish(**args):
     if Conf['fd'] == None:
         return False
    
-    lines = ['','','']   # db_name, unit, value
+    lines = ['','','','']   # sensor type, DB name, unit, value
     for item in args['data'].keys():
         if item in Conf['omit']: continue
         if not args['data'][item]: continue
-        Nm = db_name(item)
         if type(args['data'][item]) is list:
             MyLogger.log(modulename,'WARNING',"Found list for sensor %s." % item)
             continue
         else:
             if not args['data'][item]: continue
-            fields[Nm] = args['data'][item]
-            lines[0] += rjust('%5s' % Nm, 5)
-            lines[1] += rjust('%5s' % Conf['tags'][item])
-            lines[2] += rjust('%5.0f' % float(args['data'][item]))
-        lines.insert(0,datetime.datetime.fromtimestamp(time()).strftime('%d %b %H:%M:%S'))
-        if 'time' in args['data'].keys():
-            try:
-                lines[0] = datetime.datetime.fromtimestamp(args['data']['time']).strftime('%d %b %H:%M:%S')
-            except:
-                pass
+            Unit, Type = findInfo(args['ident'],item)
+            bar = ''
+            if len(lines[0]): bar = '|'
+            if type(args['data'][item]) is int:
+                lines[3] += bar +  '%6d' % args['data'][item]
+            elif type(args['data'][item]) is float:
+                lines[3] += bar +  '%6.1f' % (float(args['data'][item]+0.05))
+            else: continue   # geo location is not displayed
+            lines[0] += bar +  '%6.6s' % Type
+            lines[1] += bar + ' %5.5s' % trans(item)
+            lines[2] += bar + ' %5.5s' % trans(Unit)
+    lines.insert(0,'<clear>' + datetime.datetime.fromtimestamp(time()).strftime('%d %b %Hh%M:%S'))
+    if 'time' in args['data'].keys():
         try:
-            sendMsg(lines)
+            lines[0] = '<clear>' + datetime.datetime.fromtimestamp(args['data']['time']).strftime('%d %b %H:%M:%S')
         except:
-            MyLogger.log(modulename,'ERROR','Unable to send text to display service.')
-            return False
+            pass
+    try:
+        displayMsg(lines)
+    except:
+        MyLogger.log(modulename,'ERROR','Unable to send text to display service.')
+        return False
     return True
 
 # test main loop
 if __name__ == '__main__':
-    from time import sleep
     Conf['output'] = True
     Conf['port'] = 2017
     try:
