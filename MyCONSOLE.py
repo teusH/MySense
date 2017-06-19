@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyCONSOLE.py,v 2.6 2017/06/04 09:40:55 teus Exp teus $
+# $Id: MyCONSOLE.py,v 2.7 2017/06/19 12:54:06 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,7 +26,7 @@
     Relies on Conf setting biy main program
 """
 modulename='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.6 $"[11:-2]
+__version__ = "0." + "$Revision: 2.7 $"[11:-2]
 
 try:
     import MyLogger
@@ -43,6 +43,12 @@ Conf = {
      'output': False,    # console output dflt enabled if no output channels defined
 #    'fd': None,         # input handler
      'file': '/dev/stdout',   # Debugging: write to file
+     'match': [           # translation table for db abd unit names
+        ('C','oC'),
+        ('F','oF'),
+        ('pcs/qf','pcs/0.01qf'),
+           ],
+
 }
 
 def registrate(ident):
@@ -57,12 +63,32 @@ def registrate(ident):
     print ''
     Conf['registrated'] = True
 
+def findInfo(ident,field):
+    UT = ['','']   # (unit,sensor type)
+    try:
+        indx = ident['fields'].index(field)
+        UT[0] = ('' if ident['units'][indx] == '%' else ' ') + ident['units'][indx] 
+        UT[1] = ' ' + ident['types'][indx]
+    except:
+        pass
+    finally:
+        return (UT[0],UT[1])
+    
 # =============================================
 # print telegram with measurement values on console
 # =============================================
 # import datetime
 def publish(**args):
     global Conf
+    def trans(name):
+        global Conf
+        if (not 'match' in Conf.keys()) or (not type(Conf['match']) is list):
+            return name
+        for item in Conf['match']:
+             if not type(item) is tuple: continue
+             if name.find(item[0]) < 0: continue
+             name = name.replace(item[0],item[1])
+        return name
     
     if not Conf['output']:
         return
@@ -73,5 +99,31 @@ def publish(**args):
     print "    %-14s: %s (%s)" % ('time',args['data']['time'],datetime.datetime.fromtimestamp(args['data']['time']).strftime("%Y-%m-%d %H:%M:%S"))
     for item in sorted(args['data'].iterkeys()):
         if item != 'time':
-            print "\t%-10s: %s" % (item,args['data'][item])
+            Unit,Type = findInfo(args['ident'],item)
+            print "\t%-10s: %s%s%s" % (item,args['data'][item],trans(Unit),Type)
+
+# test main loop
+if __name__ == '__main__':
+    Conf['output'] = True
+    from time import sleep
+    try:
+        import Output_test_data
+    except:
+        print("Please provide input test data: ident and data.")
+        exit(1)
+
+    for cnt in range(0,len(Output_test_data.data)):
+        timings = time()
+        try:
+            publish(
+                ident=Output_test_data.ident,
+                data = Output_test_data.data[cnt],
+            )
+        except Exception as e:
+            print("output channel error was raised as %s" % e)
+            break
+        timings = 10 - (time()-timings)
+        if timings > 0:
+            print("Sleep for %d seconds" % timings)
+            sleep(timings)
 
