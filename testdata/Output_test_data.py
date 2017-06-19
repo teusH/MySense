@@ -1,14 +1,14 @@
 ident = {
-    'geolocation': '50.420635,5.1956117,22.9',
+    'geolocation': '51.420635,6.1356117,22.9',
     'fields': ['time', 'pm_25', 'pm_10', 'dtemp', 'drh', 'temp', 'rh', 'hpa'],
-    'extern_ip': ['84.161.115.205'],
+    'extern_ip': ['83.161.151.250'],
     'label': 'alphaTest',
     'project': 'BdP',
     'version': '0.2.28',
-    'units': ['s', 'pcs/qf', 'pcs/qf', 'C', '%', 'C', '%', 'hPa'],
-    'intern_ip': ['192.168.175.59', '2002:908:ac6a:1:83c2:7bd8:90b7:8750', '2002:908:ac6a:1:17fb:6b65:1d72:d7da'],
+    'units': ['s', 'pcs/qf', u'pcs/qf', 'C', '%', 'C', '%', 'hPa'],
+    'intern_ip': ['192.168.178.49', '2001:980:ac6a:1:83c2:7b8d:90b7:8750', '2001:980:ac6a:1:17bf:6b65:17d2:dd7a'],
     'serial': 'test_sense',
-    'types': ['Dylos DC1100', 'DHT22', 'BME280']
+    'types': ['time','Dylos DC1100', 'Dylos DC1100', 'DHT22', 'DHT22', 'BME280', 'BME280', 'BME280']
     }
 data = [
     {'drh': 29.3, 'pm_25': 318.0, 'temp': 28.75,
