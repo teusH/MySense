@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.22 2017/06/16 20:36:46 teus Exp teus $
+# $Id: INSTALL.sh,v 1.23 2017/06/20 14:01:16 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -224,16 +224,9 @@ EXTRA+=" DISPLAY"
 function DISPLAY(){
     # this needs to be tested
     echo "Installing Display service and plugin"
-    DEPENDS_ON pip Image
-    DEPENDS_ON pip ImageDraw
-    DEPENDS_ON pip ImageFont
-    DEPENDS_ON pip Adafruit_GPIO.SPI
-    if [ ! -f ./Adafruit_SSD1306.py ]
-    then
-        git clone https://github.com/adafruit/Adafruit_SSD1306.git
-        /bin/cp ./Adafruit_SSD1306/Adafruit_SSD1306.py .
-        /bin/rm -rf ./Adafruit_SSD1306/
-    fi
+    DEPENDS_ON apt python-pil
+    DEPENDS_ON pip Adafruit-GPIO
+    DEPENDS_ON pip Adafruit-SSD1306
     return $?
 }
 
