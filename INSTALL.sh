@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.23 2017/06/20 14:01:16 teus Exp teus $
+# $Id: INSTALL.sh,v 1.24 2017/06/20 18:07:20 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -227,6 +227,22 @@ function DISPLAY(){
     DEPENDS_ON apt python-pil
     DEPENDS_ON pip Adafruit-GPIO
     DEPENDS_ON pip Adafruit-SSD1306
+    DEPENDS_ON pip Adafruit_BBIO
+    DEPENDS_ON apt python-imaging
+    DEPENDS_ON apt python-smbus
+    if ! ls /dev/spi* | grep -q "spidev0.[01]"
+    then
+        echo "Missing spidev: please use \"sudo rasp-config\" and enable SPI"
+    fi
+    if ! groups | grep -q spi
+    then
+        if ! useradd -G spi $USER
+        then
+            echo "Please add $USER or MYSense user to spi group: sudo nano /etc/group"
+        else
+            echo "Added $USER to spi group to access /dev/spidev0.[01]"
+        fi
+    fi
     return $?
 }
 
