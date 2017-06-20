@@ -1,32 +1,52 @@
 # MySense
+## Description
 Software Infrastructure or framework for managing environmental sensors and data aquisition
 
 ## Goal
-Provide a generalised dynamic Open Source based infrastructure to allow environmetal measurements data acquisition, dynamic transport of data to other systems, datastorage and archiving and access for free visualisation and free availability  of the data.
+Provide a generalised dynamic Open Source based infrastructure to allow:
+* environmental measurements with sensors
+* data acquisition
+* dynamic transport of data to other data systems: e.g. databases, mosquitto, Influx,...
+* data storage and archiving
+* access for free visualisation
+* free availability  of the data
+* free availability of all software (GPLV4 license)
 
-## Main program
-The main python script is MySense.py
-
-The script is the central management script beween sensor and broker input (modules) plugins (temperature, dust, etc. sensor device modules and brokers) to output modules (console output, (MySQL) database, (CSV/gspread) spreadsheets, and brokers.
-* Try `./MySense.py --help` to get an overview.
-MySense.py can be called with the argument start (or status, or stop) to start MySense as background process.
-
-On the command line input or output plugins can be switched on or off.
+## Scripts
+All scripts are written in Python 2. Python 3 is supported but not tested well.
+Scripts have been tested on Raspberry Pi (2 and 3) running Wheezy and Jessie Debian based OS.
+Scripts have a -h (help) option. With no arguments the script will be started in interactive mode. Arguments: *start*, *status*, *stop*.
+### Support scripts
+* MyLed.py: control the Pi with button to poweroff and put it in wifi WPA mode. Pi will set up a wifi access point `MySense` if no internet connectivity could be established via wifi or LAN.
+* MyDisplayServer.py, a display service: messages received will be shown on a tiny Adafruit display.
+### Main script
+The main python script is MySense.py. It acts as intermediate beween input plugins and output channels. It uses `MySense.conf` (see MySense.conf.example) to configure itself.
 The MySense configuration file defines all plugins available for the MySense.py command.
+
+* input (modules) plugins: temperature, dust, etc. sensor device modules and brokers
+* output (modules) channels: console output, (MySQL) database, (CSV/gspread) spreadsheets, and brokers (mosquitto, InFlux, ...).
+
+Try `./MySense.py --help` to get an overview.
+
+On the command line the option --input and --output plugins can be switched on (all other configured plugins are disabled).
+#### operation phases
+MySense starts with a configuring phase (options, arguments, reading configuration, loading modules), whereafter in the `readsensors()` routine it will first access the input modules to obtain measurement values, combine them into an internal buffer cache per output channel, and finaly tries per output channel to empty the queued records.
+
 The output of sensor values to an output channel will always on startup to send an identification json info record.
 Each configurable interval period of time MySense will send (input) measurements values to all configured output channels. For each output channel connected via internet MySense will keep a queue in the case the connection will be broken. If the queue is exceeding memory limits the oldest records in the queue will be deleted first.
+If the configured *interval* time is reached it will redo the previous loop.
 
 If switched on and configured an email with identification information will be sent to the configured user.
 Make sure one obeys the Personally Identifiable Information ([PII]http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-122.pdf) privacy rulings.
 
-# Plugin configuration 
+### Plugin configuration 
 MySense.conf is the configuration/init file from which plugin or modules are imported into the MySense process. See the `MySense.conf.example` for all plugins (sections) and the plugin options.
 
 For every plugin module there is an README.plugin with explanations of the input/output plugin.
 The input from sensors is read asynchronous (in parallel) via the module MyTHREAD.py.
 If needed it can be switched to read only in sync with the other input sensors.
 
-A working example of MySense in todays operation:
+A working example of MySense script in todays operation:
 ```
           remote access             |  INTERNET (wired/wifi)
           syst.mgt.     webmin -----||_ wifi AP -- webmin/ssh system mgt
@@ -68,6 +88,7 @@ Towards a broker the output will consist of an (updated e.g. GPS location) combi
 ```javascript
     { "ident": id-record, "data": data-record }
 ```
+See for an example the file: `testdata/Output_test_data.py`
 
 The input sensor plugins provide (sliding window of a per plug definable buffer size)) averages in a per input plugin defined interval time in seconds. The output is done on a general interval period timing using the average time of input timings.
 
@@ -85,7 +106,7 @@ Available input plugins:
 ## Remote management
 The Pi allows to install a wifi connectivity with internet as well a virtual wifi Access Point. A backdoor configuration is provided via direct access to `webmin` and `ssh` (Putty), as well via a proxy as *ssh tunneling* and/or using the proxy service of Weaved (`https://www.remot3.it/web/index.html`).
 
-## Platform:
+## Hardware Platform
 Sensors have a hardware interface to I2C, GPIO: those sensors are tested on RaspBerry Pi (and Arduino Uno)
 Sensors with USB serial are tested on Linux Debian platforms which run Python.
 
@@ -93,20 +114,20 @@ Sensors with USB serial are tested on Linux Debian platforms which run Python.
 See README.pi for installation of the Raspberry Pi platform.
 MySense plugins: Use the shell file `INSTALL.sh [DHT GPS DB plugin ...]` to download all dependent modules.
 
-The sensor plugins can be tested in standalone mode, e.g. for BME280 Bosch chip, use `python MyBME280.py`. See the script for the use of sync and debug options at the end of the script to test.
+The sensor plugins, and output modules can be tested in *standalone mode*, e.g. for BME280 Bosch chip, use `python MyBME280.py`. Or use the Python debugger `pdb` in stead. See the script for the use of sync and debug options at the end of the script to test.
 
 ## Documentation
 See the REAME's and docs directory for descriptions how to prepair the HW, python software and Pi OS for the different modules.
 
 `CONTENT.md` will give an overview of the files and short description.
 
-## Operation status:
+## Operation status
 See the various README/docs directory for the plugin's and modules for the status of operation, development status, or investigation.
 
 Failures on internet connectivity and so retries of access is provided.
 
-## Test support
-Use the following if one starts: test each sensor input or output channel one at a time first.
+## Extensive test support
+Use the following first if one uses MySense for the first time: test each sensor input or output channel one at a time first.
 Use the Conf dictionary to set configuration for the test of the module.
 
 The sensor plugin as well the output pugin channels *all* have a `__main__` test loop in the script.
@@ -114,12 +135,14 @@ This enables one to test each plugin (one at a time) in standalone modus: `pdb M
 Use for the sensor input plugins `Conf['sync']=False` (to disable multithreading) and switch debug on: `Conf['debug']=True`.
 Set the python debugger `pdb` to break on `break getdata` (input plugin) or `break publish` for stepping through the script. Failures in configuration are shown in this way easily.
 
-After you have tested the needed input/output modules: To test the central script `MySense.py` use first the python debugger. The main routine after the initiation and configuration phase is `sensorread`. Break on this function and use `print Conf` to show you the configuration settings. Step to the first `getdata` call or `publish` call to go into the input or output module.
-Note that the `getdata` inout call may need some time to allow the module to collect measurement(s) from the sensor module.
+After you have tested the needed input/output modules: To test the central script `MySense.py` use first the Python debugger `pdb`. The main routine after the initiation and configuration phase is `sensorread`, in `pdb` use `break sensorread`. Continue to this break point and use `print Conf` to show you the configuration settings. Step to the first `getdata` call or `publish` call to go into the input or output module.
+Note that the `getdata()` input routine may need some time in order to allow the module to collect measurement(s) from the sensor.
 
 ## Current development focus
-The MySense framework/infrastructure is operational. By default MySense uses a so called lightweight process (multithreaded) to allow sensor data to be collected asynchronously..
-Input is tested with serial, I2C-bus and GPIO sensors.
+The MySense framework/infrastructure is operational (alpha phase).
+
+By default MySense uses a so called lightweight process (multithreaded) to allow sensor data to be collected asynchronously.
+Input is tested with serial, I2C-bus and GPIO sensors (meteo,dust,geo,audio, (gas in July 2017).
 The focus is to allow Grove based sensors (easier to plugin to the MySense system) and weather resistent cases for the system.
 
 ![Pi Breadboard in action](https://www.github.com/teusH/MySense/tree/master/images/MySense0.png)
@@ -166,6 +189,7 @@ After the correlation calculation set for the sensor the `calibration` option: e
 
 To avoid *outliers* the MySense input multi threading module will maintain a sliding average of a window using the buffersize and interval as window parameters. Python numpa is used to delete the outliers in this window. The parameters for this filtering technique are default set to a spread interval of 25% (minPerc MyThreading class parameter)) - 75% (maxPerc). Set the parameters to 0% and 100% to disable outlier filtering. Set busize to 1 to disable sliding average calculation of the measurements.
 
+### Calibration tool
 For calibration the Python tool `statistics/Calibration.py` has been developped. The script uses pyplot and is based on numpy (numeric analyses library). The calibration uses values from two or more database columns, or (XLSX) spreadsheets, or CSV files as input and provides a best fit polynomial (dflt order 1/linear), the R square and shows the scattered plot and best fit graph to visualize the difference between the sensors. Make sure to use a long period of measurements in a fluctuating environment (a fixed indoor temperature measurement comparison between two temp sensors does not make much sense).
 
 ## Funding
@@ -179,17 +203,18 @@ Feedback of improvements, or extentions to the software are required.
 
 ## References
 A list of references for the documentation and/or code used in MySense.py:
+* MIT Clairity CEE Senior Capstone Project report V1 dd 15-05-14
+* https://www.challenge.gov/challenge/smart-city-air-challenge/ Smart City Air Challenge (2016, USA GOV)
+See also: https://developer.epa.gov/air-pollution/
 * http://opensense.epfl.ch/wiki/index.php/OpenSense_2
 * http://mysensors.org
 * http://opensensors.io
 * http://mydevices.org (Cayenne)
-* MIT Clairity CEE Senior Capstone Project report V1 dd 15-05-14
-* Waag Society Amsterdam Smart Citizens Lab Urban AirQ
-* Citi-Sense
-* Smart-Citizen-Kit
-* smartemission
-* polluxnzcity
-* AirCastingAndroidClient
-* Mosquitto
-* smart-city-air-challenge (USA GOV)
-* InFluxData.com
+* https://waag.org/nl/project/urban-airq Waag Society Amsterdam Smart Citizens Lab Urban AirQ
+* http://www.citi-sense.eu/ Citi-Sense EU project
+* http://waag.org/nl/project/smart-citizen-kit Smart-Citizen-Kit Waag Society
+* http://smartemission.ruhosting.nl/ Smart Emission, Maps 4 Society Nijmegen
+* https://github.com/guyzmo/polluxnzcity Pollux NZcity, NZ
+* https://github.com/HabitatMap/AirCastingAndroidClient AirCasting on Android Client
+* https://mosquitto.org/ Mosquitto (MQTT) broker
+* https://docs.influxdata.com/influxdb/v1.2/ documentation from InFluxData.com
