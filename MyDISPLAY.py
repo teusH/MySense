@@ -18,13 +18,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDISPLAY.py,v 1.2 2017/06/19 12:54:43 teus Exp teus $
+# $Id: MyDISPLAY.py,v 1.3 2017/06/21 08:16:48 teus Exp teus $
 
 """ Publish measurements to display service
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDISPLAY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
 
 try:
     import MyLogger
@@ -202,11 +202,14 @@ def publish(**args):
             Unit, Type = findInfo(args['ident'],item)
             bar = ''
             if len(lines[0]): bar = '|'
-            if type(args['data'][item]) is int:
-                lines[3] += bar +  '%6d' % args['data'][item]
+            if type(args['data'][item]) is float:
+                args['data'][item] = '%.1f' % (args['data'][item]+0.05)
+            elif Type[0:3] == 'gps': continue   # do not display geo location
+            string = format(args['data'][item]).replace('.0','')
+            if string[0] == '<': string = 'NaN'       # not a number of string
+            lines[3] += bar +  '%6.6s' % string
             elif type(args['data'][item]) is float:
                 lines[3] += bar +  '%6.1f' % (float(args['data'][item]+0.05))
-            else: continue   # geo location is not displayed
             lines[0] += bar +  '%6.6s' % Type
             lines[1] += bar + ' %5.5s' % trans(item)
             lines[2] += bar + ' %5.5s' % trans(Unit)
