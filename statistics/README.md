@@ -19,23 +19,34 @@ The command with no arguments an overview of tables or column numbers will be sh
 The graphs can be shown (default it is turned off) as a graph plot using pyplot.
 The -show True will show in an X11 window the scatter graph. The -S True option will also show the graph(s) of the measurements per time frame.
 
-The script is able to generate an image on a provided file of the graphs.
+The script is able to generate an image in PNG format on a provided path/file of the graphs.
 
 ## Examples of use:
 ```bash
     python MyRegression.py --help
-    python MyRegression.py --password XYZ -D luchtmetingen
+    # default sensor values from MySQL database over default (24 hours) period
+    # DB credentials taken from command environment
+    # shows tables, sensor names no graphs
+    DBUSER=metoo DBPASS=acacadabra python MyRegression.py --password XYZ -D luchtmetingen
+    # show for period yesterday till now table1 and table2 sensorkits graphs
+    # polinomial info upto order 2 (default is linear or order 1)
     python MyRegression.py --password XYZ -D luchtmetingen  \
         table1/PM25/Datum/type table2/column_PM10//type2  \
         --timing yesterday/now --order 2 --show True
+    # over 3 day period in multi modus
     python MyRegression.py -t "3 days ago/now" --multi=True \
         BdP_3f18c330/dhttemp//DHT22 BdP_8d5ba45f/dhttemp//DHT11
+    # use data from XLSX spreadsheet for a period last two weeks in March
+    # spreadsheet columns 3 and 5, time defined in col 2
     python MyRegression.py --input dylos_rivm_tm020417.xlsx --SHOW True \
         -t '2017-03-14/2017-04-01 00:00:00' \
         groot33/3/2/DylosDC1100 groot38/5/2/DylosDC1100
-    python MyRegression.py --input dylos_rivm_tm020417.xlsx --show True \
-        -t '2017-03-14/2017-04-01 00:00:00' \
-        groot33/3/2/DylosDC1100 groot38/5/2/DylosDC1100
+    # use measurements from influxdb server
+    # note: one must have admin db server credentials to show list of databases
+    # next will show overview of measurements on InFluxDB server
+    DBUSER=metoo DBPASS=acacadabra DBHOST=theus.xs4all.nl python MyRegression.py -T influx BdP_33040d54
+    # use measurents on the server for period of last 24 hours and show graph
+    DBUSER=metoo DBPASS=acacadabra DBHOST=theus.xs4all.nl python MyRegression.py -T influx BdP_33040d54/pm25_pcsqf/time/PPD42NS/raw BdP_3f18c330/pm25_pcsqf/time/PPD42NS/raw
 ```
 The timing format is using the format as accepted by the Unix date command.
 
@@ -51,6 +62,8 @@ Output the graphs in an image file `--file`.
 ## DEPENDENCES
 Install numpy (`pip install numpy`) for the regression calculations and pyplot (`pip install pyplot`) for displaying the graph.
 Install SciPy for linear regression summaries `apt-get install python-statsmodels`.
+
 ## TO DO
 1. Add multi linear regression: needs more thought/review
+2. Support database/spreadsheet per sensor (now: only one database/spreadsheet)
 
