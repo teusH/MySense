@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 3.3 2017/05/02 14:27:46 teus Exp teus $
+# $Id: MyRegression.py,v 3.4 2017/06/23 13:38:30 teus Exp teus $
 
 """ Create and show best fit for at least two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -31,7 +31,7 @@
     Script uses: numpy package, SciPy and statPY and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.3 $"[11:-2]
+__version__ = "0." + "$Revision: 3.4 $"[11:-2]
 
 try:
     import sys
@@ -54,14 +54,14 @@ net = {
         'user': 'teus',
         'password': 'acacadabra',
         'database': 'luchtmetingen',
-        'port': 3306
+        'port': 8086
     }
 # database identifiers
 # first range/array of regression values (second wil be calibrated against this one)
 sensors = [
-    { 'table': 'BdP_8d5ba45f', 'column': 'pm_25', 'type': 'Dylos DC1100' },
+    { 'db': 'luchtmetingen', 'table': 'BdP_8d5ba45f', 'column': 'pm_25', 'type': 'Dylos DC1100' },
     # second (Y) range/array of regression values
-    { 'table': 'BdP_3f18c330', 'column': 'pm25', 'type': 'Shinyei PPD42NS' },
+    { 'db': 'luchtmetingen', 'table': 'BdP_3f18c330', 'column': 'pm25', 'type': 'Shinyei PPD42NS' },
 ]
 
 # xlsx and csv input file
@@ -88,20 +88,142 @@ normAvgStd = False    # transform regression polynomial best fit graph to [-1,1]
 ml_mode = False # multi linear regression mode (default False: regression polynomial)
 
 def db_connect(net):
+    global resource
     for M in ('user','password','hostname','database'):
         if (not M in net.keys()):
-            sys.exit("Please provide credential %s" % M)
+            if M == 'database' and resource['type'] != 'mysql': continue
+            sys.exit("Please provide access credential %s" % M)
     try:
-        DB = mysql.connector.connect(
+        if resource['type'] == 'mysql':
+            DB = mysql.connector.connect(
                 charset='utf8',
                 user=net['user'],
                 password=net['password'],
                 host=net['hostname'],
                 port=net['port'],
                 database=net['database'])
+        elif resource['type'] == 'influx':
+            from influxdb import InfluxDBClient
+            DB = InfluxDBClient(
+                net['hostname'], net['port'],
+                net['user'], net['password'],
+                timeout=2*60)
     except:
         sys.exit("Unable to connect to database %s on host %s" %(net['database'],net['hostname']))
     return DB
+
+def influxDBs(DB):
+    ''' get a list of databases on the InFlux server. Might fail on no admin credentials. '''
+    rts = []
+    try:
+        response = DB.get_list_database()
+        for item in response:
+            if not 'name' in item.keys(): continue
+            if item['name'][0] == '_': continue   # internal table
+            if len(item['name']): rts.append(item['name'])
+    except: # no admin access or connectivity
+        sys.stderr.write('Influx server: No database list access permission (admin rights)\n')
+        return rts
+    return rts
+
+def influxMmnt(DB,db):
+    ''' get list of measurements on InFlux server. May return empty on no credentials. '''
+    rts = []
+    try:
+        response = DB.get_list_series(db)
+    except:
+        sys.stderr.write('No list available at InFlux server.\n')
+        return rts
+    for item in response:
+        for measurement in item['tags']:
+            if not 'key' in measurement.keys(): continue
+            measurement = measurement['key'].split(',')[0]
+            if len(measurement) and (not measurement in rts): rts.append(measurement)
+    return rts
+
+def influxQry(DB,db,query,col):
+    '''Do a query to the Influx server. Returns a matrix, first row has column names'''
+    # expect response as list of dictionaries, e.g.
+    # [{u'mean': 469.8, u'time': 1498134000}, ...]
+    try:
+        response = list(DB.query(query,database=db,params={'epoch':'s'},expected_response_code=200).get_points())
+    except:
+        sys.stderr.write('Error in query nr %s, value: %s\n' % (sys.exc_info()[0],sys.exc_info()[1]))
+        return []
+    rts = []
+    if not type(col) is list: col = [col]
+    if len(response):
+        for rec in response:
+            row = []
+            for nm in ['time']+col:
+                val = rec.get(nm,None)
+                if (nm == 'time') and (type(val) is str):
+                    if (len(val) > 16) and (val[4] == '-'):
+                        # RFC3339 date format
+                        val = int(mktime(strptime(rec[nm].replace('Z','UTC'),'%Y-%m-%dT%H:%M:%S%Z')))
+                    else:
+                        val = None
+                row.append(val)
+            rts.append(row)
+    return rts
+
+def influxFlds(DB,db,serie):
+    ''' get a list of fields for a serie '''
+    # expect something like:
+    #  [ { "results": [
+    #    { "statement_id": 0,
+    #      "series": [
+    #            { "name": "raw",
+    #              "columns": [ "fieldKey", "fieldType" ],
+    #              "values": [ [ "pm10_pcsqf", "float" ], ... ]
+    #            } ]
+    #    } ]
+    #    }]
+    query = "SHOW FIELD KEYS FROM %s..%s" % (db,serie)
+    try:
+        response = list(DB.query(query,database=db,expected_response_code=200).get_points())
+    except:
+        sys.stderr.write('Error in query nr %s, value: %s\n' % (sys.exc_info()[0],sys.exc_info()[1]))
+        return []
+    rts = []
+    for rec in response:
+        if ('fieldType' in rec.keys()) and (not rec['fieldType'] in ('float','int')):
+            continue
+        if ('fieldKey' in rec.keys()) and len(rec['fieldKey']):
+            rts.append(rec['fieldKey'])
+    return rts
+
+def influxTags(DB,db,serie, Type='type'):
+    ''' get list of tags for a measurement on InFlux server. May return empty on no credentials. '''
+    rts = []
+    query = "SHOW series ON %s" % db
+    try:
+        response = list(DB.query(query,database=db,expected_response_code=200).get_points())
+    except:
+        sys.stderr.write('No measurements available at InFlux server.\n')
+        return rts
+    for item in response:
+        if not 'key' in item.keys(): continue
+        tags = item['key'].split(',')
+        if len(tags) < 2: continue
+        if tags[0] != serie: continue
+        for i in range(1,len(tags)):
+            if tags[i][0:len(Type)] != Type: continue
+            tag = tags[i][len(Type)+1:].replace('"','')
+            if not tag  in rts: rts.append(tag)
+    return rts
+    
+def influxCnt(DB,sensor,period):
+    query = "SELECT count(*) FROM %s..%s WHERE type = '\"%s\"\' and time >= %ds and time <= %ds" % (sensor['table'],sensor['measurement'],sensor['type'].lower(),period['start'],period['end'])
+    try:
+        responses = list(DB.query(query,database=sensor['table'],expected_response_code=200).get_points())
+    except:
+        sys.exit('No access on database %s for \"%s\" on InFlux server.\n' % (sensor['table'],sensor['column']))
+    count = 0
+    for resp in responses:
+        count = resp.get('count_'+sensor['column'],0)
+        if count: break
+    return count
 
 def db_query(db,query,answer):
     """ database query """
@@ -130,29 +252,60 @@ def getInterval(arr, amin = 60, amax = 60*60):
     # print("average sample interval: %3.1f, std dev: %3.1f" % (ivals_bar, ivals_std))
     return int(ivals_bar+ 2* ivals_std)
     
-def fromMySQL(fd,sensor):
+def fromMySQL(fd,sensor,period):
     # check table and sensor (column) name for existance
     if not (sensor['table'],) in db_query(fd,"SHOW TABLES", True):
-        sys.exit("Table with name %s does not exists in DB." % sensor['table'])
+        sys.exit("Table with name \"%s\" does not exists in DB." % sensor['table'])
     names = db_query(fd,"DESCRIBE %s" % sensor['table'],True)
     fnd = False
     for name in names:
         if name[0] == sensor['column']:
             fnd = True ; break
     if not fnd:
-        sys.exit("Sensor (column) %s in table %s does not exists." % (sensor['column'],sensor['table']))
+        sys.exit("Sensor (column) \"%s\" in table %s does not exists." % (sensor['column'],sensor['table']))
     # get the tuples (UNIX time stamp, valid value) for this period of time
     qry = "SELECT UNIX_TIMESTAMP(%s),(if(isnull(%s),'nan',%s)) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d and %s_valid  order by datum" % \
-        (sensor['date'],sensor['column'],sensor['column'],sensor['table'],timing['start'],timing['end'],sensor['column'])
+        (sensor['date'],sensor['column'],sensor['column'],sensor['table'],period['start'],period['end'],sensor['column'])
     return db_query(fd,qry, True)
+
+def fromInFlux(fd,sensor,period):
+    global interval
+    # check measurement and sensor name for existance
+    series = influxMmnt(fd,sensor['table'])
+    if not len(series):
+        sys.exit("InFlux database with name \"%s\" does not exists." % sensor['table'])
+    if not sensor['measurement'] in series:
+        sys.exit("InFlux measurement \"%s\" does not exists in database %s." % (sensor['measurement'],sensor['table']))
+    names = influxFlds(fd,sensor['table'],sensor['measurement'])
+    if not sensor['column'] in names:
+        sys.exit("Sensor (column) \"%s\" in database %s does not exists." % (sensor['column'],sensor['table']))
+    # default interval 10m with average (we might shave outliers out a bit)
+    response = []
+    if influxCnt(fd,sensor,period):
+        # use average for the interval (dflt 10 minutes)
+        # debate: avoid null readings and hide outliers
+        query = "SELECT mean(%s) FROM %s WHERE type = '\"%s\"' and time >= %ds and time <= %ds group by time(%s) order by time" % (sensor['column'],sensor['measurement'],sensor['type'].lower(),period['start'],period['end'],('10m' if interval == None else '%ds' % interval))
+        # one column mean is identified as 'mean', more as 'mean_'+col_name
+        response = influxQry(fd,sensor['table'],query,'mean')
+        for i in range(len(response)-1,-1,-1):  # check the matrix for values
+            if (len(response[i]) != 2) or (response[i][1] == None):
+                response.pop(i)
+            elif not((type(response[i][1]) is int) or (type(response[i][1]) is float)):
+                response.pop(i)
+    if not len(response):
+        sys.exit("InFlux measurement \"%s\" in database %s has no values." % (sensor['measurement'],sensor['table']))
+    # response.insert(0,['time',sensor['column']])
+    return response
 
 # we could first get average/std dev and omit the outliers
 def getColumn(sensor,period, amin = 60, amax = 60*60):
     global interval, resource
     if (not 'type' in resource.keys()) or (not 'fd' in resource.keys()):
-        sys.exit("Data resource error")
+        sys.exit("Data resource error: no access to database/spreadsheet.")
     if resource['type'] == 'mysql':
-        values = fromMySQL(resource['fd'],sensor)
+        values = fromMySQL(resource['fd'],sensor,period)
+    elif resource['type'] == 'influx':
+        values = fromInFlux(resource['fd'],sensor,period)
     elif (resource['type'] == 'elsx') or (resource['type'] == 'csv'):
         if not 'read' in Pandas.keys():
             Pandas['read'] = GetXLSX()
@@ -162,7 +315,7 @@ def getColumn(sensor,period, amin = 60, amax = 60*60):
     else:
         sys.exit("Data resource error: unknown data type")
     if len(values) < 5:
-        sys.exit("Only %d records in DB %s/%s. Need more values for proper regression." % (len(values),sensor['table'],sensor['column']))
+        sys.exit("Only %d records in database/spreadsheet %s/%s. Need more values for proper regression." % (len(values),sensor['table'],sensor['column']))
     imin = None; imax = None; nr_records = len(values)
     i = len(values)-1
     while ( i >= 0 ):
@@ -232,7 +385,7 @@ def getArrays(net,sensors,timing):
     try:
         Data = getData(net,sensors,timing)
     except StandardError as err:
-        sys.exit("Cannot obtain the records from the Database. Error: %s." % err)
+        sys.exit("Cannot obtain the records from the database/spreadsheet. Error: %s." % err)
 
     X = []
     skipped = 0
@@ -261,12 +414,12 @@ def date2secs(string):
     try:
         number = subprocess.check_output(["/bin/date","--date=%s" % string,"+%s"])
     except:
-        sys.exit("unable to find date/time from string %s." % string)
+        sys.exit("Unable to find date/time from string \"%s\"." % string)
     for i in number.split('\n'):
         if i:
             secs = timing_re.match(i)
             if secs: return int(i)
-    sys.exit("unable to find date/time from string %s." % string)
+    sys.exit("Unable to find date/time from string \"%s\"." % string)
             
 # roll in the definition from environment eg passwords
 def from_env(name):
@@ -289,13 +442,14 @@ def get_arguments():
     global progname
     global net, sensors, timing, interval, order, show, normMinMax
     global normAvgStd, pngfile, SHOW, MaxPerGraph, Pandas, resource, ml_mode
-    parser = argparse.ArgumentParser(prog=progname, description='Get from at least two sensors for a period of time and calculate the regression best fit polynomial. Each argument defines the [[table]/]sensor(column)/[date]/[type] DB table use definition. For non DB use the table is sheet1 and should be omitted.\nDefault definitions: the previous names or column numbers for table, sensor, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nCopyright (c) Behoud de Parel\nAnyone may use it freely under the 'GNU GPL V4' license.")
+    parser = argparse.ArgumentParser(prog=progname, description='Get from at least two sensors for a period of time and calculate the regression best fit polynomial.\nEach argument defines the [[table]/]sensor(column)/[date]/[type][/measurement] DB table use definition.\nFor non DB use the table is sheet1 and should be omitted.\nDefault definitions: the previous names or column numbers for table, sensor, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported. They are used for MySQL and for InFlux credentials.\nCommand use with no arguments will, if possible, provide a list of MySQL table names (sensorkit names) or InFlux database names (sensor kit names) or in case of spreadsheet inmfo about column names. With one argument (sensor kit name) script will list all sensor names, sensor types for that sensor kit.\nUsage example for two or more command arguments (the measurements selection):\nMySQL: \"BdP_12345abcd/pm_25/datum/SDS011\"\nXLSX/CSV (here column nr iso id in first row): \"/3/0/Dylos\"\nInFlux: \"BdP_654321daef/pm25/PPD42NS/raw\"\n\nCopyright (c) Behoud de Parel, 2017\nAnyone may use it freely under the 'GNU GPL V4' license. Any script change remains free.")
     parser.add_argument("-I", "--input", help="XLSX or CSV input file (path/filename.{xlsx,csv}, default: None\nOptions as <option>=<value> as command arguments.\nOptions: sheetname=0 (xlsx), header=0 (row with header or None), skiprows=0 (nr of rows to skip at start, delimiter=',' (None: auto detect).", default=Pandas['input'])
     parser.add_argument("-H", "--hostname", help="Database host name, default: %s" % net['hostname'], default="%s" % net['hostname'])
-    parser.add_argument("--port", help="Database port number, default: %d" % net['port'], default="%d" % net['port'])
+    parser.add_argument("--port", help="Database port number, default: DB dfl port", default="3306")
     parser.add_argument("-U", "--user", help="Database user name, default: %s" % net['user'], default="%s" % net['user'])
     parser.add_argument("-P", "--password", help="Database password, default: %s" % net['password'], default="%s" % net['password'])
     parser.add_argument("-D", "--database", help="Database name, default: %s" % net['database'], default="%s" % net['database'])
+    parser.add_argument("-T", "--Type", help="Database type, default: MySQL", default="mysql", choices=['mysql','influx'])
     parser.add_argument("-i", "--interval", help="Interval sample timing (two values in same sample time) in seconds, default: auto detect", default=None)
     parser.add_argument("--first", help="Start of date/time period. Format as with -t option. Default: use of -t option", default=None)
     parser.add_argument("--last", help="End of date/time period. Format as with -t option. Default: use of -t option", default=None)
@@ -313,11 +467,15 @@ def get_arguments():
     args = parser.parse_args()
     Pandas['input'] = args.input
     net['hostname'] = args.hostname
-    net['port'] = int(args.port)
     net['user'] = args.user
     net['password'] = args.password
     net['database'] = args.database
     resource = {"type": 'mysql', "fd": None}
+    if args.Type != resource['type']: resource['type'] = args.Type
+    net['port'] = int(args.port)
+    if (resource['type'] == 'influx') and (net['port'] == 3306):
+        net['port'] = 8086      # default influx port
+        net['database'] = 'influxdb'
     cnt = 0
     if Pandas['input']:
         options = { 'header': 0, 'sheetname': 0, 'skiprows': 0, 'delimiter': ',' }
@@ -333,7 +491,7 @@ def get_arguments():
         try:
             Pandas['module'] = __import__('pandas')
         except:
-            sys.exit("Unable to load pandas module")
+            sys.exit("Unable to load Pandas module")
         OK = True
         if not os.path.isfile(Pandas['input']): OK = False
         if Pandas['input'][-4:].upper() == 'XLSX':
@@ -381,8 +539,13 @@ def get_arguments():
             cnt += 1
     else:
         resource['fd'] = db_connect(net)
-        sensors = [ {'date': 'datum' }]
-        if len(args.args) <= 1: showDB(net,args.args)
+        sensors = [ {'date': 'datum', 'measurement': 'raw' }]
+        if len(args.args) <= 1:
+            if resource['type'] == 'influx':
+                showIF(net,args.args)
+            else:
+                showDB(net,args.args)
+            exit(0)
         for tbl in args.args:
             atbl = tbl.split('/')
             if cnt > len(sensors)-1:
@@ -394,6 +557,10 @@ def get_arguments():
             if len(atbl) > 3:
                 if len(atbl[3]): sensors[cnt]['type'] = atbl[3]
                 else: sensors[cnt]['type'] = sensors[cnt-1]['type']
+            if (len(atbl) > 4) and len(atbl[4]):
+                if atbl[4] in ('raw','data'):
+                    sensors[cnt]['measurement'] = atbl[4]
+                else: sensors[cnt]['measurement'] = sensors[cnt-1]['measurement']
             cnt += 1
     DateTime = args.timing.split('/')[0]
     if args.first != None: DateTime = args.first
@@ -453,9 +620,41 @@ def showDB(net,args):
     if len(args):
         sys.exit("Please provide at least two sensor (column) definition arguments.")
     else:
-        sys.exit("How to get an overview of sensors (columns) per table: use with one argument e.g. \"DB table 1/DB table 2/...\"")
+        sys.exit("How to get an overview of sensors (columns) per table?: use only one argument e.g. \"DB_table_1/DB_table_2/...\"")
     
         
+# print overview what databases and series are available from InFlux server
+def showIF(net,args):
+    global resource
+    DB = resource['fd']
+    if DB == None:
+        sys.exit("FATAL No Influx module loaded.")
+    print("Define arguments (at least 2) for database_name/column_name/[date_name]/[type]/[serie_name]")
+    print("E.g. BdP_33040d54/pm25//PPD42NS/raw")
+    tbls = []
+    if len(args):
+        tbls = args[0].split('/')
+        try:
+            tblNme = tbls[0]
+            if not len(tblNme): raise ValueError
+            measurements = influxMmnt(DB, tblNme)
+            if len(measurements):
+                print("For database %s found series: %s" % (tblNme,', '.join(measurements)))
+            for mnt in measurements:
+                flds = influxFlds(DB,tblNme,mnt)
+                if not len(flds): continue
+                print("Database %s measurement \"%s\" has fields: %s" % (tblNme,mnt,', '.join(flds)))
+                types = influxTags(DB,tblNme,mnt,Type='type')
+                if len(types):
+                    print("Database %s measurement \"%s\" types: %s" % (tblNme,mnt,', '.join(types)))
+        except:
+            sys.exit("ERROR either to connect to InFlux server of query failure.")
+    else:
+        try:
+            print("InFlux server has following databases: %s\n" % ', '.join(influxDBs(DB)))
+        except:
+            sys.exit("InFlux server: you need admin rights to get a database last.")
+
 # print overview of columns in the spreadsheet
 def showXLSX(args):
     print("Define arguments (at least 2) for short_name/column_nr/[date_column_nr]/[type]\nXLSX spreadsheet header info:\nColumn\tName")
@@ -549,13 +748,18 @@ def get_r2_python(x_list,y_list):
     r = sum(zxi*zyi for zxi, zyi in zip(zx, zy))/(n-1)
     return r**2
 
+################################ main part: configure what to do
 # to identify database, tables, sensors and period
+# TO DO: use DB per sensor entity
+# TO DO: for sensor info use e.g.
+#        table=BdP_XYZ,sensor=pm25,type=PPD42NS,date=time,db=mysql(user:ape,pass:aca,host:server,db:luchtmetingen)
+#        table=BdP_XYZ,sensor=pm25,type=PPD42NS,date=time,serie=raw,db=influx(user:ape,pass:aca,host:server)
 from_env('DB')          # get DB credentials from command environment
 get_arguments()         # get command line arguments
 
 print('Regression best fit calculation details for sensor type(s): %s' % ', '.join(set([elm['type'] for elm in sensors]))) 
 if Pandas['input'] == None:
-    print('Graphs based on data MySQL from %s:' % net['database'])
+    print('Graphs based on data %s from %s on server %s as user %s:' % (resource['type'].upper(),net['database'],net['hostname'],net['user']))
 else:
     print('Graphs based on spreadsheet xlsx/csv data from file %s' % Pandas['input'])
     
@@ -609,6 +813,7 @@ def getLMFit(sensor):
         sensors[sensor]['fit'] = reslts.params
     return reslts
 
+########################### regression/fit part
 Z  = np.polyfit(Matrix[:,1],Matrix[:,1:],order,full=True)
 if not ml_mode:
     # calculate the polynomial best fit graph
