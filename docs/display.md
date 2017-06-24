@@ -14,13 +14,15 @@ The DISPLAY service should be run as deamon. Add `@boot path/MyDisplayServer.py 
 The service can be used to send text to the small display to provide visual feedback for Pi operations, e.g. logging, poweroff messages, etc.
 
 ### To Do
-Add <text>, <clear> xml to the text to define font and text size changes, clear the display, etc.
+* Add <text>, <clear> xml to the text to define font and text size changes, clear the display, etc.
+* use the Richard Hull's luma modules.
 
 ### hardware
 * Adafruit SSD1306  display  € 22.85 (Kiwi or SOS Solutions) or via China: € 2.-.
-* Cables to hook it up to 3.3V, Gnd, GPIO as follows:
+* GPIO: Cables to hook it up to 3.3V, Gnd, GPIO as follows:
 * you need to enable GPIO on the Pi, as well add the DISPLAY service user to the `gpio` group.
 ```
+For the 1306 Oled GPIO version:
 *Pi3*       cable  *SSD1306*
 type PINnr  color  id
 ----------------------------
@@ -32,4 +34,23 @@ MOSI   19   purple SDA (DATA)
 SCLK   23   orange SCK (CLK)
 CEO    24   yellow CS
 ```
+Note: If you use GrovePi shield, use the Oled I2C version!
+* I2C: use the Grove Oled (need GrovePi shield and standard 4-wire cable) or I2C version (need to soldier the cable)
+* The I2C version uses I2C address *3C*. Check this by running `i2cdetect -y 1`
+
+### Pi installation
+You need to enable GPIO (Oled GPIO version with 7 cables) abd I2C (Oled I2C version with 4 wires) via the Pi config `rasp-config` routine and reboot.
+
+## SW dependencies
+You need to install with apt: python-pil, python-imaging and python-smbus and with pip: Agafruit-GPIO, Adafruit-SSD1306. Make sure you have the latest version by using `pip list --outdated` and if needed upgrade with `pip install Adafruit-GPIO --upgrade` (version 1.0.2 gives parameter type error).
+Or use `INSTALL.sh DISPLAY` for this.
+If you use GPIO make sure the display user is added to the group `spi` and for I2C version to the group 'i2c'.
+
+### References
+* https://github.com/adafruit/Adafruit_Python_SSD1306
+TO DO: use this software package
+A fork of the standard display software from Adafruit:
+* https://luma-oled.readthedocs.io/en/latest/hardware.html
+* https://luma-oled.readthedocs.io/en/latest/api-documentation.html
+* https://github.com/rm-hull/luma.oled (Richard Hull)
 
