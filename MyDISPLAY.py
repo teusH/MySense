@@ -18,13 +18,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDISPLAY.py,v 1.3 2017/06/21 08:16:48 teus Exp teus $
+# $Id: MyDISPLAY.py,v 1.5 2017/06/24 21:07:11 teus Exp teus $
 
 """ Publish measurements to display service
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDISPLAY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 
 try:
     import MyLogger
@@ -44,7 +44,7 @@ Conf = {
     'port': 2017,        # default display port number
     'fd': None,          # have sent to db: current fd descriptor, 0 on IO error
     'omit' : ['time','geolocation',],  # fields not archived
-    'match': [		 # translation table for db abd unit names
+    'match': [		 # translation table for db and unit names
         ('pm_','PM'),
         ('PM25','PM2.5'),
         ('PM1','PM1'),
@@ -208,7 +208,7 @@ def publish(**args):
             string = format(args['data'][item]).replace('.0','')
             if string[0] == '<': string = 'NaN'       # not a number of string
             lines[3] += bar +  '%6.6s' % string
-            elif type(args['data'][item]) is float:
+            if type(args['data'][item]) is float:
                 lines[3] += bar +  '%6.1f' % (float(args['data'][item]+0.05))
             lines[0] += bar +  '%6.6s' % Type
             lines[1] += bar + ' %5.5s' % trans(item)
