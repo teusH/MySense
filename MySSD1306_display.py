@@ -34,13 +34,15 @@ def InitDisplay(type,size):
     DC = 23
     SPI_PORT = 0
     SPI_DEVICE = 0
+    # Note the following is only used with I2C:
+    I2C = 1     # i2c bus number
     
     if type == 'I2C' and size == '128x32':
         # 128x32 display with hardware I2C:
-        disp = Adafruit_SSD1306.SSD1306_128_32(rst=RST)
+        disp = Adafruit_SSD1306.SSD1306_128_32(rst=RST,i2c_bus=I2C)
     elif type == 'I2C' and size == '128x64':
         # 128x64 display with hardware I2C:
-        disp = Adafruit_SSD1306.SSD1306_128_64(rst=RST)
+        disp = Adafruit_SSD1306.SSD1306_128_64(rst=RST,i2c_bus=I2C)
     elif type == 'SPI' and size == '128x32':
         # 128x32 display with hardware SPI:
         disp = Adafruit_SSD1306.SSD1306_128_32(rst=RST, dc=DC, spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE, max_speed_hz=8000000))

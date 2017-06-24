@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDisplayServer.py,v 1.2 2017/06/18 13:55:49 teus Exp teus $
+# $Id: MyDisplayServer.py,v 1.7 2017/06/24 20:58:02 teus Exp teus $
 
 # script will run standalone, collects text lines from sockets streams and
 # displays the scrolled lines on an Adafruit display
@@ -320,25 +320,37 @@ def deamon_status(pidfile):
 ############## main process
 if __name__ == "__main__":
     import logging
+    SIZE = '128x64'
+    BUS = 'SPI'
     for i in range(len(sys.argv)-1,-1,-1):   # parse the command line arguments
         if sys.argv[i][0] != '-': continue
-        if sys.argv[i][0:1] == '-d':         # debug modus
+        if sys.argv[i][0:2] == '-d':         # debug modus
             Conf['debug'] = True
-            pop(i)
-        elif sys.argv[i][0:1] == '-h':       # help/usage
-            print("Adafruit display server arguments: -debug, -help, -port, [start|stop|status]")
+            sys.argv.pop(i)
+        elif sys.argv[i][0:2] == '-h':       # help/usage
+            print("Adafruit display server arguments: -debug, -help, -port, -size (128x32 or 128x64), -bus (SPI or I2C), [start|stop|status]")
             print("No argument: process is run in foreground and not deamonized.")
             exit(0)
-        elif sys.argv[i][0:1] == '-p':       # port to listen to on localhost address
+        elif sys.argv[i][0:2] == '-p':       # port to listen to on localhost address
             TCP_PORT = int(sys.argv[i+1])
-            pop(i+1); pop(i)
+            sys.argv.pop(i+1); sys.argv.pop(i)
+        elif sys.argv[i][0:2] == '-s':       # size of the display 128x32 or 128x64
+            SIZE = sys.argv[i+1]
+            sys.argv.pop(i+1); sys.argv.pop(i)
+        elif sys.argv[i][0:2] == '-b':       # bus type I2C or SPI
+            BUS = sys.argv[i+1]
+            sys.argv.pop(i+1); sys.argv.pop(i)
 
+    if (SIZE != '128x32') and (SIZE != '128x64'):
+        sys.exit("Display size %s is not supported!" % SIZE)
+    if (BUS != 'SPI') and (BUS != 'I2C'):
+        sys.exit("Display bus %s is not supported!" % BUS)
+    Conf['display'] = (BUS,SIZE)
     if Conf['debug']:
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
 
-    logging.info("Display Server starts up")
     Conf['logging'] = logging
 
     if len(sys.argv) > 1:                   ###### non interactive modus
@@ -349,6 +361,7 @@ if __name__ == "__main__":
         import fcntl
         if sys.argv[1] == 'stop':
             deamon_stop(PID_FILE)
+            logging.info("Display Server stop")
             exit(0)
         elif sys.argv[1] == 'status':
             deamon_status(PID_FILE)
@@ -358,6 +371,7 @@ if __name__ == "__main__":
             exit(1)
         else:
             deamon_detach(PID_FILE)
+        logging.info("Display Server starts up")
     else:
 	Conf['debug'] = True
 
