@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDisplayServer.py,v 1.8 2017/06/24 21:13:12 teus Exp teus $
+# $Id: MyDisplayServer.py,v 1.9 2017/06/25 13:15:50 teus Exp teus $
 
 # script will run standalone, collects text lines from sockets streams and
 # displays the scrolled lines on an Adafruit display
@@ -321,7 +321,7 @@ def deamon_status(pidfile):
 if __name__ == "__main__":
     import logging
     SIZE = '128x64'
-    BUS = 'SPI'
+    BUS = None
     for i in range(len(sys.argv)-1,-1,-1):   # parse the command line arguments
         if sys.argv[i][0] != '-': continue
         if sys.argv[i][0:2] == '-d':         # debug modus
@@ -343,7 +343,9 @@ if __name__ == "__main__":
 
     if (SIZE != '128x32') and (SIZE != '128x64'):
         sys.exit("Display size %s is not supported!" % SIZE)
-    if (BUS != 'SPI') and (BUS != 'I2C'):
+    if BUS == None:
+        sys.exit("Display HW bus needs to be defined: I2C or SPI!")
+    elif (BUS != 'SPI') and (BUS != 'I2C'):
         sys.exit("Display bus %s is not supported!" % BUS)
     Conf['display'] = (BUS,SIZE)
     if Conf['debug']:

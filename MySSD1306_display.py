@@ -123,7 +123,7 @@ def scroll(linenr,yPos):
         trimmed = True
         txt = txt[:-1]
         twidth, unused = draw.textsize(txt, font=Lines[linenr]['fnt'])
-    if (Lines[linenr]['fill'] > 0) and (time()-Lines[linenr]['timing'] > 65*60):
+    if (Lines[linenr]['fill'] > 0) and (time.time()-Lines[linenr]['timing'] > 65*60):
         Lines[linenr]['fill'] -= 1
     draw.text((1, yPos), txt, font=Lines[linenr]['fnt'], fill=Lines[linenr]['fill'])
     if trimmed:
@@ -193,7 +193,9 @@ def Show(lock, conf):
         
 
 if __name__ == "__main__":
-    InitDisplay('SPI','128x64')
+    BUS = 'I2C'
+    SIZE = '128x64'
+    InitDisplay(BUS,SIZE)
     addLine('First short line',  font=font, fill=255)
     addLine('Second short line')
     addLine('Third line')
