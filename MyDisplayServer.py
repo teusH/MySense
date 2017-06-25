@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDisplayServer.py,v 1.7 2017/06/24 20:58:02 teus Exp teus $
+# $Id: MyDisplayServer.py,v 1.8 2017/06/24 21:13:12 teus Exp teus $
 
 # script will run standalone, collects text lines from sockets streams and
 # displays the scrolled lines on an Adafruit display
@@ -328,7 +328,7 @@ if __name__ == "__main__":
             Conf['debug'] = True
             sys.argv.pop(i)
         elif sys.argv[i][0:2] == '-h':       # help/usage
-            print("Adafruit display server arguments: -debug, -help, -port, -size (128x32 or 128x64), -bus (SPI or I2C), [start|stop|status]")
+            print("Adafruit display server arguments: -debug, -help, -port, -size (dflt 128x64 or 128x32), -bus (dflt SPI or I2C), [start|stop|status]")
             print("No argument: process is run in foreground and not deamonized.")
             exit(0)
         elif sys.argv[i][0:2] == '-p':       # port to listen to on localhost address
