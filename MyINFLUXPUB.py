@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyINFLUXPUB.py,v 1.19 2017/06/25 12:37:55 teus Exp teus $
+# $Id: MyINFLUXPUB.py,v 1.20 2017/06/26 09:12:31 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyINFLUXPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.19 $"[11:-2]
+__version__ = "0." + "$Revision: 1.20 $"[11:-2]
 
 try:
     import MyLogger
@@ -140,7 +140,7 @@ def Influx_write(database, data, tags):
                 value = [ "{}".format(a) for a in value ]
                 value = ','.join(value)
             try:
-                if not item[0:4] in ('time',):
+                if not item[0:3] in ('tim','new'):      # time, timestamp, new is int
                     value = float(value)
                 else:
                     value = int(value)
