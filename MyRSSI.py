@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRSSI.py,v 1.7 2017/06/06 14:15:01 teus Exp teus $
+# $Id: MyRSSI.py,v 1.8 2017/06/26 07:09:52 teus Exp teus $
 
 # TO DO:
 
 """ wifi rssi values
 """
 modulename='$RCSfile: MyRSSI.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 
 # configurable options
 __options__ = ['input','fields','units','raw']
@@ -114,7 +114,7 @@ def getdata():
             if ('raw' in Conf.keys()) and Conf['raw'] != None:
                 conf['raw'].publish(
                     tag='rssi',
-                    data="dBa=%.1f" % Conf['rssi'])
+                    data="dBm=%.1f" % Conf['rssi'])
         except:
             return {}
 
