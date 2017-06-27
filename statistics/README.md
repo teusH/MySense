@@ -44,9 +44,10 @@ The script is able to generate an image in PNG format on a provided path/file of
     # use measurements from influxdb server
     # note: one must have admin db server credentials to show list of databases
     # next will show overview of measurements on InFluxDB server
-    DBUSER=metoo DBPASS=acacadabra DBHOST=theus.xs4all.nl python MyRegression.py -T influx BdP_33040d54
+    DBUSER=metoo DBPASS=acacadabra DBHOST=behouddeparel.nl python MyRegression.py -T influx BdP_33040d54
     # use measurents on the server for period of last 24 hours and show graph
-    DBUSER=metoo DBPASS=acacadabra DBHOST=theus.xs4all.nl python MyRegression.py -T influx BdP_33040d54/pm25_pcsqf/time/PPD42NS/raw BdP_3f18c330/pm25_pcsqf/time/PPD42NS/raw
+    # output in HTML format, graphs are saved in PPD42NS.png file.
+    DBUSER=metoo DBPASS=acacadabra DBHOST=theus.xs4all.nl python MyRegression.py -T influx -HTML --file PPD42NS.p0ng BdP_33040d54/pm25_pcsqf/time/PPD42NS/raw BdP_3f18c330/pm25_pcsqf/time/PPD42NS/raw
 ```
 The timing format is using the format as accepted by the Unix date command.
 
@@ -57,7 +58,9 @@ Normalisation details and regression polynomial can be used to obtain calibratio
 ## OUTPUT
 Statistical report: method used, Rsquared, average/deviation, and much details.
 
-Output the graphs in an image file `--file`.
+Output the graphs in an image file `--file`. Use `--HTML` option to turn output in html format on.
+
+As an example to generate an HTML correlation report report for several sensors over several sensor kits the bash shell script `MakeReports.sh` is supplied. It takes raw measurements (one per minute) for different sensors (Dylos, SDS011, PPD42NS, DHT22, BME280) from several sensor kits in the project BdP in the time period from 20th of June. The average interval of 900 seconds is used to limit the values a bit and smooth the outliers. Note that longer periods as eg one week just gives too much values and the overview becomes difficult.
 
 ## DEPENDENCES
 Install numpy (`pip install numpy`) for the regression calculations and pyplot (`pip install pyplot`) for displaying the graph.

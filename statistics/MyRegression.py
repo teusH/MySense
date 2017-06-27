@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 3.4 2017/06/23 13:38:30 teus Exp teus $
+# $Id: MyRegression.py,v 3.6 2017/06/27 16:59:39 teus Exp teus $
 
 """ Create and show best fit for at least two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -31,7 +31,7 @@
     Script uses: numpy package, SciPy and statPY and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.4 $"[11:-2]
+__version__ = "0." + "$Revision: 3.6 $"[11:-2]
 
 try:
     import sys
@@ -59,9 +59,9 @@ net = {
 # database identifiers
 # first range/array of regression values (second wil be calibrated against this one)
 sensors = [
-    { 'db': 'luchtmetingen', 'table': 'BdP_8d5ba45f', 'column': 'pm_25', 'type': 'Dylos DC1100' },
+    { 'db': 'luchtmetingen', 'table': 'BdP_8d5ba45f', 'column': 'pm_25', 'type': 'Dylos' },
     # second (Y) range/array of regression values
-    { 'db': 'luchtmetingen', 'table': 'BdP_3f18c330', 'column': 'pm25', 'type': 'Shinyei PPD42NS' },
+    { 'db': 'luchtmetingen', 'table': 'BdP_3f18c330', 'column': 'pm25', 'type': 'PPD42NS' },
 ]
 
 # xlsx and csv input file
@@ -86,6 +86,31 @@ pngfile = None  # show the scatter graph and regression polynomial best fit grap
 normMinMax = False    # transform regression polynomial best fit graph to [0,1] space
 normAvgStd = False    # transform regression polynomial best fit graph to [-1,1] space
 ml_mode = False # multi linear regression mode (default False: regression polynomial)
+HTML = False    # output in HTML format (default text)
+PrevP = False   # current in paragraph output style?
+PrevB = False   # current in line break output style?
+
+def MyPrint(strg, P=False, B=False):
+    global HTML, PrevP, PrevB
+    if not len(strg):
+        if HTML:
+            if PrevB: print("</br>")
+            if PrevP: print("</p>")
+        PrevP = False
+        PrevB = False
+        return
+    if HTML:
+        if B:
+            if PrevB:
+                print("</br><br>")
+            else: print("<br>")
+            PrevB = True
+        if P:
+            if PrevB: print ("</br>"); PrevB = False
+            if PrevP: print ("</p>")
+            print("<p>")
+            PrevP = True
+    print(strg)
 
 def db_connect(net):
     global resource
@@ -249,7 +274,7 @@ def getInterval(arr, amin = 60, amax = 60*60):
     n = len(ivals)
     ivals_bar = sum(ivals)/n
     ivals_std = math.sqrt(sum([(iv-ivals_bar)**2 for iv in ivals])/(n-1))
-    # print("average sample interval: %3.1f, std dev: %3.1f" % (ivals_bar, ivals_std))
+    # MyPrint("Average sample interval: %3.1f, std dev: %3.1f" % (ivals_bar, ivals_std), B=True)
     return int(ivals_bar+ 2* ivals_std)
     
 def fromMySQL(fd,sensor,period):
@@ -341,8 +366,8 @@ def getColumn(sensor,period, amin = 60, amax = 60*60):
         interval = aval ; strg = 'avg+2*stddev'
         if ival < aval:
             interval = aval; strg = 'minimal- 50% -maximal'
-        print("Auto interval samples is (re)set to %d (%s)" % (interval,strg))
-    print("Database table %s sensor (column) %s: %d db records, deleted %d NaN records." % (sensor['table'],sensor['column'],len(values), nr_records-len(values)))
+        MyPrint("Auto interval samples is (re)set to %d (%s)" % (interval,strg),B=True)
+    MyPrint("Database table %s sensor (column) %s: %d db records, deleted %d NaN records." % (sensor['table'],sensor['column'],len(values), nr_records-len(values)),B=True)
     return np.array(values)
 
 X = []
@@ -402,9 +427,9 @@ def getArrays(net,sensors,timing):
         except ValueError:
             continue
         X.append(row)
-    print("Collected %d values in sample time frame (%dm/%ds) for the graph." % (len(X),interval/60,interval%60))
+    MyPrint("Collected %d values in sample time frame (%dm/%ds) for the graph." % (len(X),interval/60,interval%60),B=True)
     if skipped:
-        print("Skipped %d db records, could not find any value(s) in same sample interval." % skipped)
+        MyPrint("Skipped %d db records, could not find any value(s) in same sample interval." % skipped)
     return np.array(X)
 
 def date2secs(string):
@@ -440,9 +465,9 @@ def get_arguments():
     """ Command line argument roll in """
     import argparse
     global progname
-    global net, sensors, timing, interval, order, show, normMinMax
+    global net, sensors, timing, interval, order, show, normMinMax, HTML
     global normAvgStd, pngfile, SHOW, MaxPerGraph, Pandas, resource, ml_mode
-    parser = argparse.ArgumentParser(prog=progname, description='Get from at least two sensors for a period of time and calculate the regression best fit polynomial.\nEach argument defines the [[table]/]sensor(column)/[date]/[type][/measurement] DB table use definition.\nFor non DB use the table is sheet1 and should be omitted.\nDefault definitions: the previous names or column numbers for table, sensor, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported. They are used for MySQL and for InFlux credentials.\nCommand use with no arguments will, if possible, provide a list of MySQL table names (sensorkit names) or InFlux database names (sensor kit names) or in case of spreadsheet inmfo about column names. With one argument (sensor kit name) script will list all sensor names, sensor types for that sensor kit.\nUsage example for two or more command arguments (the measurements selection):\nMySQL: \"BdP_12345abcd/pm_25/datum/SDS011\"\nXLSX/CSV (here column nr iso id in first row): \"/3/0/Dylos\"\nInFlux: \"BdP_654321daef/pm25/PPD42NS/raw\"\n\nCopyright (c) Behoud de Parel, 2017\nAnyone may use it freely under the 'GNU GPL V4' license. Any script change remains free.")
+    parser = argparse.ArgumentParser(prog=progname, description='Get from at least two sensors for a period of time and calculate the regression best fit polynomial.\nEach argument defines the [[table]/]sensor(column)/[date]/[type][/measurement] DB table use definition.\nFor non DB use the table is sheet1 and should be omitted.\nDefault definitions: the previous names or column numbers for table, sensor, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nThey are used for MySQL and for InFlux credentials.\n\nCommand use with no arguments will, if possible, provide a list of MySQL table names (sensorkit names), InFlux database names (sensor kit names), or in case of spreadsheet inmfo about column names.\nWith one argument (sensor kit name) script will list all sensor names, sensor types for that sensor kit.\n\nUsage example for two or more command arguments (the measurements selection):\nMySQL: \"BdP_12345abcd/pm_25/datum/SDS011\"\nXLSX/CSV (here column nr iso id in first row): \"/3/0/Dylos\"\nInFlux: \"BdP_654321daef/pm25/time/PPD42NS/raw\"\n\nCopyright (c) Behoud de Parel, 2017\nAnyone may use it freely under the 'GNU GPL V4' license. Any script change remains free.")
     parser.add_argument("-I", "--input", help="XLSX or CSV input file (path/filename.{xlsx,csv}, default: None\nOptions as <option>=<value> as command arguments.\nOptions: sheetname=0 (xlsx), header=0 (row with header or None), skiprows=0 (nr of rows to skip at start, delimiter=',' (None: auto detect).", default=Pandas['input'])
     parser.add_argument("-H", "--hostname", help="Database host name, default: %s" % net['hostname'], default="%s" % net['hostname'])
     parser.add_argument("--port", help="Database port number, default: DB dfl port", default="3306")
@@ -461,6 +486,7 @@ def get_arguments():
     parser.add_argument("-S", "--SHOW", help="show value and scatter graphs, default: graph is not shown", default=SHOW, type=bool, choices=[False,True])
     parser.add_argument("-m", "--multi", help="multi linear regression mode: second argument has more dependences defined by 3rd, etc argument, default: %s polynomial regression calculation" % ml_mode, default=ml_mode, type=bool, choices=[False,True])
     parser.add_argument("-f", "--file", help="generate png graph file, default: no png", default=pngfile)
+    parser.add_argument("--HTML", help="generate output in HTML format, default: no html", default=False, dest='HTML', action='store_true')
     parser.add_argument("-g", "--graphs", help="plot N graps in one scatter plot, default: %d" % MaxPerGraph, default=MaxPerGraph, type=int, choices=range(1,6))
     parser.add_argument('args', nargs=argparse.REMAINDER, help="Database table one/sensor or column name, default: %s/%s/%s %s/%s/%s. Spreadsheet (sheet1) columns: name/value_colnr/[date_colnr][/type] (default date: col 0, name: pollutant nr, colum nr: 1, 2, type: ?)" % (sensors[0]['table'],sensors[0]['column'],sensors[0]['type'],sensors[1]['table'],sensors[1]['column'],sensors[1]['type']))
     # overwrite argument settings into configuration
@@ -470,6 +496,7 @@ def get_arguments():
     net['user'] = args.user
     net['password'] = args.password
     net['database'] = args.database
+    HTML = args.HTML
     resource = {"type": 'mysql', "fd": None}
     if args.Type != resource['type']: resource['type'] = args.Type
     net['port'] = int(args.port)
@@ -585,7 +612,7 @@ def get_arguments():
 
 # print overview of columns in database
 def showDB(net,args):
-    print("Define arguments (at least 2) for tabel_name/column_name/[date_name]/[type]")
+    sys.stderr.write("Define arguments (at least 2) for tabel_name/column_name/[date_name]/[type]")
     tbls = []
     if len(args): tbls = args[0].split('/')
     else:
@@ -594,13 +621,13 @@ def showDB(net,args):
             for sub in ['_valid','_datums','_aqi','_dayly','_Max8HRS','_DayAVG','_norm','Sensors','stations']:
                 if tbl.find(sub) >= 0: omit = True      # omit some names
             if not omit: tbls.append(tbl)
-        print("Will only print all table names in the database.")
+        sys.stderr.write("Will only print all table names in the database.")
             
-    print("Database %s tables:" % net['database'])
+    MyPrint("Database %s tables:" % net['database'],P=True)
     cnt = 1
     for tbl in tbls:
         if len(args):
-            print("Table %s has the following sensors:" % tbl)
+            MyPrint("Table %s has the following sensors:" % tbl,B=True)
             cnt = 1
             for col in db_query(resource['fd'],"DESCRIBE %s" % tbl,True):
                 if col[0] == 'id': continue
@@ -608,15 +635,15 @@ def showDB(net,args):
                 for sub in ['_valid']:
                     if col[0].find(sub) >= 0: omit = True      # omit some names
                 if omit: continue
-                if not (cnt%4): print("")
-                print "  %14s" % col[0].ljust(14),
+                if not (cnt%4): MyPrint("",B=True)
+                print"  %14s" % col[0].ljust(14),
                 cnt = cnt + 1
-            print("\n")
+            MyPrint("",P=True)
         else:
-            if not (cnt%4): print("")
+            if not (cnt%4): MyPrint("")
             print "  %14s" % tbl.ljust(14),
             cnt = cnt + 1
-    print("")
+    MyPrint("",B=True)
     if len(args):
         sys.exit("Please provide at least two sensor (column) definition arguments.")
     else:
@@ -629,8 +656,8 @@ def showIF(net,args):
     DB = resource['fd']
     if DB == None:
         sys.exit("FATAL No Influx module loaded.")
-    print("Define arguments (at least 2) for database_name/column_name/[date_name]/[type]/[serie_name]")
-    print("E.g. BdP_33040d54/pm25//PPD42NS/raw")
+    sys.stderr.write("Define arguments (at least 2) for database_name/column_name/[date_name]/[type]/[serie_name]")
+    sys.stderr.write("E.g. BdP_33040d54/pm25//PPD42NS/raw")
     tbls = []
     if len(args):
         tbls = args[0].split('/')
@@ -639,25 +666,27 @@ def showIF(net,args):
             if not len(tblNme): raise ValueError
             measurements = influxMmnt(DB, tblNme)
             if len(measurements):
-                print("For database %s found series: %s" % (tblNme,', '.join(measurements)))
+                MyPrint("For database %s found series: %s" % (tblNme,', '.join(measurements)),P=True)
             for mnt in measurements:
                 flds = influxFlds(DB,tblNme,mnt)
                 if not len(flds): continue
-                print("Database %s measurement \"%s\" has fields: %s" % (tblNme,mnt,', '.join(flds)))
+                MyPrint("Database %s measurement \"%s\" has fields: %s" % (tblNme,mnt,', '.join(flds)),B=True)
                 types = influxTags(DB,tblNme,mnt,Type='type')
                 if len(types):
-                    print("Database %s measurement \"%s\" types: %s" % (tblNme,mnt,', '.join(types)))
+                    MyPrint("Database %s measurement \"%s\" types: %s" % (tblNme,mnt,', '.join(types)),B=True)
         except:
             sys.exit("ERROR either to connect to InFlux server of query failure.")
     else:
         try:
-            print("InFlux server has following databases: %s\n" % ', '.join(influxDBs(DB)))
+            MyPrint("InFlux server has following databases: %s\n" % ', '.join(influxDBs(DB)),P=True)
         except:
             sys.exit("InFlux server: you need admin rights to get a database last.")
 
 # print overview of columns in the spreadsheet
 def showXLSX(args):
-    print("Define arguments (at least 2) for short_name/column_nr/[date_column_nr]/[type]\nXLSX spreadsheet header info:\nColumn\tName")
+    sys.stderr.write("Define arguments (at least 2) for short_name/column_nr/[date_column_nr]/[type]")
+    MyPrint("XLSX spreadsheet header info:",P=True)
+    MyPrint("Column\tName",B=True)
     nr = 0
     wanted = []
     if len(args):
@@ -672,7 +701,7 @@ def showXLSX(args):
         if type(Pandas['fd'][I][0]) is Pandas['module'].tslib.Timestamp:
             dstr = 'period: %s' % datetime.datetime.strftime(datetime.datetime.fromtimestamp(Pandas['fd'][I][0].value // 10**9),'%Y-%m-%d %H:%M:%S')       
             dstr =  dstr + ' to %s' % datetime.datetime.strftime(datetime.datetime.fromtimestamp(Pandas['fd'][I][length-1].value // 10**9),'%Y-%m-%d %H:%M:%S')       
-        print("%d\t\"%s\"\tcount=%d\t%s" % (nr,I,length,dstr))
+        MyPrint("%d\t\"%s\"\tcount=%d\t%s" % (nr,I,length,dstr),B=True)
         nr += 1
     sys.exit("Please provide at least two column definition arguments.")
 
@@ -757,18 +786,18 @@ def get_r2_python(x_list,y_list):
 from_env('DB')          # get DB credentials from command environment
 get_arguments()         # get command line arguments
 
-print('Regression best fit calculation details for sensor type(s): %s' % ', '.join(set([elm['type'] for elm in sensors]))) 
+MyPrint('Regression best fit calculation details for sensor type(s): %s' % ', '.join(set([elm['type'] for elm in sensors])),P=True)
 if Pandas['input'] == None:
-    print('Graphs based on data %s from %s on server %s as user %s:' % (resource['type'].upper(),net['database'],net['hostname'],net['user']))
+    MyPrint('Graphs based on data %s from %s on server %s as user %s:' % (resource['type'].upper(),net['database'],net['hostname'],net['user']),B=True)
 else:
-    print('Graphs based on spreadsheet xlsx/csv data from file %s' % Pandas['input'])
+    MyPrint('Graphs based on spreadsheet xlsx/csv data from file %s' % Pandas['input'],B=True)
     
 
 ################################ get core of data
 # we have to take slices from the matrix: row = [time in secs, values 1, values 2, ...]
 Matrix = getArrays(net,sensors,timing)
 
-print('Samples period: %s up to %s, interval timing %dm:%ds.' % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M'),interval/60,interval%60))
+MyPrint('Samples period: %s up to %s, interval timing %dm:%ds.' % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M'),interval/60,interval%60),P=True)
 Stat = { 'min': [], 'max': [], 'avg': [], 'std': [] }
 
 # some simple statistics
@@ -779,13 +808,13 @@ for I in range(0,len(sensors)):
     Stat['avg'].append(np.nanmean(Matrix[:,I+1]))
     Stat['std'].append(np.nanstd(Matrix[:,I+1]))
     if normMinMax:
-        print('Normalisation (min,max):')
-        print('\t%s/%s [%6.2f,%6.2f] ->[0,1]' % (sensors[I]['table'],sensors[I]['column'],Stat['min'][I],Stat['max'][I]))
+        MyPrint('Normalisation (min,max):',B=True)
+        MyPrint('\t%s/%s [%6.2f,%6.2f] ->[0,1]' % (sensors[I]['table'],sensors[I]['column'],Stat['min'][I],Stat['max'][I]))
         Matrix[:,I+1] = Matrix[:,I+1] - Stat['min'][I]
         Matrix[:,I+1] /= (Stat['max'][I]-Stat['min'][I])
     if normAvgStd:
-        print('Normalisation (avg-stddev,avg+stddev):')
-        print('\t%s/%s [%6.2f,%6.2f] ->[-1,+1]' % (sensors[I]['table'],sensors[I]['column'],Stat['avg'][I]-Stat['std'][I],Stat['avg'][I]+Stat['std'][I]))
+        MyPrint('Normalisation (avg-stddev,avg+stddev):',B=True)
+        MyPrint('\t%s/%s [%6.2f,%6.2f] ->[-1,+1]' % (sensors[I]['table'],sensors[I]['column'],Stat['avg'][I]-Stat['std'][I],Stat['avg'][I]+Stat['std'][I]))
         Matrix[:,I+1] = Matrix[:,I+1] - Stat['avg'][I]
         if Stat['std'][I] > 1.0: Matrix[:,I+1] /= Stat['std'][I]
 
@@ -805,7 +834,7 @@ def getLMFit(sensor):
         StatX = Matrix[:,sensor+1:]; StatX = sm.add_constant(StatX)
         reslts = sm.OLS(Matrix[:,1],StatX).fit()
     except ValueError as err:
-        print("ERROR: %s" % err)
+        sys.stderr.write("ERROR: %s" % err)
         raise ValueError("Error in Linear Regression best fit calculation")
     if not 'R2' in sensors[sensor].keys():
         sensors[sensor]['R2'] = reslts.rsquared
@@ -826,8 +855,15 @@ yname = '%s/%s' % (sensors[0]['table'],sensors[0]['column'])
 if not ml_mode:
     sensors[0]['fit'] = [0.0,1.0]; sensors[0]['R2'] = 0.0
     for I in range(1,len(sensors)):
-        print("Data from table/sheet %s, sensor (column) %s:" % (sensors[I]['table'],sensors[I]['column']))
-        print("\t#number %d, avg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (len(Matrix[:,I+1]),Stat['avg'][I],Stat['std'][I],Stat['min'][I],Stat['max'][I]))
+        if (I == 1) and (pngfile != None) and HTML:
+            if PrevP: print("</p>")
+            if PrevB:
+                print("</br>")
+                PrevB = False
+            print("<p><img src=\"%s\" width=400 alt=\"scatter image and graphs for sensor\"/></p>" % pngfile)
+            if PrevP: print ("<p>")
+        MyPrint("Data from table/sheet %s, sensor (column) %s:" % (sensors[I]['table'],sensors[I]['column']),B=True)
+        MyPrint("\t#number %d, avg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (len(Matrix[:,I+1]),Stat['avg'][I],Stat['std'][I],Stat['min'][I],Stat['max'][I]),B=True)
         if I == 0: continue
         # if order == 1:
         #     R2 = get_r2_corrcoeff(Matrix[:,1],Matrix[:,2])
@@ -836,24 +872,41 @@ if not ml_mode:
         sensors[I]['R2'] = get_r2_numpy(Matrix[:,1],Matrix[:,I+1],Z[0][:,I])
         results = getLMFit(I)
         xname = [ '%s/%s' % (sensors[I]['table'],sensors[I]['column'])]
-        print("\tR-squared R² with %s: %6.4f" % (xname[0],sensors[I]['R2']))
+        MyPrint("\tR-squared R² with %s: %6.4f" % (xname[0],sensors[I]['R2']),B=True)
     
         # print("\tBest fit polynomial regression curve (a0*X^0 + a1*X^1 + a2*X^2 + ...): ")
         # string = ', '.join(["%4.3e" % i for i in Z[0][:,I]])  # correct ???
-        print("\tBest fit linear single polynomial regression curve (a0*X^0 + a1*X^1): ")
+        MyPrint("\tBest fit linear single polynomial regression curve (a0*X^0 + a1*X^1): ",B=True)
         string = ', '.join(["%4.3e" % i for i in sensors[I]['fit']])
         string = "\t%s (%s)-> best fit [ %s ]" % (yname,sensors[I]['type'],string)
-        print(string)
+        MyPrint(string,B=True)
 
-        print("Statistical summary linear regression for %s with %s:" % (yname,xname))
-        print(results.summary(xname=xname,yname=yname))
+        MyPrint("Statistical summary linear regression for %s with %s:" % (yname,xname),P=True)
+        summary = results.summary(xname=xname,yname=yname)
+        if HTML:
+            if PrevB: print("</br>"); PrevB = False
+            if PrevP: print("</p>");
+            for i in range(0,len(summary.tables)):
+                print("<p>")
+                print(summary.tables[i].as_html())
+                print("</p>")
+            if PrevP: print("<p>")
+        else: print(summary)
         # results.{params,tvalues,pvalues,fvalues,nobs,rsquared,rsquared_adj,scale,llf}
 else:
-    print "Statistical multi linear regression for %s/%s with:" % (sensors[0]['table'],sensors[0]['column']),
+    MyPrint('',P=True)
+    MyPrint("Statistical multi linear regression for %s/%s with:" % (sensors[0]['table'],sensors[0]['column']))
     xname = []
     for I in range(1,len(sensors)):
+        if (I == 1) and (pngfile != None) and HTML:
+            if PrevP: print("</p>")
+            if PrevB:
+                print("</br>")
+                PrevB = False
+            print("<p><img src=\"%s\" width=400 alt=\"scatter image and graphs for sensor\"/></p>" % pngfile)
+            if PrevP: print ("<p>")
         xname.append("%s/%s" % (sensors[I]['table'],sensors[I]['column']))
-    print("%s" % ', '.join(xname))
+    MyPrint("%s" % ', '.join(xname))
     StatX = Matrix[:,2:]; StatX = sm.add_constant(StatX)
     for sensor in range(0,len(sensors)):
         sensors[sensor]['Z0'] = Z[0][:,I]
@@ -866,17 +919,27 @@ else:
         for elm in results.params: sensors[1]['fit'].append(float(elm))
         sensors[0]['R2'] = sensors[1]['R2'] = results.rsquared
     except ValueError as err:
-        print("ERROR: %s" % err)
-    print("\tR-squared R² with %s: %6.4f" % (xname[0],sensors[1]['R2']))
-    print("\tBest fit polynomial regression curve (a0 + a1*X1 + a2*X2 + ...): ")
+        sys.stderr.write("ERROR: %s" % err)
+    MyPrint("\tR-squared R² with %s: %6.4f" % (xname[0],sensors[1]['R2']),B=True)
+    MyPrint("\tBest fit polynomial regression curve (a0 + a1*X1 + a2*X2 + ...): ",B=True)
     string = '%4.3e' % sensors[1]['fit'][0]
     for I in range(1,len(sensors[1]['fit'])):
         if len(string): string += ' + '
         string += "%e (%s)" % (sensors[1]['fit'][I],xname[I-1])
     string = "    %s (%s)-> best fit:\n    [ %s ]" % (yname,sensors[I]['type'],string)
-    print(string)
+    MyPrint(string)
 
-    print(results.summary(xname=xname, yname=yname))
+    MyPrint('',P=True)
+    summary = results.summary(xname=xname,yname=yname)
+    if HTML:
+        if PrevB: print("</br>"); PrevB = False
+        if PrevP: print("</p>");
+        for i in range(0,len(summary.tables)):
+            print("<p>")
+            print(summary.tables[i].as_html())
+            print("</p>")
+        if PrevP: print("<p>")
+    else: print(summary)
             
 ##############################   plotting part ####################
 def makeXgrid(mn,mx,nr):
