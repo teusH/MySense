@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 3.6 2017/06/27 16:59:39 teus Exp teus $
+# $Id: MyRegression.py,v 3.8 2017/06/27 18:50:43 teus Exp teus $
 
 """ Create and show best fit for at least two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -31,7 +31,7 @@
     Script uses: numpy package, SciPy and statPY and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.6 $"[11:-2]
+__version__ = "0." + "$Revision: 3.8 $"[11:-2]
 
 try:
     import sys
@@ -88,25 +88,18 @@ normAvgStd = False    # transform regression polynomial best fit graph to [-1,1]
 ml_mode = False # multi linear regression mode (default False: regression polynomial)
 HTML = False    # output in HTML format (default text)
 PrevP = False   # current in paragraph output style?
-PrevB = False   # current in line break output style?
 
 def MyPrint(strg, P=False, B=False):
-    global HTML, PrevP, PrevB
+    global HTML, PrevP
     if not len(strg):
         if HTML:
-            if PrevB: print("</br>")
             if PrevP: print("</p>")
         PrevP = False
-        PrevB = False
         return
     if HTML:
         if B:
-            if PrevB:
-                print("</br><br>")
-            else: print("<br>")
-            PrevB = True
+            print("<br />")
         if P:
-            if PrevB: print ("</br>"); PrevB = False
             if PrevP: print ("</p>")
             print("<p>")
             PrevP = True
@@ -857,10 +850,7 @@ if not ml_mode:
     for I in range(1,len(sensors)):
         if (I == 1) and (pngfile != None) and HTML:
             if PrevP: print("</p>")
-            if PrevB:
-                print("</br>")
-                PrevB = False
-            print("<p><img src=\"%s\" width=400 alt=\"scatter image and graphs for sensor\"/></p>" % pngfile)
+            print("<p><img src=\"%s\" width=400 alt=\"scatter image and graphs for sensor\"/></p>" % os.path.basename(pngfile))
             if PrevP: print ("<p>")
         MyPrint("Data from table/sheet %s, sensor (column) %s:" % (sensors[I]['table'],sensors[I]['column']),B=True)
         MyPrint("\t#number %d, avg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (len(Matrix[:,I+1]),Stat['avg'][I],Stat['std'][I],Stat['min'][I],Stat['max'][I]),B=True)
@@ -884,7 +874,6 @@ if not ml_mode:
         MyPrint("Statistical summary linear regression for %s with %s:" % (yname,xname),P=True)
         summary = results.summary(xname=xname,yname=yname)
         if HTML:
-            if PrevB: print("</br>"); PrevB = False
             if PrevP: print("</p>");
             for i in range(0,len(summary.tables)):
                 print("<p>")
@@ -900,9 +889,6 @@ else:
     for I in range(1,len(sensors)):
         if (I == 1) and (pngfile != None) and HTML:
             if PrevP: print("</p>")
-            if PrevB:
-                print("</br>")
-                PrevB = False
             print("<p><img src=\"%s\" width=400 alt=\"scatter image and graphs for sensor\"/></p>" % pngfile)
             if PrevP: print ("<p>")
         xname.append("%s/%s" % (sensors[I]['table'],sensors[I]['column']))
@@ -932,7 +918,6 @@ else:
     MyPrint('',P=True)
     summary = results.summary(xname=xname,yname=yname)
     if HTML:
-        if PrevB: print("</br>"); PrevB = False
         if PrevP: print("</p>");
         for i in range(0,len(summary.tables)):
             print("<p>")
