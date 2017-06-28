@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.10 2017/06/19 12:43:34 teus Exp teus $
+# $Id: MySense.py,v 3.11 2017/06/28 09:25:40 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.10 $"[11:-2]
+__version__ = "0." + "$Revision: 3.11 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -441,7 +441,7 @@ def integrate_options():
                 Conf[Nme]['raw'] = True
             elif (not RAWok) and ((not 'raw' in Conf[Nme].keys()) or(not Conf[Nme]['raw'])):
                 Conf[Nme]['raw'] = False
-            if Conf[Nme]['raw']: RawOnce = True
+            if ('raw' in Conf[Nme].keys()) and Conf[Nme]['raw']: RawOnce = True
         try:    # allow to display raw sensor values from a sensor thread
             Conf[Nme]['debug'] = cmd_args.debug.rindex(Nme) >= 0
         except:
