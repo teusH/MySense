@@ -46,6 +46,9 @@ You need to install with apt: python-pil, python-imaging and python-smbus and wi
 Or use `INSTALL.sh DISPLAY` for this.
 If you use GPIO make sure the display user is added to the group `spi` and for I2C version to the group 'i2c'.
 
+## HW I2C problems
+The Pi3 shows sometimes i2c-bcm2835 transfer timeout failures. The display may be stalled or show weird characters. A restart of the display process may recover this. However sometimes a reboot or de/install of the 2835 kernel module may solve this. This error show once a day. A workaround?
+
 ### References
 * https://github.com/adafruit/Adafruit_Python_SSD1306
 TO DO: use this software package

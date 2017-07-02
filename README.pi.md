@@ -149,3 +149,6 @@ will install the needed modules.
     
 ### Pi may have USB serial failures :-(
 The Pi with several USB connection may run out of energy. If so you will see intermittant USB serial failures. One way to solve this is to use a quality USBhub with own power adapter of say 2.5A.
+
+### Pi3 may have I2C transfer timeouts :-(
+While using transports of say 512 bytes via the I2C interface of the Pi3, the Pi3 may show "transfer timeout i2c-bmc2835" log errors. E.g. using the SSD1306 tiny display via the I2C bus may hang your process. It seems to be a (driver) hardware problem. Retsrat the process helps, but sometimes a reboot is needed. Yet unknown if there is a work around.
