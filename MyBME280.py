@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyBME280.py,v 2.14 2017/06/07 10:59:56 teus Exp teus $
+# $Id: MyBME280.py,v 2.15 2017/07/03 12:42:24 teus Exp teus $
 
 """ Get measurements from BME280 Bosch chip via the I2C-bus.
     Measurements have a calibration factor (calibrated to Oregon weather station)
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyBME280.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.14 $"[11:-2]
+__version__ = "0." + "$Revision: 2.15 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -79,9 +79,17 @@ def Add(conf):
         if (conf['fd'] != None) and (conf['Ada_import'] != None):
             
             try:
+                try:
+                    conf['fd'].BME280_wakeup()
+                except:
+                    pass
                 temp = conf['fd'].read_temperature()
                 pascals = conf['fd'].read_pressure()
                 humidity = conf['fd'].read_humidity()
+                try:
+                    conf['fd'].BME280_sleep()
+                except:
+                    pass
             except ValueError:
                 MyLogger.log(modulename,'ATTENT',"Read error")
                 return rec

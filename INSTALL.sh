@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.26 2017/06/24 20:11:38 teus Exp teus $
+# $Id: INSTALL.sh,v 1.27 2017/07/03 12:45:42 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -153,6 +153,19 @@ function BME280() {
     then
         git clone https://github.com/adafruit/Adafruit_Python_BME280.git
         /bin/cp ./Adafruit_Python_BME280/Adafruit_BME280.py .
+        /bin/cat >>Adafruit_BME280.py <<EOF
+
+    # added by teus 2017-07-03 thanks to Thomas Telkamp
+    # to avoid heating up the Boisch chip and so temp measurement raise
+    def BME280_sleep(self):
+        ''' put the Bosch chip in sleep modus '''
+        self._device.write8(BME280_REGISTER_CONTROL,0x0)
+
+    def BME280_wakeup(self):
+        ''' wakeup the Bosch chip '''
+        self._device.write8(BME280_REGISTER_CONTROL, 0x3F)
+
+EOF
         /bin/rm -rf ./Adafruit_Python_BME280/
     fi
     return $?
