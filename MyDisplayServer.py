@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDisplayServer.py,v 1.9 2017/06/25 13:15:50 teus Exp teus $
+# $Id: MyDisplayServer.py,v 1.10 2017/07/06 09:31:55 teus Exp teus $
 
 # script will run standalone, collects text lines from sockets streams and
 # displays the scrolled lines on an Adafruit display
@@ -341,13 +341,6 @@ if __name__ == "__main__":
             BUS = sys.argv[i+1]
             sys.argv.pop(i+1); sys.argv.pop(i)
 
-    if (SIZE != '128x32') and (SIZE != '128x64'):
-        sys.exit("Display size %s is not supported!" % SIZE)
-    if BUS == None:
-        sys.exit("Display HW bus needs to be defined: I2C or SPI!")
-    elif (BUS != 'SPI') and (BUS != 'I2C'):
-        sys.exit("Display bus %s is not supported!" % BUS)
-    Conf['display'] = (BUS,SIZE)
     if Conf['debug']:
         logging.basicConfig(level=logging.DEBUG)
     else:
@@ -369,14 +362,20 @@ if __name__ == "__main__":
             deamon_status(PID_FILE)
             exit(0)
         elif sys.argv[1] != 'start':
-            print("Argument %s: unknown process request.")
-            exit(1)
+            sys.exit("Argument %s: unknown process request.")
         else:
             deamon_detach(PID_FILE)
         logging.info("Display Server starts up")
     else:
 	Conf['debug'] = True
 
+    if (SIZE != '128x32') and (SIZE != '128x64'):
+        sys.exit("Display size %s is not supported!" % SIZE)
+    if BUS == None:
+        sys.exit("Display HW bus needs to be defined: I2C or SPI!")
+    elif (BUS != 'SPI') and (BUS != 'I2C'):
+        sys.exit("Display bus %s is not supported!" % BUS)
+    Conf['display'] = (BUS,SIZE)
     Active = False
     try:
         if not Active:

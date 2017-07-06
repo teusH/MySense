@@ -4,6 +4,8 @@ import time
 # after examples from Adafruit SSD1306
 import Adafruit_GPIO.SPI as SPI
 import Adafruit_SSD1306
+import sys
+import logging
 
 from PIL import Image
 from PIL import ImageDraw
@@ -133,8 +135,9 @@ def scroll(linenr,yPos):
     return True
 
 # display as much lines as possible
+DisplayError = 0
 def Display(lock):
-    global Lines, draw, image, disp
+    global Lines, draw, image, disp, DisplayError
     if Lines == None or not len(Lines): return (False,False)
     # ClearDisplay()
     # Clear image buffer by drawing a black filled box.
@@ -165,7 +168,20 @@ def Display(lock):
         linenr += 1
     # Draw the image buffer.
     disp.image(image)
-    disp.display()
+    try:
+        disp.display()
+        DisplayError = 0
+    except:
+        # print("Failure in displaying image")
+        if DisplayError > 10:
+            logging.exception("Display Server: too may SSD1306 display errors.")
+            sys.exit("Too many I2C ERRORs while displaying on SSD1306.")
+        disp.image(image)
+        try:
+            disp.display()
+        except:
+            DisplayError += 1
+        logging.exception("WARNING Display Server: SSD1306 display error.")
     return trimmedY
 
 # run forever this function
@@ -176,6 +192,7 @@ def Show(lock, conf):
         Lines = conf['lines']
     if Lines == None: Lines = []
     # TO DO: slow down if there are no changes
+    #        scroll line by tab stop with longer show delay
     if not 'stop' in conf.keys(): conf['stop'] = False
     while not conf['stop']:
         if not len(Lines):
