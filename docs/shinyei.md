@@ -11,6 +11,13 @@ To use both dust sensor outputs: Attach a fourth white cable to the cable socket
 ## USE comments
 Experiences show that there are Shinyei modules which values correlates quite well with the Dylos DC1100 output (see e.g. the aqicn.org notes). However the experiences with MySense show that a considerable amout of dust readings are NULL valued and measurements become unusable. Maybe the tresholt resister can improve this. For test manpower reasons the focus is on an alternative module from Nova SDS011. This module is manufactured only since Sept 2016. The USB TTL type of interface is simple to use.
 
+## Correlation test
+See the directory statistics for a report of 1 week June 2017 of correlation tests wi
+th e.g. Dylos and Nova SDS011 sensor for more details.
+
+The Dylos DC1100 and PPD42NS do NOT seem to correlate very well. The correlation report will
+provide more info about the regression statistics.
+
 ## literature
 There are a lot of references how to use the Shinyei dust sensor. Thas the Shinyei dust sensor is a very popular one. Mostly one uses the sensor in combination with the Arduino controller.
 
