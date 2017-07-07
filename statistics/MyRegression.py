@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 3.8 2017/06/27 18:50:43 teus Exp teus $
+# $Id: MyRegression.py,v 3.9 2017/07/07 15:16:34 teus Exp teus $
 
 """ Create and show best fit for at least two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -31,7 +31,7 @@
     Script uses: numpy package, SciPy and statPY and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.8 $"[11:-2]
+__version__ = "0." + "$Revision: 3.9 $"[11:-2]
 
 try:
     import sys
@@ -89,7 +89,7 @@ ml_mode = False # multi linear regression mode (default False: regression polyno
 HTML = False    # output in HTML format (default text)
 PrevP = False   # current in paragraph output style?
 
-def MyPrint(strg, P=False, B=False):
+def MyPrint(strg, P=False, B=False, I=False):
     global HTML, PrevP
     if not len(strg):
         if HTML:
@@ -103,7 +103,11 @@ def MyPrint(strg, P=False, B=False):
             if PrevP: print ("</p>")
             print("<p>")
             PrevP = True
+        if I:
+            print('<div style="font-size: 10pt; text-indent: +1.5em">')
     print(strg)
+    if HTML and I:
+        print('</div>')
 
 def db_connect(net):
     global resource
@@ -848,12 +852,11 @@ yname = '%s/%s' % (sensors[0]['table'],sensors[0]['column'])
 if not ml_mode:
     sensors[0]['fit'] = [0.0,1.0]; sensors[0]['R2'] = 0.0
     for I in range(1,len(sensors)):
+        MyPrint("Data from table/sheet %s, sensor (column) %s:" % (sensors[I]['table'],sensors[I]['column']),B=True,P=True)
         if (I == 1) and (pngfile != None) and HTML:
-            if PrevP: print("</p>")
-            print("<p><img src=\"%s\" width=400 alt=\"scatter image and graphs for sensor\"/></p>" % os.path.basename(pngfile))
-            if PrevP: print ("<p>")
-        MyPrint("Data from table/sheet %s, sensor (column) %s:" % (sensors[I]['table'],sensors[I]['column']),B=True)
-        MyPrint("\t#number %d, avg=%5.2f, std dev=%5.2f, min-max=(%5.2f, %5.2f)" % (len(Matrix[:,I+1]),Stat['avg'][I],Stat['std'][I],Stat['min'][I],Stat['max'][I]),B=True)
+            print("<a href=\"%s\"><img src=\"%s\" align=right width=300 alt=\"scatter image and graphs for sensor\"/></a>" % (os.path.basename(pngfile),os.path.basename(pngfile)))
+        MyPrint("\tnumber %d, min=%5.2f, max=%5.2f" % (len(Matrix[:,I+1]),Stat['min'][I],Stat['max'][I]),B=True,I=True)
+        MyPrint("\tavg=%5.2f, std dev=%5.2f" % (Stat['avg'][I],Stat['std'][I]),B=True,I=True)
         if I == 0: continue
         # if order == 1:
         #     R2 = get_r2_corrcoeff(Matrix[:,1],Matrix[:,2])
@@ -862,14 +865,17 @@ if not ml_mode:
         sensors[I]['R2'] = get_r2_numpy(Matrix[:,1],Matrix[:,I+1],Z[0][:,I])
         results = getLMFit(I)
         xname = [ '%s/%s' % (sensors[I]['table'],sensors[I]['column'])]
-        MyPrint("\tR-squared R² with %s: %6.4f" % (xname[0],sensors[I]['R2']),B=True)
     
         # print("\tBest fit polynomial regression curve (a0*X^0 + a1*X^1 + a2*X^2 + ...): ")
         # string = ', '.join(["%4.3e" % i for i in Z[0][:,I]])  # correct ???
-        MyPrint("\tBest fit linear single polynomial regression curve (a0*X^0 + a1*X^1): ",B=True)
-        string = ', '.join(["%4.3e" % i for i in sensors[I]['fit']])
-        string = "\t%s (%s)-> best fit [ %s ]" % (yname,sensors[I]['type'],string)
-        MyPrint(string,B=True)
+        if HTML:
+            MyPrint("\tR-squared (R²) with %s: %6.4f" % (xname[0],sensors[I]['R2']),B=True,I=True)
+            MyPrint("Best fit linear single polynomial regression curve (A<sub>0</sub>*X<sup>0</sup> + A<sub>1</sub>*X<sup>1</sup>): ",B=True,I=True)
+        else:
+            MyPrint("\tR-squared (R<sup>2</sup>) with %s: %6.4f" % (xname[0],sensors[I]['R2']),B=True,I=True)
+            MyPrint("Best fit linear single polynomial regression curve (A₀*X⁰ + A₁*X¹): ",B=True,I=True)
+        MyPrint("\t%s (%s)-> best fit coefficients:" % (yname,sensors[I]['type']),B=True,I=True)
+        MyPrint("\t%s" % ', '.join(["%4.3e" % i for i in sensors[I]['fit']]),B=True,I=True)
 
         MyPrint("Statistical summary linear regression for %s with %s:" % (yname,xname),P=True)
         summary = results.summary(xname=xname,yname=yname)
@@ -888,9 +894,7 @@ else:
     xname = []
     for I in range(1,len(sensors)):
         if (I == 1) and (pngfile != None) and HTML:
-            if PrevP: print("</p>")
-            print("<p><img src=\"%s\" width=400 alt=\"scatter image and graphs for sensor\"/></p>" % pngfile)
-            if PrevP: print ("<p>")
+            print("<p><img src=\"%s\" align=right width=300 alt=\"scatter image and graphs for sensor\"/>" % pngfile)
         xname.append("%s/%s" % (sensors[I]['table'],sensors[I]['column']))
     MyPrint("%s" % ', '.join(xname))
     StatX = Matrix[:,2:]; StatX = sm.add_constant(StatX)
@@ -906,14 +910,18 @@ else:
         sensors[0]['R2'] = sensors[1]['R2'] = results.rsquared
     except ValueError as err:
         sys.stderr.write("ERROR: %s" % err)
-    MyPrint("\tR-squared R² with %s: %6.4f" % (xname[0],sensors[1]['R2']),B=True)
-    MyPrint("\tBest fit polynomial regression curve (a0 + a1*X1 + a2*X2 + ...): ",B=True)
+    if HTML:
+        MyPrint("\tR-squared (R²) with %s: %6.4f" % (xname[0],sensors[I]['R2']),B=True,I=True)
+        MyPrint("Best fit linear single polynomial regression curve (A<sub>0</sub>*X<sup>0</sup> + A<sub>1</sub>*X<sup>1</sup>): ",B=True,I=True)
+    else:
+        MyPrint("\tR-squared (R<sup>2</sup>) with %s: %6.4f" % (xname[0],sensors[I]['R2']),B=True,I=True)
+        MyPrint("Best fit linear single polynomial regression curve (A₀*X⁰ + A₁*X¹): ",B=True,I=True)
+    MyPrint("\t%s (%s)-> best fit coefficients:" % (yname,sensors[I]['type']),B=True,I=True)
     string = '%4.3e' % sensors[1]['fit'][0]
     for I in range(1,len(sensors[1]['fit'])):
         if len(string): string += ' + '
         string += "%e (%s)" % (sensors[1]['fit'][I],xname[I-1])
-    string = "    %s (%s)-> best fit:\n    [ %s ]" % (yname,sensors[I]['type'],string)
-    MyPrint(string)
+    MyPrint("%s" % string,I=True)
 
     MyPrint('',P=True)
     summary = results.summary(xname=xname,yname=yname)
