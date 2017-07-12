@@ -3,8 +3,23 @@
 Grove Shinyei PPD42NS dust sensor (€ 18.- Kiwi Electronics) is a PM10/PM2.5 particals counter. The module is 5VDC and output is also 5 VDC.
 * Use Grove shield or volt regulator/3V3/5V converter to connect the module with the Pi.
 Disadvantage connection via Grove shield: the Grove driver software will show zero counts without a resistor to tune the thresholt and fan to force a higher air stream.
+
 Make sure you use the latest firmware of the GrovePi for this module: https://www.dexterindustries.com/GrovePi/get-started-with-the-grovepi/updating-firmware/
-* Better solution: Use Arduino as special dust controller with the Pi (the MySense choice). Advantage: the particle counter is more precise (no interrupts). The MySense software is using this approach.
+
+How to get the Grovepi firmware version number? Use the following Python script from Dexters Industries (MIT license, http://forum.dexterindustries.com/c/grovepi)::
+```python
+# NOTE: If you get a version of 255.255.255, 
+# try running the script again,
+# if the issue still persists then you are using an old deprecated firmware
+    import grovepi
+    try:
+        print("GrovePi has firmware version: %s" %grovepi.version())
+    except KeyboardInterrupt:
+        print ("KeyboardInterrupt")
+    except IOError:
+       print ("Error")
+```
+* A *better solution*: Use an Arduino as special dust controller with the Pi (the MySense choice). Advantage: the particle counter is more precise (no interrupts). The MySense software is using this approach.
 
 To use both dust sensor outputs: Attach a fourth white cable to the cable sockets. For wiring instructions see the sketch MyArduino.ino.
 
@@ -66,7 +81,7 @@ Pi Pin 6 (or 9, 14, 20, 25, 30, 34, 39) (Gnd) connects to a 3k3 resistor (voltag
 Pi Pin 6 (or 9, 14, 20, 25, 30, 34, 39) (Gnd) connects to a Variable resistor, the other end of which connectors to Pi pin 2 (or 4) (5V) and the wiper of which is connected to Shinyei Pin 5 (P2 threshold setting). Adjust the variable resistor to adjust the size of dust particle which triggers P2.
 ```
 ## MyArduino.ino firmware description
-The firware will output via USB to the Pi in string format as a json value:
+The firmware will output via USB to the Pi in string format as a json value:
 ```
 {"version": "1.06","type": "PPD42NS","pm25_count":391645,"pm25_ratio":1.20,"pm25_pcs/qf":623,"pm25_ug/m3":0.97,"pm10_count":2035010,"pm10_ratio":6.68,"pm10_pcs/qf":3634,"pm10_ug/m3":5.67}
 ```
