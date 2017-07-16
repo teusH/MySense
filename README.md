@@ -218,3 +218,4 @@ See also: https://developer.epa.gov/air-pollution/
 * https://github.com/HabitatMap/AirCastingAndroidClient AirCasting on Android Client
 * https://mosquitto.org/ Mosquitto (MQTT) broker
 * https://docs.influxdata.com/influxdb/v1.2/ documentation from InFluxData.com
+* https://cdn.hackaday.io/files/21912937483008/Thomas_Portable_Air_Quality.pdf interesting overview of sensors
