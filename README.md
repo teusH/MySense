@@ -50,21 +50,22 @@ A working example of MySense script in todays operation:
 ```
           remote access             |  INTERNET (wired/wifi)
           syst.mgt.     webmin -----||_ wifi AP -- webmin/ssh system mgt
-                    ssh tunnel -----||
-                    Weaved IoT -----||
-                                    ||
-                                    ||    
-    INPUT PLUGINs                 _____      OUTPUT CHANNELS    GATEWAY/BROKER
-    DHT11/22-meteo ---GPIO---->| /     \ |>- CSV                _____
-    GPS-locator ------RS232--->|=MySense=|>- console         | /     \ |
-    RSSI-wifi signal-strength >|| Pi    ||>- MYSQL           |=MySense=|>-gspread
-    Dylos-dust -USB-- RS232--->||Jessie ||>- Mosquitto pub-->||  any  ||>-MySQL
-    Grove-loudness ---GPIO---->| \_____/ |>- HTTP-Post       || Linux ||>-CSV
-    EMS280 -meteo ----I2C----->|    |    |>- email info      | \_____/ |>-console
-    PPD42NS -dust-Arduino-USB->|    |    |>- Google gspread (alpha)    |>-InFlux pub
-    Nova SDS011 -dust -USB --->|    |    |>- InFlux publish >|         |
+                    ssh tunnel -----|
+                    Weaved IoT -----|
+                                    |
+                                    |    
+    INPUT PLUGINs                 __|__      OUTPUT CHANNELS    GATEWAY/BROKER
+    DHT11/22-meteo ---GPIO---->| ///|\\\ |>- CSV                _____
+    GPS-locator ------RS232--->|=MySense=|>- console         | ///|\\\ |
+    RSSI-wifi signal-strength >||  Pi3  ||>- MYSQL           |=MySense=|>-gspread
+    Dylos-dust -USB-- RS232--->||Jessie ||>- Mosquitto pub-->|| Debian ||>-MySQL
+    Grove-loudness ---GPIO---->| \\\|/// |>- HTTP-Post       || Linux ||>-CSV
+    EMS280 -meteo ----I2C----->|    |    |>- email info      | \\\|/// |>-console
+    PPD42NS -dust-Arduino-USB->|    |    |>- InFlux publish  |         >-InFlux pub
+    Nova SDS011 -dust -USB --->|    |    |>- display SSD1306
+    Plantower PMS7003 -USB --->|    |    |>- Google gspread (alpha)
     LoRaWan (planned) -------->|    |    |>- broker? (planned)
-    Mosquitto sub ----server ->|    |    |>- display SSD1306
+    Mosquitto sub ----server ->|    |    |>- LoRaWan (planned)
     InFlux subscribe -server ->|    |
                                     |>-raw measurement values -> InFlux server or file
                                            calibration
