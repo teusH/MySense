@@ -95,7 +95,7 @@ level    = INFO
 ## display raw measurements
 #raw = True
 
-## Nova SD011 dust module connected via USB
+## Nova SD011 dust module connected via USB (has fan)
 #[sds011]
 #input = True
 #type = Nova SDS011
@@ -106,6 +106,7 @@ level    = INFO
 #units = ug/m3,ug/m3
 ## units = pcs/qf,pcs/qf
 #calibrations = [[0,1],[0,1]]
+## if interval - sample time > 60 secs sensor (fan) will go to sleep modus
 ## duty cycle time of the module
 #sample = 60
 ## interval time for one measurement in the plugin
@@ -113,6 +114,33 @@ level    = INFO
 ## average ring buffer size
 #bufsize = 30
 ## do not use multi trheading
+#sync = False
+## display raw measurements
+#raw = True
+
+# Plantower PMS5003 or PMS7003 sensor (has fan)
+#[pms7003]
+#input = True
+#type = Plantower PMS7003
+## search tty device in /dev/serial/by-id for Prolific PL2303TA USB
+#usbid = Prolific.*-port
+#firmware = '' will be added on first read
+## fields: pm1,pm25,pm10, pm1_atm,pm25_atm,pm10_atm,
+##         in units ug/m3 or (converted to) pcs/qf (actually pcs/0.01qf)
+##         atm: generic atmospheric conditions (corrected for temp/humidity?)
+##         pm03_cnt,pm05_cnt,pm1_cnt,pm25_cnt,pm5_cnt,pm10_cnt
+##         in units pcs/0.1dm3 or converted to pcs/qf (actually pcs/0.01qf)
+#fields = pm1,pm25,pm10
+#units = ug/m3,ug/m3,ug/m3
+#calibrations = [[0,1],[0,1],[0,1]]
+## duty cycle total period of sample readings minimal 1 sec per reading
+## TO DO: if interval - sample time > 60 secs sensor (fan) will go to sleep modus
+#sample = 60
+## interval time (secs) for one (average) measurement in the plugin
+#interval 120
+## buffer size for average measurement calculations
+#bufsize = 30
+## do not use multi threading
 #sync = False
 ## display raw measurements
 #raw = True
