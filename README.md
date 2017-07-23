@@ -146,7 +146,7 @@ By default MySense uses a so called lightweight process (multithreaded) to allow
 Input is tested with serial, I2C-bus and GPIO sensors (meteo,dust,geo,audio, (gas in July 2017).
 The focus is to allow Grove based sensors (easier to plugin to the MySense system) and weather resistent cases for the system.
 
-![Pi Breadboard in action](https://www.github.com/teusH/MySense/tree/master/images/MySense0.png)
+![Pi Breadboard in action](images/MySense0.png)
 
 A picture of the breadboard with Dylos and Raspberry Pi3
 
