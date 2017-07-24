@@ -127,10 +127,10 @@ level    = INFO
 #firmware = '' will be added on first read
 ## fields: pm1,pm25,pm10, pm1_atm,pm25_atm,pm10_atm,
 ##         in units ug/m3 or (converted to) pcs/qf (actually pcs/0.01qf)
-##         atm: generic atmospheric conditions (corrected for temp/humidity?)
+##         atm: generic atmospheric conditions (corrected with temp/humidity influence?)
 ##         pm03_cnt,pm05_cnt,pm1_cnt,pm25_cnt,pm5_cnt,pm10_cnt
 ##         in units pcs/0.1dm3 or converted to pcs/qf (actually pcs/0.01qf)
-#fields = pm1,pm25,pm10
+#fields = pm1_atm,pm25_atm,pm10_atm
 #units = ug/m3,ug/m3,ug/m3
 #calibrations = [[0,1],[0,1],[0,1]]
 ## duty cycle total period of sample readings minimal 1 sec per reading
