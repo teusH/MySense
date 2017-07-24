@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyPMS7003.py,v 1.2 2017/07/22 10:28:49 teus Exp teus $
+# $Id: MyPMS7003.py,v 1.3 2017/07/24 13:16:23 teus Exp teus $
 
 # Defeat: output average PM count over 59(?) or 60 seconds:
 #         continious mode: once per 59 minutes and 59 seconds!,
@@ -29,13 +29,13 @@
     if units is not defined as pcs the values are converted to ug/m3 (report Philadelphia)
 """
 modulename='$RCSfile: MyPMS7003.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
 
 # configurable options
 __options__ = [
     'input','type','usbid','firmware', 'calibrations',
     'fields','units',                 # one may change this as name and/or ug/m3 units
-    'raw',                            # display raw measurements on stderr
+    'raw', 'rawCnt',                  # display raw measurements on stderr
     'sample',                         # collect the data from the module during N seconds
     'interval','bufsize','sync',  # multithead buffer size and search for input
 ]
@@ -46,8 +46,7 @@ Conf = {
     'type': "Plantower PMS7003",         # type of device
     'usbid': 'Prolific.*-port',    # Qin Heng Electronics usb ID via lsusb
     'firmware': '',      # firmware number comes from module
-    'serial': 'ED56',    # ID number
-    'fields': ['pm1','pm25','pm10'],     # types of pollutants
+    'fields': ['pm1_atm','pm25_atm','pm10_atm'],     # types of pollutants
      # 'pcs/qf' particle count per 0.01 qubic foot per minute
      #  spec: 0.01pcs/qf average per minute window
      # 'units' : ['pcs/qf','pcs/qf','pcs/qf'],   # dflt type the measurement unit
@@ -59,6 +58,7 @@ Conf = {
     'sync': False,      # use thread or not to collect data
     'debug': 0,         # level 0 .. 5, be more versatile on input data collection
     'raw': False,       # display raw measurement data with timestamps
+    'rawCnt': True,     # convert raw mass (ug/m3) to pcs/0.01qf units
 
 }
 #    from MySense import log
@@ -154,7 +154,7 @@ def get_device():
             MyLogger.log(modulename,'FATAL',"No input stream defined.")
             return False
         # check operational arguments
-        for item in ['interval','debug']:
+        for item in ['interval','debug','rawCnt']:
             if type(Conf[item]) is str:
                 if not Conf[item].isdigit():
                     MyLogger.log(modulename,'FATAL','%s should be nr of seconds' % item)
@@ -203,7 +203,7 @@ PMS7003_ERR_CODE = 14
 PMS7003_CHECK_CODE = 15
 PM_fields = [
             ('pm1','ug/m3',PMS7003_PM1P0),
-            ('pm25','ug/m3'PMS7003_PM2P5),
+            ('pm25','ug/m3',PMS7003_PM2P5),
             ('pm10','ug/m3',PMS7003_PM10P0),
             # concentration (generic atmosphere conditions) in ug/m3
             ('pm1_atm','ug/m3',PMS7003_PM1P0_ATM),
@@ -279,7 +279,7 @@ def PMSread(conf):
             # number of particles with diameter N in 0.1 liter air pcs/0.1dm3
             sample[fld[0]] = pms7003_data[fld[2]]
             if conf['debug']:
-                print '%s [%s]\t: ' % (fld[0],'ug/m3' if fld[0][-4:] != '_cnt' else 'pcs/0.1dm3'), str(sample[fld[0])
+                print('%s [%s]\t: ' % (fld[0],'ug/m3' if fld[0][-4:] != '_cnt' else 'pcs/0.1dm3'), str(sample[fld[0]]))
         cnt += 1
         for fld in PM_fields: PM_sample[fld[0]] += sample[fld[0]]
         if time() >= StrtTime + conf['sample']: break  
@@ -364,8 +364,9 @@ def Add(conf):
     values = { "time": int(time())}; index = 0
     for fld in conf['fields']:
         value = sample[fld]
-        if (fld in ['pm1','pm25','pm10']) and conf['units'][cnt] == 'pcs/qf':
-            value = Mass2Con(fld,value)
+        # e.g. pm1 and pm1_atm are in units of ug/m3
+        if (fld.replace('_atm','') in ['pm1','pm25','pm10']) and conf['units'][cnt] == 'pcs/qf':
+            value = Mass2Con(fld.replace('_atm',''),value)
         # 0.1 liter = 0.00353147 cubic feet -> pcs / 0.01qf
         if (fld[-4:] == '_cnt') and (conf['units'][cnt] == 'pcs/qf'):
             value *= 0.353147   # convert from liter to 0.01 qubic feet 
@@ -374,13 +375,13 @@ def Add(conf):
     data=[]
     if ('raw' in conf.keys()) and (Conf['raw'] != None):
         for fld in PM_fields:
-            if fld[0] in ('pm1','pm25','pm10'):
-                data.append('%s=%.1f' % (fld[0],Mass2Con(fld[0],sample[fld[0]])))
-            elif fld[-4:] == '_cnt':
+            if fld[-4:] == '_cnt':
                 # convert: pcs count in raw is pcs/0.01qf
                 data.append('%s=%.1f' % (fld[0],0.353147*sample[fld[0]]))
-            else:
+            elif not conf['rawCnt']:  # want raw values in ug/m3
                 data.append('%s=%.1f' % (fld[0],sample[fld[0]]))
+            else:                     # convert values to pcs/0.01qf units
+                data.append('%s=%.1f' % (fld[0],Mass2Con(fld[0].replace('_atm',''),sample[fld[0]])))
     if len(data):
         if conf['debug']:
             print("raw,sensor=%s %s %d000" % (conf['type'][-7:],','.join(data),values['time']*1.0))
@@ -417,6 +418,7 @@ if __name__ == '__main__':
     # Conf['sync'] = True         #multi threading off?
     Conf['debug'] = 1
     Conf['interval'] = 10       # sample once per 2 minutes
+    Conf['fields'] = ['pm1','pm25','pm10'] # do values not in mass weight
     Conf['units'] = ['pcs/qf','pcs/qf','pcs/qf'] # do values not in mass weight
     Conf['raw'] = True          # display raw data with timestamps
 
