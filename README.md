@@ -70,6 +70,14 @@ A working example of MySense script in todays operation:
                                     |>-raw measurement values -> InFlux server or file
                                            calibration
 ```
+## Configuration
+See `MySense.conf.example for an example of `MySense.conf`.
+
+Use for configuration of plugins/outputchannels the `section` (plugin name in lowercase) and section options.
+The option `input = True or False` and `output = T/F` will define resp input plugin and output channel
+to be imported and to be switched on or off.
+Input plugins as for gas and dust (particle counts) will have a configurable sample time (time to get vales) and interval time (time (interval minus sample) to wait before the next sample).
+The MySense main loop has an own `interval` time within input plugin sensor values will be collected (sliding average from sample values) and push values to output channels.
 
 ## Interaction data format
 Interaction with plugins and output channels is done in json datastructure:
