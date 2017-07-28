@@ -18,22 +18,32 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyPMS7003.py,v 1.3 2017/07/24 13:16:23 teus Exp teus $
+# $Id: MyPMS7003.py,v 1.4 2017/07/28 11:51:56 teus Exp teus $
 
-# Defeat: output average PM count over 59(?) or 60 seconds:
-#         continious mode: once per 59 minutes and 59 seconds!,
-#         monitor mode: 60 times per hour 
+# Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
+#         active (monitor) mode: continues read (200-600 msec) during sample time
+#         passive mode: every second one read in period sample time
+#         interval time (dflt 120 secs) defines one sample time per interval
+#         passive mode: if idle time (interval - sample) > IDLE (120 secs)
+#               fan will be switched OFF
+# Hi8nt: use PM atm values (ug/m3 or particle count values, unit: pcs/0.1l or pcs/0.01qf
 
 """ Get sensor values: PM1, PM2.5 and PM10 from Plantower Particular Matter sensor
+    Types: 7003 or 5003
     Relies on Conf setting by main program
     if units is not defined as pcs the values are converted to ug/m3 (report Philadelphia)
+    sensor: default on power on: active mode, in passive mode per second reading
+        if effective fan will be switched off,
+        after fan is switched on: reading delay is 30 seconds
+    units: pcs/0.01qf, pcs/0.1dm3, ug/m3
 """
 modulename='$RCSfile: MyPMS7003.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 
 # configurable options
 __options__ = [
     'input','type','usbid','firmware', 'calibrations',
+    'prepend',                        # prepend field names with this string
     'fields','units',                 # one may change this as name and/or ug/m3 units
     'raw', 'rawCnt',                  # display raw measurements on stderr
     'sample',                         # collect the data from the module during N seconds
@@ -46,6 +56,7 @@ Conf = {
     'type': "Plantower PMS7003",         # type of device
     'usbid': 'Prolific.*-port',    # Qin Heng Electronics usb ID via lsusb
     'firmware': '',      # firmware number comes from module
+    'prepend': '',       # prepend field name on output with this string
     'fields': ['pm1_atm','pm25_atm','pm10_atm'],     # types of pollutants
      # 'pcs/qf' particle count per 0.01 qubic foot per minute
      #  spec: 0.01pcs/qf average per minute window
@@ -53,6 +64,7 @@ Conf = {
     'units' : ['ug/m3','ug/m3','ug/m3'],   # dflt type the measurement unit
     'calibrations': [[0,1],[0,1],[0,1]], # per type calibration (Taylor polonium)
     'sample': 60,        # get average of measurments per sample seconds from module
+     # see also IDLE time to witch off fan
     'interval': 120,    # read cycle interval in secs (dflt)
     'bufsize': 30,      # size of the window of values readings max
     'sync': False,      # use thread or not to collect data
@@ -154,7 +166,7 @@ def get_device():
             MyLogger.log(modulename,'FATAL',"No input stream defined.")
             return False
         # check operational arguments
-        for item in ['interval','debug','rawCnt']:
+        for item in ['interval','sample','debug','rawCnt']:
             if type(Conf[item]) is str:
                 if not Conf[item].isdigit():
                     MyLogger.log(modulename,'FATAL','%s should be nr of seconds' % item)
@@ -219,20 +231,164 @@ PM_fields = [
             ('pm10_cnt','pcs/0.1dm3',PMS7003_PCNT_10P0),
     ]
 
+
+ACTIVE  = 0     # mode active, default mode from power on
+PASSIVE = 1     # mode passive
+NORMAL  = 3     # mode passive state normal fan ON
+STANDBY = 4     # mode passive, state standby fan OFF
+# idle time to switch fan off
+IDLE    = 120   # minimal idle time between sample time and interval
+
+# send mode/state change to PMS sensor
+# check answer
+def SendMode(conf,cmd,ON):
+    ''' send 42 4D cmd (E2,E4,E1) 00 ON (On=1,Off=0) chckH chckL
+        no answer on cmd: E2 (read telegram) and E4 On (active mode)
+        answer 42 4D 00 04 cmd 00 chckH chckL
+    '''
+    if not cmd in (0xE1,0xE2,0xE4): return
+    if ON: ON = 0x1
+    ChckSum = 0x42+0x4D+cmd+0x0+ON
+    data = struct.pack('!BBBBBH',0x42,0x4D,cmd,0x0,ON,ChkSum)
+    try:
+        conf['fd'].write(data)
+        if conf['debug']:
+            print("Send command 0x%X 0x%X 0x%X 0x%X 0x%X 0x%x 0x%x" % struct.unpack('!BBBBBBB',data))
+    except:
+        MyLogger(modulename,'ERROR','Unable to send mode/state change.')
+        raise IOError("Unable to set mode/state")
+    if (cmd == 0xE2) or ((cmd == 0xE4) and ON):
+        return True
+    # check the answer
+    ChckSum += 4
+    try:
+        while True:
+            c = conf['fd'].read(1)
+            if not len(c): raise IOError("Failure mode/state change")
+            if ord(c[0]) != 0x42: continue
+            c = conf['fd'].read(1)
+            if not len(c): raise IOError("Failure mode/state change")
+            if ord(c[0]) != 0x4D: continue
+            data = conf['fd'].read(6)
+            check = 0x42+0x4D
+            for c in data[0:6]: check += ord(c)
+            if conf['debug']:
+                print("Send command 0x42 0x4D 0x%X 0x%X 0x%X 0x%x 0x%x" % struct.unpack('!BBBBB',data))
+            buf = struct.unpack('!BBBBH', data)
+            # if (buf[4] == ChckSum):
+            if (ord(data[1]) == 0x4) and (ord(data[2]) == cmd) and (buf[4] == ChckSum):
+                return True
+            MyLogger.log(modulename,'ERROR','Mode/state change received wrong answer 0x42 0x4D 0x%X 0x%X 0x%X 0x%x 0x%x' % struct.unpack('!BBBBB',data))
+            return False
+    except:
+        pass
+    return False
+    
+# passive mode, go into standby state / sleep: fan OFF
+# 42 4D E4 00 00 01 73 - standby mode  answer: 42 4D 00 04 E4 00 01 77
+def Standby(conf):
+    global STANDBY
+    if conf['mode'] != STANDBY:
+        if conf['mode'] == ACTIVE: GoPassive(conf)
+        # send 42 4D E4 00 00 01 73
+        # receive 42 4D 00 04 E4 00 01 77
+        if not SendMode(conf,0xE4,0): return False
+        conf['mode'] = STANDBY
+    return True
+
+# passive mode, go into normal state: fan ON, allow data telegrams reading
+# 42 4D E4 00 01 01 74 - standby wakeup answer: data 32 byte telegrams
+def Normal(conf):
+    global NORMAL, ACTIVE
+    if conf['mode'] != NORMAL:
+        if conf['mode'] == ACTIVE: GoPassive(conf)
+        if conf['mode'] != NORMAL:
+            # send 42 4D E4 00 01 01 74
+            if not SendMode(conf,0xE4,1): return False
+            conf['mode'] = NORMAL
+    return True
+
+# from passive mode go in active mode (same as with power on)
+# 42 4D E1 00 01 01 71 - active mode   answer: 42 4D 00 04 E1 01 01 75
+def GoActive(conf):
+    ''' go in power ON, active mode, start sending data telegrams of 32 bytes '''
+    global STANDBY, IDLE
+    if conf['mode'] == STANDBY:
+        Normal(conf)
+        sleep(30)      # wait 30 seconds to establish air flow
+    # send 42 4D E1 00 01 01 71
+    # receive 42 4D 00 04 E1 01 01 75
+    if not SendMode(conf,0xE1,1): return False
+    conf['mode'] = ACTIVE
+    if conf['interval'] - conf['sample'] >= IDLE:
+        GoPassive(conf)
+    return True
+
+# from active mode go into passive mode (passive normal state ?)
+# 42 4D E1 00 00 01 70 - passive mode  answer: 42 4D 00 04 E1 00 01 74
+def GoPassive(conf):
+    ''' go in passive mode, normal state '''
+    global ACTIVE, PASSIVE
+    if conf['mode'] == ACTIVE:
+        # send 42 4D E1 00 00 01 70
+        # receive 42 4D 00 04 E1 00 01 74
+        if not SendMode(conf,0xE1,0): return False
+    conf['mode'] = PASSIVE      # state NORMAL?
+    return Normal(conf)
+
+# in passive mode do one data telegram reading
+# 42 4D E2 00 00 01 71 - passive mode read instruction
+def PassiveRead(conf):
+    global ACTIVE, STANDBY
+    if conf['mode'] == ACTIVE: return
+    if conf['mode'] == STANDBY:
+        Normal(conf)
+        sleep(30)      # wait 30 seconds to establish air flow
+    # send 42 4D E2 00 00 01 71
+    return SendMode(conf,0xE2,0)
+
+
 # read routine comes from irmusy@gmail.com http://http://irmus.tistory.com/
 def PMSread(conf):
     ''' read data telegrams from the serial interface (32 bytes)
-        and calculate average during sample seconds
-        Omit a bit outliers by one measurment per second
+        for the period sample time
+        # and calculate average during sample seconds
+        # Omit a bit outliers by one measurment per second
+        Calculate sum of measurements during the sample time
     '''
+    global ACTIVE, PASSIVE
     ErrorCnt = 0
     StrtTime = 0; cnt = 0; PM_sample = {}
+    if not 'wait' in conf.keys(): conf['wait'] = 0
+    if conf['wait'] > 0: sleep(conf['wait'])
     for fld in PM_fields: PM_sample[fld[0]] = 0.0
+    # clear the input buffer first so we get latest reading
+    conf['fd'].flushInput()
+    StrtTime = 0; LastTime = 0
     while True:
-        # clear the input buffer first so we get latest reading
-        conf['fd'].flushInput()
-        while True:     # search header of data telegram
-            c = conf['fd'].read(1)         # 1st header
+        if (conf['mode'] != ACTIVE):
+            # in PASSIVE mode we wait one second per read
+            if cnt:
+                wait = time()-LastTime
+                if (wait < 1) and (wait > 0):
+                    sleep(wait)
+            PassiveRead(conf)   # if fan off switch it on, if passive initiate read
+        while True:     # search header of data telegram 0x42 0x4D
+            while True:
+                try:
+                    c = conf['fd'].read(1)         # 1st header
+                except:   # time out on read, try wake it up
+                    ErrorCnt += 1
+                    if ErrorCnt >= 10:
+                        raise IOError("Sensor PMS connected?")
+                    MyLogger.log(modulename,'WARNING','Try to wakeup sensor')
+                    if conf['mode'] == ACTIVE:
+                        conf['mode'] = PASSIVE
+                        if GoActive(conf): continue
+                    else:
+                        PassiveRead(conf)
+                        continue
+                break
             if len(c) >= 1:
                 if ord(c[0]) == 0x42:
                     c = conf['fd'].read(1) # 2nd header
@@ -240,8 +396,8 @@ def PMSread(conf):
                         if ord(c[0]) == 0x4d:
                             break;
 
-        if not cnt:
-            StrtTime = time()
+        if not cnt: StrtTime = time()
+        LastTime = time()
         buff = conf['fd'].read(30)         # packet remaining. fixed length packet structure
         # one measurement every second in configured sample time
         if cnt and (StrtTime+cnt < time()): continue   # skip measurement if time < 1 sec
@@ -267,29 +423,50 @@ def PMSread(conf):
             conf['firmware'] = str(pms7003_data[PMS7003_VER])
             MyLogger.log(modulename,'INFO','Device %s, firmware %s' % (conf['type'],conf['firmware']))
 
-        if conf['debug']:
-            print 'Frame len [byte]            :', str(pms7003_data[PMS7003_FRAME_LENGTH])
-            print 'Version                     :', str(pms7003_data[PMS7003_VER])
-            print 'Error code                  :', str(pms7003_data[PMS7003_ERR_CODE])
-            print 'Check code                  : 0x%04X' % (pms7003_data[PMS7003_CHECK_CODE])
+        # if conf['debug']:
+        #     print 'Frame len [byte]            :', str(pms7003_data[PMS7003_FRAME_LENGTH])
+        #     print 'Version                     :', str(pms7003_data[PMS7003_VER])
+        #     print 'Error code                  :', str(pms7003_data[PMS7003_ERR_CODE])
+        #     print 'Check code                  : 0x%04X' % (pms7003_data[PMS7003_CHECK_CODE])
         sample = {}
         for fld in PM_fields:
             # concentrations in unit ug/m3
             # concentration (generic atmosphere conditions) in ug/m3
             # number of particles with diameter N in 0.1 liter air pcs/0.1dm3
-            sample[fld[0]] = pms7003_data[fld[2]]
-            if conf['debug']:
-                print('%s [%s]\t: ' % (fld[0],'ug/m3' if fld[0][-4:] != '_cnt' else 'pcs/0.1dm3'), str(sample[fld[0]]))
+            sample[fld[0]] = float(pms7003_data[fld[2]]) # make it float
+        if conf['debug']:
+            if not cnt:
+                for fld in PM_fields:
+                    sys.stderr.write("%8.8s " % fld[0])
+                sys.stderr.write("\n")
+                for fld in PM_fields:
+                    sys.stderr.write("%8.8s " % ('ug/m3' if fld[0][-4:] != '_cnt' else 'pcs/0.1dm3'))
+                sys.stderr.write("\n")
+            for fld in PM_fields:
+                sys.stderr.write("%8.8s " % str(sample[fld[0]]))
+            sys.stderr.write("\n")
+            #print("%s [%s]\t: " % (fld[0],'ug/m3' if fld[0][-4:] != '_cnt' else 'pcs/0.1dm3'), str(sample[fld[0]]))
         cnt += 1
         for fld in PM_fields: PM_sample[fld[0]] += sample[fld[0]]
         if time() >= StrtTime + conf['sample']: break  
-    if cnt:
-        for fld in PM_fields: PM_sample[fld[0]] /= cnt
+    SampleTime = time() - StrtTime
+    if SampleTime < 0: SampleTime = 0
+    if cnt:     # average count during the sample time
+        for fld in PM_fields:
+            # PM_sample[fld[0]] *= SampleTime / conf['sample']
+            PM_sample[fld[0]] /= cnt
+        if conf['debug']:
+            print("Average read time: %.2f secs, # reads %d,sample time %.1f seconds" % (SampleTime/cnt,cnt,SampleTime))
+    conf['wait'] = conf['interval'] - SampleTime
+    if conf['wait'] < 0: conf['wait'] = 0
+    if conf['wait']  >= 60:
+        if conf['mode'] != ACTIVE:
+            Standby(conf)        # switch fan OFF
     return PM_sample
 
 MyThread = None
 def registrate():
-    global Conf, MyThread
+    global Conf, MyThread, IDLE, ACTIVE
     if not Conf['input']: return False
     if Conf['fd'] != None: return True
     Conf['input'] = False
@@ -311,9 +488,14 @@ def registrate():
         if not fnd:
             MyLogger.log(modulename,'FATAL','Unknown field: %s' % fld)
             return False
+    Conf['Serial_Errors'] = 0
     if not get_device():        # identify USB serial device
         return False
     if Conf['sample'] > Conf['interval']: Conf['sample'] = Conf['interval']
+    # go passive mode and switch fan on more as IDLE secs idle reading time
+    # default on start put sensor module in active mode
+    Conf['mode'] = ACTIVE
+    if Conf['interval'] - Conf['sample'] >= IDLE: GoPassive(Conf)
     Conf['input'] = True
     if MyThread == None: # only the first time
         MyThread = MyThreading.MyThreading( # init the class
@@ -339,15 +521,12 @@ def registrate():
 # Plantower PMS5003/7003 PM count per minute per ug/m3 input via serial USB
 # ================================================================
 # get a record
-Conf['Serial_Errors'] = 0
 def Add(conf):
     sample = {}
     while True:
         try:
             # if sleeping will have waited 30 secs
-            conf['workstate'](conf,True)         # push module in working state
             sample = conf['serial'](conf)   # collect data telegram
-            if conf['interval'] > 60: conf['workstate'](conf,False)      # go sleeping
             conf['Serial_Errors'] = 0
         except IOError:     # timeout
             MyLogger.log(modulename,'ERROR','serial error (timeout)')
@@ -370,7 +549,7 @@ def Add(conf):
         # 0.1 liter = 0.00353147 cubic feet -> pcs / 0.01qf
         if (fld[-4:] == '_cnt') and (conf['units'][cnt] == 'pcs/qf'):
             value *= 0.353147   # convert from liter to 0.01 qubic feet 
-        values[fld] = calibrate(cnt,conf,value)
+        values[conf['prepend']+fld] = calibrate(cnt,conf,value)
         index += 1
     data=[]
     if ('raw' in conf.keys()) and (Conf['raw'] != None):
@@ -399,28 +578,19 @@ def getdata():
         MyLogger.log(modulename,'WARNING',"Sensor input failure")
     return {}
 
-def PMSstate(conf,work):
-    if work and not conf['state']:
-        print("Put in work state")  # TO DO: add the serial command for this
-        time.sleep(30)  # need 30 secs to stabilize air flow from fan
-    elif Conf['state'] and not work:
-        print("Put in sleep state")
-    Conf['state'] = work
-
-Conf['state'] = True            # Keep track of workstate module is in
-Conf['workstate'] = PMSstate	# Add needs this global variable
 Conf['serial'] = PMSread	# Add needs this global variable
 
 # test main loop
 if __name__ == '__main__':
     from time import sleep
     Conf['input'] = True
-    # Conf['sync'] = True         #multi threading off?
-    Conf['debug'] = 1
-    Conf['interval'] = 10       # sample once per 2 minutes
+    Conf['sync'] = True         # multi threading off?
+    Conf['debug'] = 1           # print intermediate values
+    # Conf['interval'] = 180     # sample once per 3 minutes, causes passive mode
     Conf['fields'] = ['pm1','pm25','pm10'] # do values not in mass weight
     Conf['units'] = ['pcs/qf','pcs/qf','pcs/qf'] # do values not in mass weight
     Conf['raw'] = True          # display raw data with timestamps
+    Conf['prepend'] = 'pt_'     # prepend fields name with plantower id
 
     for cnt in range(0,10):
         timings = time()
@@ -431,7 +601,7 @@ if __name__ == '__main__':
             break
         print("Getdata returned:")
         print(data)
-        timings = 30 - (time()-timings)
+        timings = 5*60 - (time()-timings)
         if timings > 0:
             print("Sleep for %d seconds" % timings)
             sleep(timings)
