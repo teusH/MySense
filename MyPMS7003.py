@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyPMS7003.py,v 1.4 2017/07/28 11:51:56 teus Exp teus $
+# $Id: MyPMS7003.py,v 1.5 2017/07/28 14:58:12 teus Exp teus $
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
 #         active (monitor) mode: continues read (200-600 msec) during sample time
@@ -38,7 +38,7 @@
     units: pcs/0.01qf, pcs/0.1dm3, ug/m3
 """
 modulename='$RCSfile: MyPMS7003.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -248,12 +248,19 @@ def SendMode(conf,cmd,ON):
     '''
     if not cmd in (0xE1,0xE2,0xE4): return
     if ON: ON = 0x1
+    if conf['debug']:
+        if cmd == 0xE2: CMD = 'READ'
+        elif cmd == 0xE1:
+            CMD = 'ACTIVE' if ON else 'PASSIVE fan ON'
+        else: CMD = 'NORMAL fan ON' if ON else 'STANDBY fan OFF'
+        print("Send command %s" % CMD)
     ChckSum = 0x42+0x4D+cmd+0x0+ON
-    data = struct.pack('!BBBBBH',0x42,0x4D,cmd,0x0,ON,ChkSum)
+    data = struct.pack('!BBBBBH',0x42,0x4D,cmd,0x0,ON,ChckSum)
+    conf['fd'].flushInput()
     try:
         conf['fd'].write(data)
-        if conf['debug']:
-            print("Send command 0x%X 0x%X 0x%X 0x%X 0x%X 0x%x 0x%x" % struct.unpack('!BBBBBBB',data))
+        # if conf['debug']:
+        #     print("Send command 0x%X 0x%X 0x%X 0x%X 0x%X 0x%x 0x%x" % struct.unpack('!BBBBBBB',data))
     except:
         MyLogger(modulename,'ERROR','Unable to send mode/state change.')
         raise IOError("Unable to set mode/state")
@@ -271,14 +278,16 @@ def SendMode(conf,cmd,ON):
             if ord(c[0]) != 0x4D: continue
             data = conf['fd'].read(6)
             check = 0x42+0x4D
-            for c in data[0:6]: check += ord(c)
-            if conf['debug']:
-                print("Send command 0x42 0x4D 0x%X 0x%X 0x%X 0x%x 0x%x" % struct.unpack('!BBBBB',data))
-            buf = struct.unpack('!BBBBH', data)
-            # if (buf[4] == ChckSum):
-            if (ord(data[1]) == 0x4) and (ord(data[2]) == cmd) and (buf[4] == ChckSum):
+            for c in data[0:4]: check += ord(c)
+            # if conf['debug']:
+            #     print("Answer: 0x42 0x4D 0x%X 0x%X 0x%X 0x%x 0x%x 0x%X" % struct.unpack('!BBBBBB',data))
+            if (ord(data[1]) == 0x4) and (ord(data[2]) == cmd) and (ord(data[4])*256 + ord(data[5]) == check):
                 return True
-            MyLogger.log(modulename,'ERROR','Mode/state change received wrong answer 0x42 0x4D 0x%X 0x%X 0x%X 0x%x 0x%x' % struct.unpack('!BBBBB',data))
+            # buf = struct.unpack('!BBBBH', data)
+            # if (buf[4] == ChckSum):
+            # if (buf[1] == 0x4) and (buf[2] == cmd) and (buf[4] == ChckSum):
+            #     return True
+            MyLogger.log(modulename,'ERROR','Mode/state change received wrong answer 0x42 0x4D 0x%X 0x%X 0x%X 0x%x 0x%x 0x%X' % struct.unpack('!BBBBBB',data))
             return False
     except:
         pass
@@ -586,7 +595,7 @@ if __name__ == '__main__':
     Conf['input'] = True
     Conf['sync'] = True         # multi threading off?
     Conf['debug'] = 1           # print intermediate values
-    # Conf['interval'] = 180     # sample once per 3 minutes, causes passive mode
+    Conf['interval'] = 240      # sample once per 4 minutes, causes passive mode
     Conf['fields'] = ['pm1','pm25','pm10'] # do values not in mass weight
     Conf['units'] = ['pcs/qf','pcs/qf','pcs/qf'] # do values not in mass weight
     Conf['raw'] = True          # display raw data with timestamps
