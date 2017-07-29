@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyPMS7003.py,v 1.5 2017/07/28 14:58:12 teus Exp teus $
+# $Id: MyPMS7003.py,v 1.8 2017/07/29 13:14:38 teus Exp teus $
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
 #         active (monitor) mode: continues read (200-600 msec) during sample time
@@ -26,7 +26,8 @@
 #         interval time (dflt 120 secs) defines one sample time per interval
 #         passive mode: if idle time (interval - sample) > IDLE (120 secs)
 #               fan will be switched OFF
-# Hi8nt: use PM atm values (ug/m3 or particle count values, unit: pcs/0.1l or pcs/0.01qf
+#         reset/set pin are not used by this driver
+# Hint: use PM atm values (ug/m3 or particle count values, unit: pcs/0.1l or pcs/0.01qf
 
 """ Get sensor values: PM1, PM2.5 and PM10 from Plantower Particular Matter sensor
     Types: 7003 or 5003
@@ -38,7 +39,7 @@
     units: pcs/0.01qf, pcs/0.1dm3, ug/m3
 """
 modulename='$RCSfile: MyPMS7003.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -47,22 +48,22 @@ __options__ = [
     'fields','units',                 # one may change this as name and/or ug/m3 units
     'raw', 'rawCnt',                  # display raw measurements on stderr
     'sample',                         # collect the data from the module during N seconds
-    'interval','bufsize','sync',  # multithead buffer size and search for input
+    'interval','bufsize','sync',      # multithead buffer size and search for input
 ]
 
 Conf = {
     'input': False,      # SDS011 input sensor is required
     'fd': None,          # input handler
-    'type': "Plantower PMS7003",         # type of device
+    'type': "Plantower PMS7003",   # type of device
     'usbid': 'Prolific.*-port',    # Qin Heng Electronics usb ID via lsusb
     'firmware': '',      # firmware number comes from module
     'prepend': '',       # prepend field name on output with this string
-    'fields': ['pm1_atm','pm25_atm','pm10_atm'],     # types of pollutants
+    'fields': ['pm1_atm','pm25_atm','pm10_atm'], # types of pollutants
      # 'pcs/qf' particle count per 0.01 qubic foot per minute
      #  spec: 0.01pcs/qf average per minute window
      # 'units' : ['pcs/qf','pcs/qf','pcs/qf'],   # dflt type the measurement unit
     'units' : ['ug/m3','ug/m3','ug/m3'],   # dflt type the measurement unit
-    'calibrations': [[0,1],[0,1],[0,1]], # per type calibration (Taylor polonium)
+    'calibrations': [[0,1],[0,1],[0,1]],   # per type calibration (Taylor polonium)
     'sample': 60,        # get average of measurments per sample seconds from module
      # see also IDLE time to witch off fan
     'interval': 120,    # read cycle interval in secs (dflt)
@@ -113,6 +114,7 @@ def calibrate(nr,conf,value):
         pow += 1
     return round(rts,2)
 
+# better to use Plantower count data
 # conversion parameters come from:
 # http://ir.uiowa.edu/cgi/viewcontent.cgi?article=5915&context=etd
 def Mass2Con(pm,value):
@@ -197,46 +199,47 @@ def get_device():
     return True
 
 # index of list
-PMS7003_FRAME_LENGTH = 0
-PMS7003_PM1P0 = 1
-PMS7003_PM2P5 = 2
-PMS7003_PM10P0 = 3
-PMS7003_PM1P0_ATM = 4
-PMS7003_PM2P5_ATM = 5
-PMS7003_PM10P0_ATM = 6
-PMS7003_PCNT_0P3 = 7
-PMS7003_PCNT_0P5 = 8
-PMS7003_PCNT_1P0 = 9
-PMS7003_PCNT_2P5 = 10
-PMS7003_PCNT_5P0 = 11
-PMS7003_PCNT_10P0 = 12
-PMS7003_VER = 13
-PMS7003_ERR_CODE = 14
-PMS7003_CHECK_CODE = 15
+PMS_FRAME_LENGTH = 0
+PMS_PM1P0 = 1
+PMS_PM2P5 = 2
+PMS_PM10P0 = 3
+PMS_PM1P0_ATM = 4
+PMS_PM2P5_ATM = 5
+PMS_PM10P0_ATM = 6
+PMS_PCNT_0P3 = 7
+PMS_PCNT_0P5 = 8
+PMS_PCNT_1P0 = 9
+PMS_PCNT_2P5 = 10
+PMS_PCNT_5P0 = 11
+PMS_PCNT_10P0 = 12
+PMS_VER = 13
+PMS_ERROR = 14
+PMS_SUMCHECK = 15
 PM_fields = [
-            ('pm1','ug/m3',PMS7003_PM1P0),
-            ('pm25','ug/m3',PMS7003_PM2P5),
-            ('pm10','ug/m3',PMS7003_PM10P0),
+            # the Plantower conversion algorithm is unclear!
+            ('pm1','ug/m3',PMS_PM1P0),
+            ('pm25','ug/m3',PMS_PM2P5),
+            ('pm10','ug/m3',PMS_PM10P0),
             # concentration (generic atmosphere conditions) in ug/m3
-            ('pm1_atm','ug/m3',PMS7003_PM1P0_ATM),
-            ('pm25_atm','ug/m3',PMS7003_PM2P5_ATM),
-            ('pm10_atm','ug/m3',PMS7003_PM10P0_ATM),
+            ('pm1_atm','ug/m3',PMS_PM1P0_ATM),
+            ('pm25_atm','ug/m3',PMS_PM2P5_ATM),
+            ('pm10_atm','ug/m3',PMS_PM10P0_ATM),
             # number of particles with diameter N in 0.1 liter air
-            # 0.1 liter = 0.00353147 cubic feet -> pcs / 0.01qf
-            ('pm03_cnt','pcs/0.1dm3',PMS7003_PCNT_0P3),
-            ('pm05_cnt','pcs/0.1dm3',PMS7003_PCNT_0P5),
-            ('pm1_cnt','pcs/0.1dm3',PMS7003_PCNT_1P0),
-            ('pm25_cnt','pcs/0.1dm3',PMS7003_PCNT_2P5),
-            ('pm5_cnt','pcs/0.1dm3',PMS7003_PCNT_5P0),
-            ('pm10_cnt','pcs/0.1dm3',PMS7003_PCNT_10P0),
+            # 0.1 liter = 0.00353147 cubic feet, convert -> pcs / 0.01qf
+            ('pm03_cnt','pcs/0.1dm3',PMS_PCNT_0P3),
+            ('pm05_cnt','pcs/0.1dm3',PMS_PCNT_0P5),
+            ('pm1_cnt','pcs/0.1dm3',PMS_PCNT_1P0),
+            ('pm25_cnt','pcs/0.1dm3',PMS_PCNT_2P5),
+            ('pm5_cnt','pcs/0.1dm3',PMS_PCNT_5P0),
+            ('pm10_cnt','pcs/0.1dm3',PMS_PCNT_10P0),
     ]
 
 
-ACTIVE  = 0     # mode active, default mode from power on
-PASSIVE = 1     # mode passive
-NORMAL  = 3     # mode passive state normal fan ON
-STANDBY = 4     # mode passive, state standby fan OFF
-# idle time to switch fan off
+ACTIVE  = 0     # mode active, default mode on power ON
+PASSIVE = 1     # mode passive, similar as NORMAL mode
+NORMAL  = 3     # mode passive state normal   fan is ON
+STANDBY = 4     # mode passive, state standby fan is OFF
+# idle time minimal time to switch fan OFF
 IDLE    = 120   # minimal idle time between sample time and interval
 
 # send mode/state change to PMS sensor
@@ -248,12 +251,12 @@ def SendMode(conf,cmd,ON):
     '''
     if not cmd in (0xE1,0xE2,0xE4): return
     if ON: ON = 0x1
-    if conf['debug']:
-        if cmd == 0xE2: CMD = 'READ'
-        elif cmd == 0xE1:
-            CMD = 'ACTIVE' if ON else 'PASSIVE fan ON'
-        else: CMD = 'NORMAL fan ON' if ON else 'STANDBY fan OFF'
-        print("Send command %s" % CMD)
+    # if conf['debug']:
+    #     if cmd == 0xE2: CMD = 'READ'
+    #     elif cmd == 0xE1:
+    #         CMD = 'ACTIVE' if ON else 'PASSIVE fan ON'
+    #     else: CMD = 'NORMAL fan ON' if ON else 'STANDBY fan OFF'
+    #     print("Send command %s" % CMD)
     ChckSum = 0x42+0x4D+cmd+0x0+ON
     data = struct.pack('!BBBBBH',0x42,0x4D,cmd,0x0,ON,ChckSum)
     conf['fd'].flushInput()
@@ -262,7 +265,7 @@ def SendMode(conf,cmd,ON):
         # if conf['debug']:
         #     print("Send command 0x%X 0x%X 0x%X 0x%X 0x%X 0x%x 0x%x" % struct.unpack('!BBBBBBB',data))
     except:
-        MyLogger(modulename,'ERROR','Unable to send mode/state change.')
+        MyLogger.log(modulename,'ERROR','Unable to send mode/state change.')
         raise IOError("Unable to set mode/state")
     if (cmd == 0xE2) or ((cmd == 0xE4) and ON):
         return True
@@ -299,8 +302,6 @@ def Standby(conf):
     global STANDBY
     if conf['mode'] != STANDBY:
         if conf['mode'] == ACTIVE: GoPassive(conf)
-        # send 42 4D E4 00 00 01 73
-        # receive 42 4D 00 04 E4 00 01 77
         if not SendMode(conf,0xE4,0): return False
         conf['mode'] = STANDBY
     return True
@@ -312,7 +313,6 @@ def Normal(conf):
     if conf['mode'] != NORMAL:
         if conf['mode'] == ACTIVE: GoPassive(conf)
         if conf['mode'] != NORMAL:
-            # send 42 4D E4 00 01 01 74
             if not SendMode(conf,0xE4,1): return False
             conf['mode'] = NORMAL
     return True
@@ -325,8 +325,6 @@ def GoActive(conf):
     if conf['mode'] == STANDBY:
         Normal(conf)
         sleep(30)      # wait 30 seconds to establish air flow
-    # send 42 4D E1 00 01 01 71
-    # receive 42 4D 00 04 E1 01 01 75
     if not SendMode(conf,0xE1,1): return False
     conf['mode'] = ACTIVE
     if conf['interval'] - conf['sample'] >= IDLE:
@@ -339,8 +337,6 @@ def GoPassive(conf):
     ''' go in passive mode, normal state '''
     global ACTIVE, PASSIVE
     if conf['mode'] == ACTIVE:
-        # send 42 4D E1 00 00 01 70
-        # receive 42 4D 00 04 E1 00 01 74
         if not SendMode(conf,0xE1,0): return False
     conf['mode'] = PASSIVE      # state NORMAL?
     return Normal(conf)
@@ -353,17 +349,20 @@ def PassiveRead(conf):
     if conf['mode'] == STANDBY:
         Normal(conf)
         sleep(30)      # wait 30 seconds to establish air flow
-    # send 42 4D E2 00 00 01 71
     return SendMode(conf,0xE2,0)
 
 
-# read routine comes from irmusy@gmail.com http://http://irmus.tistory.com/
+# original read routine comes from irmusy@gmail.com http://http://irmus.tistory.com/
+# added active/passive and fan on/off handling
+# data telegram struct for PMS5003 and PMS7003 (32 bytes)
+# PMS1003/PMS4003 the data struct is similar (24 bytes)
+# Hint: use pmN_atm (atmospheric) data values in stead of pmN values
 def PMSread(conf):
     ''' read data telegrams from the serial interface (32 bytes)
-        for the period sample time
-        # and calculate average during sample seconds
-        # Omit a bit outliers by one measurment per second
-        Calculate sum of measurements during the sample time
+        before actual read flush all pending data first
+        during the period sample time: active (200-800 ms), passive read cmd 1 sec
+        calculate average during sample seconds
+        if passive mode fan off: switch fan ON and wait 30 secs.
     '''
     global ACTIVE, PASSIVE
     ErrorCnt = 0
@@ -381,12 +380,11 @@ def PMSread(conf):
                 wait = time()-LastTime
                 if (wait < 1) and (wait > 0):
                     sleep(wait)
-            PassiveRead(conf)   # if fan off switch it on, if passive initiate read
-        while True:     # search header of data telegram 0x42 0x4D
-            while True:
-                try:
-                    c = conf['fd'].read(1)         # 1st header
-                except:   # time out on read, try wake it up
+            PassiveRead(conf)   # passive?:if fan off switch it on, initiate read
+        while True:             # search header (0x42 0x4D) of data telegram
+            try:
+                c = conf['fd'].read(1)    # 1st byte header
+                if not len(c):   # time out on read, try wake it up
                     ErrorCnt += 1
                     if ErrorCnt >= 10:
                         raise IOError("Sensor PMS connected?")
@@ -397,52 +395,57 @@ def PMSread(conf):
                     else:
                         PassiveRead(conf)
                         continue
-                break
-            if len(c) >= 1:
-                if ord(c[0]) == 0x42:
-                    c = conf['fd'].read(1) # 2nd header
+                elif ord(c[0]) == 0x42:
+                    c = conf['fd'].read(1) # 2nd byte header
                     if len(c) >= 1:
                         if ord(c[0]) == 0x4d:
                             break;
-
+            except:
+                ErrorCnt += 1
+                if ErrorCnt >= 10:
+                        raise IOError("Sensor PMS read error.")
+                continue                   # try next data telegram
         if not cnt: StrtTime = time()
         LastTime = time()
-        buff = conf['fd'].read(30)         # packet remaining. fixed length packet structure
-        # one measurement every second in configured sample time
+        # packet remaining. fixed length packet structure
+        buff = conf['fd'].read(30)
+        # one measurement 200-800ms or every second in configured sample time
         if cnt and (StrtTime+cnt < time()): continue   # skip measurement if time < 1 sec
 
-        # calculate check code. Sum every byte from HEADER to ERR_CODE
-        check = 0x42 + 0x4d
+        check = 0x42 + 0x4d # sum check every byte from HEADER to ERROR byte
         for c in buff[0:28]: check += ord(c)
-        # parsing
-        pms7003_data = struct.unpack('!HHHHHHHHHHHHHBBH', buff)
+        data = struct.unpack('!HHHHHHHHHHHHHBBH', buff)
+        if not sum(data[PMS_PCNT_0P3:PMS_VER]):
+            # first reads show 0 particul counts, skip telegram
+            # if conf['debug']: print("skip data telegram: particle counts of ZERO")
+            continue
         # compare check code
-        if check != pms7003_data[PMS7003_CHECK_CODE]:
-            MyLogger.log(modulename,"ERROR","Incorrect check code: received : 0x%04X, calculated : 0x%04X" % (pms7003_data[PMS7003_CHECK_CODE],check))
+        if check != data[PMS_SUMCHECK]:
+            MyLogger.log(modulename,"ERROR","Incorrect check code: received : 0x%04X, calculated : 0x%04X" % (data[PMS_SUMCHECK],check))
             ErrorCnt += 1
             if ErrorCnt > 10: raise IOError("Too many incorrect dataframes")
             continue
-        if pms7003_data[PMS7003_ERR_CODE]:
-            MyLogger.log(modulename,"WARNING","Module returned error: %s" % str(pms7003_data[PMS7003_ERR_CODE]))
+        if data[PMS_ERROR]:
+            MyLogger.log(modulename,"WARNING","Module returned error: %s" % str(data[PMS_ERROR]))
             ErrorCnt += 1
-            if ErrorCnt > 10: raise ValueError("Module errors %s" % str(pms7003_data[PMS7003_ERR_CODE]))
+            if ErrorCnt > 10: raise ValueError("Module errors %s" % str(data[PMS_ERROR]))
             continue
     
         if not conf['firmware']:
-            conf['firmware'] = str(pms7003_data[PMS7003_VER])
+            conf['firmware'] = str(data[PMS_VER])
             MyLogger.log(modulename,'INFO','Device %s, firmware %s' % (conf['type'],conf['firmware']))
 
         # if conf['debug']:
-        #     print 'Frame len [byte]            :', str(pms7003_data[PMS7003_FRAME_LENGTH])
-        #     print 'Version                     :', str(pms7003_data[PMS7003_VER])
-        #     print 'Error code                  :', str(pms7003_data[PMS7003_ERR_CODE])
-        #     print 'Check code                  : 0x%04X' % (pms7003_data[PMS7003_CHECK_CODE])
+        #     print 'Frame len [byte]            :', str(data[PMS_FRAME_LENGTH])
+        #     print 'Version                     :', str(data[PMS_VER])
+        #     print 'Error code                  :', str(data[PMS_ERROR])
+        #     print 'Check code                  : 0x%04X' % (data[PMS_SUMCHECK])
         sample = {}
         for fld in PM_fields:
             # concentrations in unit ug/m3
             # concentration (generic atmosphere conditions) in ug/m3
             # number of particles with diameter N in 0.1 liter air pcs/0.1dm3
-            sample[fld[0]] = float(pms7003_data[fld[2]]) # make it float
+            sample[fld[0]] = float(data[fld[2]]) # make it float
         if conf['debug']:
             if not cnt:
                 for fld in PM_fields:
@@ -457,15 +460,16 @@ def PMSread(conf):
             #print("%s [%s]\t: " % (fld[0],'ug/m3' if fld[0][-4:] != '_cnt' else 'pcs/0.1dm3'), str(sample[fld[0]]))
         cnt += 1
         for fld in PM_fields: PM_sample[fld[0]] += sample[fld[0]]
-        if time() >= StrtTime + conf['sample']: break  
+        # average read time is 0.85 secs. Plantower specifies 200-800 ms
+        # Plantower: in active smooth mode actual data update is 2 secs.
+        if time() > StrtTime + conf['sample'] - 0.5: break  
     SampleTime = time() - StrtTime
     if SampleTime < 0: SampleTime = 0
     if cnt:     # average count during the sample time
         for fld in PM_fields:
-            # PM_sample[fld[0]] *= SampleTime / conf['sample']
             PM_sample[fld[0]] /= cnt
-        if conf['debug']:
-            print("Average read time: %.2f secs, # reads %d,sample time %.1f seconds" % (SampleTime/cnt,cnt,SampleTime))
+        # if conf['debug']:
+        #     print("Average read time: %.2f secs, # reads %d,sample time %.1f seconds" % (SampleTime/cnt,cnt,SampleTime))
     conf['wait'] = conf['interval'] - SampleTime
     if conf['wait'] < 0: conf['wait'] = 0
     if conf['wait']  >= 60:
@@ -479,7 +483,7 @@ def registrate():
     if not Conf['input']: return False
     if Conf['fd'] != None: return True
     Conf['input'] = False
-    # pms5003 or pms7003
+    # pms5003 or pms7003 data telegrams
     if (Conf['type'] == None) or (not Conf['type'][-7:].lower() in ('pms7003','pms5003')):
         return False
     cnt = 0
@@ -505,6 +509,7 @@ def registrate():
     # default on start put sensor module in active mode
     Conf['mode'] = ACTIVE
     if Conf['interval'] - Conf['sample'] >= IDLE: GoPassive(Conf)
+
     Conf['input'] = True
     if MyThread == None: # only the first time
         MyThread = MyThreading.MyThreading( # init the class
@@ -531,6 +536,7 @@ def registrate():
 # ================================================================
 # get a record
 def Add(conf):
+    ''' routine called from thread, to add to buffer and calculate average '''
     sample = {}
     while True:
         try:
@@ -552,13 +558,13 @@ def Add(conf):
     values = { "time": int(time())}; index = 0
     for fld in conf['fields']:
         value = sample[fld]
-        # e.g. pm1 and pm1_atm are in units of ug/m3
-        if (fld.replace('_atm','') in ['pm1','pm25','pm10']) and conf['units'][cnt] == 'pcs/qf':
+        # e.g. pm1 and pm1_atm are in units of ug/m3 (unknown conversion algorithm)
+        if (fld.replace('_atm','') in ['pm1','pm25','pm10']) and conf['units'][index] == 'pcs/qf':
             value = Mass2Con(fld.replace('_atm',''),value)
-        # 0.1 liter = 0.00353147 cubic feet -> pcs / 0.01qf
-        if (fld[-4:] == '_cnt') and (conf['units'][cnt] == 'pcs/qf'):
+        # 0.1 liter = 0.00353147 cubic feet -> pcs / 0.01qf (used elsewhere)
+        if (fld[-4:] == '_cnt') and (conf['units'][index] == 'pcs/qf'):
             value *= 0.353147   # convert from liter to 0.01 qubic feet 
-        values[conf['prepend']+fld] = calibrate(cnt,conf,value)
+        values[conf['prepend']+fld] = calibrate(index,conf,value)
         index += 1
     data=[]
     if ('raw' in conf.keys()) and (Conf['raw'] != None):
@@ -589,17 +595,17 @@ def getdata():
 
 Conf['serial'] = PMSread	# Add needs this global variable
 
-# test main loop
+# standalone test main loop
 if __name__ == '__main__':
     from time import sleep
     Conf['input'] = True
-    Conf['sync'] = True         # multi threading off?
+    # Conf['sync'] = True       # multi threading off?
     Conf['debug'] = 1           # print intermediate values
     Conf['interval'] = 240      # sample once per 4 minutes, causes passive mode
-    Conf['fields'] = ['pm1','pm25','pm10'] # do values not in mass weight
+    Conf['fields'] = ['pm1_atm','pm25_atm','pm10_atm'] # do values not in mass weight
     Conf['units'] = ['pcs/qf','pcs/qf','pcs/qf'] # do values not in mass weight
     Conf['raw'] = True          # display raw data with timestamps
-    Conf['prepend'] = 'pt_'     # prepend fields name with plantower id
+    # Conf['prepend'] = 'pt_'     # prepend fields name with plantower id
 
     for cnt in range(0,10):
         timings = time()
