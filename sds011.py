@@ -486,14 +486,14 @@ class SDS011(object):
         is in reportmode Initiative'''
         # receive the response while listening serial input
         bytes_received = bytearray(1)
-        one_byte = bytes(0)
+        data = bytes(0)
         while True:
-            one_byte = self.device.read(1)
+            data = self.device.read(1)
             '''if no bytes are read the sensor might be in sleep mode.
             It makes no sense to raise an exception here. The raise condition
             should be checked in a context outside of this fuction'''
-            if len(one_byte) > 0:
-                bytes_received[0] = ord(one_byte)
+            if len(data) > 0:
+                bytes_received[0] = ord(data)
                 # if this is true, serial data is coming in
                 if bytes_received[0] == self.__SerialStart:
                     single_byte = self.device.read(1)
@@ -512,7 +512,10 @@ class SDS011(object):
                     self.debugPrt(1,"No response as expected while in dutycycle")
                 return bytearray()
 
-        thebytes = struct.unpack('BBBBBBBB', self.device.read(8))
+        data = self.device.read(8)
+        if len(data) != 8:
+            raise IOError("Read response timeout")
+        thebytes = struct.unpack('BBBBBBBB', data)
         bytes_received.extend(thebytes)
         if command is not None and command is not self.Command.Request:
             if bytes_received[1] is not self.__ResponseByte:
