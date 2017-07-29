@@ -137,7 +137,7 @@ level    = INFO
 ## TO DO: if interval - sample time > 60 secs sensor (fan) will go to sleep modus
 #sample = 60
 ## interval time (secs) for one (average) measurement in the plugin
-#interval 120
+#interval = 120
 ## buffer size for average measurement calculations
 #bufsize = 30
 ## do not use multi threading

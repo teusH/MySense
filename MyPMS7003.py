@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyPMS7003.py,v 1.8 2017/07/29 13:14:38 teus Exp teus $
+# $Id: MyPMS7003.py,v 1.9 2017/07/29 16:32:30 teus Exp teus $
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
 #         active (monitor) mode: continues read (200-600 msec) during sample time
@@ -39,7 +39,7 @@
     units: pcs/0.01qf, pcs/0.1dm3, ug/m3
 """
 modulename='$RCSfile: MyPMS7003.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__version__ = "0." + "$Revision: 1.9 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -409,6 +409,12 @@ def PMSread(conf):
         LastTime = time()
         # packet remaining. fixed length packet structure
         buff = conf['fd'].read(30)
+        if len(buff) < 30:
+            MyLogger.log(modulename,"WARNING","Read telegram timeout")
+            ErrorCnt += 1
+            if ErrorCnt >= 10:
+                raise IOError("Sensor PMS connected?")
+            continue
         # one measurement 200-800ms or every second in configured sample time
         if cnt and (StrtTime+cnt < time()): continue   # skip measurement if time < 1 sec
 
