@@ -1,8 +1,10 @@
-2017/02/27
-### Status
-Operational 2017/3/13
+<img src="images/MySense-logo.png" align=right width=100>
 
 # How To enable Raspberry Pi wifi
+## Status
+2017/02/27
+Operational 2017/3/13
+
 ## Use `INSTALL.sh WIFI` to do a tested set up:
 
 INSTALL.sh configures wifi as follows:
@@ -10,7 +12,9 @@ INSTALL.sh configures wifi as follows:
 2. Try wireless wifi on wlan0 and use SSID/WPA from configuration for internet connectivity. If this fails:
 3. Try WPS (press WPS on your router on a (re)boor of the Pi. If this fails:
 4. Create a wifi AP point.
-Wifi Access Point (MySense/BehoudDeParel) is only activated if wifi-client was not able to do a succesfull wifi AP association.
+Wifi Access Point
+<img src="images/wifi.png" align=left width=50>
+(MySense/BehoudDeParel) is only activated if wifi-client was not able to do a succesfull wifi AP association.
 Use ssh or webmin (`https:192.168.2.1:10000`) to change the SSID and/or WPA in `/etc/wpa_supplicant/wpa-supplicant.conf` wifi configuration file.
 
 TO DO:

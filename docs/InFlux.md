@@ -1,3 +1,5 @@
+<img src="images/MySense-logo.png" align=right width=100>
+
 ## output channel InFlux publicize
 * status publish beta test 2017-05-19
 * status subscribe alpha test 2017-05-30

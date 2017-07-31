@@ -1,3 +1,5 @@
+<img src="images/MySense-logo.png" align=right width=100>
+
 # Loudness Grove sensor
 Operational: 2017-02-21
 
@@ -11,7 +13,9 @@ You need the grovepi module eg via https://github.com/DexterInd/GrovePi
 or use the `INSTALL.sh grovepi` script.
 
 ## hardware
-Attach the sensor to an analogue port of the GrovePi+, e.g. A0.
+Attach the sensor
+<img src="images/GrovedB.png" align=left width=175>
+to an analogue port of the GrovePi+, e.g. A0.
 The Grove Pi+ has 3 analog socktes/ports: board up, pin side on top left: analog ports are on the left side, top is number 0.
 
 ## test hardware

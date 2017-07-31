@@ -1,10 +1,14 @@
-2017/02/08
+<img src="images/MySense-logo.png" align=right width=100>
+
 # DHT chipset plugin help for MySense
 Sensor temperature, humidity
 ## STATUS
+2017/02/08
 BETA, operational
 ## HARDWARE
-(tested) DHT22 Adafruit  Kiwi Electronics € 11.- (incl 10K resistor)
+(tested) DHT22 Adafruit
+<img src="images/DHT22.png" align=left width=175>
+Kiwi Electronics € 11.- (incl 10K resistor)
 If 4K7 resistor does not work use 10K.
 See: https://learn.adafruit.com/dht-humidity-sensing-on-raspberry-pi-with-gdocs-logging/wiring
 

@@ -1,3 +1,5 @@
+<img src="images/MySense-logo.png" align=right width=100>
+
 # MySense
 ## Description
 Software Infrastructure or framework for managing environmental sensors and data aquisition
@@ -13,12 +15,15 @@ Provide a generalised dynamic Open Source based infrastructure to allow:
 * free availability of all software (GPLV4 license)
 
 ## Scripts
+<img src="images/sensorkit-176.42.png" align=right width=250>
 All scripts are written in Python 2. Python 3 is supported but not tested well.
 Scripts have been tested on Raspberry Pi (2 and 3) running Wheezy and Jessie Debian based OS.
 Scripts have a -h (help) option. With no arguments the script will be started in interactive mode. Arguments: *start*, *status*, *stop*.
+
 ### Support scripts
 * MyLed.py: control the Pi with button to poweroff and put it in wifi WPA mode. Pi will set up a wifi access point `MySense` if no internet connectivity could be established via wifi or LAN.
 * MyDisplayServer.py, a display service: messages received will be shown on a tiny Adafruit display.
+
 ### Main script
 The main python script is MySense.py. It acts as intermediate beween input plugins and output channels. It uses `MySense.conf` (see MySense.conf.example) to configure itself.
 The MySense configuration file defines all plugins available for the MySense.py command.
@@ -29,6 +34,7 @@ The MySense configuration file defines all plugins available for the MySense.py 
 Try `./MySense.py --help` to get an overview.
 
 On the command line the option --input and --output plugins can be switched on (all other configured plugins are disabled).
+
 #### operation phases
 MySense starts with a configuring phase (options, arguments, reading configuration, loading modules), whereafter in the `readsensors()` routine it will first access the input modules to obtain measurement values, combine them into an internal buffer cache per output channel, and finaly tries per output channel to empty the queued records.
 
@@ -70,6 +76,7 @@ A working example of MySense script in todays operation:
                                     |>-raw measurement values -> InFlux server or file
                                            calibration
 ```
+
 ## Configuration
 See `MySense.conf.example for an example of `MySense.conf`.
 
@@ -148,15 +155,13 @@ After you have tested the needed input/output modules: To test the central scrip
 Note that the `getdata()` input routine may need some time in order to allow the module to collect measurement(s) from the sensor.
 
 ## Current development focus
-The MySense framework/infrastructure is operational (alpha phase).
+
+<img src="images/SensorKit.png" width=300 align=right>
+The MySense framework/infrastructure is operational as lab test model (alpha phase).
 
 By default MySense uses a so called lightweight process (multithreaded) to allow sensor data to be collected asynchronously.
-Input is tested with serial, I2C-bus and GPIO sensors (meteo,dust,geo,audio, (gas in July 2017).
+Input is tested with serial, I2C-bus and GPIO sensors (meteo,dust,geo,audio, (gas in September 2017).
 The focus is to allow Grove based sensors (easier to plugin to the MySense system) and weather resistent cases for the system.
-
-![Pi Breadboard in action](images/MySense0.png)
-
-A picture of the breadboard with Dylos and Raspberry Pi3
 
 The gas sensor development (NO2, O3, NH3, CO) is just (Febr 2017) started.
 

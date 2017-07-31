@@ -1,3 +1,5 @@
+<img src="images/MySense-logo.png" align=right width=100>
+
 # Sensordata output to (MySQL) database
 ## STATUS
 operational from 2017/02/26

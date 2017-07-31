@@ -1,5 +1,7 @@
 # REMOTE ACCESS to Pi
-To easy remote control of the Pi and MySense you may install a backdoor.
+To easy remote control
+<img src="images/MySense-logo.png" align=right width=100>
+of the Pi and MySense you may install a backdoor.
 A backdoor will weaken your Pi as others may access the Pi by using credentials or weak points on the Pi.
 
 Remote control of the Pi is impossible if your Pi cannot be accessed via internet or the wifi is not configured as wifi Access Point (see hostap/virtual wifi installation part).

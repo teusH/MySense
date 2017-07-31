@@ -1,11 +1,16 @@
-2017/06/16
+<img src="images/MySense-logo.png" align=right width=100>
+
+# Adafruit tiny display SSD1306
 ### Status
+2017/06/16
 Operational 2017/6/17
 
-# How To display text on Adafruit mon display
+## How To display text on Adafruit mon display
 * Use `INSTALL.sh DISPLAY` to install the script and dependences.
 
-The script has three modules:
+The script
+<img src="images/SSD1306.png" align=right width=175>
+has three modules:
 * display server: which uses Adafruit lib and driver to receive text and display the text on the little Adafruit SSD1306 display. Try the command `./MyDisplayServer.py -help` to see all the options and command arguments. The server is multithreaded.
 The DISPLAY service should be run as deamon. Add `@boot path/MyDisplayServer.py start`  e.g. to crontab of root.
 * a client which is an example to send text to the display server/service on `localhost TCP/IP port 2017`.
@@ -16,6 +21,7 @@ The service can be used to send text to the small display to provide visual feed
 ### To Do
 * Add <text>, <clear> xml to the text to define font and text size changes, clear the display, etc.
 * use the Richard Hull's luma modules.
+* fix for I2C: display suddenly and sometimes displays from bottum up.
 
 ### hardware
 * Adafruit SSD1306  display  € 22.85 (Kiwi or SOS Solutions) or via China: € 2.-.

@@ -1,5 +1,9 @@
+<img src="images/MySense-logo.png" align=right width=100>
+
 # GrovePi shield
-This shield saves a lot of soldering and connection errors. But it costs some extra as well more software installation.
+This shield
+<img src="images/GrovePi.png" align=left width=175>
+saves a lot of soldering and connection errors. But it costs some extra as well more software installation.
 Make sure you update the shield to the latest firmware for GrovePi.
 
 Kiwi electronics GrovePi+ € 35.-

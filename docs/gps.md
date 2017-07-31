@@ -1,10 +1,14 @@
-2017/02/21
+<img src="images/MySense-logo.png" align=right width=100>
+
 # MySense GPS input plugin
 ## STATUS
+2017/02/21
 Operational: used with the GPS daemon
 
 ## MySense install
-Install the dependent modules with `INSTAL.sh GPS`
+Install
+<img src="images/GroveGPS.png" align=left width=200>
+ the dependent modules with `INSTAL.sh GPS`
 The `gpsd` daemon will find the tty, but you can provide in `/etc/default/gpsd` the `DEVICES=/dev/ttyUSB0` for gps via the USB connection. Use for OPTIONS `-G`.
 
 Test the GPS function (see paragraph on hardware tests.

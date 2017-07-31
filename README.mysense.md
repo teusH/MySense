@@ -1,6 +1,11 @@
 # MySense architecture
+MySense overview:
+<img src="images/MySense-logo.png" align=left width=150>
+the building blocks
+
 ## STATUS
 2017/02/08
+<img src="images/MySense0.png" align=right width=150>
 STATUS: BETA operational
 
 ## USAGE:
@@ -10,7 +15,8 @@ The initfile may also be defined by the environment variable captial program nam
 See the config file example for all plugin sections and plugin options.
 
 ## PLUGINS
-All plugins have the name MyPLUGIN.py.
+MySense is build in a Lego fashion: as well physical Lego blocks as programmically: input plugins and output channel modules.
+All plugins have the name *MyPLUGIN.py*.
 python ./MySense.py --help will provide a short command line options.
 Use it to see how to overwrite (disable or enable) the input and output plugins.
 And how to get more logging output: eg "-l debug"
@@ -53,52 +59,55 @@ Installation of library dependencies one can use the `INSTALL.sh help` script.
 ## DEPENDENCES
 This is a list of pyhon modules of imports done by various plugins:
 Non standard modules to be installed with e.g. sudo pip install module
-configparser:	MySense.py
-gspread:	MyGSPREAD.py
-oauth:	MyGSPREAD.py
+* configparser:	MySense.py
+* gspread:	MyGSPREAD.py
+* oauth:	MyGSPREAD.py
 
-mysql:	MyDB.py
+* mysql:	MyDB.py
 Installed with: sudo apt-get install python-dev libmysqlclient-dev build-essential python-dev (needed to do a manual DB access to the MySQL (remote) database.
 and sudo python3-mysql.connector python-mysql.connector
 If the MySQL database needs to be installed on the Pi as server see e.g. https://www.stewright.me/2014/06/tutorial-install-mysql-server-on-raspberry-pi/
-gps:	MyGPS.py
+
+* gps:	MyGPS.py
 Install gpsd deamon and client: sudo apt-get install gpsd python-gps
 paho.mqtt.client:	MyMQTTPUB.py MyMQTTSUB.py
 installed by: git clone https://github.com/eclipse/paho.mqtt.python.git
-and sudo "cd paho.mqtt.python; python setup.py install"
-
+and `sudo cd paho.mqtt.python; python setup.py install`.
 Standard modules installed with Jessie Pi OS:
 Check this manually by the command "python"
+```
 >>> and copy/paste the next lines
 import argparse,atexit,calendar,csv,datetime,email
 import fcntl,getpass,grp,json,logging,os,pwd,random
 import re,requests,serial,signal,smtplib,socket
 import subprocess,sys,threading,time,urllib2
 <cntrl d>
+```
 
+### List of plugins
 Here is the list of the plugings and imported python modules:
-argparse:	MySense.py
-atexit:	MySense.py
-calendar:	MyGPS.py
-csv:	MyCSV.py
-datetime:	MyCONSOLE.py, MyCSV.py, MyDB.py, MyEMAIL.py, MyGPS.py, MyGSPREAD.py, MySense.py
-email:	MyEMAIL.py
-fcntl:	MySense.py
-getpass:	MyEMAIL.py
-grp:	MySense.py
-json:	MyBROKER.py, MyMQTTPUB.py, MyMQTTSUB.py
-logging:	MyLogger.py
-os:	MyCSV.py, MyGPS.py, MyGSPREAD.py, MyMQTTSUB.py, MySense.py
-pwd:	MySense.py
-random:	MyInternet.py
-re:	MyDYLOS.py, MyInternet.py, MyMQTTSUB.py, MyRSSI.py, MySense.py
-requests:	MyBROKER.py
-serial:	MyDYLOS.py, MySDS011.py, MyPMS7003.py
-signal:	MySense.py
-smtplib:	MyEMAIL.py
-socket:	MyBROKER.py, MyEMAIL.py, MyInternet.py, MyMQTTPUB.py, MyMQTTSUB.py
-subprocess:	MyDYLOS.py, MyInternet.py, MyRSSI.py, MySense.py, MySDS011.py, MyPMS7003.py
-sys:	MyBROKER.py, MyCONSOLE.py, MyDB.py, MyLogger.py, MyMQTTPUB.py, MyMQTTSUB.py, MySense.py
-threading:	MyGPS.py, MyRSSI.py, MySense.py
-time:	MyCONSOLE.py, MyCSV.py, MyDB.py, MyGPS.py, MyGSPREAD.py, MyInternet.py, MyMQTTPUB.py, MyMQTTSUB.py, MyRSSI.py, MySense.py
-urllib2:	MyInternet.py
+* argparse:	MySense.py
+* atexit:	MySense.py
+* calendar:	MyGPS.py
+* csv:	MyCSV.py
+* datetime:	MyCONSOLE.py, MyCSV.py, MyDB.py, MyEMAIL.py, MyGPS.py, MyGSPREAD.py, MySense.py
+* email:	MyEMAIL.py
+* fcntl:	MySense.py
+* getpass:	MyEMAIL.py
+* grp:	MySense.py
+* json:	MyBROKER.py, MyMQTTPUB.py, MyMQTTSUB.py
+* logging:	MyLogger.py
+* os:	MyCSV.py, MyGPS.py, MyGSPREAD.py, MyMQTTSUB.py, MySense.py
+* pwd:	MySense.py
+* random:	MyInternet.py
+* re:	MyDYLOS.py, MyInternet.py, MyMQTTSUB.py, MyRSSI.py, MySense.py
+* requests:	MyBROKER.py
+* serial:	MyDYLOS.py, MySDS011.py, MyPMS7003.py
+* signal:	MySense.py
+* smtplib:	MyEMAIL.py
+* socket:	MyBROKER.py, MyEMAIL.py, MyInternet.py, MyMQTTPUB.py, MyMQTTSUB.py
+* subprocess:	MyDYLOS.py, MyInternet.py, MyRSSI.py, MySense.py, MySDS011.py, MyPMS7003.py
+* sys:	MyBROKER.py, MyCONSOLE.py, MyDB.py, MyLogger.py, MyMQTTPUB.py, MyMQTTSUB.py, MySense.py
+* threading:	MyGPS.py, MyRSSI.py, MySense.py
+* time:	MyCONSOLE.py, MyCSV.py, MyDB.py, MyGPS.py, MyGSPREAD.py, MyInternet.py, MyMQTTPUB.py, MyMQTTSUB.py, MyRSSI.py, MySense.py
+* urllib2:	MyInternet.py

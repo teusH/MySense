@@ -1,3 +1,5 @@
+<img src="images/MySense-logo.png" align=right width=100>
+
 # shared output via Google gspread 
 ## STATUS
 ALPHA, SW ready, credentials not operational 2017/02/08

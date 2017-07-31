@@ -1,6 +1,10 @@
+<img src="images/MySense-logo.png" align=right width=100>
+
 # Shinyei PPD42NS (Grove) dust sensor
 ## Hardware
-Grove Shinyei PPD42NS dust sensor (€ 18.- Kiwi Electronics) is a PM10/PM2.5 particals counter. The module is 5VDC and output is also 5 VDC.
+Grove Shinyei PPD42NS
+<img src="images/PPD42NS.png" align=left width=200>
+dust sensor (€ 18.- Kiwi Electronics) is a PM10/PM2.5 particals counter. The module is 5VDC and output is also 5 VDC.
 * Use Grove shield or volt regulator/3V3/5V converter to connect the module with the Pi.
 Disadvantage connection via Grove shield: the Grove driver software will show zero counts without a resistor to tune the thresholt and fan to force a higher air stream.
 
