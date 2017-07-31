@@ -14,6 +14,9 @@ The file is looked up as program name extended with .conf: eg MySense.conf
 The initfile may also be defined by the environment variable captial program name. Eg. MYSENSE=/etc/ios/MySense.ini
 See the config file example for all plugin sections and plugin options.
 
+A *note about USB serial cables*
+<br />
+USB (mainly serial TTL) devices are discriminated via the product ID in order to detect the ttyUSBn port. In the `MySense.conf` configuration file with the option `usbid` one can de fine a search pattern to find the correct USB connector. However this will only work if one uses different manufacture id's for each USB serial connector.
 ## PLUGINS
 MySense is build in a Lego fashion: as well physical Lego blocks as programmically: input plugins and output channel modules.
 All plugins have the name *MyPLUGIN.py*.
