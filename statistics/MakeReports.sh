@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MakeReports.sh,v 1.10 2017/08/03 20:18:02 teus Exp teus $
+# $Id: MakeReports.sh,v 1.13 2017/08/04 14:41:00 teus Exp teus $
 
 # shell file produces pdf correlation report of influx raw series of timed data
 # for the dust sensor only pcs/qf is used
@@ -26,13 +26,15 @@
 # START=2017-06-01 END=now command temp BdP_12345=sds011,dylos,bme280 BdP_12346=ppd42ns,pms7003,dht22 ...
 # START=2017-06-01 END=now command pm25 BdP_12345=sds011,dylos,bme280 BdP_12346=ppd42ns,pms7003,dht22 ...
 
+export LANG=en_GB.UTF-8
 STRT=${START:-2017-07-30}
-END=${END:-2017-08-03}
+END=${END:-2017-08-04}
 INTERVAL=900
 MTYPE=raw
 FIELD=time
 
 REPORTS=./reports
+rm -f ${REPORTS}/*@*@*{.png,.pdf,.html} # remove all old intermediate reports
 OUTPUT=
 TOTAL=$REPORTS/CorrelationReport_$(date '+%Y-%m-%dT%H:%M').html
 CONTENT=$REPORTS/CorrelationReportContent_$(date '+%Y-%m-%dT%H:%M').html
@@ -136,6 +138,34 @@ function CombineReport() {
     return 1
 }
 
+# give R-squared number a text color
+function R_squared(){
+    perl -e '
+        while(<STDIN>){
+            if ( /R-sq.*(0\.[0-9]+)/ ) {
+                $b = $1; $color="Green";
+                if ( $b < 0.1 ) {
+                    $color="red"; }
+                elsif ( $b < 0.2 ) {
+                    $color="DarkRed" ; }
+                elsif ( $b < 0.35 ) {
+                    $color="GoldenRod" ; }
+                elsif ( $b < 0.5 ) {
+                    $color="DarkOrange" ; }
+                elsif ( $b < 0.7 ) {
+                    $color="DarkGrey" ; }
+                elsif ( $b < 0.85 ) {
+                    $color="DarkOliveGreen" ; }
+                elsif ( $b < 0.95 ) {
+                    $color="DarkGreen" ; }
+                $b=sprintf("<div style=\"color: %s;\">%.4f</div>\n",$color,$b);
+                s/0\.[0-9]+/$b/;
+            }
+            print;
+        }
+    '
+}
+
 LAST_SENSE=XXX
 function ExtractKeyValues(){
     local SENSE=${1^^} KIT1=$2 TYPE1=${3^^} KIT2=$4 TYPE2=${5^^} INPUT=$6 OUTPUT=$7
@@ -146,7 +176,7 @@ function ExtractKeyValues(){
         cat >"$OUTPUT" <<EOF
         <h2>Summary of correlations of sensor kits and sensor modules</h2>
         Sensorkits: ${ARG_KITS[*]/#_/ ID=}<br />
-        Date: $(date)
+        Report generated on: $(date)
         <h3>R-square and statistical summary</h3>
 EOF
     else
@@ -157,27 +187,39 @@ EOF
         LAST_SENSE="$SENSE"
         echo "<h4>Correlation key values for measurement <b>$SENSE</b></h4>" >>"$OUTPUT"
     fi
-    echo "<p>kit(${KIT1}), type(<b>${TYPE1}</b>) with kit(${KIT2}), type(<b>${TYPE2}</b>):" >>"$OUTPUT"
+    echo "<p><div style='font-size: 10pt;'>Correlation ${CNT} - <b>${SENSE}</b> - kit ${KIT1} sensor type <b>${TYPE1}</b> with kit ${KIT2} sensor type <b>${TYPE2}</b>:</div>" >>"$OUTPUT"
     echo "<table noborder cellspacing=0 cellpadding=4>" >>"$OUTPUT"
     local IMG=${INPUT/Report/IMG}
+    local HEIGHT=112
+    # seems graph for these are height is less
+    if echo "${TYPE1} ${TYPE2}" | grep -q -e PPD42 -e PMS.003
+    then
+        HEIGHT=102
+    fi
     if [ -f "${IMG/xml/png}" ]
     then
         if file "${IMG/xml/png}" | grep -q '737 x'
         then
             IMG=${IMG/*\//}
-            echo "<tr><td rowspan=6 width=184px><div style='width: 174px; height: 100; border: thick solid #BBBBBB; overflow: hidden; position: relative;'><img src='${IMG/xml/png}' style='position: absolute; left:-20px; top: -14px; width:210; height:286'/></div></td></tr>" >>"$OUTPUT"
+            echo "<tr><td rowspan=4 width=184px><div style='width: 174px; height: ${HEIGHT:-112}; border: solid #EEEEEE; overflow: hidden; position: relative;'><img src='${IMG/xml/png}' style='position: absolute; left:-24px; top: -12px; width:210; height:286'/></div></td></tr>" >>"$OUTPUT"
         fi
     fi
+    echo "<tr><td valign=top align=left><div style='font-size: 10pt;'>" >>"$OUTPUT"
     local GREP=('number.*min=.*max=' 'avg=.*std dev=' 'R-squared.*with.*:')
     local I
     for (( I=0; I < ${#GREP[*]}; I++))
     do
-        #echo "<div style='font-size: 10pt; text-indent: +1.5em'>" >>"$OUTPUT"
-        echo "<tr><td valign=top align=left><div style='font-size: 10pt;'>" >>"$OUTPUT"
-        grep "${GREP[$I]}" ${INPUT/.xml/.html}  >>"$OUTPUT"
-        echo "</div></td></tr>" >>"$OUTPUT"
+        echo "<br />" >>"$OUTPUT"
+        grep "${GREP[$I]}" ${INPUT/.xml/.html} | sed -e 's/(R.*) //' -e 's/pm25/pm2.5/' -e 's/pm/PM/' -e '/ with .*:/s%.*%<b>&</b>%' -e 's/ with .*:/:/' -e 's/number/nr samples/' | R_squared >>"$OUTPUT"
     done
-    echo "</table></p>" >>"$OUTPUT"
+    # pick up the best fit polynomial coefficients
+    local COEFF=''
+    COEFF=$(grep -P '^[\- 0-9\.e,+\t]+$' ${INPUT/.xml/.html})
+    if [ -n "$COEFF" ]
+    then
+        echo "<br />Best fit polynomial coefficients:<br />&nbsp;&nbsp;[${COEFF}]" >>"$OUTPUT"
+    fi
+    echo "</div></td></tr></table></p>" >>"$OUTPUT"
     CloseReport "$OUTPUT"
 }
  
@@ -315,9 +357,9 @@ do
             then
                 echo "ERRORS in correlation: report is skipped" >/dev/stderr
             else
+                CNT+=1
                 ExtractKeyValues "$SENSE" "${KITS[$I]}" "${TYPES[$I]}" "${KITS[$J]}" "${TYPES[$J]}" "${OUTPUT}" "${CONTENT}"               
             fi
-            CNT+=1
         done
     done
 done
