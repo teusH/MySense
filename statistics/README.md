@@ -55,7 +55,14 @@ The output provide the polynomial factors (lowest order first) and R-square
 
 Normalisation details and regression polynomial can be used to obtain calibration factors for MySense configuration. Note that if R-square is near zero there is no best fit, so calibration does not make much sense.
 
-## OUTPUT
+## Correlation report generator (HTML and/or PDF)
+The shell command file `MakeReports.sh` uses an influxdb server (DBHOST) with credentials (DBUSER/DBPASS) to extract `raw` measurment values and generate correlation report in HTML and PDF (make sure you install the html to pdf converter /usr/local/wkhtmltox/bin/wkhtmltopdf from wkhtmltopdf.org) formats.
+```shell
+Makereport.sh help
+DBHOST=localhost DBUSER=myname DBPASS=acacadabra START=2017-07-01 END=now Makereport.sh dust temp rh
+```
+
+## OUTPUT of MyRegression.py
 Statistical report: method used, Rsquared, average/deviation, and much details.
 
 Output the graphs in an image file `--file`. Use `--HTML` option to turn output in html format on.

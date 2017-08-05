@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # 
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MakeReports.sh,v 1.13 2017/08/04 14:41:00 teus Exp teus $
+# $Id: MakeReports.sh,v 1.17 2017/08/05 19:32:27 teus Exp teus $
 
 # shell file produces pdf correlation report of influx raw series of timed data
 # for the dust sensor only pcs/qf is used
@@ -33,17 +33,22 @@ INTERVAL=900
 MTYPE=raw
 FIELD=time
 
-REPORTS=./reports
+REPORTS=reports
+mkdir -p $REPORTS
 rm -f ${REPORTS}/*@*@*{.png,.pdf,.html} # remove all old intermediate reports
 OUTPUT=
 TOTAL=$REPORTS/CorrelationReport_$(date '+%Y-%m-%dT%H:%M').html
 CONTENT=$REPORTS/CorrelationReportContent_$(date '+%Y-%m-%dT%H:%M').html
+# get this html to pdf converter from http://wkhtmltopdf.org
+HTML2PDF=/usr/local/wkhtmltox/bin/wkhtmltopdf
 
 HTML=${HTML:---HTML}
 
 DBHOST=${DBHOST:-localhost}
 DBUSER=${DBUSER:-$USER}
 DBPASS=${DBPASS:-XXX}
+
+declare -i CNT=0
 
 if [ $DBPASS = XXX ]
 then
@@ -88,9 +93,10 @@ function CloseReport(){
 EOF
 }
 
-PDF_FILES=''
+PDF_FILES=()
 function CombineReport() {
-    local OUT=$1 OUTPUT=$2 ERR=$3
+    local OUT=$1 OUTPUT=$2 ERR=$3 TITLE=$4
+    local OPT=${4/* */--title}
     if [ -z "$OUT" ] ; then OUT=/dev/stdout ; fi
     if [ -n "$OUTPUT" ] && [ -n "$OUT" ] && [ -f "$OUTPUT" ]
     then
@@ -124,12 +130,12 @@ function CombineReport() {
         echo "Created ${OUTPUT/.xml/.html}" >/dev/stderr
 
         # convert html page to pdf
-        if which wkhtmltopdf >/dev/null
+        if [ -x $HTML2PDF ]
         then
             # convert html to pdf
-            if wkhtmltopdf "${OUTPUT/.xml/.html}" "${OUTPUT/.xml/.pdf}" 2>/dev/null
+            if $HTML2PDF ${OPT} "${TITLE}"  "${OUTPUT/.xml/.html}" "${OUTPUT/.xml/.pdf}" 2>/dev/null
             then
-                PDF_FILES+=" ${OUTPUT/.xml/.pdf}"
+                PDF_FILES+=(${OUTPUT/.xml/.pdf})
             fi
         fi
         rm -f "$OUTPUT"
@@ -166,26 +172,37 @@ function R_squared(){
     '
 }
 
-LAST_SENSE=XXX
+LAST_SENSE=XXX  # remind last measurement type
+declare -i SUM_CNT=0       # only 5 summaries on one page
+SUM_HTML=()
 function ExtractKeyValues(){
     local SENSE=${1^^} KIT1=$2 TYPE1=${3^^} KIT2=$4 TYPE2=${5^^} INPUT=$6 OUTPUT=$7
     if [ "$1" = pm25 ] ; then SENSE=PM2.5 ; fi
-    if [ ! -f "$OUTPUT" ]
+    declare -i HereCnt=$CNT
+    if ((CNT >= 8)) ; then HereCnt+=1 ; fi
+    if (( (HereCnt % 8) == 1 ))
     then
+        SUM_CNT+=1
+        OUTPUT="${OUTPUT/\//\/$SUM_CNT-}"
+        SUM_HTML+=("$OUTPUT")
         InitReport "$OUTPUT"
-        cat >"$OUTPUT" <<EOF
+        if ((SUM_CNT == 1))
+        then
+            cat >"$OUTPUT" <<EOF
         <h2>Summary of correlations of sensor kits and sensor modules</h2>
         Sensorkits: ${ARG_KITS[*]/#_/ ID=}<br />
         Report generated on: $(date)
         <h3>R-square and statistical summary</h3>
 EOF
+        fi
     else
+        OUTPUT=${OUTPUT/\//\/$SUM_CNT-}
         sed -i '/<.body><.html>/d' "$OUTPUT"
     fi
     if [ "$LAST_SENSE" != "$SENSE" ]
     then
         LAST_SENSE="$SENSE"
-        echo "<h4>Correlation key values for measurement <b>$SENSE</b></h4>" >>"$OUTPUT"
+        echo "<h4>Measurement <b>$SENSE</b> correlation key values</h4>" >>"$OUTPUT"
     fi
     echo "<p><div style='font-size: 10pt;'>Correlation ${CNT} - <b>${SENSE}</b> - kit ${KIT1} sensor type <b>${TYPE1}</b> with kit ${KIT2} sensor type <b>${TYPE2}</b>:</div>" >>"$OUTPUT"
     echo "<table noborder cellspacing=0 cellpadding=4>" >>"$OUTPUT"
@@ -228,7 +245,7 @@ function CreateReport(){
     echo "Creating report for measurement $SENSE: kit(${KIT1}),type(${TYPE1}) with kit(${KIT2}),type(${TYPE2})" >/dev/stderr
     local NAME="$REPORTS/CorrelationReport_$SENSE-${TYPE1}@${KIT1}_with_${TYPE2}@${KIT2}"
     cat >$NAME <<EOF
-<h2>Correlation report for $SENSE (${MTYPE}) measurements:<br /><div align=right>sensor type ${TYPE1}@${KIT1}</div><br /><div align=right> with ${TYPE2}@${KIT2}</div></h2>
+<h2>Sensor ${TYPE1}@${KIT1} with<br />sensor ${TYPE2}@${KIT2}<br /><div align=right>correlation report for $SENSE (${MTYPE}) measurements</div></h2>
 <p>Correlation details of project ${KIT1/_*/} sensor kit ID ${KIT1/*_/} with project ${KIT2/_*/} sensor kit ID ${KIT2/*_/}<br />
 Date of correlation report: $(date)<br />
 From date $STRT upto $(date --date="$END" "+%Y-%m-%d %H:%M")<br />
@@ -313,7 +330,7 @@ then
     ARG_KITS=(BdP_8d5ba45f BdP_3f18c330 BdP_33040d54)
 fi
 
-declare -i CNT=0
+HTML_REPORTS=() # list of generated correlation reports HTML format
 for SENSE in $ARGS
 do
     if ! echo " ${DUST_TYPE[*]} ${CLIMATE_TYPE[*]} " | grep -q " $SENSE "
@@ -353,12 +370,13 @@ do
                 ${KITS[$I]}/${SENSES[$I]}/${FIELD}/${TYPES[$I]}/${MTYPE} \
                 ${KITS[$J]}/${SENSES[$J]}/${FIELD}/${TYPES[$J]}/${MTYPE} \
                 2>>/var/tmp/ERR$$ >>"$OUTPUT"
-            if ! CombineReport "$TOTAL" "$OUTPUT" /var/tmp/ERR$$
+            if ! CombineReport "$TOTAL" "$OUTPUT" /var/tmp/ERR$$ "Correlation Report for Measurement $SENSE from sensors ${TYPES[$I]} and ${TYPES[$J]}"
             then
                 echo "ERRORS in correlation: report is skipped" >/dev/stderr
             else
                 CNT+=1
                 ExtractKeyValues "$SENSE" "${KITS[$I]}" "${TYPES[$I]}" "${KITS[$J]}" "${TYPES[$J]}" "${OUTPUT}" "${CONTENT}"               
+                HTML_REPORTS+=("${OUTPUT/.xml/.html}")
             fi
         done
     done
@@ -370,23 +388,51 @@ then
     exit 1
 fi
 
-if [ -f "$TOTAL" ]
+if [ -f "$TOTAL" ] && [ -x $HTML2PDF ]
 then
-    if [ -f "$CONTENT" ] && which wkhtmltopdf >/dev/null
-    then
-        # convert html page to pdf
-        if wkhtmltopdf "${CONTENT}" "${CONTENT/.html/.pdf}" 2>/dev/null
+    TT=''
+    for T in $(for S in ${TYPES[*]} ; do echo ${S^^} ; done | sort | uniq)
+    do
+        if [ -z "$TT" ]
         then
-            PDF_FILES="${CONTENT/.html/.pdf} $PDF_FILES"
+            TT="$T"
+        else
+            TT+=", $T"
+        fi
+    done 
+    TITLE="MySense ${KITS[0]/_*/} Correlation Reports for: [$( echo "$ARGS" | sed -e 's/pm/PM/g' -e 's/PM25/PM2.5/' -e 's/PM1 /PM0.1 /' -e 's/PM3/PM0.3/')], sensors: ${TT}"
+    if (( ${#HTML_REPORTS[*]} > 1 ))
+    then
+        # convert html summary and correlation pages to pdf
+        if $HTML2PDF --title "Summary for $TITLE" ${SUM_HTML[*]} "${CONTENT/.html/.pdf}" 2>/dev/null
+        then
+            echo "Generated summary report ${CONTENT/.html/.pdf} with ${#SUM_HTML[*]} summary entries" >/dev/stderr
+            # make it git ready
+            if [ -d ../MySense/statistics ]
+            then
+                cp ${CONTENT/.html/.pdf} ../MySense/statistics/$(basename ${CONTENT/-??T*/.pdf})
+            fi
         fi
     else
         CONTENT=''
     fi
-    echo "Combined HTML correlation reports are in $TOTAL" >/dev/stderr
-    if [ -n "$PDF_FILES" ] && which pdftk >/dev/null
+    #if [ -n "$PDF_FILES" ] && which pdftk >/dev/null
+    #then
+    #    pdftk $PDF_FILES cat output "${TOTAL/.html/.pdf}"
+    #    echo "Correlation report in PDF format is in ${TOTAL/.html/.pdf}" >/dev/stderr
+    #fi
+    if $HTML2PDF --title "$TITLE" --footer-left "MySense correlation report, project ${KITS[0]/_*/}, [date]" --footer-right "page [page]/[topage]"  toc ${SUM_HTML[*]} ${HTML_REPORTS[*]/.pdf/.html} ${TOTAL/.html/.pdf}
     then
-        pdftk $PDF_FILES cat output "${TOTAL/.html/.pdf}"
-        echo "Correlation report in PDF format is in ${TOTAL/.html/.pdf}" >/dev/stderr
+        echo "Combined HTML correlation reports are in ${TOTAL/.html/.pdf}" >/dev/stderr
+        # make it git ready
+        if [ -d ../MySense/statistics/ ]
+        then
+            cp ${TOTAL/.html/.pdf} ../MySense/statistics/$(basename ${TOTAL/-??T*/.pdf})
+        fi
+        rm -f ${SUM_HTML[*]} ${HTML_REPORTS[*]}
+    else
+        echo "Failure: to generate $CNT correlation reports to $TOTAL" >/dev/stderr
     fi
+    
 fi
 
