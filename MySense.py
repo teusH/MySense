@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.12 2017/07/29 15:07:04 teus Exp teus $
+# $Id: MySense.py,v 3.13 2017/08/06 12:55:08 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.12 $"[11:-2]
+__version__ = "0." + "$Revision: 3.13 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -1049,7 +1049,6 @@ else:                              ## service mode     ===========
         show_startup()
         FreeConfMem('input','output')
         del INPUTS; del INPUTS_I ; del OUTPUTS; del OUTPUTS_I
-        ser = open_input_stream()
         Conf['console']['output'] = False
         deamon_detach(pidfile)
         WaitTime = 60   # wait time to restart sensorread
