@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLogger.py,v 3.4 2017/06/04 15:01:58 teus Exp teus $
+# $Id: MyLogger.py,v 3.5 2017/08/07 07:49:00 teus Exp teus $
 
 # TO DO:
 
 """ Push logging to the external world.
 """
 modulename='$RCSfile: MyLogger.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.4 $"[11:-2]
+__version__ = "0." + "$Revision: 3.5 $"[11:-2]
 
 # configurable options
 __options__ = ['level','file']
@@ -99,11 +99,11 @@ def log(name,level,message): # logging to console or log file
         Conf['fd'].addHandler(log_handle)
     if not Conf['istty']:
         try:
-            Conf['fd'].MyLogger.log(level,name + ': ' + message)
+            Conf['fd'].log(level,name + ': ' + message)
         except:
             sys.exit("Unable to log to %s. Program aborted." % Conf["log"]['file'])
         if level == FATAL:
-            Conf['fd'].MyLogger.log(CRITICAL,"Program aborted.")
+            Conf['fd'].log(CRITICAL,"Program aborted.")
             sys.exit("FATAL error. Program Aborted.")
     else:
         sys.stderr.write("%s %s: %s" % (name,log_levels[int(level / 10)], message + "\n"))
