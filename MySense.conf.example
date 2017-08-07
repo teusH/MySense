@@ -1,4 +1,9 @@
 # init/configuration file for Internet of Sense PI node controller
+# commented options will define the defaults
+# commented sections: the plugin will not be loaded
+# uncommented sections with input/ouput set to false: plugin will be unloaded
+
+# general processiong options
 [process]
 # default deamon working directory
 home   = /var/tmp/
@@ -9,8 +14,8 @@ pid    = /var/tmp
 user    = ios
 group   = ios
 
-[id]
 # identification of this sensor
+[id]
 project      = my_IoS
 # serial number of this node eg use Serial from /proc/cpuinfo
 # default cpu serial or MAC address
@@ -29,8 +34,12 @@ municipality = MyMajor
 
 # log definitions and from which level
 [logging]
-# log file eg /var/log/IoS/IoS.log
-#file     = /var/log/IoS/IoS.log
+# log to syslog and enable remote logging
+#file     = syslog 
+# log to a file eg /var/log/MySense/MySense.log
+#file     = /var/log/MySense/MySense.log
+# make sure /etc/logrotate.d/MySense and /var/log/MySense is defined
+# and owned by MySense user (dflt ios)
 file     = /dev/stderr
 # lowest level to log messages
 #level    = WARNING
@@ -84,7 +93,8 @@ level    = INFO
 # sample timing for each pm sensor
 #sample = 15
 #bufsize = 30
-# meteo serie dht
+
+# meteo serie Adafruit dht
 #[dht]
 ## Meteo sensor
 #input = False
