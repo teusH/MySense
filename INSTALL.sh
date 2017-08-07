@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.27 2017/07/03 12:45:42 teus Exp teus $
+# $Id: INSTALL.sh,v 1.28 2017/08/07 09:37:00 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -179,7 +179,7 @@ function THREADING(){
 
 PLUGINS+=" DYLOS"
 function DYLOS(){
-    #DEPENDS_ON pip serial
+    DEPENDS_ON pip serial
     return $?
 }
 
@@ -222,6 +222,12 @@ function MQTTPUB(){
 PLUGINS+=" SDS011"
 function SDS011(){
     DEPENDS_ON pip enum34
+    return $?
+}
+
+PLUGINS+=" PMSN003"
+function PMSN003(){
+    DEPENDS_ON pip serial
     return $?
 }
 
@@ -322,16 +328,22 @@ function RestoreOriginal() {
     local FILE ANS
     for FILE in $@
     do
-    if [ -f $FILE ]
+    if [ -f "$FILE" ] || [ -d "$FILE" ]
     then
-        if [ -f $FILE.orig ]
+        if [ -f "$FILE.orig" ] || [ -d "$FILE.orig" ]
         then
-            /usr/bin/sudo /bin/mv -f  $FILE.orig $FILE
+            /usr/bin/sudo /bin/mv -f  "$FILE.orig" "$FILE"
 	else
 	    read -p "Want to keep $FILE? [Ny] " ANS
 	    if [ -z "${ANS/[Nn]/}" ]
 	    then
-		/usr/bin/sudo /bin/rm -f $FILE
+                if [ -f "$FILE" ]
+                then
+		    /usr/bin/sudo /bin/rm -f "$FILE"
+                elif [ -d "$FILE" ]
+                then
+                    /usr/bin/sudo /bin/rm -rf "$FILE"
+                fi
 	    fi
 	fi
     fi
@@ -625,6 +637,31 @@ EOF
     VIRTUAL "${AP}" ${ADDR} ${NAT}
     # /usr/bin/sudo /usr/sbin/service dnsmasq restart
     # /usr/bin/sudo /usr/sbin/service hostapd restart
+}
+
+INSTALLS+=" LOGGING"
+UNINSTALLS[LOGGING]+=' /etc/logrotate.d/MySense /var/log/MySense'
+# logging, may be different due to MySense.conf configuration
+function LOGGING(){
+    /bin/cat >/tmp/logging$$ <<EOF
+/var/log/MySense/MySense.log {
+        rotate 3
+        daily
+        compress
+        size 100k
+        nocreate
+        missingok
+        # postrotate
+        #       /usr/bin/killall -HUP MySense
+        # endscript
+}
+EOF
+    # rotate the MySense logging file
+    sudo cp /tmp/logging$$ /etc/logrotate.d/MySense
+    rm /tmp/logging$$
+    sudo mkdir /var/log/MySense
+    sudo chown ${USER}.adm /var/log/MySense
+    return 0
 }
 
 UNINSTALLS[DNSMASQ]+=' /etc/dnsmasq.conf'
