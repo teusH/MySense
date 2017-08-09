@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.28 2017/08/07 09:37:00 teus Exp teus $
+# $Id: INSTALL.sh,v 1.30 2017/08/09 14:25:31 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -821,17 +821,23 @@ function BUTTON(){
 #!/bin/bash
 # power off switch: press 15 seconds till led light up constantly
 # button socket on Grove D5, led socket on Grove D6
-SOCKET=${1:-D5}
-LED=${2:-D6}
+SOCKET=\${1:-D5}
+LED=\${2:-D6}
+MYLED=$(pwd)/MyLed.py
 while /dev/true
 do
-    /usr/local/bin/MyLed.py --led $LED --light OFF
-    TIMING=$(/usr/local/bin/MyLed.py --led $LED --button $SOCKET)
-    TIMING=$(echo "$TIMING" | /bin/sed 's/[^0-9]//g')
-    if [ -n "${TIMING}" -a "$TIMING" -gt 10 ] ; then /sbin/poweroff ; fi
+    if [ ! -x "\$MYLED" ] ; then exit 0 ; fi
+    "\$MYLED" --led \$LED --light OFF
+    TIMING=$("\$MYLED" --led \$LED --button \$SOCKET)
+    TIMING=$(echo "\$TIMING" | /bin/sed 's/[^0-9]//g')
+    if [ -n "\${TIMING}" -a "\$TIMING" -gt 10 ]
+    then
+        "\$MYLED" --led \$LED --blink 0.25,0.25,2 &
+        /sbin/poweroff
+    fi
 done
 EOF
-    scp /tmp/poweroff$$ /usr/local/etc/poweroff
+    sudo cp /tmp/poweroff$$ /usr/local/etc/poweroff
     sudo chmod +x /usr/local/etc/poweroff
     if ! sudo grep -q '@reboot  */usr/local/etc/poweroff' /var/spool/cron/crontabs/root
     then

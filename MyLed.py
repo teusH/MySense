@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLed.py,v 1.3 2017/03/30 10:47:55 teus Exp teus $
+# $Id: MyLed.py,v 1.6 2017/08/09 14:22:26 teus Exp teus $
 
 # Turn Grove led on, off or blink for an amount of time
 
@@ -34,7 +34,7 @@
 from __future__ import print_function
 
 progname='$RCSfile: MyLed.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.6 $"[11:-2]
 __license__ = 'GPLV4'
 grovepi = None
 import sys
@@ -56,6 +56,8 @@ BLINK=[]
 BUTTON = 'D0'
 RELAY = 'D2'
 FAN = None
+ON = 1
+OFF = 0
 
 def get_arguments():
     global LED, SOCKET, BLINK, BUTTON, FAN, RELAY
@@ -68,41 +70,42 @@ def get_arguments():
     parser.add_argument("--fan", help="Switch fan ON or OFF (dflt no fan)", default=None,choices=['ON','on','OFF','off'])
     args = parser.parse_args()
     SOCKET = int(args.led[1])
-    LED = 0
-    if args.light.upper() == 'ON': LED = 1
+    LED = OFF
+    if args.light.upper() == 'ON': LED = ON
     RELAY = int(args.relay[1])
     FAN = None
-    if args.fan.upper() == 'ON': FAN = 1
-    if args.fan.upper() == 'OFF': FAN = 0
+    if args.fan != None:
+        if args.fan.upper() == 'ON': FAN = ON
+        elif args.fan.upper() == 'OFF': FAN = OFF
     BLINK = args.blink.split(',')
     if len(BLINK) == 0:
         BLINK[0] = 0
     else:
-        BLINK[0] = int(BLINK[0])
-    if len(BLINK) <= 1:
+        BLINK[0] = float(BLINK[0])
+    if len(BLINK) < 1:
         BLINK[1] = 0
     else:
-        BLINK[1] = int(BLINK[1])
+        BLINK[1] = float(BLINK[1])
     if len(BLINK) != 3:
-        BLINK[2] = 30
+        BLINK[2] = 30*60
     else:
-        BLINK[2] = int(BLINK[2])
+        BLINK[2] = int(BLINK[2])*60
     if BLINK[0] != 0:
         LED = 1
     BUTTON = int(args.button[1])
 
 def Led_Off():
     global grovepi
-    grovepi.digitalWrite(SOCKET,0)
+    grovepi.digitalWrite(SOCKET,OFF)
     exit(0)
 
 from time import time
 started = time()
 
-PRESSED = 0
+PRESSED = OFF
 def pressed():
     global PRESSED, started, LED, BLINK, grovepi, SOCKET
-    if not BUTTON: return
+    if not BUTTON: return False
     while True:
         try:
             NEW = grovepi.digitalRead(BUTTON)
@@ -111,7 +114,7 @@ def pressed():
         if PRESSED and (not NEW):
             print("%d" % int(time()-started))
             grovepi.digitalWrite(SOCKET,0)
-            exit(0)
+            return True
         if (not PRESSED) and (not NEW):
             # wait for button press and try again
             sleep(5)
@@ -120,11 +123,11 @@ def pressed():
             PRESSED = NEW
             started = time()
             BLINK = [1,1,30]
-            LED = 1
+            LED = ON
         elif (int(time()-started)/6) >= 1:
             BLINK = [(int(time()-started)/6),1,30]
-            LED = 1
-        return
+            LED = ON
+        return False
    
 get_arguments()
 
@@ -137,8 +140,8 @@ if BUTTON:
     import signal
     grovepi.pinMode(BUTTON,'INPUT')
     signal.signal(signal.SIGHUP,Led_Off)
-    signal.signal(signal.SIGKILL,Led_Off)
-    # atexit.register(Led_Off)
+    #signal.signal(signal.SIGKILL,Led_Off)
+    atexit.register(Led_Off)
 
 from time import sleep
 sleep(0.5)
@@ -148,9 +151,9 @@ while True:
         if FAN != None:
             grovepi.digitalWrite(RELAY,FAN)
             break
-        pressed()
-        if time() - started >= BLINK[2]*60:
-            grovepi.digitalWrite(SOCKET,0)
+        if pressed(): break
+        if time() - started >= BLINK[2]:
+            grovepi.digitalWrite(SOCKET,OFF)
             break
         grovepi.digitalWrite(SOCKET,LED)
         if not BLINK[0]:
@@ -160,8 +163,8 @@ while True:
     except IOError:
         eprint("IO ERROR")
     except KeyboardInterrupt:
-        grovepi.digitalWrite(SOCKET,0)
+        grovepi.digitalWrite(SOCKET,OFF)
         exit(0)
     except:
-        grovepi.digitalWrite(SOCKET,0)
+        grovepi.digitalWrite(SOCKET,OFF)
         
