@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.30 2017/08/09 14:25:31 teus Exp teus $
+# $Id: INSTALL.sh,v 1.31 2017/08/09 14:38:00 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -823,7 +823,7 @@ function BUTTON(){
 # button socket on Grove D5, led socket on Grove D6
 SOCKET=\${1:-D5}
 LED=\${2:-D6}
-MYLED=$(pwd)/MyLed.py
+MYLED=/usr/local/bin/MyLed.py
 while /dev/true
 do
     if [ ! -x "\$MYLED" ] ; then exit 0 ; fi
