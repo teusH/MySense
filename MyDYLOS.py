@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDYLOS.py,v 2.20 2017/06/10 15:26:29 teus Exp teus $
+# $Id: MyDYLOS.py,v 2.21 2017/08/13 19:16:40 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add version number, firmware number
@@ -34,7 +34,7 @@
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MyDYLOS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.20 $"[11:-2]
+__version__ = "0." + "$Revision: 2.21 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -87,7 +87,7 @@ except ImportError as e:
 # convert pcs/qf (counter) to ug/m3 (weight)
 # ref: https://github.com/andy-pi/weather-monitor/blob/master/air_quality.py
 def convertPM(nr,conf,value):
-    if conf['units'][nr][0:3] == 'pcs': return value
+    if conf['units'][nr].find('pcs') >= 0: return value
     r = 0.44            # diameter of PM2.5
     if nr: r = 2.60     # diameter of PM10
     # concentration * K * mass (mass=:density (=:1.65*10**12) * vol (vol=:4/3 * pi * r**3))
