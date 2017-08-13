@@ -71,6 +71,9 @@ level    = INFO
 #usbid = Prolific_Technology
 #fields = pm25,pm10
 #units = 0.01pcs/qf,0.01pcs/qf
+# sample = 60
+# in monitor mode interval is 3600 (one hour)
+# interval = 50
 ## display raw measurements
 #raw = True
 
