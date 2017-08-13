@@ -14,8 +14,15 @@ Provide a generalised dynamic Open Source based infrastructure to allow:
 * free availability  of the data
 * free availability of all software (GPLV4 license)
 
+<div style='vertical-align: top; clear: both'>
+<img src="images/MySense-kit-1.png" align=left height=200>
+<img src="images/MySense-kit-2.png" height=200>
+<br />MySense sensor kits examples
+</figure>
+</div>
+<p>
+
 ## Scripts
-<img src="images/sensorkit-176.42.png" align=right width=250>
 All scripts are written in Python 2. Python 3 is supported but not tested well.
 Scripts have been tested on Raspberry Pi (2 and 3) running Wheezy and Jessie Debian based OS.
 Scripts have a -h (help) option. With no arguments the script will be started in interactive mode. Arguments: *start*, *status*, *stop*.
