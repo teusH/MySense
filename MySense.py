@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.13 2017/08/06 12:55:08 teus Exp teus $
+# $Id: MySense.py,v 3.14 2017/08/13 16:59:05 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.13 $"[11:-2]
+__version__ = "0." + "$Revision: 3.14 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -157,7 +157,7 @@ def read_configuration():
         try:
             config.read(initFile)
         except:
-            sys.exit("Config/init file %s has configuration errors." % initFile)
+            sys.exit("Config/init file %s has configuration errors: %s" % (initFile,sys.exc_info()[1]))
     else:
         config = None
         MyLogger.log(modulename,'WARNING',"No configuration file %s.conf found." % (progname.replace('.py','')))
