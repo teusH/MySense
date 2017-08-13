@@ -18,13 +18,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDISPLAY.py,v 1.5 2017/06/24 21:07:11 teus Exp teus $
+# $Id: MyDISPLAY.py,v 1.6 2017/08/13 19:54:37 teus Exp teus $
 
 """ Publish measurements to display service
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDISPLAY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+__version__ = "0." + "$Revision: 1.6 $"[11:-2]
 
 try:
     import MyLogger
@@ -100,7 +100,7 @@ def displayMsg(msg):
 
 # connect to db and keep connection as long as possible
 def db_connect(geo,name):
-    """ Connect to InFlux database and save filehandler """
+    """ Display geo location and name on display """
     global Conf
     if not 'fd' in Conf.keys(): Conf['fd'] = False
     if not Conf['fd']:
@@ -127,7 +127,7 @@ def db_connect(geo,name):
             sleep(30)   # allow some time to read the ident info
             Conf['fd'] = True
         except IOError:
-            MyLogger.log(modulename,'ERROR',"Access database %s / %s."  % (Conf['host'], Conf[database]))      
+            MyLogger.log(modulename,'ERROR',"Access display service on %s / %d. Display Server is running?"  % (Conf['host'], Conf['port']))      
             Conf['output'] = False
     return Conf['fd']
 
