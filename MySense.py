@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # 

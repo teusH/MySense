@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # 
@@ -28,7 +28,10 @@
 
 import socket 
 import threading
-from SocketServer import ThreadingMixIn 
+try:
+    from SocketServer import ThreadingMixIn 
+except:
+    from socketserver import ThreadingMixIn 
 import time
 import sys
 import os
@@ -237,7 +240,7 @@ def pid_is_running(pidfile):
     stdout, stderr = p.communicate()
     if stdout == "COMM\n":
         return False
-    if 'python' in stdout[stdout.find("\n")+1:]:
+    if 'python' in stdout[stdout.find(b'\n')+1:].decode('utf-8'):
         return int(contents)
 
 def deamon_daemonize(pidfile):
@@ -367,7 +370,7 @@ if __name__ == "__main__":
             deamon_detach(PID_FILE)
         logging.info("Display Server starts up")
     else:
-	Conf['debug'] = True
+        Conf['debug'] = True
 
     if (SIZE != '128x32') and (SIZE != '128x64'):
         sys.exit("Display size %s is not supported!" % SIZE)

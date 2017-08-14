@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.31 2017/08/09 14:38:00 teus Exp teus $
+# $Id: INSTALL.sh,v 1.33 2017/08/14 09:04:21 teus Exp $
 #
 
 echo "You need to provide your password for root access.
@@ -241,6 +241,7 @@ function MQTT(){
 }
 
 EXTRA+=" DISPLAY"
+UNINSTALL+=" /usr/local/bin/MyDisplayServer.py"
 function DISPLAY(){
     # this needs to be tested
     echo "Installing Display service and plugin"
@@ -250,17 +251,41 @@ function DISPLAY(){
     # DEPENDS_ON pip Adafruit_BBIO
     DEPENDS_ON apt python-imaging
     DEPENDS_ON apt python-smbus
-    if ! ls /dev/spi* | grep -q "spidev0.[01]"
+    local ANS=I2C
+    read -p "Please answer: SSD1306 display uses I2C or SPI bus? [I2C|SPI]: " ANS
+    case X"$ANS" in
+    XI2C|XSPI)
+        ANS=$ANS
+    ;;
+    *)
+        echo "No SSD1306 display bus proveided. Will skip this."
+        return 1
+    ;;
+    esac
+    if [ "$ANS" = SPI ] && ! ls /dev/spi* | grep -q "spidev0.[01]"
     then
         echo "GPIO: Missing spidev: please use \"sudo rasp-config\" and enable SPI"
     fi
-    if ! groups | grep -q spi
+    local INS_DIR=$(pwd)
+    if [ ! -f MyDisplayServer.py ]
     then
-        if ! useradd -G spi $USER || ! useradd -G i2c $USER
+        echo "ERROR: cannot locate MyDisplayServer.py for display service/server"
+        return 1
+    fi
+    sudo cp MyDisplayServer.py /usr/local/bin
+    sudo chmod +x /usr/local/bin/MyDisplayServer.py
+    if ! sudo grep -q '@reboot  *MyDisplayServer' /var/spool/cron/crontabs/root
+    then
+        sudo sh -c "echo '@reboot /usr/local/bin/MyDisplayServer.py -b $ANS start' >>/var/spool/cron/crontabs/root"
+        echo "Installed to activate ${ANS} display service on reboot."
+    fi
+    if ! groups | grep -q ${ANS,,}
+    then
+        if ! useradd -G ${ANS,,} $USER
         then
-            echo "Please add $USER or MYSense user to spi/i2c group: sudo nano /etc/group"
+            echo "Please add $USER or MYSense user to ${ANS,,} group: sudo nano /etc/group"
         else
-            echo "Added $USER to spi group to access /dev/spidev0.[01] and i2c group"
+            echo "Added $USER to ${ANS,,} group and for SPI to access /dev/spidev0.[01]"
         fi
     fi
     return $?
@@ -813,20 +838,22 @@ INSTALLS+=" BUTTON"
 UNINSTALLS+=" /usr/local/bin/MyLed.py"
 # install button/led/relay handler
 function BUTTON(){
-    if [ -x /usr/local/bin/MyLed.py ] ; then return ; fi
+    local MYLED=/usr/local/bin/MyLed.py
+    if [ -x $MYLED ] ; then return ; fi
     GROVEPI                # depends on govepi
     sudo cp MyLed.py /usr/local/bin/
-    sudo chmod +x /usr/local/bin/MyLed.py
+    sudo chmod +x $MYLED
     cat >/tmp/poweroff$$ <<EOF
 #!/bin/bash
 # power off switch: press 15 seconds till led light up constantly
 # button socket on Grove D5, led socket on Grove D6
 SOCKET=\${1:-D5}
 LED=\${2:-D6}
-MYLED=/usr/local/bin/MyLed.py
+MYLED=$MYLED
+if [ ! -x \$MYLED ] ; then exit 0 ; fi
+\$MYLED --led \$LED --blink 1,2,1
 while /dev/true
 do
-    if [ ! -x "\$MYLED" ] ; then exit 0 ; fi
     "\$MYLED" --led \$LED --light OFF
     TIMING=$("\$MYLED" --led \$LED --button \$SOCKET)
     TIMING=$(echo "\$TIMING" | /bin/sed 's/[^0-9]//g')
@@ -837,11 +864,11 @@ do
     fi
 done
 EOF
-    sudo cp /tmp/poweroff$$ /usr/local/etc/poweroff
-    sudo chmod +x /usr/local/etc/poweroff
-    if ! sudo grep -q '@reboot  */usr/local/etc/poweroff' /var/spool/cron/crontabs/root
+    sudo cp /tmp/poweroff$$ $MYLED
+    sudo chmod +x $MYLED
+    if ! sudo grep -q "^@reboot.*$MYLED" /var/spool/cron/crontabs/root
     then
-        sudo sh -c "'@reboot /usr/local/etc/poweroff >>/var/spool/cron/crontabs/root"
+        sudo sh -c "echo '@reboot $MYLED' >>/var/spool/cron/crontabs/root"
     fi
 }
 
