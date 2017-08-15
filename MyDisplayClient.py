@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # 
@@ -19,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDisplayClient.py,v 1.2 2017/06/17 12:24:42 teus Exp teus $
+# $Id: MyDisplayClient.py,v 1.3 2017/08/15 13:50:28 teus Exp teus $
 
 # script to send text to SSD1306 display server
 
