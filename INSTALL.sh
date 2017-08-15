@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.33 2017/08/14 09:04:21 teus Exp $
+# $Id: INSTALL.sh,v 1.34 2017/08/15 15:41:17 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -759,30 +759,41 @@ function VIRTUAL(){
     fi
     /bin/cat >/tmp/hostap$$ <<EOF
 #!/bin/bash
+BUS=I2C
+D_ADDR=2017
 # led ON
 if [ -x /usr/local/bin/MyLed.py ]
 then
     /usr/local/bin/MyLed.py --led D6 --light ON
 fi
+if [ -x /usr/local/bin/MyDisplayServer.py ]
+then
+    /usr/bin/sudo -u ios /usr/local/bin/MyDisplayServer.py -b \$BUS start 2>/dev/null
+    /bin/sleep 2
+fi
 
 function INTERNET() {
     local WLAN=\${1:-wlan0}
+    local ADDR=''
     if /sbin/ifconfig \$WLAN | grep -q 'inet addr'
     then
+        ADDR=\$(/sbin/ifconfig \$WLAN | /usr/bin/awk '/inet addr/{ split(\$2,a,":"); print a[2]; }')
         if /sbin/route -n | grep -q '^0.0.0.0.*'\${WLAN}
-	then
-	    # led OFF
+        then
+            # led OFF
             if [ -x /usr/local/bin/MyLed.py ]
-		/usr/local/bin/MyLed.py --led D6 --light OFF
-	    fi
-	    exit 0
-	fi
+            then
+                /usr/local/bin/MyLed.py --led D6 --light OFF
+            fi
+            echo "\$WLAN \$ADDR" | /bin/nc -w 2 localhost \$D_ADDR
+            exit 0
+        fi
     fi
     return 1
 }
 INTERNET eth0
 INTERNET wlan0
-if /sbin/ifconfig | /bin/grep -q uap0 
+if /sbin/ifconfig | /bin/grep -q uap0
 then
     /sbin/ip link set dev uap0 down
     /sbin/ifdown eth0
@@ -794,21 +805,23 @@ SSIDS=(\$(/sbin/wpa_cli scan_results | /bin/grep WPS | /usr/bin/sort -r -k3 | /u
 for SSID in \${SSIDS[@]}
 do
     # try associated: led OFF-ON-OFF-ON...
+    echo "Try WiFi \$SSID" | /bin/nc -w 2 localhost \$D_ADDR
     if [ -x /usr/local/bin/MyLed.py ]
     then
         /usr/local/bin/MyLed.py --led D6 --blink 1,1,30 &
     fi
     if /sbin/wpa_cli wps_pbc \$SSID | /bin/grep -q CTRL-EVENT-CONNECTED
     then
+        echo "\$SSID connected" | /bin/nc -w 2 localhost \$D_ADDR
         if [ -x /usr/local/bin/MyLed.py ]
-        then 
+        then
             kill %1
         fi
-	INTERNET
+        INTERNET
     fi
     if [ -x /usr/local/bin/MyLed.py ]
     then
-	/usr/local/bin/MyLed.py --led D6 --light ON
+        /usr/local/bin/MyLed.py --led D6 --light ON
     fi
 done
 
@@ -818,11 +831,14 @@ ADDR=\${2:-192.168.2}
 # led ON-OFF-OFF-OFF-ON ...
 /sbin/iw dev wlan0 interface add "\${WLAN}" type __ap
 /sbin/ip link set "\${WLAN}" address \$(ifconfig  | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:0f/')
-/sbin/ifup ${WLAN} 2>/dev/null >/dev/null   # ignore already exists error
+/sbin/ifup uap0 2>/dev/null >/dev/null   # ignore already exists error
 /usr/sbin/service dnsmasq restart
-$NAT
+/sbin/sysctl net.ipv4.ip_forward=1
+/sbin/iptables -t nat -A POSTROUTING -s 192.168.2.0/24 ! -d 192.168.2.0/24 -j MASQUERADE
 /usr/sbin/service hostapd restart
-/sbin/route del default dev $WLAN
+/sbin/route del default dev uap0
+echo "WiFi AP started" | /bin/nc -w 2 localhost \$D_ADDR
+/bin/grep -e ssid= -e wpa_passphrase= /etc/hostapd/hostapd.conf | /bin/nc -w 2 localhost \$D_ADDR
 EOF
     sudo cp /tmp/hostap$$ /usr/local/etc/start_wifi_AP
     sudo chmod +x /usr/local/etc/start_wifi_AP
