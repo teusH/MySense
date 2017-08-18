@@ -22,6 +22,16 @@ Provide a generalised dynamic Open Source based infrastructure to allow:
 </div>
 <p>
 
+## Sensor kit case
+
+<div style='vertical-align: top; clear: both'>
+<img src="images/MySense-2-kast.png" align=left height=100>
+The sensor kit case is build from PVC roof gutter pieces: gutter end pieces for keeping the air in and the rain out, and overflow gutter box as casing.
+The case has a poweroff button and small window to show a tiny display with current measurements. The senors are fixated on a Lego plate to allow flexibility of sensor changes.
+</div>
+<p>
+
+# Software
 ## Scripts
 All scripts are written in Python 2. Python 3 is supported but not tested well.
 Scripts have been tested on Raspberry Pi (2 and 3) running Wheezy and Jessie Debian based OS.
