@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyINFLUXPUB.py,v 1.20 2017/06/26 09:12:31 teus Exp teus $
+# $Id: MyINFLUXPUB.py,v 1.21 2017/08/21 15:30:19 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyINFLUXPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.20 $"[11:-2]
+__version__ = "0." + "$Revision: 1.21 $"[11:-2]
 
 try:
     import MyLogger
@@ -70,7 +70,7 @@ def db_connect(net):
         Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
     if (Conf['fd'] == None) or (not Conf['fd']):
         if (Conf['hostname'] != 'localhost') and ((not net['module']) or (not net['connected'])):
-            MyLogger.log(modulename,'ERROR',"Access database %s / %s."  % (Conf['hostname'], Conf[database]))      
+            MyLogger.log(modulename,'ERROR',"Access database %s / %s."  % (Conf['hostname'], Conf['database']))      
             Conf['output'] = False
             return False
         for M in ('user','password','hostname','database'):
