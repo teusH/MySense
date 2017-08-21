@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.34 2017/08/15 15:41:17 teus Exp teus $
+# $Id: INSTALL.sh,v 1.36 2017/08/21 15:51:23 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -615,12 +615,13 @@ EOF
 #!/bin/bash
 INT=\${1:-eth0}
 WLAN=\$2
+EXIT=0
 if [ -z "\$2" ] ; then exit 0 ; fi
 if /sbin/route -n | /bin/grep -q '^0.0.0.0.*dev  *'\${INT}
 then
-    exit 1      # do not bring up \${WLAN:-wlan0} if not needed
+    EXIT=1      # do not bring up \${WLAN:-wlan0} if not needed
 fi
-exit 0
+exit \$EXIT
 EOF
     chmod +x /tmp/Int$$
     sudo cp /tmp/Int$$ /etc/network/if-pre-up.d/Check-internet
@@ -759,6 +760,9 @@ function VIRTUAL(){
     fi
     /bin/cat >/tmp/hostap$$ <<EOF
 #!/bin/bash
+# this will check wired, wifi if there is a connectivity
+# if not it will initiate wifi AP to login locally
+
 BUS=I2C
 D_ADDR=2017
 # led ON
@@ -780,6 +784,11 @@ function INTERNET() {
         ADDR=\$(/sbin/ifconfig \$WLAN | /usr/bin/awk '/inet addr/{ split(\$2,a,":"); print a[2]; }')
         if /sbin/route -n | grep -q '^0.0.0.0.*'\${WLAN}
         then
+            if ! ping -q -W 2 -c 2 8.8.8.8 >/dev/null
+            then
+                # no outside connectivity
+                return 1
+            fi
             # led OFF
             if [ -x /usr/local/bin/MyLed.py ]
             then
@@ -791,8 +800,11 @@ function INTERNET() {
     fi
     return 1
 }
-INTERNET eth0
-INTERNET wlan0
+
+INTERNET eth0	# try wired internet line
+INTERNET wlan0  # try WiFi connectivity
+
+# no connectivity. Start wifi AP
 if /sbin/ifconfig | /bin/grep -q uap0
 then
     /sbin/ip link set dev uap0 down
@@ -800,25 +812,29 @@ then
     /sbin/ifup wlan0
 fi
 
-# try WPS
 SSIDS=(\$(/sbin/wpa_cli scan_results | /bin/grep WPS | /usr/bin/sort -r -k3 | /usr/bin/awk '{ print \$1;}'))
-for SSID in \${SSIDS[@]}
+# try WPS on all BSSID's
+echo "<clear>Try WiFi WPS on:" | /bin/nc -w 2 localhost \$D_ADDR
+if [ -x /usr/local/bin/MyLed.py ]
+then
+    /usr/local/bin/MyLed.py --led D6 --blink 1,1,15 &
+fi
+for BSSID in \${SSIDS[@]}
 do
     # try associated: led OFF-ON-OFF-ON...
-    echo "Try WiFi \$SSID" | /bin/nc -w 2 localhost \$D_ADDR
-    if [ -x /usr/local/bin/MyLed.py ]
+    SSID=\$(/sbin/wpa_cli scan_results | /bin/grep \$BSSID | awk  -F '\t' '{ print \$5; exit(0); }')
+    echo "  \$SSID" | /bin/nc -w 2 localhost \$D_ADDR
+    if /sbin/wpa_cli wps_pbc "\$BSSID" | /bin/grep -q CTRL-EVENT-CONNECTED
     then
-        /usr/local/bin/MyLed.py --led D6 --blink 1,1,30 &
-    fi
-    if /sbin/wpa_cli wps_pbc \$SSID | /bin/grep -q CTRL-EVENT-CONNECTED
-    then
-        echo "\$SSID connected" | /bin/nc -w 2 localhost \$D_ADDR
+        echo "CONNECTED" | /bin/nc -w 2 localhost \$D_ADDR
         if [ -x /usr/local/bin/MyLed.py ]
         then
             kill %1
         fi
+	# on success this process will die on next call
         INTERNET
     fi
+    # try next available SSID
     if [ -x /usr/local/bin/MyLed.py ]
     then
         /usr/local/bin/MyLed.py --led D6 --light ON
@@ -829,6 +845,12 @@ done
 WLAN=\${1:-uap0}
 ADDR=\${2:-192.168.2}
 # led ON-OFF-OFF-OFF-ON ...
+echo "<clear>NO INTERNET" | /bin/nc -w 2 localhost \$D_ADDR
+if [ -x /usr/local/bin/MyLed.py ]
+then
+    kill %1
+    /usr/local/bin/MyLed.py --led D6 --blink 1,5,30 &
+fi
 /sbin/iw dev wlan0 interface add "\${WLAN}" type __ap
 /sbin/ip link set "\${WLAN}" address \$(ifconfig  | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:0f/')
 /sbin/ifup uap0 2>/dev/null >/dev/null   # ignore already exists error
@@ -837,8 +859,9 @@ ADDR=\${2:-192.168.2}
 /sbin/iptables -t nat -A POSTROUTING -s 192.168.2.0/24 ! -d 192.168.2.0/24 -j MASQUERADE
 /usr/sbin/service hostapd restart
 /sbin/route del default dev uap0
-echo "WiFi AP started" | /bin/nc -w 2 localhost \$D_ADDR
-/bin/grep -e ssid= -e wpa_passphrase= /etc/hostapd/hostapd.conf | /bin/nc -w 2 localhost \$D_ADDR
+sleep 5
+echo "WiFi AP please login" | /bin/nc -w 2 localhost \$D_ADDR
+/bin/grep -e 'ssid=...' -e wpa_passphrase= /etc/hostapd/hostapd.conf | /bin/sed 's/.*phrase/phrase/' | /bin/nc -w 2 localhost \$D_ADDR
 EOF
     sudo cp /tmp/hostap$$ /usr/local/etc/start_wifi_AP
     sudo chmod +x /usr/local/etc/start_wifi_AP
@@ -866,6 +889,7 @@ function BUTTON(){
 SOCKET=\${1:-D5}
 LED=\${2:-D6}
 MYLED=$MYLED
+D_ADDR=2017
 if [ ! -x \$MYLED ] ; then exit 0 ; fi
 \$MYLED --led \$LED --blink 1,2,1
 while /dev/true
@@ -875,7 +899,9 @@ do
     TIMING=$(echo "\$TIMING" | /bin/sed 's/[^0-9]//g')
     if [ -n "\${TIMING}" -a "\$TIMING" -gt 10 ]
     then
+        echo -e "<clear>POWER OFF\n  Close MySense" | /usr/bin/nc -w 2 localhost \$D_ADDR
         "\$MYLED" --led \$LED --blink 0.25,0.25,2 &
+        /usr/bin/killall -r ".*MySense.*"
         /sbin/poweroff
     fi
 done
