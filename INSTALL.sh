@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.36 2017/08/21 15:51:23 teus Exp teus $
+# $Id: INSTALL.sh,v 1.38 2017/08/22 14:56:43 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -240,6 +240,47 @@ function MQTT(){
     return $?
 }
 
+EXTRA+=" STARTUP"
+UNINSTALL+=" MyStart.sh"
+function STARTUP(){
+    echo "auto MySense start on boot: MyStart.sh"
+    WD=$(pwd | sed -e s@$HOME@@ -e 's/^//')
+    cat >MyStart.sh <<EOF
+#!/bin/bash
+# if there is internet connectivity start MySense
+
+LED=\${LED:-D6}
+WD=\${DIR:-$WD}
+D_ADDR=2017
+
+if [ ! -d \$HOME/\$WD ] ; then exit 1 ; fi
+if [ ! -f \$HOME/\$WD/MySense.conf -o ! -f \$HOME/\$WD/MySense.py ]
+then
+    echo -e "<clear>MySense ERROR\nnot properly installed" | /bin/nc -w 2 localhost \$D_ADDR
+    exit 1
+fi
+
+while ! /bin/ping -q -w 2 -c 1 8.8.8.8 >/dev/null
+do  
+    /usr/local/bin/MyLed.py --led \$LED ON
+    sleep 1
+    /usr/local/bin/MyLed.py --led \$LED OFF
+    sleep 59
+done
+cd \$HOME/\$WD
+echo -e "<clear>STARTING up MySense\nWelcome to MySense" | /bin/nc -w 2 localhost \$D_ADDR
+python \$HOME/\$WD/MySense.py start
+exit 0
+EOF
+    chmod +x MyStart.sh
+    if ! crontab -l | grep -q "^@reboot.*MyStart.sh"
+    then
+        crontab -u $USER -l >/tmp/ST$$ ; echo "@reboot $(pwd)/MyStart.sh" >>/tmp/ST$$
+        cat /tmp/ST$$ | crontab -u $USER -
+        rm -f /tmp/ST$$
+    fi
+}
+
 EXTRA+=" DISPLAY"
 UNINSTALL+=" /usr/local/bin/MyDisplayServer.py"
 function DISPLAY(){
@@ -256,9 +297,9 @@ function DISPLAY(){
     case X"$ANS" in
     XI2C|XSPI)
         ANS=$ANS
-    ;;
-    *)
-        echo "No SSD1306 display bus proveided. Will skip this."
+        ;
+    *
+
         return 1
     ;;
     esac
@@ -897,12 +938,21 @@ do
     "\$MYLED" --led \$LED --light OFF
     TIMING=$("\$MYLED" --led \$LED --button \$SOCKET)
     TIMING=$(echo "\$TIMING" | /bin/sed 's/[^0-9]//g')
+    if [ -z "\$TIMING" ]
+    then
+        sleep 5
+        continue
+    fi
     if [ -n "\${TIMING}" -a "\$TIMING" -gt 10 ]
     then
         echo -e "<clear>POWER OFF\n  Close MySense" | /usr/bin/nc -w 2 localhost \$D_ADDR
         "\$MYLED" --led \$LED --blink 0.25,0.25,2 &
         /usr/bin/killall -r ".*MySense.*"
         /sbin/poweroff
+    elif [ "\${TIMING}" -gt 5 -a -x /usr/local/etc/start_wifi_AP ]
+        echo -e "<clear>WiFi reset\n   WiFi WPS" | /bin/nc -w 2 localhost \$D_ADDR
+        /usr/local/bin/MyLed.py --led \$LED --blink 0.25,1.25,1 &
+        /usr/local/etc/start_wifi_AP
     fi
 done
 EOF
