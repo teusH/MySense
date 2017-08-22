@@ -29,6 +29,7 @@ Provide a generalised dynamic Open Source based infrastructure to allow:
 The sensor kit case is build from PVC roof gutter pieces: gutter end pieces for keeping the air in and the rain out, and overflow gutter box as casing.
 The case has a poweroff button and small window to show a tiny display with current measurements. The senors are fixated on a Lego plate to allow flexibility of sensor changes.
 </div>
+See for a How To: README.case.md
 <p>
 
 # Software
