@@ -22,6 +22,22 @@ Provide a generalised dynamic Open Source based infrastructure to allow:
 </div>
 <p>
 
+## How to start MySense
+* Create MySense user e.g. `ios` and login as this user.
+* Install the software on e.g. the Raspberry Pi 3 on a new user e.g. `ios` in the directory e.g. `MySense`. Use `INSTALL.sh` to install all dependencies and startup scripts.
+* Configure MySense.conf using MySense.conf.example as a lead.
+* Test one by one the input and output scripts in the python debugger as standalone e.g. `pdb MySDS011.py`. Once this is tested, go to the next step.
+* Run Mysense as follows `python MySense.py` and you will see all output on your screen.
+* If you use a tiny display: start the display server: `python MyDisplayServer.py start`
+* Start up MySense: `python MySense.py start`
+
+If needed See the README files and documentation files in `docs` for more detailed info.
+
+If you installed a led switch (controlled by `/usr/local/bin/poweroff`, pressing the switch longer as 10 seconds will poweroff mthe Pi. Pressing the switch 6 seconds will restart a search for wired or wifi internet connectivity. Without internet connectivity the MySense software will not be started on a reboot.
+
+The `@reboot /home/ios/MySense/MyStart.sh` in the ios crontab table will automatically start MySense on a reboot. Comment this out in the test phase.
+
+# MySense box
 ## Sensor kit case
 
 <div style='vertical-align: top; clear: both'>
