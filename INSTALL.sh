@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.38 2017/08/22 14:56:43 teus Exp teus $
+# $Id: INSTALL.sh,v 1.39 2017/08/22 17:45:21 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -945,7 +945,7 @@ do
     fi
     if [ -n "\${TIMING}" -a "\$TIMING" -gt 10 ]
     then
-        echo -e "<clear>POWER OFF\n  Close MySense" | /usr/bin/nc -w 2 localhost \$D_ADDR
+         o -e "<clear>POWERED OFF\n   MySense\n                     ..=|=..                     " | /bin/nc -w 2 localhost $D_ADDR
         "\$MYLED" --led \$LED --blink 0.25,0.25,2 &
         /usr/bin/killall -r ".*MySense.*"
         /sbin/poweroff
