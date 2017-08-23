@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.39 2017/08/22 17:45:21 teus Exp teus $
+# $Id: INSTALL.sh,v 1.40 2017/08/23 09:33:39 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -950,6 +950,7 @@ do
         /usr/bin/killall -r ".*MySense.*"
         /sbin/poweroff
     elif [ "\${TIMING}" -gt 5 -a -x /usr/local/etc/start_wifi_AP ]
+    then
         echo -e "<clear>WiFi reset\n   WiFi WPS" | /bin/nc -w 2 localhost \$D_ADDR
         /usr/local/bin/MyLed.py --led \$LED --blink 0.25,1.25,1 &
         /usr/local/etc/start_wifi_AP
