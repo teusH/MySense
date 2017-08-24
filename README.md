@@ -33,7 +33,13 @@ Provide a generalised dynamic Open Source based infrastructure to allow:
 
 If needed See the README files and documentation files in `docs` for more detailed info.
 
-If you installed a led switch (controlled by `/usr/local/bin/poweroff`, pressing the switch longer as 10 seconds will poweroff mthe Pi. Pressing the switch 6 seconds will restart a search for wired or wifi internet connectivity. Without internet connectivity the MySense software will not be started on a reboot.
+If you installed a led switch (controlled by `/usr/local/bin/poweroff`:
+* Pressing the switch longer as 20 seconds will poweroff the Pi
+* Pressing the switch longer as 10 seconds will reboot the Pi
+* Pressing the switch 6 seconds will restart a search for wired or wifi internet connectivity.
+* If the Pi is powered off a discoonect and connect of the adapter will boot the Pi.
+
+Without internet connectivity the MySense software will not be started on a reboot.
 
 The `@reboot /home/ios/MySense/MyStart.sh` in the ios crontab table will automatically start MySense on a reboot. Comment this out in the test phase.
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.40 2017/08/23 09:33:39 teus Exp teus $
+# $Id: INSTALL.sh,v 1.41 2017/08/24 18:01:26 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -943,15 +943,21 @@ do
         sleep 5
         continue
     fi
-    if [ -n "\${TIMING}" -a "\$TIMING" -gt 10 ]
+    if [ -n "\${TIMING}" -a "\$TIMING" -gt 20 ]
     then
-         o -e "<clear>POWERED OFF\n   MySense\n                     ..=|=..                     " | /bin/nc -w 2 localhost $D_ADDR
+         echo -e "<clear>POWERED OFF\n   MySense\n                     ..Bye..                     " | /bin/nc -w 2 localhost $D_ADDR
         "\$MYLED" --led \$LED --blink 0.25,0.25,2 &
         /usr/bin/killall -r ".*MySense.*"
         /sbin/poweroff
+    if [ -n "\${TIMING}" -a "\$TIMING" -gt 10 ]
+    then
+         echo -e "<clear>REBOOT\n   MySense\n                     ..=|=..                     " | /bin/nc -w 2 localhost $D_ADDR
+        "\$MYLED" --led \$LED --blink 0.25,0.5,2 &
+        /usr/bin/killall -r ".*MySense.*"
+        /sbin/reboot
     elif [ "\${TIMING}" -gt 5 -a -x /usr/local/etc/start_wifi_AP ]
     then
-        echo -e "<clear>WiFi reset\n   WiFi WPS" | /bin/nc -w 2 localhost \$D_ADDR
+        echo -e "<clear>WiFi reset\n   WiFi WPA\n   WiFi WPS" | /bin/nc -w 2 localhost \$D_ADDR
         /usr/local/bin/MyLed.py --led \$LED --blink 0.25,1.25,1 &
         /usr/local/etc/start_wifi_AP
     fi
