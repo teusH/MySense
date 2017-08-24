@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.26 2017/06/07 10:58:07 teus Exp teus $
+# $Id: MyDHT.py,v 2.27 2017/08/24 12:56:08 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.26 $"[11:-2]
+__version__ = "0." + "$Revision: 2.27 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -197,6 +197,7 @@ if __name__ == '__main__':
     Conf['input'] = True
     Conf['sync'] = True         # True is in sync (not multi threaded)
     Conf['debug'] = True        # print collected sensor values
+    Conf['raw'] = None          # disable raw publishing to InFlux
     for cnt in range(0,10):
         timing = time()
         try:
