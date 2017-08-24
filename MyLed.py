@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLed.py,v 1.6 2017/08/09 14:22:26 teus Exp teus $
+# $Id: MyLed.py,v 1.7 2017/08/24 18:33:32 teus Exp teus $
 
 # Turn Grove led on, off or blink for an amount of time
 
@@ -34,7 +34,7 @@
 from __future__ import print_function
 
 progname='$RCSfile: MyLed.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.6 $"[11:-2]
+__version__ = "0." + "$Revision: 1.7 $"[11:-2]
 __license__ = 'GPLV4'
 grovepi = None
 import sys
@@ -122,10 +122,14 @@ def pressed():
         if (not PRESSED) and NEW:
             PRESSED = NEW
             started = time()
-            BLINK = [1,1,30]
+            BLINK = [0.5,0.5,30]
             LED = ON
-        elif (int(time()-started)/6) >= 1:
-            BLINK = [(int(time()-started)/6),1,30]
+        elif (time() - started) > 20:
+            BLINK = [1.5,0.3,30] ; LED = ON
+        elif (time() - started) > 10:
+            BLINK = [1,0.5,30] ; LED = ON
+        elif (int(time()-started)) >= 5:
+            BLINK = [2,1,30]
             LED = ON
         return False
    
