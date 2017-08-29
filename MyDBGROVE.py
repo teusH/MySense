@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDBGROVE.py,v 2.10 2017/06/08 19:41:36 teus Exp teus $
+# $Id: MyDBGROVE.py,v 2.11 2017/08/29 14:40:17 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDBGROVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.10 $"[11:-2]
+__version__ = "0." + "$Revision: 2.11 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -61,6 +61,7 @@ Conf ={
     'sync': False,       # use thread or not to collect data
     'raw': False,        # raw measurements publishing
     'debug': False,      # be more versatile
+    'errors': 0,         # access error count
 #    'fd' : None         # input handler
 }
 
@@ -80,8 +81,13 @@ def calibrate(nr,conf,value):
 def Add(conf):
     try:
         db = grovepi.analogRead(conf['fd'])
+        conf['errors'] = 0
     except:
         MyLogger.log(modulename,'ERROR',"Loudness access error.")
+        conf['errors'] += 1
+        if conf['errors'] > 10:
+            conf['input'] = False
+            MyLogger.log(modulename,'ERROR',"Too many loudness read errors, switched off.")
         return {'time': int(time()),conf['fields'][0]:None}
     if conf['debug']:
         MyLogger.log(modulename,'DEBUG',"Loudness: %s" % str(db))
