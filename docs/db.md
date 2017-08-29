@@ -38,11 +38,17 @@ And create the database:
 ```
 and add the MySense user (use '%' for localhost as wildcard for access from every host):
 ```mysql
+    mysql> # only one local user
     mysql> CREATE USER 'newuser'@'localhost' IDENTIFIED BY 'password';
-    mysql> GRANT ALL PRIVILEGES ON * . * TO 'newuser'@'localhost';
+    mysql> # one user from everwhere
+    mysql> CREATE USER 'newuser'@'%' IDENTIFIED BY 'password';
+    mysql> # this user has all privileges and so real power
+    mysql> GRANT ALL PRIVILEGES ON your_database_name.* TO 'newuser'@'localhost';
+    mysql> # this user only on one database, and some restrictions
+    mysql> GRANT ALTER,CREATE,INSERT,SELECT,UPDATE ON your_database_name.* TO 'newuser'@'%' IDENTIFIED BY 'password';
     mysql> FLUSH PRIVILEGES;
     mysql> QUIT
 ```
 AND *WRITE* a big sign above your bed to restrict this user for security reasons later.
 
-MySense will create and extend the tables and table columns automaticalty when needed so.
+MySense will create and extend the tables and table columns automaticaly when needed so.
