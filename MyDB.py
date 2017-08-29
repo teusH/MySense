@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.24 2017/08/14 12:12:31 teus Exp teus $
+# $Id: MyDB.py,v 2.25 2017/08/29 14:25:38 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.24 $"[11:-2]
+__version__ = "0." + "$Revision: 2.25 $"[11:-2]
 
 try:
     import MyLogger
@@ -130,7 +130,7 @@ def db_registrate(ident):
             ADD COLUMN sensors VARCHAR(128) DEFAULT NULL,
             ADD COLUMN description VARCHAR(256) DEFAULT NULL,
             ADD COLUMN first DATETIME DEFAULT '2001-01-01 00:00:00',
-            ADD COLUMN active TINYBIT(1) DEFAULT 1,
+            ADD COLUMN active BOOL DEFAULT 1,
             ADD COLUMN project VARCHAR(10) DEFAULT NULL,
             ADD COLUMN serial VARCHAR(15) DEFAULT NULL,
             ADD COLUMN street VARCHAR(50) DEFAULT NULL,
@@ -138,7 +138,7 @@ def db_registrate(ident):
             ADD COLUMN province VARCHAR(50) DEFAULT NULL,
             ADD COLUMN municipality VARCHAR(50) DEFAULT NULL,
             ADD COLUMN last_check DATETIME DEFAULT CURRENT_TIMESTAMP
-        """):
+        """, False):
             return False
     Rslt =  db_query("SELECT first,coordinates FROM Sensors WHERE project = '%s' AND serial = '%s' AND active" % (ident['project'],ident['serial']), True)
     if not type(Rslt) is list:
@@ -214,17 +214,23 @@ def db_table(ident,table):
         Conf[table] = True
         return True
     # create database: CREATE DATABASE  IF NOT EXISTS mydb; by super user
-    if not db_query("""CREATE TABLE %s_%s (
+    if table in ('Sensors'):
+        comment = 'Collection of sensor kits and locations'
+        table_name = table
+    else:
+        comment = 'Sensor located at: %s' % ident['geolocation']
+        table_name = '%s_%s' % (ident['project'],ident['serial'])
+    if not db_query("""CREATE TABLE %s (
         id TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             COMMENT 'date/time latest change',
         datum datetime UNIQUE default NULL
             COMMENT 'date/time measurement'
         ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-            COMMENT='Sensor located at: %s'""" % (ident['project'],ident['serial'],ident['geolocation']),False):
+            COMMENT='%s'""" % (table_name,comment),False):
         Conf[table] = False
-        MyLogger.log(modulename,'ERROR',"Unable to create sensor table in database.")
+        MyLogger.log(modulename,'ERROR',"Unable to create sensor table %s in database." % table_name)
     else:
-        MyLogger.log(modulename,'ATTENT',"Created table %s_%s" % (ident['project'],ident['serial']))
+        MyLogger.log(modulename,'ATTENT',"Created table %s" % table_name)
     Conf[table] = True
     return Conf[table]
 
@@ -346,3 +352,35 @@ def publish(**args):
     if ErrorCnt > 10:
         return False
     return True
+
+# test main loop
+if __name__ == '__main__':
+    from time import sleep
+    Conf['output'] = True
+    Conf['hostname'] = 'lunar'         # host InFlux server
+    Conf['database'] = 'BdP'           # the MySql db for test usage, must exists
+    Conf['user'] = 'ios'               # user with insert permission of InFlux DB
+    Conf['password'] = 'acacadabra'    # DB credential secret to use InFlux DB
+    net = { 'module': True, 'connected': True }
+    try:
+        import Output_test_data
+    except:
+        print("Please provide input test data: ident and data.")
+        exit(1)
+
+    for cnt in range(0,len(Output_test_data.data)):
+        timings = time()
+        try:
+            publish(
+                ident=Output_test_data.ident,
+                data = Output_test_data.data[cnt],
+                internet = net
+            )
+        except Exception as e:
+            print("output channel error was raised as %s" % e)
+            break
+        timings = 30 - (time()-timings)
+        if timings > 0:
+            print("Sleep for %d seconds" % timings)
+            sleep(timings)
+
