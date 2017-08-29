@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDBGROVE.py,v 2.11 2017/08/29 14:40:17 teus Exp teus $
+# $Id: MyDBGROVE.py,v 2.12 2017/08/29 18:45:05 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDBGROVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.11 $"[11:-2]
+__version__ = "0." + "$Revision: 2.12 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -88,13 +88,14 @@ def Add(conf):
         if conf['errors'] > 10:
             conf['input'] = False
             MyLogger.log(modulename,'ERROR',"Too many loudness read errors, switched off.")
+            return None
         return {'time': int(time()),conf['fields'][0]:None}
     if conf['debug']:
         MyLogger.log(modulename,'DEBUG',"Loudness: %s" % str(db))
     if not type(db) is int:
 	MyLogger.log(modulename,'ATTENT','Has not an int as value: %s' % str(db))
 	return {'time': int(time()),conf['fields'][0]:None}
-    if ('raw' in conf.keys()) and (Conf['raw'] != None):
+    if ('raw' in conf.keys()) and (conf['raw'] != None):
         conf['raw'].publish(
             tag='%s' % conf['type'].lower(),
             data="dbv=%.1f" % float(db))
@@ -177,4 +178,4 @@ if __name__ == '__main__':
         if timing > 0:
             sleep(timing)
     if (not Conf['sync']) and (MyThread != None):
-        oyThread.stop_thread()
+        MyThread.stop_thread()
