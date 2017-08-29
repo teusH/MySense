@@ -13,6 +13,10 @@ pid    = /var/tmp
 # the effective uid and gid if started by root
 user    = ios
 group   = ios
+# main loop interval time in minutes
+#interval = 60
+# force ALL input sensors to output all measurement values to InFlux server
+#raw    = False
 
 # identification of this sensor
 [id]

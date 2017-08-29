@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.15 2017/08/13 18:15:56 teus Exp teus $
+# $Id: MySense.py,v 3.16 2017/08/29 10:57:50 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.15 $"[11:-2]
+__version__ = "0." + "$Revision: 3.16 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -201,9 +201,9 @@ def read_configuration():
                     # end for InOut
             else:
                 if key == 'id':
-                    options = ['project','serial','geolocation']
+                    options = ['project','serial','geolocation','label','description','street','village','province','municipality']
                 elif key == 'process':
-                    options = ['home','pid','user','group','start_dir']
+                    options = ['home','pid','user','group','start_dir','interval','raw']
                 elif key == 'logging':
                     options = ['level','file']
 		elif key == 'raw':
@@ -383,7 +383,11 @@ def integrate_options():
     Conf['id']['project'] = cmd_args.project
     Conf['id']['serial'] = cmd_args.node
     Conf['id']['geolocation'] = cmd_args.geolocation
-    INTERVAL = int(cmd_args.interval) * 60
+    if 'interval' in Conf['process'].keys():
+        INTERVAL = int(Conf['process']['interval']) * 60
+        del(Conf['process']['interval'])
+    if int(cmd_args.interval) != 60:
+        INTERVAL = int(cmd_args.interval) * 60
     HeapSze = int(cmd_args.memory) * 1000
     RAW = False; RAWok = True
     if Conf['raw']['file'] != None:
@@ -391,7 +395,11 @@ def integrate_options():
     else:
         for key in ['hostname','user','password']:
             if Conf['raw'][key] == None: RAWok = False
-    if RAWok: RAW = bool(cmd_args.raw)
+    if RAWok:
+        if 'raw' in Conf['process'].keys():
+            RAW = Conf['process']['raw']
+            del(Conf['process']['raw'])
+        if bool(cmd_args.raw): RAW = True
     elif 'import' in Conf['raw'].keys():
         del Conf['raw']['import']
 
