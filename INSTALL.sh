@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.42 2017/08/24 18:14:49 teus Exp teus $
+# $Id: INSTALL.sh,v 1.43 2017/08/30 08:56:30 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -243,7 +243,7 @@ function MQTT(){
 EXTRA+=" STARTUP"
 UNINSTALL+=" MyStart.sh"
 function STARTUP(){
-    echo "auto MySense start on boot: MyStart.sh"
+    echo "Installing: auto MySense start on boot: MyStart.sh"
     WD=$(pwd | sed -e s@$HOME@@ -e 's/^//')
     cat >MyStart.sh <<EOF
 #!/bin/bash
@@ -260,11 +260,14 @@ then
     exit 1
 fi
 
+WAIT=""
 while ! /bin/ping -q -w 2 -c 1 8.8.8.8 >/dev/null
 do  
-    /usr/local/bin/MyLed.py --led \$LED ON
+    WAIT+=.
+    echo -e "<clear>MySense waiting for\n  internet access\$WAIT" | /bin/nc -w 2 localhost \$D_ADDR
+    /usr/local/bin/MyLed.py --led \$LED --light ON
     sleep 1
-    /usr/local/bin/MyLed.py --led \$LED OFF
+    /usr/local/bin/MyLed.py --led \$LED --light OFF
     sleep 59
 done
 cd \$HOME/\$WD
@@ -273,11 +276,10 @@ python \$HOME/\$WD/MySense.py start
 exit 0
 EOF
     chmod +x MyStart.sh
-    if ! crontab -l | grep -q "^@reboot.*MyStart.sh"
+    if ! /usr/bin/crontab -l | /bin/grep -q "^@reboot.*MyStart.sh"
     then
-        crontab -u $USER -l >/tmp/ST$$ ; echo "@reboot $(pwd)/MyStart.sh" >>/tmp/ST$$
-        cat /tmp/ST$$ | crontab -u $USER -
-        rm -f /tmp/ST$$
+        (/usr/bin/crontab -u $USER -l ; echo "@reboot $(pwd)/MyStart.sh") | /usr/bin/crontab -u $USER -
+        /usr/bin/sudo /bin/chmod 4755 /bin/ping
     fi
 }
 
