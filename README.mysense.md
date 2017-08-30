@@ -9,6 +9,19 @@ the building blocks
 STATUS: BETA operational
 
 ## USAGE:
+MySense is started up from e.g. from user `ios` in `/home/ios/MySense/` installation folder as follows:
+```bash
+   cd /home/ios/MySense/
+    python ./MySense.py start
+```
+The command `python ./MySense.py stop` will stop the process. The argument `status` will show if MySense is running or not.
+
+If for installation `INSTALL.sh` is used the file `MyStart.sh` will be executed on powering on the Pi and after a wait for internet connectivity MySense will be started automatically.
+If the poweroff switch is installed the command `/usr/local/etc/poweroff` started at boot time witll watch the poweroff button: 
+* less as 5 seconds pressed and no internet connectivity PWS will be searched for wifi access. If no wifi access is found MySense will go into wifi access point modus. Login with the user/password shown on the display.
+* less as 10-20 seconds pressed MySense will reboot
+* more as 20 seconds pressed MySense will poweroff the Pi.
+
 Note that the main python program MySense.py may need to operate fully a config or init file.
 The file is looked up as program name extended with .conf: eg MySense.conf
 The initfile may also be defined by the environment variable captial program name. Eg. MYSENSE=/etc/ios/MySense.ini
@@ -49,15 +62,16 @@ All access via internet is guarded by user/password or signature credentials.
 To enable access for input or output plugins, say the xyz plugin one need to define the user/password (gspread needs a credential signature file). The definition of the credential happens at the server site. MySense acts always as a client, eg to mosquitto (mqtt) broker, but is able to act as gateway: input mqttsub, output as mqttpub.
 The password can be defined in the init/config file (not recommanded), as well be overwritten by the command environment variable XYZHOST, XYZPASS, en XYZUSER for the plugin "xyz".
 
-MySense can operate as deamon by "python MySense.py start command". Or use status or stop as argument to eg stop the script.
-
-## INSTALL:
+## INSTALL
 Every MySense plugin modules do some python module imports.
 They need to be installed in the Pi if one uses a MySense plugin module..
 If pip is not installed do so with: sudo apt-get install python-pip
 Install missing modules with sudo pip install <module name>
 
 Installation of library dependencies one can use the `INSTALL.sh help` script.
+
+## TEST configuration and plugins
+The sensor input plugins and output plugins can be used as standalone scripts. With the Python debug (`pdb MyPlugin.py`) one can test the plugin independent from the main MySense.py script. One may have to change the Conf hash table definitions  at the end of the script to a local situation.
 
 ## DEPENDENCES
 This is a list of pyhon modules of imports done by various plugins:
