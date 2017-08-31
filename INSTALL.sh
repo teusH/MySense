@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.45 2017/08/31 11:13:20 teus Exp teus $
+# $Id: INSTALL.sh,v 1.46 2017/08/31 12:09:54 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -19,6 +19,20 @@ function UPDATE() {
         /usr/bin/sudo apt-get autoremove
         # /usr/bin/sudo pip install --upgrade
     fi
+}
+
+# add a command to crontab of user executed at (re)boot
+function AddCrontab() {
+    local myUSER=${2:-root}
+    local SUDO=''
+    if [ -z "$1" ] ; then return 1 ; fi
+    if [ "$myUSER" != "$USER" ] ; then SUDO=/usr/bin/sudo ; fi
+    if ! $SUDO /usr/bin/crontab -u "$myUSER" -l | /bin/grep -q "^@boot.*$1"
+    then
+        ($SUDO /usr/bin/crontab -u "$myUSER" -l ; echo "^@boot $1" ) | $SUDO /usr/bin/crontab -u "$myUSER" -
+        echo "Added at (re)boot to execute $1 as $myUSER user."
+    fi
+    return $?
 }
 
 # function to install python modules via download from github.
@@ -119,22 +133,16 @@ UNINSTALLS[DHT]+=' /usr/local/bin/set_gpio_perm.sh'
 function DHT(){
     if [ ! -x /usr/local/bin/set_gpio_perm.sh ]
     then
-        echo "Create the file eg /usr/local/bin/set_gio_perm.sh with the content:"
+        echo "Created the file /usr/local/bin/set_gio_perm.sh"
         /bin/cat >/tmp/perm.sh <<EOF
 #!/bin/sh
-# add as super user to crontab -e
-# @reboot      /usr/local/bin/set_gpio_perm.sh
 chown root:gpio /dev/gpiomem
 chmod g+rw /dev/gpiomem
 EOF
         chmod +x /tmp/perm.sh
         /usr/bin/sudo mv /tmp/perm.sh /usr/local/bin/set_gpio_perm.sh
         /usr/bin/sudo chown root.root /usr/local/bin/set_gpio_perm.sh
-        echo "and add as super user to crontab -e the line line to exec it at reboot"
-        echo "@reboot      /usr/local/bin/set_gpio_perm.sh"
-        echo "<cntrl>z to wait for this, fg for continue and enter"
-        sleep 15
-        read -p "Continue?" -t 60 READ
+        AddCrontab /usr/local/bin/set_gpio_perm.sh root
     fi
 
     local P
@@ -276,11 +284,8 @@ python \$HOME/\$WD/MySense.py start
 exit 0
 EOF
     chmod +x MyStart.sh
-    if ! /usr/bin/crontab -l | /bin/grep -q "^@reboot.*MyStart.sh"
-    then
-        (/usr/bin/crontab -u $USER -l ; echo "@reboot $(pwd)/MyStart.sh") | /usr/bin/crontab -u $USER -
-        /usr/bin/sudo /bin/chmod 4755 /bin/ping
-    fi
+    AddCrontab "$(pwd)/MyStart.sh"
+    /usr/bin/sudo /bin/chmod 4755 /bin/ping
 }
 
 EXTRA+=" DISPLAY"
@@ -316,11 +321,8 @@ function DISPLAY(){
     fi
     sudo cp MyDisplayServer.py /usr/local/bin
     sudo chmod +x /usr/local/bin/MyDisplayServer.py
-    if ! sudo grep -q '@reboot  *MyDisplayServer' /var/spool/cron/crontabs/root
-    then
-        sudo sh -c "echo '@reboot /usr/local/bin/MyDisplayServer.py -b $ANS start' >>/var/spool/cron/crontabs/root"
-        echo "Installed to activate ${ANS} display service on reboot."
-    fi
+    AddCrontab "/usr/local/bin/MyDisplayServer.py -b $ANS start"
+    echo "Installed to activate ${ANS} display service on reboot."
     if ! groups | grep -q ${ANS,,}
     then
         if ! useradd -G ${ANS,,} $USER
@@ -632,6 +634,7 @@ EOF
     echo "Add the following line to the crontab, by issuing 'crontab -e'"
     echo "Change USER HOSTIP by your user id and destop/laptop static IP number"
     echo "*/10 10-23 * * * /usr/local/bin/watch_my_tunnel.sh USER IPnr"
+    sleep 5
     crontab -e
 }
     
@@ -909,10 +912,7 @@ EOF
     sudo chmod +x /usr/local/etc/start_wifi_AP
     /bin/rm -f /tmp/hostap$$
     sudo sh -c /usr/local/etc/start_wifi_AP
-    if ! sudo grep -q '@reboot  */usr/local/etc/start_wifi_AP' /var/spool/cron/crontabs/root
-    then
-        sudo sh -c "echo '@reboot /usr/local/etc/start_wifi_AP' >>/var/spool/cron/crontabs/root"
-    fi
+    AddCrontab /usr/local/etc/start_wifi_AP
 }
 
 INSTALLS+=" BUTTON"
@@ -964,12 +964,9 @@ do
     fi
 done
 EOF
-    sudo cp /tmp/poweroff$$ $MYLED
-    sudo chmod +x $MYLED
-    if ! sudo grep -q "^@reboot.*$MYLED" /var/spool/cron/crontabs/root
-    then
-        sudo sh -c "echo '@reboot $MYLED' >>/var/spool/cron/crontabs/root"
-    fi
+    /usr/bin/sudo /bin/cp /tmp/poweroff$$ $MYLED
+    /usr/bin/sudo /bin/chmod +x $MYLED
+    AddCrontab $MYLED
 }
 
 INSTALLS+=" WIFI_HOSTAP"
