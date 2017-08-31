@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.44 2017/08/31 10:58:47 teus Exp teus $
+# $Id: INSTALL.sh,v 1.45 2017/08/31 11:13:20 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -241,7 +241,7 @@ function MQTT(){
 }
 
 EXTRA+=" STARTUP"
-UNINSTALL+=" MyStart.sh"
+UNINSTALLS[STARTUP]+=" MyStart.sh"
 function STARTUP(){
     echo "Installing: auto MySense start on boot: MyStart.sh"
     WD=$(pwd | sed -e s@$HOME@@ -e 's/^//')
@@ -284,7 +284,7 @@ EOF
 }
 
 EXTRA+=" DISPLAY"
-UNINSTALL+=" /usr/local/bin/MyDisplayServer.py"
+UNINSTALLS[DISPLAY]+=" /usr/local/bin/MyDisplayServer.py"
 function DISPLAY(){
     # this needs to be tested
     echo "Installing Display service and plugin"
@@ -916,7 +916,7 @@ EOF
 }
 
 INSTALLS+=" BUTTON"
-UNINSTALLS+=" /usr/local/bin/MyLed.py"
+UNINSTALLS[BUTTON]+=" /usr/local/bin/MyLed.py"
 # install button/led/relay handler
 function BUTTON(){
     local MYLED=/usr/local/bin/MyLed.py
