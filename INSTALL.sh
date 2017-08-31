@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.43 2017/08/30 08:56:30 teus Exp teus $
+# $Id: INSTALL.sh,v 1.44 2017/08/31 10:58:47 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -299,9 +299,8 @@ function DISPLAY(){
     case X"$ANS" in
     XI2C|XSPI)
         ANS=$ANS
-        ;
-    *
-
+    ;;
+    *)
         return 1
     ;;
     esac
