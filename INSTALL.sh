@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.46 2017/08/31 12:09:54 teus Exp teus $
+# $Id: INSTALL.sh,v 1.48 2017/09/01 11:38:56 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -268,19 +268,29 @@ then
     exit 1
 fi
 
-WAIT=""
+CNT=0
 while ! /bin/ping -q -w 2 -c 1 8.8.8.8 >/dev/null
 do  
-    WAIT+=.
-    echo -e "<clear>MySense waiting for\n  internet access\$WAIT" | /bin/nc -w 2 localhost \$D_ADDR
+    echo -e "<clear>No internet access\nfor \$CNT minutes" | /bin/nc -w 2 localhost \$D_ADDR
+    CNT=\$((\$CNT+1))
     /usr/local/bin/MyLed.py --led \$LED --light ON
     sleep 1
+    if [ \$CNT -gt 30 ] ; break ; fi
     /usr/local/bin/MyLed.py --led \$LED --light OFF
     sleep 59
 done
+if [ \$CNT -gt 30 ]
+then
+    echo -e "<clear>STARTING up MySense\nin LOCAL modus\nWelcome to MySense" | /bin/nc -w 2 localhost \$D_ADDR
+    /usr/local/bin/MyLed.py --led \$LED --light OFF
+    LOCAL=--local
+else
+    echo -e "<clear>STARTING up MySense\nWelcome to MySense" | /bin/nc -w 2 localhost \$D_ADDR
+    LOCAL=''
+fi
+
 cd \$HOME/\$WD
-echo -e "<clear>STARTING up MySense\nWelcome to MySense" | /bin/nc -w 2 localhost \$D_ADDR
-python \$HOME/\$WD/MySense.py start
+python \$HOME/\$WD/MySense.py \$LOCAL start
 exit 0
 EOF
     chmod +x MyStart.sh

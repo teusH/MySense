@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.16 2017/08/29 10:57:50 teus Exp teus $
+# $Id: MySense.py,v 3.19 2017/09/01 13:11:15 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.16 $"[11:-2]
+__version__ = "0." + "$Revision: 3.19 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -104,6 +104,7 @@ INPUTS_I   = []         # inputs from internet (disables other input channels)
 INPUTS     = []         # local input channels
 INTERVAL   = 60*60      # dflt main loop interval in seconds
 RAW        = False      # display raw measurements for all sensors
+LOCAL      = False      # no output via internet connectivity
 
 Archive = {}            # archived queues per channel, has links to heap
 Heap = {}               # heap for storing data indexed by Archive
@@ -350,6 +351,7 @@ def get_arguments():
     parser.add_argument("-M", "--memory", help="Allocated memory space in Kbytes for queuing data, default='%d'" % (HeapSze/1000), default=(HeapSze/1000))
     parser.add_argument("-P", "--project", help="Project XYZ, default='%s'" % Conf['id']['project'], default=Conf['id']['project'], choices=['BdP','VW'])
     parser.add_argument("-R", "--raw", help="Display raw measurements of all sensors on stdout in InFlux http timestamped format (calibration purposes), default=False", default=False, dest='raw', action='store_true')
+    parser.add_argument("--local", help="Only local output, no output via internet, default=use internet if configured", action='store_true', default=False, dest='local')
     parser.add_argument("-S", "--node", help="Sensor node serial number, default='%s'" % Conf['id']['serial'], default=Conf['id']['serial'])
     parser.add_argument("process", help="Process start/stop/status. Default: interactive", default='interactive', choices=['interactive','start','stop','status'], nargs='?')
     # overwrite argument settings into configuration
@@ -376,7 +378,7 @@ def from_env(name):
 def integrate_options():
     """ Command line arguments overwrite configuration option values
     """
-    global Conf, OUTPUTS, OUTPUTS_I, INPUTS, INPUTS_I, INTERVAL, RAW
+    global Conf, OUTPUTS, OUTPUTS_I, INPUTS, INPUTS_I, INTERVAL, RAW, LOCAL
     
     cmd_args = get_arguments()
 
@@ -388,6 +390,10 @@ def integrate_options():
         del(Conf['process']['interval'])
     if int(cmd_args.interval) != 60:
         INTERVAL = int(cmd_args.interval) * 60
+    try:
+        LOCAL = cmd_args.local
+    except:
+        LOCAL = False
     HeapSze = int(cmd_args.memory) * 1000
     RAW = False; RAWok = True
     if Conf['raw']['file'] != None:
@@ -411,6 +417,8 @@ def integrate_options():
             Conf[Nme]['output'] = cmd_args.output.rindex(Nme) >= 0
         except:
             Conf[Nme]['output'] = False
+        if LOCAL and (Nme in OUTPUTS_I) and ('hostname' in Conf[Nme].keys()):
+            Conf[Nme]['output'] = False  # turn external output off
         if Conf[Nme]['output']:
             if not Nme in Conf['outputs']:
                 Conf['outputs'].append(Nme)
