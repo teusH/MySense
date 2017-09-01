@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDYLOS.py,v 2.21 2017/08/13 19:16:40 teus Exp teus $
+# $Id: MyDYLOS.py,v 2.22 2017/09/01 13:31:12 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add version number, firmware number
@@ -34,7 +34,7 @@
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MyDYLOS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.21 $"[11:-2]
+__version__ = "0." + "$Revision: 2.22 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -58,7 +58,7 @@ Conf = {
      #  spec: 0.01pcs/qf average per minute window
     'units' : ['pcs/qf','pcs/qf'],   # dflt type the measurement unit
     'calibrations': [[0,1],[0,1]], # per type calibration (Taylor polonium)
-    'interval': 50,     # read dht interval in secs (dflt)
+    'interval': 50,     # read interval in secs (dflt)
     'bufsize': 30,      # size of the window of values readings max
     'sync': False,      # use thread or not to collect data
     'raw': False,       # dflt display raw measurements
