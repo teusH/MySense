@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.29 2017/09/01 19:10:48 teus Exp teus $
+# $Id: MyDHT.py,v 2.30 2017/09/02 09:34:22 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.29 $"[11:-2]
+__version__ = "0." + "$Revision: 2.30 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -50,7 +50,7 @@ Conf ={
     'type': None,        # type of the humidity/temp chip eg AM2302,DHT22,DHT11
     'fields': ['temp','rh'], # temp, rh, pa
     'units' : ['C', '%'],    # C Celcius, K Kelvin, F Fahrenheit, % rh, hPa
-    'calibrations' : [[0.0,1],[-3.3,1]], # calibration factors, here order 1
+    'calibrations' : [[0.0,1],[0.0,1]], # calibration factors, here order 1
     'pin': None,         # GPIO pin of PI e.g. 4, 22
     'port': None,        # GrovePi+ digital port
     'interval': 30,      # read dht interval in secs (dflt)
@@ -58,7 +58,8 @@ Conf ={
     'sync': False,       # use thread or not to collect data
     'debug': False,      # be more versatile
     'raw': False,        # no raw measurements displayed by dflt
-    'Ada_import': None,      # imported module either DHT or Grove
+    'Ada_import': None,  # imported module either DHT or Grove
+    'errors': 0,         # count dht read errors
 #    'fd' : None          # input handler
 }
 
@@ -109,7 +110,13 @@ def Add(conf):
             MyLogger.log(modulename,'DEBUG',"Rel.Humidity: %5.2f %% not calibrated" % humidity)
     else:
         MyLogger.log(modulename,'DEBUG',"Rel.Humidity: None")
-    if (temp <= 0.0) and (humidity <= 0.0): return rec
+    if (temp <= 0.0) and (humidity <= 0.0):
+        conf['errors'] += 1
+        if (conf['errors'] % 10) == 9:
+            MyLogger.log(modulename,'ERROR',"Too many read errors (%d) on DHT module." % conf['errors'])
+        return rec
+    else:
+        conf['errors'] = 0
     if ('raw' in conf.keys()) and (conf['raw'] != None):
         conf['raw'].publish(
             tag='%s' % conf['type'].lower(),
