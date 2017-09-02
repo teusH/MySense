@@ -1,6 +1,8 @@
 <img src="images/MySense-logo.png" align=right width=100>
 
 # MySense
+Last update of the README on 2nd Sept 2017
+
 ## Description
 Software Infrastructure or framework for managing environmental sensors and data aquisition
 
@@ -94,25 +96,28 @@ If needed it can be switched to read only in sync with the other input sensors.
 
 A working example of MySense script in todays operation:
 ```
-          remote access             |  INTERNET (wired/wifi)
+          remote access             |  INTERNET (wired/wifi, wifi-G3/4 mobile)
           syst.mgt.     webmin -----||_ wifi AP -- webmin/ssh system mgt
                     ssh tunnel -----|
-                    Weaved IoT -----|
+            Remot3 (Weaved)IoT -----|
                                     |
                                     |    
-    INPUT PLUGINs                 __|__      OUTPUT CHANNELS    GATEWAY/BROKER
+    INPUT PLUGINs                   |        OUTPUT CHANNELS    GATEWAY/BROKER
+                                  __|__
     DHT11/22-meteo ---GPIO---->| ///|\\\ |>- CSV                _____
-    GPS-locator ------RS232--->|=MySense=|>- console         | ///|\\\ |
+    GPS-locator ------RS232--->|=MySense=|>- console           ///|\\\  
     RSSI-wifi signal-strength >||  Pi3  ||>- MYSQL           |=MySense=|>-gspread
-    Dylos-dust -USB-- RS232--->||Jessie ||>- Mosquitto pub-->|| Debian ||>-MySQL
+    Dylos-dust -USB-- RS232--->||Jessie ||>- Mosquitto pub-->|| Debian||>-MySQL
     Grove-loudness ---GPIO---->| \\\|/// |>- HTTP-Post       || Linux ||>-CSV
     EMS280 -meteo ----I2C----->|    |    |>- email info      | \\\|/// |>-console
-    PPD42NS -dust-Arduino-USB->|    |    |>- InFlux publish  |         >-InFlux pub
+    PPD42NS -dust-Arduino-USB->|    |    |>- InFlux publish  |         |>-InFlux pub
     Nova SDS011 -dust -USB --->|    |    |>- display SSD1306
-    Plantower PMS7003 -USB --->|    |    |>- Google gspread (alpha)
+    Plantower PMS7003 -USB --->|    |    |>- Google gspread (alpha, depricated)
+    O3,NO2,CO2,NH3(Alpha)-USB->|    |    |   (planned Oct 2017)
     LoRaWan (planned) -------->|    |    |>- broker? (planned)
-    Mosquitto sub ----server ->|    |    |>- LoRaWan (planned)
-    InFlux subscribe -server ->|    |
+    Mosquitto sub ----server ->|    |    |>- LoRaWan (planned, TTN end of 2017)
+    InFlux subscribe -server ->|    |    |>- Bluetooth (planned)
+                                    |
                                     |>-raw measurement values -> InFlux server or file
                                            calibration
 ```
@@ -203,12 +208,13 @@ By default MySense uses a so called lightweight process (multithreaded) to allow
 Input is tested with serial, I2C-bus and GPIO sensors (meteo,dust,geo,audio, (gas in September 2017).
 The focus is to allow Grove based sensors (easier to plugin to the MySense system) and weather resistent cases for the system.
 
-The gas sensor development (NO2, O3, NH3, CO) is just (Febr 2017) started.
+The gas sensor development (NO2, O3, NH3, CO) is just (Febr 2017) started, Aug 2017 alpha tests.
 
 ## Calibration
 Calibration of dust counters like Shinyei, Nova SDS011 and Dylos is started in May/June 2017.
+Outdoor correlation tests started Sept 2017.
 
-Calibration of Alpha Sense gas sensors is a problematic area. Probably June 2017.
+Calibration of Alpha Sense gas sensors is a problematic area. Probably Sept 2017. First tests show Alpha Sense O3, CO2 are OK, NO2 not successfull, NH3 prosponed.
 
 To facilitate measurements for calibration purposes all sensor plugins are optionaly (set `raw` option to `True` for the particular sensor in `MySense.conf`) able to output on file or to an InFlux DB server the *raw* measurements values, as follows:
 ```
@@ -246,9 +252,36 @@ To avoid *outliers* the MySense input multi threading module will maintain a sli
 ### Calibration tool
 For calibration the Python tool `statistics/Calibration.py` has been developped. The script uses pyplot and is based on numpy (numeric analyses library). The calibration uses values from two or more database columns, or (XLSX) spreadsheets, or CSV files as input and provides a best fit polynomial (dflt order 1/linear), the R square and shows the scattered plot and best fit graph to visualize the difference between the sensors. Make sure to use a long period of measurements in a fluctuating environment (a fixed indoor temperature measurement comparison between two temp sensors does not make much sense).
 
-## Funding
-There is no funding (costs to many time of the developers).
-Money is lacking for sensors reseach and travel expenses coverage.
+### Test remarks and experience
+
+#### meteo
+The DHT meteo sensors show intermittant lots of read errors. The meteo sensor BME280 is current focus.
+
+#### dust
+The Shiney PPD42NS (tested 3 sensors) gave lots of null reading on low PM10 values. The sensor values are not stable enough in comparison with newer sensors from Nova and Plantower as well the bulky Dylos handhelt.
+
+Due to airflow the sensors need to be cleaned periodically. The Plantower sensor is hard to clean as it cannot be opened.
+
+Plantower dust sensor measures also PM0.3, PM0.5, PM1 and PM5.
+
+Plantower and Nova dust sensors use USB bus. The values are privided in mass values. The conversion from particle count to mass is not made public.
+
+#### gas
+Tghe Alpha Sense gas sensors have a high cost level (ca 80 euro per gas). NH3 is hard to test and still planned. NO2 give too many errors in the field. The sensors have a very limited time.
+
+#### GPS
+The Grove GPS sensors is applied via USB bus connection and the standard Debian GPS deamon. The location is not precise enough. The wait is for the Galileo GPS sensors availability.
+
+#### Raspberry Pi
+The tests are done with the Raspberry Pi 3. With the GrovePi+ shield and the big V5/2.5A adapter it gets bulky. The new Raspberry Pi Zero V1.3 is half size, uses far less power and costs only 25% of the Pi3.
+We expect the Zero might be applicable.
+
+## Costs
+There is no funding (costs and development time is above personal budget level).
+Costs at start are high due to failures on tests of common sensors (Arduino is skipped due to too low level of functionality; Shiney and DHT sesnors failures, application of smaller adaptors, etc.).
+Money is lacking for sensors research and travel expenses coverage to meet other initiatives.
+
+July 2017: local government is asked to subsidy operational phase: distribution of sensors kits and maintenance.
 
 ## Licensing:
 FSF GPLV4
