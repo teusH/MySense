@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.30 2017/09/02 09:34:22 teus Exp teus $
+# $Id: MyDHT.py,v 2.31 2017/09/03 14:33:56 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.30 $"[11:-2]
+__version__ = "0." + "$Revision: 2.31 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -73,7 +73,7 @@ DHT_types = {
 def calibrate(nr,conf,value):
     if (not 'calibrations' in conf.keys()) or (nr > len(conf['calibrations'])-1):
         return value
-    if type(value) is int: value = value/1.0
+    if type(value) is int: value = float(value)
     if not type(value) is float:
         return None
     rts = 0; pow = 0
@@ -100,17 +100,24 @@ def Add(conf):
         MyLogger.log(modulename,'ERROR',"Access error. Connection problem?")
         raise IOError("DHT lost connection.")
         return rec
+    if type(temp) is int: temp float(temp)
     if type(temp) is float:
         if conf['debug']:
             MyLogger.log(modulename,'DEBUG',"Temperature : %5.2f oC not calibrated" % temp)
     else:
+        temp = None
         MyLogger.log(modulename,'DEBUG',"Temperature : None")
-    if type(humidity) is float:
+    if type(humidity) is int: humidity float(humidity)
+    if (type(humidity) is float) and (humidity >= 0.0): 
         if conf['debug']:
             MyLogger.log(modulename,'DEBUG',"Rel.Humidity: %5.2f %% not calibrated" % humidity)
     else:
+        if (type(humidity) is float) and (temp != None) and (temp <= 0.0):
+            # seems rh=-0.9 and temp=-0.9 are also read errors
+            temp = None
+        humidity = None
         MyLogger.log(modulename,'DEBUG',"Rel.Humidity: None")
-    if (temp <= 0.0) and (humidity <= 0.0):
+    if (humidity == None) and (temp == None):
         conf['errors'] += 1
         if (conf['errors'] % 10) == 9:
             MyLogger.log(modulename,'ERROR',"Too many read errors (%d) on DHT module." % conf['errors'])
@@ -118,9 +125,13 @@ def Add(conf):
     else:
         conf['errors'] = 0
     if ('raw' in conf.keys()) and (conf['raw'] != None):
-        conf['raw'].publish(
-            tag='%s' % conf['type'].lower(),
-            data="temp=%.1f,rh=%.1f" % (temp*1.0,humidity*1.0))
+        data = []
+        if temp != None: data.append('temp=%.1f' % temp)
+        if humidity != None: data.append('rh=%.1f' % humidity)
+        if len(data):
+            conf['raw'].publish(
+                tag='%s' % conf['type'].lower(),
+                data=','.join(data))
     temp = calibrate(0,conf,temp)
     humidity = calibrate(1,conf,humidity)
     rec = {'time': int(time()),conf['fields'][0]:temp,conf['fields'][1]:humidity}
