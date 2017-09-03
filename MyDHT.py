@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.31 2017/09/03 14:33:56 teus Exp teus $
+# $Id: MyDHT.py,v 2.32 2017/09/03 14:36:11 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.31 $"[11:-2]
+__version__ = "0." + "$Revision: 2.32 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -100,14 +100,14 @@ def Add(conf):
         MyLogger.log(modulename,'ERROR',"Access error. Connection problem?")
         raise IOError("DHT lost connection.")
         return rec
-    if type(temp) is int: temp float(temp)
+    if type(temp) is int: temp = float(temp)
     if type(temp) is float:
         if conf['debug']:
             MyLogger.log(modulename,'DEBUG',"Temperature : %5.2f oC not calibrated" % temp)
     else:
         temp = None
         MyLogger.log(modulename,'DEBUG',"Temperature : None")
-    if type(humidity) is int: humidity float(humidity)
+    if type(humidity) is int: humidity = float(humidity)
     if (type(humidity) is float) and (humidity >= 0.0): 
         if conf['debug']:
             MyLogger.log(modulename,'DEBUG',"Rel.Humidity: %5.2f %% not calibrated" % humidity)
