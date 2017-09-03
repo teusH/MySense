@@ -9,6 +9,12 @@ Power on with screen: change this if needed via raspi-config
 
 FIRST: make a backup of the micro mem card on your desktop. So you can roll back.
 
+### Pi Zero V1.3
+The Pi Zero V1.3 is a tiny (half size) Pi3. It runs at the same speed as Pi3, has .5GB internal mem, uses less energy as Pi3, wifi, Bluetooth and has micro HDMI, micro USB for power and one micro USB only. The for the tiny board is only € 10.-.
+
+### Installing latest Debian OS
+See for simple how to: https://www.raspberrypi.org/documentation/installation/installing-images/
+
 ### HEADLESS Pi
 No console no screen to the Pi well no problem.
 Power on the Pi. Make sure the Pi is connected with a cable to your router.
@@ -33,7 +39,8 @@ Startup and perform an upgrade:
 
 ### FIRST CONFIG
 initiate/command: `sudo raspi-config` and
-expand filesystem if one created new PI OS on mem card.
+if still needed expand the filesystem if one created new PI OS on mem card.
+On a fresh boot with a new Pi OS the filesystem will be expanded automatically.
 For now enable start with screen (disable this later) and configure the
 localisation options:
 ```
