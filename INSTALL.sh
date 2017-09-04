@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.48 2017/09/01 11:38:56 teus Exp teus $
+# $Id: INSTALL.sh,v 1.49 2017/09/04 13:13:51 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -33,6 +33,24 @@ function AddCrontab() {
         echo "Added at (re)boot to execute $1 as $myUSER user."
     fi
     return $?
+}
+
+WIFI=wlan0
+LAN=eth0
+# Debian has changed names for internet interfaces
+function GetInterfaces(){
+    if /sbin/ifconfig -a | /bin/grep -q '[ew][ln]x.*: flag'
+    then
+        WIFI=$(/sbin/ifconfig -a | /bin/grep 'wlx..*: flag' | /bin/sed 's/: .*//')
+        LAN=$(/sbin/ifconfig -a | /bin/grep 'enx..*: flag' | /bin/sed 's/: .*//')
+    else
+        WIFI=$(/sbin/ifconfig -a | /bin/grep 'wlan.*: flag' | /bin/sed 's/: .*//')
+        LAN=$(/sbin/ifconfig -a | /bin/grep 'eth..*: flag' | /bin/sed 's/: .*//')
+    fi
+    if [ -z "$WIFI" ] || [ -z "$LAN" ]
+    then
+        echo "WARNING: only one or no internet interface available. Correct it manualy." >/dev/stderr
+    fi
 }
 
 # function to install python modules via download from github.
@@ -455,11 +473,12 @@ INSTALLS+=" INTERNET"
 UNINSTALLS[INTERNET]+=' /etc/network/if-post-up.d/wifi-gateway'
 UNINSTALLS[INTERNET]+=' /etc/network/if-up.d/wifi-internet'
 UNINSTALLS[INTERNET]+=' /etc/network/interfaces'
-## wired line eth0 switch to wifi on reboot
-# will bring up internet access via eth0 (high priority) or wifi wlan0
+## wired line $LAN switch to wifi on reboot
+# will bring up internet access via $LAN (high priority) or wifi $WIFI
 function INTERNET() {
+    GetInterfaces       # get names of internet devices
     KeepOriginal /etc/network/interfaces
-    local WLAN=${1:-wlan0} INT=${2:-eth0}
+    local WLAN=${1:-$WIFI} INT=${2:-$LAN}
     #/etc/if-post-up.d/wifi-gateway  adjust routing tables
     /bin/cat >/tmp/EW$$ <<EOF
 #!/bin/sh
@@ -549,10 +568,6 @@ allow-hotplug $WLAN
 iface $WLAN inet dhcp
         pre-up /etc/network/if-up.d/wifi-internet $INT $WLAN
         post-up /etc/network/if-post-up.d/wifi-gateway $INT $WLAN
-        wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
-
-allow-hotplug wlan1
-iface wlan1 inet manual
         wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
 
 EOF
@@ -649,12 +664,13 @@ EOF
 }
     
 INSTALLS+=" WIFI"
-####### wifi wlan0 for wifi internet access, uap0 (virtual device) for wifi AP
-# wlan1 for USB wifi dongle (use this if wifi wlan0 fails and need wifi AP)
+####### wifi $WIFI for wifi internet access, uap0 (virtual device) for wifi AP
+# wlan1 for USB wifi dongle (use this if wifi $WIFI fails and need wifi AP)
 function WIFI(){
+    GetInterfaces
     KeepOriginal /etc/network/interfaces
     local AP=${1:-uap0} ADDR=${2:-192.168.2}
-    # make sure wlan0 is getting activated
+    # make sure $WIFI is getting activated
     cat >/tmp/Int$$ <<EOF
 # virtual wifi AP
 auto ${AP}
@@ -668,13 +684,13 @@ EOF
     sudo cp /tmp/Int$$ /etc/network/interfaces.d/UAP
     cat >/tmp/Int$$ <<EOF
 #!/bin/bash
-INT=\${1:-eth0}
+INT=\${1:-$LAN}
 WLAN=\$2
 EXIT=0
 if [ -z "\$2" ] ; then exit 0 ; fi
 if /sbin/route -n | /bin/grep -q '^0.0.0.0.*dev  *'\${INT}
 then
-    EXIT=1      # do not bring up \${WLAN:-wlan0} if not needed
+    EXIT=1      # do not bring up \${WLAN:-$WIFI} if not needed
 fi
 exit \$EXIT
 EOF
@@ -691,11 +707,12 @@ source-directory /etc/network/interfaces.d
 auto lo
 iface lo inet loopback
 
-iface eth0 inet manual
+iface $LAN inet manual
 
-auto wlan0
-iface wlan0 inet dhcp
-    pre-up /etc/network/if-pre-up.d/Check-internet eth0 wlan0
+auto $WIFI
+iface $WIFI inet dhcp
+    GetInterfaces
+    pre-up /etc/network/if-pre-up.d/Check-internet $LAN $WIFI
     wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
 
 allow-hotplug wlan1
@@ -711,7 +728,7 @@ EOF
     if [ -n "${ANS/[yY]/}" ] ; then return ; fi
     echo "Installing virtual wifi interface on $AP for wifi AP" 1>&2
     local NAT=YES
-    WIFI_HOSTAP ${AP}              # give access if eth0 and wlan0 fail
+    WIFI_HOSTAP ${AP}              # give access if $LAN and $WIFI fail
     DNSMASQ "${AP}" ${ADDR}
     read -p "You want wifi AP clients to reach internet? [y,N] " ANS
     if [ -n "${ANS/[nN]/}" ] ; then NAT=NO ; fi
@@ -770,7 +787,8 @@ EOF
 INSTALLS+=" NAT"
 # TO DO: add support for IPV6
 function NAT(){
-    local WLAN={1:-uap0} INT=${2:-eth0}
+    GetInterfaces
+    local WLAN={1:-uap0} INT=${2:-$LAN}
     echo "Installing NAT and internet forwarding for wifi $WLAN to $INT" 1>&2
     /usr/bin/sudo /bin/sh -c "net.ipv4.ip_forward=1 >>/etc/sysctl.conf"
     /usr/bin/sudo /bin/sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
@@ -801,9 +819,9 @@ EOF
 }
 
 UNINSTALLS[VIRTUAL]+=' /usr/local/etc/start_wifi_AP'
-# this will start wifi Access Point if eth0 and wlan0 have no internet access
-# the virtual uap0 wifi will be combined with wlan0 (embedded in Pi3)
-# TO DO: if uap0 is up, wlan0 cannot be used in symultane (does not work yet)
+# this will start wifi Access Point if $LAN and $WIFI have no internet access
+# the virtual uap0 wifi will be combined with $WIFI (embedded in Pi3)
+# TO DO: if uap0 is up, $WIFI cannot be used in symultane (does not work yet)
 function VIRTUAL(){
     local WLAN=${1:-uap0} ADDR=${2:-192.168.2} NAT=${3:-YES}
     if [ $NAT = YES ]
@@ -832,7 +850,8 @@ then
 fi
 
 function INTERNET() {
-    local WLAN=\${1:-wlan0}
+    GetInterfaces
+    local WLAN=\${1:-$WIFI}
     local ADDR=''
     if /sbin/ifconfig \$WLAN | grep -q 'inet addr'
     then
@@ -856,15 +875,15 @@ function INTERNET() {
     return 1
 }
 
-INTERNET eth0	# try wired internet line
-INTERNET wlan0  # try WiFi connectivity
+INTERNET $LAN	# try wired internet line
+INTERNET $WIFI  # try WiFi connectivity
 
 # no connectivity. Start wifi AP
 if /sbin/ifconfig | /bin/grep -q uap0
 then
     /sbin/ip link set dev uap0 down
-    /sbin/ifdown eth0
-    /sbin/ifup wlan0
+    /sbin/ifdown $LAN
+    /sbin/ifup $WIFI
 fi
 
 SSIDS=(\$(/sbin/wpa_cli scan_results | /bin/grep WPS | /usr/bin/sort -r -k3 | /usr/bin/awk '{ print \$1;}'))
@@ -906,7 +925,8 @@ then
     kill %1
     /usr/local/bin/MyLed.py --led D6 --blink 1,5,30 &
 fi
-/sbin/iw dev wlan0 interface add "\${WLAN}" type __ap
+WIFI=$(/sbin/ifconfig -a | grep '^w.*: flag' | /usr/bin/head -1 | /bin/sed 's/:.*//') 
+/sbin/iw dev \${WIFI} interface add "\${WLAN}" type __ap
 /sbin/ip link set "\${WLAN}" address \$(ifconfig  | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:0f/')
 /sbin/ifup uap0 2>/dev/null >/dev/null   # ignore already exists error
 /usr/sbin/service dnsmasq restart
@@ -1035,8 +1055,9 @@ EOF
 
 INSTALLS+=" New_SSID"
 UNINSTALLS[New_SSID]+=' /etc/wpa_supplicant/wpa_supplicant.conf'
-# add wifi ssid/WPA password to enable wlan0 for internet access via wifi
+# add wifi ssid/WPA password to enable $WIFI for internet access via wifi
 function New_SSID(){
+    GetInterfaces
     local SSID PASS1=0 PASS2=1 WLAN=${1:-wlan}
     KeepOriginal /etc/wpa_supplicant/wpa_supplicant.conf
     SSID=$(/usr/bin/sudo /bin/grep ssid /etc/wpa_supplicant/wpa_supplicant.conf | /bin/sed -e 's/.*ssid=//' -e 's/"//g')
@@ -1047,7 +1068,7 @@ function New_SSID(){
     WLAN=$(/sbin/ifconfig | /usr/bin/awk "/$WLAN/{ print \$1; exit(0); }")
     if [ -z "$WLAN" ]
     then
-        WLAN=wlan0
+        WLAN=$WIFI
         if ! /usr/bin/sudo /sbin/ip link set dev ${WLAN} up || ! \
 	    /usr/bin/sudo wpa_supplicant -B -c/etc/wpa_supplicant/wpa_supplicant.conf -i"$WLAN" >/dev/null
         then
