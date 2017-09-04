@@ -9,8 +9,13 @@ Power on with screen: change this if needed via raspi-config
 
 FIRST: make a backup of the micro mem card on your desktop. So you can roll back.
 
-### Pi Zero V1.3
-The Pi Zero V1.3 is a tiny (half size) Pi3. It runs at the same speed as Pi3, has .5GB internal mem, uses less energy as Pi3, wifi, Bluetooth and has micro HDMI, micro USB for power and one micro USB only. The for the tiny board is only € 10.-.
+### Pi Zero V1.3 and W V1.1
+The Pi Zero is a tiny (half size) Pi3. Zero W V1.1 runs at the same speed as Pi3, has .5GB internal mem, uses less energy as Pi3, wifi, Bluetooth and has micro HDMI, micro USB for power and one micro USB only. The tiny board is only € 11.-.
+The V1.3 has no buildin wifi and bluetooth.
+
+Use a small micro USB (male) to full USB (female) cable and USB hub to connect USB devices to the board. If needed use small micro HDMI to full HDMI cable to use a screen with the Zero.
+
+To Do: connection Check shell script need some work to support only one connected internet device.
 
 ### Installing latest Debian OS
 See for simple how to: https://www.raspberrypi.org/documentation/installation/installing-images/
