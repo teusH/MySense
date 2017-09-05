@@ -79,6 +79,7 @@ If bluetooth is not needed, disable the use of _ttyAMA0_ of the high speed AMA0
 See also: `/boot/overlays/README`
 Add to `/boot/config.txt` the line: `dtoverlay=pi3-miniuart-bt`
 This will swap the serial0 and serial1 links after a reboot.
+From the jessie OS the kernel will have `/dev/serial0` and `/dev/serial1` as alias (symbolic link) to the two available serial ports. Advised is to use the alias in the configuration. `/dev/ttyS0` might show errors on higher baud rates. In this case lower the CPU speed of the Pi a bit. See *Tips and Tricks* book for more info on this.
 
 You can use now /dev/ttyAMA0 for the GPS serial device.
 Or
