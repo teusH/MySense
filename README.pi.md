@@ -28,6 +28,21 @@ Connect via ssh: ssh pi@192.168.0.34 use deflt password raspberry
 If you are heading for a wireless (wifi) Pi? You have to set up some configuration
 on the SD first: see http://dougbtv.com/2016/03/06/raspi-3-headless-wifi/
 
+Only in the development and test phase one may need a screen and keyboard. In operational phase MySense will operate headless. Turning off the power on the HDMI will save ca 20 mA:
+```bash
+    vcgencmd display_power 0 # turns off the screen
+    vcgencmd display_power 1 # turns on the screen
+```
+More on vcgencmd see http://www.elinux.org/RPI_vcgencmd_usage
+
+### serial connection
+If you need 2 serial basic (TTL UART) serial connections for modules it is possible with some tuning. See https://spellfoundry.com/2016/05/29/configuring-gpio-serial-port-raspbian-jessie-including-pi-3/ for some instructions. You may need to lower slightly the CPU speed for `/dev/ttyS0`. See *tips and tricks* below for more info on this.
+
+If you use USB serial cables from the same manufacturer one may have trouble to instruct MySense which USB port has which USB connected sensor module.
+
+### Pi energy and USB power consumption
+The Pi uses not much energy. Every USB port uses about 500 mA. So one may run out of power quickly with too many USB socket usage. A USB hup consumes by itself also about 500 mA. Be aware that quite some low cost power enabled hub do feed power to the Pi. Do not use these faulty hubs. There are good hubs with own power supply up to 3A.
+
 ### FIRST UPGRADE
 You need for this to have an internet connection.
 You probably do not need the package wolfram-engine (680 MB) so delete the package:
@@ -164,3 +179,8 @@ The Pi with several USB connection may run out of energy. If so you will see int
 
 ### Pi3 may have I2C transfer timeouts :-(
 While using transports of say 512 bytes via the I2C interface of the Pi3, the Pi3 may show "transfer timeout i2c-bmc2835" log errors. E.g. using the SSD1306 tiny display via the I2C bus may hang your process. It seems to be a (driver) hardware problem. Retsrat the process helps, but sometimes a reboot is needed. Yet unknown if there is a work around.
+
+### Raspberry Pi tips and tricks
+* the O'Reilly older book Raspberry Pi Hacks from Ruth Suehle and Tom Callaway:
+https://books.google.nl/books?id=pdWQAwAAQBAJ&printsec=frontcover&hl=nl#v=onepage&q&f=false
+
