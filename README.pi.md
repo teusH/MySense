@@ -184,3 +184,5 @@ While using transports of say 512 bytes via the I2C interface of the Pi3, the Pi
 * the O'Reilly older book Raspberry Pi Hacks from Ruth Suehle and Tom Callaway:
 https://books.google.nl/books?id=pdWQAwAAQBAJ&printsec=frontcover&hl=nl#v=onepage&q&f=false
 
+## TO DO: read only root FS
+The Pi SD card may be corrupted by disconnecting the power adapter without a proper `poweroff`. To avoid this and to increase the lifetime of the SD card a readonly root filesystem is advised in the operating phase. See https://ferdinandkeil.com/read-only-filesystem-for-raspberry-pi.html for a how-to.
