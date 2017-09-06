@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.52 2017/09/06 14:02:45 teus Exp teus $
+# $Id: INSTALL.sh,v 1.55 2017/09/06 19:18:27 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -27,9 +27,9 @@ function AddCrontab() {
     local SUDO=''
     if [ -z "$1" ] ; then return 1 ; fi
     if [ "$myUSER" != "$USER" ] ; then SUDO=/usr/bin/sudo ; fi
-    if ! $SUDO /usr/bin/crontab -u "$myUSER" -l | /bin/grep -q "^@boot.*$1"
+    if ! $SUDO /usr/bin/crontab -u "$myUSER" -l 2>/dev/null | /bin/grep -q "^@boot.*$1"
     then
-        ($SUDO /usr/bin/crontab -u "$myUSER" -l ; echo "^@boot $1" ) | $SUDO /usr/bin/crontab -u "$myUSER" -
+        ($SUDO /usr/bin/crontab -u "$myUSER" -l 2>/dev/null ; echo "@boot $1" ) | $SUDO /usr/bin/crontab -u "$myUSER" -
         echo "Added at (re)boot to execute $1 as $myUSER user."
     fi
     return $?
@@ -72,12 +72,12 @@ function git_pip() {
             exit 1
         fi
     fi
-    if ! /usr/bin/pip list | grep -q -i "^$MOD"
+    if ! /usr/bin/pip --format=legacy list | /bin/grep -q -i "^$MOD"
     then
         echo "Installing $MOD via pip"
         if [ -n "$2" ]
         then
-            mkdir src
+            mkdir -p src
             /usr/bin/sudo /usr/bin/pip -q install -e "git+https://github.com/${PROJ}#egg=${PKG}"
             if [ -d src ]
             then
@@ -207,7 +207,7 @@ function THREADING(){
 
 PLUGINS+=" DYLOS"
 function DYLOS(){
-    DEPENDS_ON pip serial
+    # DEPENDS_ON pip serial
     return $?
 }
 
@@ -221,7 +221,7 @@ function GPS(){
     return $?
 }
 
-PLUGINS+=" GSPREAD"
+# PLUGINS+=" GSPREAD"
 function GSPREAD(){
     echo Make sure you have the latest openssl version:
     echo See README.gspread and obtain Google credentials: https://console.developers.google.com/
@@ -236,14 +236,14 @@ function GSPREAD(){
 PLUGINS+=" MQTTSUB"
 function MQTTSUB(){
     DEPENDS_ON pip paho-mqtt    # mosquitto client modules
-    DEPENDS_ON apt python-mosquitto
+    # DEPENDS_ON apt python-mosquitto
     return $?
 }
 
 PLUGINS+=" MQTTPUB"
 function MQTTPUB(){
     DEPENDS_ON pip paho-mqtt    # mosquitto client modules
-    DEPENDS_ON apt python-mosquitto
+    # DEPENDS_ON apt python-mosquitto
     return $?
 }
 
@@ -255,7 +255,7 @@ function SDS011(){
 
 PLUGINS+=" PMSN003"
 function PMSN003(){
-    DEPENDS_ON pip serial
+    # DEPENDS_ON pip serial
     return $?
 }
 
@@ -339,7 +339,7 @@ function DISPLAY(){
         return 1
     ;;
     esac
-    if [ "$ANS" = SPI ] && ! ls /dev/spi* | grep -q "spidev0.[01]"
+    if [ "$ANS" = SPI ] && ! /bin/ls /dev/spi* 2>/dev/null | grep -q "spidev0.[01]"
     then
         echo "GPIO: Missing spidev: please use \"sudo rasp-config\" and enable SPI"
     fi
@@ -349,17 +349,17 @@ function DISPLAY(){
         echo "ERROR: cannot locate MyDisplayServer.py for display service/server"
         return 1
     fi
-    sudo cp MyDisplayServer.py /usr/local/bin
-    sudo chmod +x /usr/local/bin/MyDisplayServer.py
-    AddCrontab "/usr/local/bin/MyDisplayServer.py -b $ANS start"
+    sudo /bin/cp MyDisplayServer.py /usr/local/bin
+    sudo /bin/chmod +x /usr/local/bin/MyDisplayServer.py
+    AddCrontab "/usr/local/bin/MyDisplayServer.py -b $ANS start" $USER
     echo "Installed to activate ${ANS} display service on reboot."
-    if ! groups | grep -q ${ANS,,}
+    if ! /usr/bin/groups | grep -q ${ANS,,}
     then
-        if ! useradd -G ${ANS,,} $USER
+        if ! /bin/grep "^${ANS,,}.*$USER" && ! /usr/sbin/useradd -G ${ANS,,} $USER
         then
             echo "Please add $USER or MYSense user to ${ANS,,} group: sudo nano /etc/group"
         else
-            echo "Added $USER to ${ANS,,} group and for SPI to access /dev/spidev0.[01]"
+            echo "Added $USER to ${ANS,,} group and to access ${ANS,,}"
         fi
     fi
     return $?
@@ -375,7 +375,7 @@ function INFLUX(){
 INSTALLS+=" GROVEPI"
 # this will install the grovepi library
 function GROVEPI(){
-    if pip list | grep -q grovepi ; then return ; fi
+    if /usr/bin/pip --format=legacy list | /bin/grep -q grovepi ; then return ; fi
     if [ -d git/GrovePi ] ; then return ; fi
     echo "This will install Grove Pi shield dependencies. Can take 10 minutes."
     mkdir -p git
@@ -520,7 +520,7 @@ else
 fi
 EOF
     /bin/chmod +x /tmp/EW$$
-    /usr/bin/sudo /bin/mkdir /etc/network/if-post-up.d/
+    /usr/bin/sudo /bin/mkdir -p /etc/network/if-post-up.d/
     /usr/bin/sudo /bin/cp /tmp/EW$$ /etc/network/if-post-up.d/wifi-gateway
     # /etc/network/if-up.d/wifi-internet bring the other down
     /bin/cat >/tmp/EW$$ <<EOF
@@ -585,7 +585,7 @@ EXTRA+=' WEBMIN'
 function WEBMIN(){
     local ANS
     read -t 15 -p  "Install \"webmin\" to be accessed to the Pi via port 10000? [Yn] " ANS
-    if [ -z "${ANS/[Yy]/}" ] ; then return ; fi
+    if [ -n "${ANS/[Yy]/}" ] ; then return ; fi
     # DEPENDS_ON APT perl
     DEPENDS_ON APT libnet-ssleay-perl
     # DEPENDS_ON APT openssl
@@ -595,11 +595,11 @@ function WEBMIN(){
     DEPENDS_ON APT apt-show-versions
     # DEPENDS_ON APT python
 
-    wget -O /tmp/webmin_1.831_all.deb http://prdownloads.sourceforge.net/webadmin/webmin_1.831_all.deb
+    /usr/bin/wget -O /tmp/webmin_1.831_all.deb http://prdownloads.sourceforge.net/webadmin/webmin_1.831_all.deb
     echo "Installation can take more as 5 minutes." 1>&2
-    sudo dpkg --install /tmp/webmin_1.831_all.deb
+    /usr/bin/sudo dpkg --install /tmp/webmin_1.831_all.deb
     /bin/rm  -f /tmp/webmin_1.831_all.deb
-    wget -O /tmp/jcameron-key.as http://www.webmin.com/jcameron-key.asc
+    /usr/bin/wget -O /tmp/jcameron-key.as http://www.webmin.com/jcameron-key.asc
     /usr/bin/sudo /usr/bin/apt-key add /tmp/jcameron-key.asc
     /bin/rm -f /tmp/jcameron-key.asc
     /usr/bin/sudo /bin/sh -c "echo 'deb http://download.webmin.com/download/repository sarge contrib' >> /etc/apt/sources.list"
@@ -792,13 +792,14 @@ INSTALLS+=" NAT"
 function NAT(){
     GetInterfaces
     local WLAN={1:-uap0} INT=${2:-$LAN}
+    if /bin/grep -q net.ipv4.ip_forward=1 /etc/sysctl.conf ; then return ; fi
     echo "Installing NAT and internet forwarding for wifi $WLAN to $INT" 1>&2
-    /usr/bin/sudo /bin/sh -c "net.ipv4.ip_forward=1 >>/etc/sysctl.conf"
+    /usr/bin/sudo /bin/sh -c "echo net.ipv4.ip_forward=1 >>/etc/sysctl.conf"
     /usr/bin/sudo /bin/sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
     /usr/bin/sudo /sbin/iptables -t nat -A POSTROUTING -o ${INT} -j MASQUERADE
     /usr/bin/sudo /sbin/iptables -A FORWARD -i ${INT} -o ${WLAN} -m state --state RELATED,ESTABLISHED -j ACCEPT
     /usr/bin/sudo /sbin/iptables -A FORWARD -i ${WLAN} -o ${INT} -j ACCEPT
-    /sbin/iptables-save > /etc/firewall.conf
+    /usr/bin/sudo /bin/sh -c "/sbin/iptables-save > /etc/firewall.conf"
     /bin/cat >/tmp/hostap$$ <<EOF
 #!/bin/sh
     if /bin/grep -q 'up' /sys/class/net/${INT}/operstate
@@ -1011,9 +1012,9 @@ function WIFI_HOSTAP(){
     KeepOriginal \
         /etc//etc/hostapd/hostapd.conf \
         /etc/systemd/system/hostapd.service
-    if [ -f /etc/hostapd/hostapd.conf ]
-    then /usr/bin/sudo /usr/bin/apt-get remove --purge hostapd -y
-    fi
+    # if [ -f /etc/hostapd/hostapd.conf ]
+    # then /usr/bin/sudo /usr/bin/apt-get remove --purge hostapd -y
+    # fi
     DEPENDS_ON APT hostapd
     /usr/bin/sudo /usr/sbin/service hostapd stop
     # /usr/bin/sudo /bin/systemctl enable hostapd
@@ -1056,10 +1057,10 @@ EOF
     /bin/rm -f /tmp/hostap$$
 }
 
-INSTALLS+=" New_SSID"
-UNINSTALLS[New_SSID]+=' /etc/wpa_supplicant/wpa_supplicant.conf'
+INSTALLS+=" NEW_SSID"
+UNINSTALLS[NEW_SSID]+=' /etc/wpa_supplicant/wpa_supplicant.conf'
 # add wifi ssid/WPA password to enable $WIFI for internet access via wifi
-function New_SSID(){
+function NEW_SSID(){
     GetInterfaces
     local SSID PASS1=0 PASS2=1 WLAN=${1:-wlan}
     KeepOriginal /etc/wpa_supplicant/wpa_supplicant.conf
