@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.49 2017/09/04 13:13:51 teus Exp teus $
+# $Id: INSTALL.sh,v 1.52 2017/09/06 14:02:45 teus Exp teus $
 #
 
 echo "You need to provide your password for root access.
@@ -49,8 +49,10 @@ function GetInterfaces(){
     fi
     if [ -z "$WIFI" ] || [ -z "$LAN" ]
     then
-        echo "WARNING: only one or no internet interface available. Correct it manualy." >/dev/stderr
+        echo "WARNING: only ${WIFI:-no wifi} and ${LAN:-no lan} internet interface available. Correct it manualy e.g. in /etc/network/interfaces." >/dev/stderr
     fi
+    WIFI=${WIFI:-wlan0}
+    LAN=${LAN:-eth0}
 }
 
 # function to install python modules via download from github.
@@ -374,6 +376,7 @@ INSTALLS+=" GROVEPI"
 # this will install the grovepi library
 function GROVEPI(){
     if pip list | grep -q grovepi ; then return ; fi
+    if [ -d git/GrovePi ] ; then return ; fi
     echo "This will install Grove Pi shield dependencies. Can take 10 minutes."
     mkdir -p git
     cd git
@@ -478,7 +481,7 @@ UNINSTALLS[INTERNET]+=' /etc/network/interfaces'
 function INTERNET() {
     GetInterfaces       # get names of internet devices
     KeepOriginal /etc/network/interfaces
-    local WLAN=${1:-$WIFI} INT=${2:-$LAN}
+    local WLAN=${1:-${WIFI:-wlan0}} INT=${2:-${LAN:-eth0}}
     #/etc/if-post-up.d/wifi-gateway  adjust routing tables
     /bin/cat >/tmp/EW$$ <<EOF
 #!/bin/sh
@@ -517,6 +520,7 @@ else
 fi
 EOF
     /bin/chmod +x /tmp/EW$$
+    /usr/bin/sudo /bin/mkdir /etc/network/if-post-up.d/
     /usr/bin/sudo /bin/cp /tmp/EW$$ /etc/network/if-post-up.d/wifi-gateway
     # /etc/network/if-up.d/wifi-internet bring the other down
     /bin/cat >/tmp/EW$$ <<EOF
@@ -711,7 +715,6 @@ iface $LAN inet manual
 
 auto $WIFI
 iface $WIFI inet dhcp
-    GetInterfaces
     pre-up /etc/network/if-pre-up.d/Check-internet $LAN $WIFI
     wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
 
