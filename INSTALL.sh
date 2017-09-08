@@ -1,24 +1,27 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.55 2017/09/06 19:18:27 teus Exp teus $
+# $Id: INSTALL.sh,v 1.56 2017/09/08 13:39:31 teus Exp teus $
 #
 
-echo "You need to provide your password for root access.
+USER=${USER:-ios}
+echo "You run this script as user $USER (preferrebly \"ios\" and install it from folder MySense).
+You need to provide your password for root access.
 Make sure this user is added at the sudoers list." 1>&2
 #set -x
 
+PATH=/sbin:/usr/sbin:/bin:/usr/bin:/usr/local/sbin:/usr/local/bin
+
+declare -A HELP
+declare -A DFLT
+HELP[UPDATE]="Update will update the Pi OS and Debian packages One may skip this if done before."
+DFLT[UPDATE]=N
 function UPDATE() {
-    echo "Updating/upgrading current OS installation and packages?" 1>&2
-    read -p "Try to update? [N|y]:" -t 10 READ
-    if [ -n "$READ" -a "$READ" = y ]
-    then
-        /usr/bin/sudo apt-get update
-        /usr/bin/sudo apt-get upgrade
-        /usr/bin/sudo apt-get dist-upgrade
-        /usr/bin/sudo apt-get autoremove
-        # /usr/bin/sudo pip install --upgrade
-    fi
+    /usr/bin/sudo apt-get update
+    /usr/bin/sudo apt-get upgrade
+    /usr/bin/sudo apt-get dist-upgrade
+    /usr/bin/sudo apt-get autoremove
+    # /usr/bin/sudo pip install --upgrade
 }
 
 # add a command to crontab of user executed at (re)boot
@@ -135,11 +138,32 @@ INSTALLS=''
 declare -A UNINSTALLS
 PLUGINS=''
 
+function ASK(){
+    local ANS DF
+    if [ -z "${DFLT[${1}]}" ] ; then DFLT[${1}]=Y ; fi
+    if [ "${DFLT[${1}]/N*/N}" = N  ] ; then DF="N|y" ; fi
+    if [ "${DFLT[${1}]/Y*/Y}" = Y  ] ; then DF="Y|n" ; fi
+    if [ -n "${HELP[${1}]}" ]
+    then
+        echo "    ${HELP[${1}]}" >/dev/stderr
+    fi
+    if [ "${DFLT[${1}]}" = none ] ; then return 0 ; fi
+    if [ -n "$2" ] ; then echo "    ${2}" >/dev/stderr ; fi
+    read -t 15 -p  "Do you want to install My${1} and dependences? [${DF}] " ANS
+    DF=${DF/%??/}
+    if [ -n "$ANS" ]
+    then
+        DF=$(echo "${ANS^^}" | sed 's/\(.\).*/\1/')
+    fi
+    if [ $DF = Y ] ; then return 0 ; else return 1 ; fi
+}
+
 function MYSENSE(){
     return $?
 }
 
 PLUGINS+=" MYSQL"
+HELP[MYSQL]="MYSQL will install MySQL database client and Python modules."
 function MYSQL(){
     DEPENDS_ON apt python-mysql.connector
     # mysql shell client command
@@ -150,6 +174,8 @@ function MYSQL(){
 
 PLUGINS+=" DHT"
 UNINSTALLS[DHT]+=' /usr/local/bin/set_gpio_perm.sh'
+HELP[DHT]="Installation of DHT sensor libraries and general purpose IO use.
+Please enable gpio via raspi-config command interfaces as root."
 function DHT(){
     if [ ! -x /usr/local/bin/set_gpio_perm.sh ]
     then
@@ -175,6 +201,8 @@ EOF
 }
 
 PLUGINS+=" BME280"
+HELP[BME280]="Installation of BME280 library and BME280 sleep/wakeup script.
+Please make sue I2C is activated: Use raspi-config command -> interfaces for this."
 function BME280() {
     DEPENDS_ON pip adafruit/Adafruit_Python_GPIO.git Adafruit_Python_GPIO
     if [ ! -f ./Adafruit_Python_BME280.py ]
@@ -200,20 +228,24 @@ EOF
 }
 
 INSTALLS+=" THREADING"
+HELP[THREADING]="Using default multi threading for all input plugins (sensor modules)."
+DFLT[THREADING]="none"
 function THREADING(){
     #DEPENDS_ON pip threading
     return $?
 }
 
 PLUGINS+=" DYLOS"
+HELP[DYLOS]="Using default serial python module"
+DFLT[DYLOS]="none"
 function DYLOS(){
     # DEPENDS_ON pip serial
     return $?
 }
 
 PLUGINS+=" GPS"
+HELP[GPS]="Installing GPS Debian deamon and Python libraries via serial connection."
 function GPS(){
-    echo "Installing GPS daemon service"
     DEPENDS_ON apt gpsd         # GPS daemon service
     #DEPENDS_ON apt gps-client  # command line GPS client
     DEPENDS_ON apt python-gps   # python client module
@@ -222,6 +254,8 @@ function GPS(){
 }
 
 # PLUGINS+=" GSPREAD"
+HELP[GSPREAD]="Installing Google gspread connectivity. DEPRECATED"
+DFLT[GSPRAED]=N
 function GSPREAD(){
     echo Make sure you have the latest openssl version:
     echo See README.gspread and obtain Google credentials: https://console.developers.google.com/
@@ -234,6 +268,8 @@ function GSPREAD(){
 }
 
 PLUGINS+=" MQTTSUB"
+HELP[MQTTSUB]="Installing Mosquitto (MQTT) subscriber (client) part. Usually not needed."
+DFLT[MQTTSUB]=N
 function MQTTSUB(){
     DEPENDS_ON pip paho-mqtt    # mosquitto client modules
     # DEPENDS_ON apt python-mosquitto
@@ -241,6 +277,7 @@ function MQTTSUB(){
 }
 
 PLUGINS+=" MQTTPUB"
+HELP[MQTTPUB]="Installing Mosquitto (MQTT) publishing client to send measurements to MQTT server."
 function MQTTPUB(){
     DEPENDS_ON pip paho-mqtt    # mosquitto client modules
     # DEPENDS_ON apt python-mosquitto
@@ -248,27 +285,31 @@ function MQTTPUB(){
 }
 
 PLUGINS+=" SDS011"
+HELP[SDS011]="Installing Python dependences for Nova SDS011 PM (USB) sensor."
 function SDS011(){
     DEPENDS_ON pip enum34
     return $?
 }
 
 PLUGINS+=" PMSN003"
+HELP[PMSN003]="Installing Python dependences for Plantower PMS 5003 or 7003 USB sensor"
 function PMSN003(){
     # DEPENDS_ON pip serial
     return $?
 }
 
 EXTRA+=" MQTT"
+HELP[MQTT]="Installing Mosquitto server deamon or broker. Usually not needed."
+DFLT[MQTT]=N
 function MQTT(){
-    echo "Installing Moquitto broker"
-    echo README.mqtt for authentication provisions
+    echo "see README.mqtt for authentication provisions" >/dev/stderr
     #DEPENDS_ON apt mqtt
     DEPENDS_ON apt mosquitto
     return $?
 }
 
 EXTRA+=" STARTUP"
+HELP[STARTUP]="Installing auto MySense startup at boot via MyStart.sh script."
 UNINSTALLS[STARTUP]+=" MyStart.sh"
 function STARTUP(){
     echo "Installing: auto MySense start on boot: MyStart.sh"
@@ -319,6 +360,7 @@ EOF
 }
 
 EXTRA+=" DISPLAY"
+HELP[DISPLAY]="Installing tiny Adafruit display support."
 UNINSTALLS[DISPLAY]+=" /usr/local/bin/MyDisplayServer.py"
 function DISPLAY(){
     # this needs to be tested
@@ -366,6 +408,7 @@ function DISPLAY(){
 }
 
 PLUGINS+=" INFLUX"
+HELP[INFLUX]="Installing influx publishing and server support modules."
 function INFLUX(){
     DEPENDS_ON pip influxdb
     DEPENDS_ON pip requests
@@ -373,6 +416,7 @@ function INFLUX(){
 }
 
 INSTALLS+=" GROVEPI"
+HELP[GROVEPI]="Installing GrovePi+ shield support, needed for several types of sensors."
 # this will install the grovepi library
 function GROVEPI(){
     if /usr/bin/pip --format=legacy list | /bin/grep -q grovepi ; then return ; fi
@@ -399,14 +443,15 @@ function GROVEPI(){
 }
 
 INSTALLS+=" USER"
+HELP[USER]="Installing MySense main user (default ios) and needed IO permissions."
 function USER(){
-    READ=''
+    local ANS=''
     if [ $(whoami) = ${USER} ]
     then
         echo "if not '${USER}' user owner of installation, provide new name or push <return" 1>&2
-        read -p "new name: " -t 15 READ
+        read -p "new name: " -t 15 ANS
     fi
-    if [ -z "$READ" ] ; then return ; else USER=$READ ;  fi
+    if [ -z "$ANS" ] ; then return ; else USER=$ANS ;  fi
     if grep -q "$USER" /etc/passwd ; then return ; fi
     echo "Need to do this with root permissions."
     /usr/bin/sudo touch /dev/null
@@ -473,6 +518,8 @@ function KeepOriginal() {
 }
 
 INSTALLS+=" INTERNET"
+HELP[INTERNET]="Installation of internet connectivity via LAN and/or WiFi.
+If needed see /etc/network/interfaces for what has been configured."
 UNINSTALLS[INTERNET]+=' /etc/network/if-post-up.d/wifi-gateway'
 UNINSTALLS[INTERNET]+=' /etc/network/if-up.d/wifi-internet'
 UNINSTALLS[INTERNET]+=' /etc/network/interfaces'
@@ -582,10 +629,10 @@ EOF
 # installs  system admin web interface on port 10000
 # remote system admin (default via ssh)
 EXTRA+=' WEBMIN'
+HELP[WEBMIN]="Installation of system administration via web interface (port 10000). Usually not needed."
+DFLT[WEBMIN]=N
 function WEBMIN(){
     local ANS
-    read -t 15 -p  "Install \"webmin\" to be accessed to the Pi via port 10000? [Yn] " ANS
-    if [ -n "${ANS/[Yy]/}" ] ; then return ; fi
     # DEPENDS_ON APT perl
     DEPENDS_ON APT libnet-ssleay-perl
     # DEPENDS_ON APT openssl
@@ -610,12 +657,12 @@ function WEBMIN(){
 # Reminder: everybody knowing the port from Weaved and have Pi user credentials
 # can login into your Pi
 EXTRA+=' WEAVED'
+HELP[WEAVED]="Installation of backdoor for remote access via the Waeved service. You need an account with Remo3.it."
+DFLT[WEAVED]=N
 function WEAVED(){
     local ANS
     echo "This will install a backdoor via the webservice from Weaved (remote3.it)." 1>&2
     echo "You may first register (free try) and obatain user/passwd through https://weaved.com" 1>&2
-    read -p "Install Weaved backdoor for ssh and/or webmin access? [Yn] " ANS
-    if [ -z "${ANS/[nN]/}" ] ; then return ; fi
     DEPENDS_ON APT weavedconnectd
     echo "
 Run the next configuring command for Weaved.
@@ -629,13 +676,12 @@ Use protocol selection menu 1) for ssh and 4) for webmin (enter http and 10000)
 
 # backdoor via ssh tunneling.
 EXTRA+=' SSH_TUNNEL'
+HELP[SSH_TUNNEL]="Besides a virtual desktop one can install a backdoor via ssh tunneling. If so install this script to create the tunnel."
+DFLT[SSH_TUNNEL]=N
 function SSH_TUNNEL(){
     local ANS
-    echo "This will install a backdoor via ssh tunneling" 1>&2
-    read -t 20 -p "Want backdoor via ssh tunnling? You need to have ready your User@laptop at hand. [yN] " ANS
-    if [ -z "${ANS/[nN]/}" ] ; then return ; fi
     echo "You need to have imported an ssh key of you as user@your-desktop-machine."
-    echo "If not to this now: login into your laptop and authorize eg ios/IPnr.
+    echo "If not do this now: login into your laptop and authorize eg ios/IPnr.
         if there is not ~/.ssh private and public key in this directory:
         ssh-keygen   # no password, less secure it saves the trouble on each ssh run
         ssh-copy-id ios@IPnrPi # copy of key for ssh no passwd access"
@@ -668,6 +714,7 @@ EOF
 }
     
 INSTALLS+=" WIFI"
+HELP[WIFI]="Installation of WiFi access to the Pi: wifi for internet connectivity, wifi access point on connectivity failures."
 ####### wifi $WIFI for wifi internet access, uap0 (virtual device) for wifi AP
 # wlan1 for USB wifi dongle (use this if wifi $WIFI fails and need wifi AP)
 function WIFI(){
@@ -741,6 +788,7 @@ EOF
 }
 
 INSTALLS+=" LOGGING"
+HELP[LOGGING]="Installation of loggin rotation script for /var/log/MySense/MySense.log."
 UNINSTALLS[LOGGING]+=' /etc/logrotate.d/MySense /var/log/MySense'
 # logging, may be different due to MySense.conf configuration
 function LOGGING(){
@@ -788,6 +836,8 @@ EOF
 }
 
 INSTALLS+=" NAT"
+HELP[NAT]="Installation of network address translation for internetaccess via wifi to internet. Usually not needed."
+DFLT[NAT]=N
 # TO DO: add support for IPV6
 function NAT(){
     GetInterfaces
@@ -950,6 +1000,7 @@ EOF
 }
 
 INSTALLS+=" BUTTON"
+HELP[BUTTON]="Installation of script to watch button presses and feedback via connected led. Use GrovePi Adafruit switch/led or DIY button for this."
 UNINSTALLS[BUTTON]+=" /usr/local/bin/MyLed.py"
 # install button/led/relay handler
 function BUTTON(){
@@ -1004,6 +1055,7 @@ EOF
 }
 
 INSTALLS+=" WIFI_HOSTAP"
+HELP[WIFI_HOSTAP]="Installation of WiFi Access Point service. Provides access via wifi to the Pi if the WiFi device supports this."
 UNINSTALLS[WIFI_HOSTAP]+=' /etc/etc/hostapd/hostapd.conf'
 UNINSTALLS[WIFI_HOSTAP]+=' /etc/systemd/system/hostapd.service'
 # install hostapd daemon
@@ -1058,6 +1110,7 @@ EOF
 }
 
 INSTALLS+=" NEW_SSID"
+HELP[NEW_SSID]="Installation of new WiFi SSID of WiFi Access Point at installation time (now)."
 UNINSTALLS[NEW_SSID]+=' /etc/wpa_supplicant/wpa_supplicant.conf'
 # add wifi ssid/WPA password to enable $WIFI for internet access via wifi
 function NEW_SSID(){
@@ -1137,7 +1190,7 @@ INSTALLS.sh will make the Pi ready for installing MySense.py by downloading and 
 all Python dependencies en services for MySense.py.
 For the OS changes are available: $INSTALLS
 For plugins are available: $PLUGINS
-For extra's: $EXTRA
+For extra\'s: $EXTRA
 Calling INSTALL.sh without arguments will install all.
 "
     exit 0
@@ -1149,7 +1202,7 @@ then
     MODS="$INSTALLS $PLUGINS $EXTRA"
 fi
 
-UPDATE
+if ASK UPDATE ; then UPDATE ; fi
 for M in $MODS
 do
     # TO BE ADDED: check config if the plugin is really used
@@ -1170,9 +1223,14 @@ do
         else
             echo "For extra's not really needed  ${M^^} services:" 
         fi
-        if ! ${M^^}
+        if ASK ${M^^}
         then
-            echo "FAILED to complete needed modules/packages for My${M^^}.py." 1>&2
+            if ! ${M^^}
+            then
+                echo "FAILED to complete needed modules/packages for My${M^^}.py." 1>&2
+            fi
+        else
+            echo "Installation of ${M^^} skipped."
         fi
     else
         echo "Unknow plugin for $M. Skipped." 1>&2
