@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.56 2017/09/08 13:39:31 teus Exp teus $
+# $Id: INSTALL.sh,v 1.59 2017/09/12 13:38:05 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -30,9 +30,9 @@ function AddCrontab() {
     local SUDO=''
     if [ -z "$1" ] ; then return 1 ; fi
     if [ "$myUSER" != "$USER" ] ; then SUDO=/usr/bin/sudo ; fi
-    if ! $SUDO /usr/bin/crontab -u "$myUSER" -l 2>/dev/null | /bin/grep -q "^@boot.*$1"
+    if ! $SUDO /usr/bin/crontab -u "$myUSER" -l 2>/dev/null | /bin/grep -q "^@reboot.*$1"
     then
-        ($SUDO /usr/bin/crontab -u "$myUSER" -l 2>/dev/null ; echo "@boot $1" ) | $SUDO /usr/bin/crontab -u "$myUSER" -
+        ($SUDO /usr/bin/crontab -u "$myUSER" -l 2>/dev/null ; echo "@reboot $1" ) | $SUDO /usr/bin/crontab -u "$myUSER" -
         echo "Added at (re)boot to execute $1 as $myUSER user."
     fi
     return $?
@@ -75,7 +75,7 @@ function git_pip() {
             exit 1
         fi
     fi
-    if ! /usr/bin/pip --format=legacy list | /bin/grep -q -i "^$MOD"
+    if ! PIP_FORMAT=legacy /usr/bin/pip list 2>/dev/null | /bin/grep -q -i "^$MOD"
     then
         echo "Installing $MOD via pip"
         if [ -n "$2" ]
@@ -139,7 +139,7 @@ declare -A UNINSTALLS
 PLUGINS=''
 
 function ASK(){
-    local ANS DF
+    local ANS DF QRY='Do you want to install My ${1} and dependences?'
     if [ -z "${DFLT[${1}]}" ] ; then DFLT[${1}]=Y ; fi
     if [ "${DFLT[${1}]/N*/N}" = N  ] ; then DF="N|y" ; fi
     if [ "${DFLT[${1}]/Y*/Y}" = Y  ] ; then DF="Y|n" ; fi
@@ -148,8 +148,8 @@ function ASK(){
         echo "    ${HELP[${1}]}" >/dev/stderr
     fi
     if [ "${DFLT[${1}]}" = none ] ; then return 0 ; fi
-    if [ -n "$2" ] ; then echo "    ${2}" >/dev/stderr ; fi
-    read -t 15 -p  "Do you want to install My${1} and dependences? [${DF}] " ANS
+    if [ -n "$2" ] ; then QRY="$2" ; fi
+    read -t 15 -p  "${QRY} [${DF}] " ANS
     DF=${DF/%??/}
     if [ -n "$ANS" ]
     then
@@ -308,10 +308,10 @@ function MQTT(){
     return $?
 }
 
-EXTRA+=" STARTUP"
-HELP[STARTUP]="Installing auto MySense startup at boot via MyStart.sh script."
-UNINSTALLS[STARTUP]+=" MyStart.sh"
-function STARTUP(){
+EXTRA+=" AUTOSTART"
+HELP[AUTOSTART]="Installing auto MySense startup at boot via MyStart.sh script."
+UNINSTALLS[AUTOSTART]+=" MyStart.sh"
+function AUTOSTART(){
     echo "Installing: auto MySense start on boot: MyStart.sh"
     WD=$(pwd | sed -e s@$HOME@@ -e 's/^//')
     cat >MyStart.sh <<EOF
@@ -419,7 +419,7 @@ INSTALLS+=" GROVEPI"
 HELP[GROVEPI]="Installing GrovePi+ shield support, needed for several types of sensors."
 # this will install the grovepi library
 function GROVEPI(){
-    if /usr/bin/pip --format=legacy list | /bin/grep -q grovepi ; then return ; fi
+    if PIP_FORMAT=legacy /usr/bin/pip list 2>/dev/null | /bin/grep -q grovepi ; then return ; fi
     if [ -d git/GrovePi ] ; then return ; fi
     echo "This will install Grove Pi shield dependencies. Can take 10 minutes."
     mkdir -p git
@@ -1202,7 +1202,9 @@ then
     MODS="$INSTALLS $PLUGINS $EXTRA"
 fi
 
-if ASK UPDATE ; then UPDATE ; fi
+# try to get latest updates for Debian distr
+if ASK UPDATE "Update Debian OS and utilities" ; then UPDATE ; fi
+
 for M in $MODS
 do
     # TO BE ADDED: check config if the plugin is really used
