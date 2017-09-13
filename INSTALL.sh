@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.59 2017/09/12 13:38:05 teus Exp teus $
+# $Id: INSTALL.sh,v 1.60 2017/09/12 13:54:51 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -336,7 +336,7 @@ do
     CNT=\$((\$CNT+1))
     /usr/local/bin/MyLed.py --led \$LED --light ON
     sleep 1
-    if [ \$CNT -gt 30 ] ; break ; fi
+    if [ \$CNT -gt 30 ] ; then break ; fi
     /usr/local/bin/MyLed.py --led \$LED --light OFF
     sleep 59
 done
