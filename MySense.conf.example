@@ -28,7 +28,8 @@ project      = my_IoS
 # geolocation if not via optional embedded GPS
 # latitude (rad),longitude (rad),altitude (m)
 geolocation  = 15.1243,6.112,32
-label        = aLabel
+# label: identifier numalpha and _ chars
+label        = My_Label
 description  = IoS Sensors AlphaTestPhase
 # overwrite PII rules default: do not send
 street       = Hallway 25
