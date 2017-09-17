@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MakeReports.sh,v 1.17 2017/08/05 19:32:27 teus Exp teus $
+# $Id: MakeReports.sh,v 1.18 2017/09/17 19:10:50 teus Exp teus $
 
 # shell file produces pdf correlation report of influx raw series of timed data
 # for the dust sensor only pcs/qf is used
@@ -27,8 +27,8 @@
 # START=2017-06-01 END=now command pm25 BdP_12345=sds011,dylos,bme280 BdP_12346=ppd42ns,pms7003,dht22 ...
 
 export LANG=en_GB.UTF-8
-STRT=${START:-2017-07-30}
-END=${END:-2017-08-04}
+STRT=${START:-$(date --date="8 days ago" "+%Y-%m-%d")}
+END=${END:-$(date --date="1 day ago" "+%Y-%m-%d")}
 INTERVAL=900
 MTYPE=raw
 FIELD=time
@@ -52,7 +52,7 @@ declare -i CNT=0
 
 if [ $DBPASS = XXX ]
 then
-    read "Give InFluxDB server $DBUSER password: " DBPASS
+    read -p "Give InFluxDB server $DBUSER password: " DBPASS
 fi
 
 # header of HTML document
@@ -323,9 +323,9 @@ fi
 
 if [ ${#ARG_KITS[*]} -le 0 ] # default for BdP
 then
-    CONFIG[BdP_8d5ba45f]="dylos dht22 bme280 sound gps"
-    CONFIG[BdP_3f18c330]="sds011 ppd42ns dht22 bme280 gps"
-    CONFIG[BdP_33040d54]="sds011 ppd42ns pms7003"
+    CONFIG[BdP_8d5ba45f]="dht22 bme280 sds011 pms7003 sound gps"
+    CONFIG[BdP_3f18c330]="sds011 dht22 bme280 gps"
+    CONFIG[BdP_33040d54]="dylos ppd42ns"
     # ordered list
     ARG_KITS=(BdP_8d5ba45f BdP_3f18c330 BdP_33040d54)
 fi
