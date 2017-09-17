@@ -189,8 +189,9 @@ https://books.google.nl/books?id=pdWQAwAAQBAJ&printsec=frontcover&hl=nl#v=onepag
 Make sure the default user/password is gone and local network is not served, see:
 * https://makezine.com/2017/09/07/secure-your-raspberry-pi-against-attackers/
 ### hard reset the Pi
-Use a watchdog to watch the PI for normal operation or "power cycle":
-see:
+Use a watchdog to watch the PI for normal operation or "power cycle".
+Use `bash INSTALL.sh WATCHDOG` to install a hardware monitor and watchdog deamon.
+Ref:
 * https://raspberrypi.stackexchange.com/questions/1401/how-do-i-hard-reset-a-raspberry-pi
 ### read only root FS
 The Pi SD card may be corrupted by disconnecting the power adapter without a proper `poweroff`. To avoid this and to increase the lifetime of the SD card a readonly root filesystem is advised in the operating phase. See https://ferdinandkeil.com/read-only-filesystem-for-raspberry-pi.html for a how-to.

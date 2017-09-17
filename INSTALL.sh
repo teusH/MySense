@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.60 2017/09/12 13:54:51 teus Exp teus $
+# $Id: INSTALL.sh,v 1.61 2017/09/17 16:05:29 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -461,11 +461,14 @@ function USER(){
     /usr/bin/sudo adduser $USER gpio
     /usr/bin/sudo adduser $USER i2c
     /usr/bin/sudo adduser $USER dialout
-    echo "$USER ALL=(ALL) PASSWD: ALL" >/tmp/US$$
-    /usr/bin/sudo /bin/cp /tmp/US$$ /etc/sudoers.d/020_${USER}-passwd
-    /bin/rm /tmp/US$$
-    /usr/bin/sudo chmod 440 /etc/sudoers.d/020_${USER}-passwd
-    /usr/bin/sudo update-rc.d ssh enable
+    if [ ! -f /etc/sudoers.d/020_${USER}-passwd ]
+    then
+        echo "$USER ALL=(ALL) PASSWD: ALL" >/tmp/US$$
+        /usr/bin/sudo /bin/cp /tmp/US$$ /etc/sudoers.d/020_${USER}-passwd
+        /bin/rm /tmp/US$$
+        /usr/bin/sudo chmod 440 /etc/sudoers.d/020_${USER}-passwd
+    fi
+    /usr/bin/sudo update-rc.d ssh enable        # enable remote login
     /usr/bin/sudo service ssh restart
 }
 
@@ -515,6 +518,74 @@ function KeepOriginal() {
         /usr/bin/sudo -b /bin/cp $FILE $FILE.bak
     fi
     done
+}
+
+#EXTRA+=' WATCHDOG'
+# setup a watchdog using the buildin hardware monitor
+# the Pi may crash so use a watchdog
+function WATCHDOG() {
+    if !  /sbin/watchdog | grep -q bcm2708_wdog
+    then
+        /usr/bin/sudo /sbin/modprobe bcm2708_wdog
+        if ! /bin/grep -q bcm2708_wdog /etc/rc.local
+        then
+            /usr/bin/sudo /bin/sh -c "echo '/sbin/modprobe bcm2708_wdog' >> /etc/rc.local"
+        fi
+    fi
+    if [ ! -f /etc/init.d/watchdog ]
+    then
+        DEPENDS_ON apt watchdog chkconfig
+        /usr/bin/sudo /bin/systemctl enable watchdog
+        /etc/init.d/watchdog start
+    fi
+    if ! /bin/grep -q '^watchdog-device' /etc/watchdog.conf
+    then
+        /usr/bin/sudo /bin/sed -i '/^#watchdog-device/s/#//' /etc/watchdog.conf
+    fi
+}
+
+#EXTRA+=' FIREWALL'
+# setup a firewall
+# allow only traffic from/to lo and gateway
+function FIREWALL(){
+    DEPENDS_ON apt iptables
+    DEPENDS_ON apt iptables-persistent
+    if [ ! -f /etc/iptables/rules.v4 ]
+    then        # on reboot this will be activated
+        cat >/tmp/FW$$ <<EOF
+ :INPUT ACCEPT [0:0]
+ :FORWARD ACCEPT [0:0]
+ :OUTPUT ACCEPT [0:0]
+
+# Allows all loopback (lo0) traffic and drop all traffic to 127/8 that doesn't use lo0
+ -A INPUT -i lo -j ACCEPT
+ -A INPUT ! -i lo -d 127.0.0.0/8 -j REJECT
+
+# Accepts all established inbound connections
+ -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Allows all outbound traffic
+ # You could modify this to only allow certain traffic
+ -A OUTPUT -j ACCEPT
+
+# Allows SSH connections
+ # The --dport number is the same as in /etc/ssh/sshd_config
+ -A INPUT -p tcp -m state --state NEW --dport 22 -j ACCEPT
+
+# log iptables denied calls (access via 'dmesg' command)
+ -A INPUT -m limit --limit 5/min -j LOG --log-prefix "iptables denied: " --log-level 7
+
+# Reject all other inbound - default deny unless explicitly allowed policy:
+ -A INPUT -j REJECT
+ -A FORWARD -j REJECT
+
+# TO DO: Allow only traffic via gateway. This is tricky as gateway IP will change
+
+COMMIT
+EOF
+        /usr/bin/sudo /bin/cp /tmp/FW$$ /etc/iptables/rules.v4
+        /bin/rm -f /tmp/FW$$
+    fi
 }
 
 INSTALLS+=" INTERNET"
