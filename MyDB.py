@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.27 2017/08/31 08:39:51 teus Exp teus $
+# $Id: MyDB.py,v 2.28 2017/09/17 14:48:06 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.27 $"[11:-2]
+__version__ = "0." + "$Revision: 2.28 $"[11:-2]
 
 try:
     import MyLogger
@@ -127,7 +127,7 @@ def db_registrate(ident):
         if not db_query("""ALTER TABLE Sensors
             ADD COLUMN coordinates VARCHAR(25) DEFAULT NULL,
             ADD COLUMN label VARCHAR(50) DEFAULT NULL,
-            ADD COLUMN sensors VARCHAR(128) DEFAULT NULL,
+            ADD COLUMN sensors VARCHAR(192) DEFAULT NULL,
             ADD COLUMN description VARCHAR(256) DEFAULT NULL,
             ADD COLUMN first DATETIME DEFAULT '2001-01-01 00:00:00',
             ADD COLUMN active BOOL DEFAULT 1,
