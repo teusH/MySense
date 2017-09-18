@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MakeReports.sh,v 1.18 2017/09/17 19:10:50 teus Exp teus $
+# $Id: MakeReports.sh,v 1.19 2017/09/18 15:16:33 teus Exp $
 
 # shell file produces pdf correlation report of influx raw series of timed data
 # for the dust sensor only pcs/qf is used
@@ -27,9 +27,11 @@
 # START=2017-06-01 END=now command pm25 BdP_12345=sds011,dylos,bme280 BdP_12346=ppd42ns,pms7003,dht22 ...
 
 export LANG=en_GB.UTF-8
-STRT=${START:-$(date --date="8 days ago" "+%Y-%m-%d")}
-END=${END:-$(date --date="1 day ago" "+%Y-%m-%d")}
+DAYS=${DAYS:-7}
+STRT=${START:-$(date --date="$DAYS days ago" "+%Y-%m-%d")}
+END=${END:-$(date --date="00:00" "+%Y-%m-%d")}
 INTERVAL=900
+PROJECT=${PROJECT:-BdP_}        # default project identifier
 MTYPE=raw
 FIELD=time
 
@@ -44,15 +46,16 @@ HTML2PDF=/usr/local/wkhtmltox/bin/wkhtmltopdf
 
 HTML=${HTML:---HTML}
 
-DBHOST=${DBHOST:-localhost}
-DBUSER=${DBUSER:-$USER}
-DBPASS=${DBPASS:-XXX}
+export DBHOST=${DBHOST:-localhost}
+export DBUSER=${DBUSER:-$USER}
+export DBPASS=${DBPASS:-XXX}
 
 declare -i CNT=0
 
 if [ $DBPASS = XXX ]
 then
     read -p "Give InFluxDB server $DBUSER password: " DBPASS
+    export DBPASS
 fi
 
 # header of HTML document
@@ -259,12 +262,63 @@ EOF
     return 0
 }
 
-echo "Expect warnings about Axis fit for the graphs." >/dev/stderr
+# get names of kits with raw data
+function GET_KITS(){
+    influx --format csv --execute="auth $DBUSER $DBPASS
+show databases" | \
+    grep "databases,$PROJECT" | \
+    grep -v -e test_sense -e _internal | \
+    sed 's/databases,//'
+}
+#GET_KITS
 
-KIT1=BdP_8d5ba45f       # 192.168.178.49 IoS2 Pi3
-KIT2=BdP_3f18c330       # 192.168.176.42 IoS3 Pi3
-KIT3=BdP_33040d54       # 192.168.176.52 IoS1 Pi2
-KIT4=BdP_f46d04af97ab   # 192.168.176.51 lunar desktop
+# get types of a kit in the period START =<> END (seconds)
+function GET_SENSOR_TYPES(){
+    if [ -z "$1" ] ; then return ; fi
+    declare -a TS   
+    local ST=$(date --date="$STRT" +%s) EN=$(date --date="$END" +%s)
+    local T
+    # get raw series with a type for this kit 
+    TS=($(
+influx --format csv --execute="auth $DBUSER $DBPASS
+use $1
+show series" | grep type= | sed -e 's/raw,type=//' -e 's/""*//g'
+))
+    for T in ${TS[@]}
+    do
+        declare -a CNT=($(
+influx --format=csv --execute="auth $DBUSER $DBPASS
+select count(*) from ${1}..raw where time  >= ${ST}s and time < ${EN}s and type = '\"$T\"'" | \
+sed -e 's/count_//g' | \
+awk  -F, '
+BEGIN { nf = 0 ; }
+{ if ( NR < 2 ) { for( i=3; i <= NF; i++) { names[i-3] = $i; }}
+  else { for(i=3; i <= NF; i++) { values[i-3] = $i ; } }
+  if ( NF > nf ) { nf = NF ; }
+}
+END {
+    if ( nf > 0 ) {
+        for ( i=3; i <= nf; i++) {
+            if (values[i-3] > 0 ) { printf("%s=%d\n",names[i-3], values[i-3]); }
+        }
+    }
+}
+'
+))
+        if (( ${#CNT[@]} > 0 ))
+        then
+            echo "$T"
+        fi
+    done | sort | uniq | sed -e 's/loundness/sound/' -e 's/geo/gps/'
+}
+#for KIT in $(GET_KITS)
+#do
+#    GET_SENSOR_TYPES "$KIT"
+#    echo "Kit $KIT has sensor types ${TYPES[$KIT]}"
+#done
+
+
+echo "Expect warnings about Axis fit for the graphs." >/dev/stderr
 
 declare -A SENSOR
 # convert sensor type name to db identifier
@@ -323,11 +377,28 @@ fi
 
 if [ ${#ARG_KITS[*]} -le 0 ] # default for BdP
 then
-    CONFIG[BdP_8d5ba45f]="dht22 bme280 sds011 pms7003 sound gps"
-    CONFIG[BdP_3f18c330]="sds011 dht22 bme280 gps"
-    CONFIG[BdP_33040d54]="dylos ppd42ns"
+    for KIT in $(GET_KITS)
+    do
+       T=$(GET_SENSOR_TYPES "$KIT")
+        if [ -n "$T" ]
+        then
+            echo "Kit $KIT has sensor types: " ${T^^}
+            CONFIG[$KIT]=$T
+            ARG_KITS+=($KIT)
+        else
+            echo "Kit $KIT has NO sensor values in this period $STRT - $END"
+        fi
+    done
+    if [ ${#ARG_KITS[*]} -le 0 ] 
+    then
+        echo "No Kits found with sensor values in the period $STRT - $END"
+        exit 0
+    fi
+    #CONFIG[BdP_8d5ba45f]="dht22 bme280 sds011 pms7003 sound gps"
+    #CONFIG[BdP_3f18c330]="sds011 dht22 bme280 gps"
+    #CONFIG[BdP_33040d54]="dylos ppd42ns"
     # ordered list
-    ARG_KITS=(BdP_8d5ba45f BdP_3f18c330 BdP_33040d54)
+    #ARG_KITS=(BdP_8d5ba45f BdP_3f18c330 BdP_33040d54)
 fi
 
 HTML_REPORTS=() # list of generated correlation reports HTML format
