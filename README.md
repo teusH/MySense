@@ -290,6 +290,7 @@ Feedback of improvements, or extentions to the software are required.
 
 ## References
 A list of references for the documentation and/or code used in MySense.py:
+* Open Data Stuttgart ESP8266 controller oriented: https://github.com/opendata-stuttgart
 * MIT Clairity CEE Senior Capstone Project report V1 dd 15-05-14
 * https://www.challenge.gov/challenge/smart-city-air-challenge/ Smart City Air Challenge (2016, USA GOV)
 See also: https://developer.epa.gov/air-pollution/
