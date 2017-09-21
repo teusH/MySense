@@ -93,3 +93,5 @@ Edit the `MySense.conf` file and add the section dht and complete the options e.
     calibrations = [[-0.3,1],[3.9,1]]
 ```
 To evaluate run this as user `ios`:  `./MySense.py -i dht -o console -l debug`
+
+Make sure there is more as 2 seconds delay between two samples.
