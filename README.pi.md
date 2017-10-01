@@ -43,6 +43,13 @@ If you use USB serial cables from the same manufacturer one may have trouble to 
 ### Pi energy and USB power consumption
 The Pi uses not much energy. Every USB port uses about 500 mA. So one may run out of power quickly with too many USB socket usage. A USB hup consumes by itself also about 500 mA. Be aware that quite some low cost power enabled hub do feed power to the Pi. Do not use these faulty hubs. There are good hubs with own power supply up to 3A.
 
+### USB serial port number
+Any Linux OS will assign at boot time a `/dev/ttyUSBn`, where n is a number starting with 0, to the connected USB serial.
+'n' however is might change on a reboot.
+With `/dev/serial/by-id/` one *may* detect the USB port number (see the MySense conf part for the product id recognition).
+E.g. the cheaper Prolific serial USB will show a serial zero ID.s
+With the use of two or more USB serial connections advised is to use either different products or serial numbers or change the serial ID (EEPROM) of e.g. FTDI (Future Technologies) serial USB chip: see http://rtr.ca/ft232r/ for a how to.
+
 ### FIRST UPGRADE
 You need for this to have an internet connection.
 You probably do not need the package wolfram-engine (680 MB) so delete the package:
