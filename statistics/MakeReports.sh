@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MakeReports.sh,v 1.19 2017/09/18 15:16:33 teus Exp $
+# $Id: MakeReports.sh,v 1.20 2017/10/02 14:30:03 teus Exp teus $
 
 # shell file produces pdf correlation report of influx raw series of timed data
 # for the dust sensor only pcs/qf is used
@@ -45,6 +45,29 @@ CONTENT=$REPORTS/CorrelationReportContent_$(date '+%Y-%m-%dT%H:%M').html
 HTML2PDF=/usr/local/wkhtmltox/bin/wkhtmltopdf
 
 HTML=${HTML:---HTML}
+
+if [ -z "$1" ] || [ -z "${1/*help*/}" ]
+then
+    cat >/dev/stderr <<EOF
+Usage: $0 type ... where type is dust or climate
+    The InfluxDB server will used to find proj_sensorID's
+    or type is proj_sensorID=sensor_type list
+        where sensor_type list is eg: dylos,sds011,dht22,bme280,pms7003,ppd42ns
+
+    Use InfluxDB as database server, credentials from environment:
+        DBHOST dflt localhost
+        DBUSER dflt $USER
+        DBPASS when not defined start dialog
+    From environment: DAYS (dflt 7) period,
+        START dflt DAYS ago from now, format YYYY-MM-DD,,
+        END dflt  today 0h 0m, format YYYY-MM-DD
+        PROJECT dflt BdP_
+    dflt output dir: $REPORTS files $TOTAL and $CONTENT
+    InfluxDB series $MTYPE and time field $FIELD
+    script depends on wkhtmltopdf to collect content overview.
+EOF
+    exit 0
+fi
 
 export DBHOST=${DBHOST:-localhost}
 export DBUSER=${DBUSER:-$USER}
@@ -343,37 +366,27 @@ declare -A CONFIG
 declare -a KITS
 
 SENSES=""
-if [ -z "$1" ] || [ -z "${1/*help*/}" ]
-then
-    cat >/dev/stderr <<EOF
-Usage: $0 type ... where type is dust or climate
-    or type is proj_sensorID=sensor_type list
-        where sensor_type list is eg dylos,sds011,dht22,bme280,pms7003,ppd42ns
-EOF
-    exit 0
-else
-    for arg
-    do
-        case $arg in
-        dust)
-            ARGS+=" pm10 pm25"
-        ;;
-        climate)
-            ARGS+=" temp rh pha"
-        ;;
-        pm1|pm25|pm10|temp|rh|pha)
-            ARGS+=" $arg"
-        ;;
-        *=*)
-            CONFIG[${arg/=*/}]=$( echo "${arg/*=/}" | sed 's/,/ /g')
-            ARG_KITS+="${arg/=*/}"
-        ;;
-        *)
-            echo "$arg Unknown sensing element type: use dust and/or climate"
-            exit 1
-        esac
-    done
-fi
+for arg
+do
+    case $arg in
+    dust)
+        ARGS+=" pm10 pm25"
+    ;;
+    climate)
+        ARGS+=" temp rh pha"
+    ;;
+    pm1|pm25|pm10|temp|rh|pha)
+        ARGS+=" $arg"
+    ;;
+    *=*)
+        CONFIG[${arg/=*/}]=$( echo "${arg/*=/}" | sed 's/,/ /g')
+        ARG_KITS+="${arg/=*/}"
+    ;;
+    *)
+        echo "$arg Unknown sensing element type: use dust and/or climate"
+        exit 1
+    esac
+done
 
 if [ ${#ARG_KITS[*]} -le 0 ] # default for BdP
 then
