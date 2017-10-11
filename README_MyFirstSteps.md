@@ -1,4 +1,51 @@
-## My First Steps
+# My First Steps
+## power on/off MySense
+### Power on
+Powering on the Pi with installed MySense is done by connecting the power adapter (5V 2.5A) to the Pi.
+The Pi will use some time to boot, look for wired LAN connection, followed by search to wifi internet connectivity. The power led button will flash if no internet connectivity is found and go into wifi Access Point mode.
+Wifi Access WPS modus can be enforced by pressing the power button for 7 seconds.
+
+On internet access the Pi display will show the used IP address and proceed to startup MySense fully. After some minutes the display will show the measurents.
+If no output channels are enabled or fail MySense will stop.
+
+Login from remote `ssh ios@mysense.ip.number` (default password: BehoudDeParel), so one can view the MySense log file for enabled input and outputerrors: `cat /var/log/MySense/MySense.conf`.
+All python scripts are in the folder `MySense`.
+
+### enable wifi access
+The power button led will flash if no internet access is found: there is no wired LAN connectivity, nor wifi internet access.
+The Pi is in wifi Access Point modus:
+* enable wifi access on e.g. laptop to `MySense-IoSn` with password `BehoudDeParel` (see also tyhe display for these credentials.
+* login into MySense Pi `ssh ios@192.168.2.1`
+* add/change the list of networks in `/etc/wpa_supplicant/wpa_supplicant.conf` via `sudo vi ....`:
+```
+    # add or change this entry
+    network={
+        ssid="your-SSID"            # <---- change this
+        psk="Your Pass for SSID"    # <---- change this
+        proto=RSN
+        key_mgmt=WPA-PSK
+        pairwise=CCMP
+        auth_alg=OPEN
+}
+```
+* the command `sudo ifup wlan0` will try to access internet again and show success or failure.
+* `sudo reboot`
+
+TO DO: use wicd to do this in a more user friendly way
+
+### Power off the Pi
+The Pi can be powered off by disconnecting the power cord. However there is a small chance that the file system will be damaged.
+
+A more reliable way is: push the button for more as *14 seconds* to force a `reboot` or for more as *20 seconds* to force a `poweroff`.
+
+
+### MySense configuration
+In the user *ios* home directory the folder `MySense` will have all MySense scripts and the MySense `MySense.conf` configuration file.
+If needed enable/disable of change sensor options in this file.
+
+The call `python MySense.py stop` will stop MySense. Start MySense with `python MySense.py start` to restart the MySense daemon. The command `python MySense.py` will start MySense in console mode, showing all startup messages on the console. Use `--help` to get an overview of all command line options.
+
+## installation on Pi (Pi3 or Pi W)
 ### Intro
 For the first steps with MySense we make use of a Pi (hopefully a Pi 3) with eg Jessie installed as Linux OS. See the various Pi install instruction for a How To install Debian Jessie on the Pi. Use a Pi say with a micro SD card of about 32GB. Hook the Pi up with internet and login as pi user.
 
