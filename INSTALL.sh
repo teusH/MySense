@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.61 2017/09/17 16:05:29 teus Exp teus $
+# $Id: INSTALL.sh,v 1.62 2017/10/11 14:33:23 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -946,7 +946,8 @@ EOF
 UNINSTALLS[VIRTUAL]+=' /usr/local/etc/start_wifi_AP'
 # this will start wifi Access Point if $LAN and $WIFI have no internet access
 # the virtual uap0 wifi will be combined with $WIFI (embedded in Pi3)
-# TO DO: if uap0 is up, $WIFI cannot be used in symultane (does not work yet)
+# TO DO: if uap0 is up, $WIFI cannot be used in symultane (not yet tested fully)
+# TO DO: if wlan has internet access, bring uap0 down after 30 minutes
 function VIRTUAL(){
     local WLAN=${1:-uap0} ADDR=${2:-192.168.2} NAT=${3:-YES}
     if [ $NAT = YES ]
@@ -1051,14 +1052,16 @@ then
     /usr/local/bin/MyLed.py --led D6 --blink 1,5,30 &
 fi
 WIFI=$(/sbin/ifconfig -a | grep '^w.*: flag' | /usr/bin/head -1 | /bin/sed 's/:.*//') 
+/sbin/ifdown \${WIFI}
 /sbin/iw dev \${WIFI} interface add "\${WLAN}" type __ap
 /sbin/ip link set "\${WLAN}" address \$(ifconfig  | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:0f/')
 /sbin/ifup uap0 2>/dev/null >/dev/null   # ignore already exists error
-/usr/sbin/service dnsmasq restart
 /sbin/sysctl net.ipv4.ip_forward=1
 /sbin/iptables -t nat -A POSTROUTING -s 192.168.2.0/24 ! -d 192.168.2.0/24 -j MASQUERADE
 /usr/sbin/service hostapd restart
 /sbin/route del default dev uap0
+/usr/sbin/service dnsmasq restart
+/sbin/ifup \${WIFI} # this will enable wifi internet access, as well wifi access point
 sleep 5
 echo "WiFi AP please login" | /bin/nc -w 2 localhost \$D_ADDR
 /bin/grep -e 'ssid=...' -e wpa_passphrase= /etc/hostapd/hostapd.conf | /bin/sed 's/.*phrase/phrase/' | /bin/nc -w 2 localhost \$D_ADDR
