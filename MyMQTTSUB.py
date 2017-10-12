@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyMQTTSUB.py,v 2.6 2017/06/06 14:42:50 teus Exp teus $
+# $Id: MyMQTTSUB.py,v 2.7 2017/10/12 14:46:27 teus Exp teus $
 
 # module mqtt: git clone https://github.com/eclipse/paho.mqtt.python.git
 # cd paho.mqtt.python ; python setup.py install
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyMQTTSUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.6 $"[11:-2]
+__version__ = "0." + "$Revision: 2.7 $"[11:-2]
 
 try:
     import MyLogger
@@ -274,3 +274,31 @@ def getdata():
             sleep(0.1)
             return getdata()
     return { 'register': msg['id'], 'data': msg['payload']['data'] }
+
+# test main loop
+if __name__ == '__main__':
+    from time import sleep
+    Conf['input'] = True
+    Conf['hostname'] = 'lunar'
+    Conf['user'] = 'ios'
+    Conf['password'] = 'acacadabra'
+    # Conf['cert'] = None,       # X.509 encryption
+    Conf['topic'] = 'IoS',      # main topic
+    Conf['prefix'] = 'IoS_',    # Internet of Sense base of topic
+    Conf['apikey'] = 'MQTT' + str(os.getpid()), # get unique client id
+    Conf['projects'] = '.*',    # regular expr to accept projects to subscribe to
+    Conf['serials'] = '.*',     # regular expression to accept serial numbers
+
+    Conf['debug'] = True
+    for cnt in range(0,25):
+        timing = time()
+        try:
+            data = getdata()
+        except Exception as e:
+            print("input sensor error was raised as %s" % e)
+            break
+        print("Getdata returned:")
+        print(data)
+        timing = 2 - (time()-timing)
+        if timing > 0:
+            sleep(timing)
