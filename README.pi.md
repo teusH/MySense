@@ -202,3 +202,7 @@ Ref:
 * https://raspberrypi.stackexchange.com/questions/1401/how-do-i-hard-reset-a-raspberry-pi
 ### read only root FS
 The Pi SD card may be corrupted by disconnecting the power adapter without a proper `poweroff`. To avoid this and to increase the lifetime of the SD card a readonly root filesystem is advised in the operating phase. See https://ferdinandkeil.com/read-only-filesystem-for-raspberry-pi.html for a how-to.
+
+Adafruit made a shell script available to configure a read-only fs on Debian Lite version. Other OS distr may work but one need to disable X11.
+The script:
+* https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/master/read-only-fs.sh
