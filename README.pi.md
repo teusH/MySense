@@ -20,6 +20,8 @@ To Do: connection Check shell script need some work to support only one connecte
 ### Installing latest Debian OS
 See for simple how to: https://www.raspberrypi.org/documentation/installation/installing-images/
 
+The Raspian Lite version is about 600Mb smaller as the desktop. The Lite version has no X-Window support and is ok to be used for a sensor kit. As well the Lite version makes less use of the SDcard and one has the possibility to configure a read only filesystem. So the lifetime of the filesystem is much increased as well a power off/on cycle is less likely to disrupt the filesystem.
+
 ### HEADLESS Pi
 No console no screen to the Pi well no problem.
 Power on the Pi. Make sure the Pi is connected with a cable to your router.
