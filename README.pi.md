@@ -37,6 +37,20 @@ Only in the development and test phase one may need a screen and keyboard. In op
 ```
 More on vcgencmd see http://www.elinux.org/RPI_vcgencmd_usage
 
+### Pi firmware upgrade
+Most common issue's like stalling of the LAN adapter, issues with USB FTDI adapters and SD card compatibility with Raspberry Pi is an outdated firmware.
+To do a firmware update: `sudo rpi-update`
+abd Reboot your Raspberry Pi.
+See also: `https://github.com/Hexxeh/rpi-update`.
+
+Troubleshooting:
+If your download of the update seems to stall (1-2kb/s download) do the following:
+```bash
+sudo rm -rf /root/.rpi-firmware
+sudo rpi-update
+```
+The complete update should take about 10 minutes (depending on your internet connection)
+
 ### serial connection
 If you need 2 serial basic (TTL UART) serial connections for modules it is possible with some tuning. See https://spellfoundry.com/2016/05/29/configuring-gpio-serial-port-raspbian-jessie-including-pi-3/ for some instructions. You may need to lower slightly the CPU speed for `/dev/ttyS0`. See *tips and tricks* below for more info on this.
 
