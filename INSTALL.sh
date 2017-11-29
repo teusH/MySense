@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.62 2017/10/11 14:33:23 teus Exp teus $
+# $Id: INSTALL.sh,v 1.63 2017/11/29 12:44:27 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -330,16 +330,32 @@ then
 fi
 
 CNT=0
-while ! /bin/ping -q -w 2 -c 1 8.8.8.8 >/dev/null
-do  
-    echo -e "<clear>No internet access\nfor \$CNT minutes" | /bin/nc -w 2 localhost \$D_ADDR
-    CNT=\$((\$CNT+1))
-    /usr/local/bin/MyLed.py --led \$LED --light ON
-    sleep 1
-    if [ \$CNT -gt 30 ] ; then break ; fi
-    /usr/local/bin/MyLed.py --led \$LED --light OFF
-    sleep 59
-done
+if /usr/bin/awk '
+    BEGIN { net = 0 ; host = 0 ; out = 0 ; }
+    /^#/ { next ; }
+    /^\[.*\]/ { if ( host  && out ) { net = 1 ; } ; host = 0 ; out = 0 ; }
+    /(output|raw).*=.*[Tt][Rr][Uu][Ee]/ { out = 1 ; }
+    /(hostname).*=/ { host = 1 ; }
+    /(hostname).*=.*localhost/ { host = 0 ; }
+    END {
+        if ( host && out ) { net = 1 ; }
+        if ( net ) { exit(1) ; }
+    }
+     ' $HOME/$WD/MySense.conf
+then
+    CNT=60
+else
+    while ! /bin/ping -q -w 2 -c 1 8.8.8.8 >/dev/null
+    do  
+        echo -e "<clear>No internet access\nfor \$CNT minutes" | /bin/nc -w 2 localhost \$D_ADDR
+        CNT=\$((\$CNT+1))
+        /usr/local/bin/MyLed.py --led \$LED --light ON
+        sleep 1
+        if [ \$CNT -gt 30 ] ; then break ; fi
+        /usr/local/bin/MyLed.py --led \$LED --light OFF
+        sleep 59
+    done
+fi
 if [ \$CNT -gt 30 ]
 then
     echo -e "<clear>STARTING up MySense\nin LOCAL modus\nWelcome to MySense" | /bin/nc -w 2 localhost \$D_ADDR
