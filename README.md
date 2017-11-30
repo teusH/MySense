@@ -113,7 +113,9 @@ A working example of MySense script in todays operation:
     PPD42NS -dust-Arduino-USB->|    |    |>- InFlux publish  |         |>-InFlux pub
     Nova SDS011 -dust -USB --->|    |    |>- display SSD1306
     Plantower PMS7003 -USB --->|    |    |>- Google gspread (alpha, depricated)
-    O3,NO2,CO2,NH3(Alpha)-USB->|    |    |   (planned Oct 2017)
+    Adafruit rain in dev-GPIO->|    |
+    O3,NO2,CO,H2S -SPECK--USB->|    |    |   (beta test Dec 2017)
+    NH3(Alpha)--SPECK-----USB->|    |    |   (planned Jan 2018)
     LoRaWan (planned) -------->|    |    |>- broker? (planned)
     Mosquitto sub ----server ->|    |    |>- LoRaWan (planned, TTN end of 2017)
     InFlux subscribe -server ->|    |    |>- Bluetooth (planned)
