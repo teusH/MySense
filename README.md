@@ -59,7 +59,7 @@ See for a How To: README.case.md
 # Software
 ## Scripts
 All scripts are written in Python 2. Python 3 is supported but not tested well.
-Scripts have been tested on Raspberry Pi (2 and 3) running Wheezy and Jessie Debian based OS.
+Scripts have been tested on Raspberry Pi (2 and 3) running Wheezy, Jessie and Stretch Debian based OS.
 Scripts have a -h (help) option. With no arguments the script will be started in interactive mode. Arguments: *start*, *status*, *stop*.
 
 ### Support scripts
@@ -107,13 +107,14 @@ A working example of MySense script in todays operation:
     DHT11/22-meteo ---GPIO---->| ///|\\\ |>- CSV                _____
     GPS-locator ------RS232--->|=MySense=|>- console           ///|\\\  
     RSSI-wifi signal-strength >||  Pi3  ||>- MYSQL           |=MySense=|>-gspread
-    Dylos-dust -USB-- RS232--->||Jessie ||>- Mosquitto pub-->|| Debian||>-MySQL
+    Dylos-dust -USB-- RS232--->||Stretch||>- Mosquitto pub-->|| Debian||>-MySQL
     Grove-loudness ---GPIO---->| \\\|/// |>- HTTP-Post       || Linux ||>-CSV
     EMS280 -meteo ----I2C----->|    |    |>- email info      | \\\|/// |>-console
     PPD42NS -dust-Arduino-USB->|    |    |>- InFlux publish  |         |>-InFlux pub
     Nova SDS011 -dust -USB --->|    |    |>- display SSD1306
     Plantower PMS7003 -USB --->|    |    |>- Google gspread (alpha, depricated)
-    Adafruit rain in dev-GPIO->|    |
+    BME680 -meteo+gas--I2C --->|    |    |   (planned Dec 2017)
+    Adafruit rain -------GPIO->|    |    |   (in develop Dec 2017)
     O3,NO2,CO,H2S -SPECK--USB->|    |    |   (beta test Dec 2017)
     NH3(Alpha)--SPECK-----USB->|    |    |   (planned Jan 2018)
     LoRaWan (planned) -------->|    |    |>- broker? (planned)
