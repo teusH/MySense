@@ -21,6 +21,24 @@ To Do: connection Check shell script need some work to support only one connecte
 See for simple how to: https://www.raspberrypi.org/documentation/installation/installing-images/
 
 The Raspian Lite version is about 600Mb smaller as the desktop. The Lite version has no X-Window support and is ok to be used for a sensor kit. As well the Lite version makes less use of the SDcard and one has the possibility to configure a read only filesystem. So the lifetime of the filesystem is much increased as well a power off/on cycle is less likely to disrupt the filesystem.
+Our preference due to the sensorkit focus is the latest Lite version.
+
+The stepts to take to install the OS on the Pi within 10 minutes:
+* download the zip file e.g. 20YY-MM-DD-raspbian-xyz.zip (2 or 5 GB) to your desktop
+* insert a (empty) micro SD card in your desktop probably with a Micro SD aapter.
+* download *etcher* from `https://etcher.io/` on your desktop
+* start *etcher* and use the zip file as input, flash the SD card
+* disconnect the SD adapter, and insert the micro SD card into the Pi
+* connect the Pi to internet cable, HDMI monitor, and keyboard (mouse)
+* connect the Pi to power
+* login as user *pi* and password *raspberry*
+* make sure you have internet access: `ifconfig` (write down Pi internet address) or `ping -c 2 8.8.8.8`
+* enable ssh remote login: `sudo update-rc.d ssh enable ; /etc/init.d/ssh restart`
+You should be able to install everything from remote by now.
+
+Use the comments below to upgrade the Pi firmware, update/upgrade the system, and configure language, timezone and keyboard.
+Make sure you check the keyboard settings on the console by pressing keys like `|` and `~` on the keyboard.
+By now you will be asked to change the *pi* password. Make sure you remember this phrase.
 
 ### HEADLESS Pi
 No console no screen to the Pi well no problem.
@@ -97,7 +115,7 @@ Had to edit /etc/default/keyboard the "gb" setting into "us" as well.
 ```shell
 pi% `passwd pi` -> acacadabra 
 ```
-* You need internet connectivity to update the Jessie: `sudo apt-get update upgrade dist-upgrade`. This takes a while ... and finally `sudo apt-get /autoremove`
+* You need internet connectivity to update the Jessie: `sudo apt-get update upgrade dist-upgrade`. This takes a while ... and finally `sudo apt-get autoremove`
 * Allow to remotely login via ssh (or putty):
 ```shell
     sudo update-rc.d ssh enable
