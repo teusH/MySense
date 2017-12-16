@@ -120,6 +120,7 @@ A working example of MySense script in todays operation:
     LoRaWan (planned) -------->|    |    |>- broker? (planned)
     Mosquitto sub ----server ->|    |    |>- LoRaWan (planned, TTN end of 2017)
     InFlux subscribe -server ->|    |    |>- Bluetooth (planned)
+    LoRa TTN MQTT ----server ->|    |
                                     |
                                     |>-raw measurement values -> InFlux server or file
                                            calibration
