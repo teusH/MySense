@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.28 2017/09/17 14:48:06 teus Exp teus $
+# $Id: DB-upload-MySQL.py,v 1.4 2017/12/16 16:15:49 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -26,8 +26,8 @@
 """ Publish measurements to MySQL database
     Relies on Conf setting by main program
 """
-modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.28 $"[11:-2]
+modulename='$RCSfile: DB-upload-MySQL.py,v $'[10:-4]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 
 try:
     import MyLogger
@@ -37,7 +37,7 @@ try:
     import datetime
     from time import time
 except ImportError as e:
-    MyLogger.log(modulename,"FATAL","One of the import modules not found: %s" % e)
+    MyLogger.log(modulename,'FATAL',"One of the import modules not found: %s"% e)
 
 # configurable options
 __options__ = ['output','hostname','port','database','user','password']
@@ -75,7 +75,7 @@ def db_connect(net):
             return False
         for M in ('user','password','hostname','database'):
             if (not M in Conf.keys()) or not Conf[M]:
-                MyLogger.log(modulename,'ERROR','Define DB details and credentials.')
+                MyLogger.log(modulename,'ERROR',"Define DB details and credentials.")
                 Conf['output'] = False
                 return False
         if (Conf['fd'] != None) and (not Conf['fd']):
@@ -254,14 +254,24 @@ def publish(**args):
             'hpa': 'luchtdruk',
             'geo': 'geolocation',
             'wd':  'wr',
+            'humidity': 'rv',
+            'temperature': 'temp',
+            'pressure': 'luchtdruk',
         }
         if my_name in DBnames.keys(): return DBnames[my_name]
         return my_name
 
     # check if fields in table exists if not add them
-    def db_fields(types):
+    def db_fields(my_ident):
         global Conf, ErrorCnt
-        if ("fields") in Conf.keys():
+        table = my_ident['project']+'_'+my_ident['serial']
+        if not 'fields' in Conf.keys(): Conf['fields'] = {}
+        missing = False
+        if table in Conf['fields'].keys():
+            for fld in Conf['fields'][table]:
+                if not fld in my_ident['fields']: missing = True
+        else: missing = True
+        if not missing:
             return True
         Sensor_fields = {
             'geo':         "VARCHAR(25) default NULL",
@@ -276,9 +286,10 @@ def publish(**args):
             'default':     "DECIMAL(7,2) default NULL",
             "_valid":      "BOOL default 1"
         }
-        fields = types['fields']
-        units = types['units']
+        fields = my_ident['fields']
+        units = my_ident['units']
         add = []
+        # we rely on the fact that fields in ident denote all fields in data dict
         table_flds = db_query("SELECT column_name FROM information_schema.columns WHERE  table_name = '%s_%s' AND table_schema = '%s'" % (args['ident']['project'],args['ident']['serial'],Conf['database']),True)
         gotIts = []     # avoid doubles
         for i in range(0,len(fields)):
@@ -303,7 +314,7 @@ def publish(**args):
                 MyLogger.log(modulename,'FATAL',"Unable to add columns: %s" % ', '.join(add))
                 Conf['output'] = False
                 return False
-        Conf["fields"] = fields
+        Conf["fields"][table] = fields
         return True
 
     if not db_connect(args['internet']):
@@ -347,12 +358,15 @@ def publish(**args):
     query += "(%s) " % ','.join(cols)
     query += "VALUES (%s)" % ','.join(vals)
     try:
+        (cnt,) = db_query("SELECT count(*) FROM %s_%s WHERE datum = from_unixtime(%s)" % (args['ident']['project'],args['ident']['serial'],args['data']["time"]),True)
+        if cnt[0] > 0: # overwrite old values
+            db_query("DELETE FROM %s_%s where datum = from_unixtime(%s)" % (args['ident']['project'],args['ident']['serial'],args['data']["time"]), False)
         if db_query(query,False): ErrorCnt = 0
         else: ErrorCnt += 1
     except IOError:
         raise IOError
     except:
-        MyLogger.log(modulename,'ERROR','Error in query: %s' % query)
+        MyLogger.log(modulename,'ERROR',"Error in query: %s" % query)
         ErrorCnt += 1
     if ErrorCnt > 10:
         return False
@@ -362,23 +376,41 @@ def publish(**args):
 if __name__ == '__main__':
     from time import sleep
     Conf['output'] = True
-    Conf['hostname'] = 'lunar'         # host InFlux server
-    Conf['database'] = 'BdP'           # the MySql db for test usage, must exists
-    Conf['user'] = 'ios'               # user with insert permission of InFlux DB
-    Conf['password'] = 'acacadabra'    # DB credential secret to use InFlux DB
+    Conf['hostname'] = 'localhost'         # host InFlux server
+    Conf['database'] = 'luchtmetingen' # the MySql db for test usage, must exists
+    Conf['user'] = 'teus'              # user with insert permission of InFlux DB
+    Conf['password'] = 'live4ever'     # DB credential secret to use InFlux DB
     net = { 'module': True, 'connected': True }
-    try:
-        import Output_test_data
-    except:
-        print("Please provide input test data: ident and data.")
-        exit(1)
+    Output_test_data = [
+        { 'ident': {'geolocation': '?', 'description': 'MQTT AppID=pmsensors MQTT DeviceID=pmsensor2', 'fields': ['time', 'pm25', 'pm10', 'temp', 'rv'], 'project': 'VW2017', 'units': ['s', 'ug/m3', 'ug/m3', 'C', '%'], 'serial': 'XXXXXXX', 'types': ['time', u'SDS011', u'SDS011', 'DHT22', 'DHT22']},
+           'data': {'pm10': 3.6, 'rv': 39.8, 'pm25': 1.4, 'temp': 25, 'time': int(time())-24*60*60}},
+        { 'ident': {'description': 'MQTT AppID=pmsensors MQTT DeviceID=pmsensor1', 'fields': ['time', 'pm25', 'pm10', 'temp', 'rv'], 'project': 'VW2017', 'units': ['s', 'ug/m3', 'ug/m3', 'C', '%'], 'serial': 'XXXXXXX', 'types': ['time', u'SDS011', u'SDS011', 'DHT22', 'DHT22']},
+           'data': {'pm10': 3.6, 'rv': 39.8, 'pm25': 1.6, 'temp': 24, 'time': int(time())-23*60*60}},
+        { 'ident': { 'geolocation': '51.420635,6.1356117,22.9',
+            'version': '0.2.28', 'serial': 'test_sense',
+            'fields': ['time', 'pm_25', 'pm_10', 'dtemp', 'drh', 'temp', 'rh', 'hpa'],
+            'extern_ip': ['83.161.151.250'], 'label': 'alphaTest', 'project': 'BdP',
+            'units': ['s', 'pcs/qf', u'pcs/qf', 'C', '%', 'C', '%', 'hPa'],
+            'intern_ip': ['192.168.178.49', '2001:980:ac6a:1:83c2:7b8d:90b7:8750', '2001:980:ac6a:1:17bf:6b65:17d2:dd7a'],
+            'types': ['time','Dylos DC1100', 'Dylos DC1100', 'DHT22', 'DHT22', 'BME280', 'BME280', 'BME280'],
+            },
+        'data': {'drh': 29.3, 'pm_25': 318.0, 'temp': 28.75,
+            'time': 1494777772, 'hpa': 712.0, 'dtemp': 27.8,
+            'rh': 25.0, 'pm_10': 62.0 },
+        },
+        ]
+    #try:
+    #    import Output_test_data
+    #except:
+    #    print("Please provide input test data: ident and data.")
+    #    exit(1)
 
-    for cnt in range(0,len(Output_test_data.data)):
+    for cnt in range(0,len(Output_test_data)):
         timings = time()
         try:
             publish(
-                ident=Output_test_data.ident,
-                data = Output_test_data.data[cnt],
+                ident = Output_test_data[cnt]['ident'],
+                data  = Output_test_data[cnt]['data'],
                 internet = net
             )
         except Exception as e:
