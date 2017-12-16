@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.1 2017/12/16 20:42:29 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.2 2017/12/16 21:10:52 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -67,10 +67,8 @@ Conf = {
     'input': True,
     'hostname': 'eu.thethings.network', # server host number for mqtt broker
     'port': 1883,        # default MQTT port
-    # 'user': '20170921597128', # TTN Teus
-    # 'password': 'ttn-account-v2.ZJvoRKh3XkHsegybn_hADOOGEglqf6CCGAhqLUJLrAX',
-    'user': 'pmsensors', # TTN Fontys
-    'password': 'ttn-account-v2.vFXbhQUFz53BIY5Qzm4qXd_OOEIaXUK3JYzXEfLNZ2s',
+    'user': 'my_user', # TTN name
+    'password': 'ttn-account-v2.vFbXhUQFz35BIYQ5zm4Xqd_OOEIaXUK3JYzXEfLNZ2s',
     # credentials to access broker
     'qos' : 0,           # dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
     'cert' : None,       # X.509 encryption
@@ -449,7 +447,7 @@ if __name__ == '__main__':
             'Conf': {
                 'output': True,
                 'hostname': 'localhost', 'database': 'luchtmetingen',
-                'user': 'teus', 'password': 'live4ever',
+                'user': 'IoS', 'password': 'acacadabra',
             }
         },
         ]

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: DB-upload-MySQL.py,v 1.4 2017/12/16 16:15:49 teus Exp teus $
+# $Id: MyDB.py,v 2.29 2017/12/16 21:16:03 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -26,8 +26,8 @@
 """ Publish measurements to MySQL database
     Relies on Conf setting by main program
 """
-modulename='$RCSfile: DB-upload-MySQL.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+modulename='$RCSfile: MyDB.py,v $'[10:-4]
+__version__ = "0." + "$Revision: 2.29 $"[11:-2]
 
 try:
     import MyLogger
@@ -377,9 +377,9 @@ if __name__ == '__main__':
     from time import sleep
     Conf['output'] = True
     Conf['hostname'] = 'localhost'         # host InFlux server
-    Conf['database'] = 'luchtmetingen' # the MySql db for test usage, must exists
-    Conf['user'] = 'teus'              # user with insert permission of InFlux DB
-    Conf['password'] = 'live4ever'     # DB credential secret to use InFlux DB
+    Conf['database'] = 'luchtmetingen'     # the MySql db for test usage, must exists
+    Conf['user'] = 'IoS'                   # user with insert permission of InFlux DB
+    Conf['password'] = 'acacadabra'        # DB credential secret to use InFlux DB
     net = { 'module': True, 'connected': True }
     Output_test_data = [
         { 'ident': {'geolocation': '?', 'description': 'MQTT AppID=pmsensors MQTT DeviceID=pmsensor2', 'fields': ['time', 'pm25', 'pm10', 'temp', 'rv'], 'project': 'VW2017', 'units': ['s', 'ug/m3', 'ug/m3', 'C', '%'], 'serial': 'XXXXXXX', 'types': ['time', u'SDS011', u'SDS011', 'DHT22', 'DHT22']},
