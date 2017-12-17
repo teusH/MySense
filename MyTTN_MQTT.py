@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.2 2017/12/16 21:10:52 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.3 2017/12/17 14:52:00 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -33,6 +33,9 @@
     This is dedicated to TTN LoRa RIVM records at Fireworks 2017 project time.
     One may need to change payload and TTN record format!
 """
+modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+
 try:
     import MyLogger
     import dateutil.parser as dp
@@ -44,6 +47,8 @@ try:
     from time import time, sleep
     socket.setdefaulttimeout(60)
     import paho.mqtt.client as mqtt
+    from struct import *
+    import base64
 except ImportError as e:
     sys.stderr.write("One of the import modules not found: %s\n" % e)
     exit(1)
@@ -61,14 +66,19 @@ PingTimeout = 0          # last time ping request was sent
 __options__ = [ 'input',       # output enables
                 'hostname','port', 'user','password',
                 'dust', 'meteo'  # classes field names coming from TTN MQTT server
+                # to do: should go as conf per device and needs type of sensor
+                'fields',      # fields in packed format
+                'calibrations' # calibrate value
+                'packing'      # how it is packed, here 4 X unsigned int16/short
+                'types',       # ordered list of module types: dust, meteo ...
                 'file', 'adminfile']
 
 Conf = {
     'input': True,
     'hostname': 'eu.thethings.network', # server host number for mqtt broker
     'port': 1883,        # default MQTT port
-    'user': 'my_user', # TTN name
-    'password': 'ttn-account-v2.vFbXhUQFz35BIYQ5zm4Xqd_OOEIaXUK3JYzXEfLNZ2s',
+    'user': 'pm', # TTN Fontys
+    'password': 'ttn-account-v2.vFXzbhQUI5zQF35BYmq4X_dOOEaIXKU3JzYXELfNZ2s',
     # credentials to access broker
     'qos' : 0,           # dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
     'cert' : None,       # X.509 encryption
@@ -84,32 +94,71 @@ Conf = {
     # 'debug': True     # use TTN record example in stead of server access
     'dust': ['pm2.5','pm10',],   # dust names we can get, SDS011, PMS7003, PPD42NS
     'meteo': ['temp','humidity','pressure',], # meteo name we get from DHT22, BME280
+    # TO DO: should go as conf per device and needs type of sensor
+    'fields': ['pm2.5','pm10','temp','hum'], # fields in packed format
+    'calibrations': [[0,0.1],[0,0.1],[-20,0.1],[0,0.1]], # calibrate value
+    'packing': '>HHHH', # how it is packed, here 4 X unsigned int16/short
+    'types': ['SDS011', 'DHT22'], # ordered list of module types: dust, meteo, ...
 }
 
 devices = {}
-if 'adminfile' in Conf.keys():
-    # json should be read from file
-    try:
-        devices = json.load(open(Conf['adminfile']))
-    except:
-        MySyslog.log(modulename,"ATTENT','Missing LoRa admin json file with info for all LaRa devices\n")
-        # exit(1)
-        MySyslog.log(modulename,"ATTENT','Using test def for pmsensor1\n")
-        # example of content of admin file specified for TTN MQTT RIVM records
-        devices = {
-            'pmsensor1': {      # DevAddr from eg RIVM
-                'GPS': {
-                    'longitude': 51.12345, 'latitude': 6.12345, 'altitude': 23, },
-                'label': 'Jelle', 'street': 'straatnaam en nr',
-                'village': 'Venlo', 'pcode': '5888 XY',
-                'province': 'Limburg', 'municipality': 'Venlo',
-                'date': '20 december 2017',
-                'comment': 'test device',
-                'AppSKEY': 'xyz', # LoRa key from eg RIVM
-                'NwkSKey': 'xyzxyz', # LoRa key from eg RIVM
-                'luftdaten.info': True,     # forward to Open Data Germany?
+def GetAdminDevicesInfo():
+    global Conf, devices
+    if len(devices) > 0: return # only once
+    if 'adminfile' in Conf.keys():
+        # json should be read from file
+        try:
+            devices = json.load(open(Conf['adminfile']))
+            return
+        except:
+            MyLogger.log(modulename,'ATTENT','Missing LoRa admin json file with info for all LaRa devices')
+            devices = { 'no_devices': {} }
+            # return
+            MyLogger.log(modulename,'ATTENT','Using test def for pmsensor1')
+            # example of content of admin file specified for TTN MQTT RIVM records
+            # TO DO: per AppID one devices dict (device name may not be unique per TTN)
+            devices = {
+                'pmsensor1': {           # DevAddr from eg RIVM
+                    'GPS': {
+                        'longitude': 51.12345, 'latitude': 6.12345, 'altitude': 23, },
+                    'label': 'Jelle', 'street': 'Fontys nr 8',
+                    'village': 'Venlo', 'pcode': '5888 XY',
+                    'province': 'Limburg', 'municipality': 'Venlo',
+                    'date': '20 december 2017', # start date
+                    'comment': 'test device',
+                    'AppSKEY': 'xyz',    # LoRa key from eg RIVM, firmware item
+                    'NwkSKey': 'xyzxyz', # LoRa key from eg RIVM, firmware item
+                    'meteo': 'BME280',    # meteo sensor type, default
+                    'luftdaten.info': False,     # forward to Open Data Germany?
+                }
             }
-        }
+
+# calibrate as ordered function order defined by length calibration factor array
+def calibrate(coeffs,value):
+    if type(value) is int: value = value/1.0
+    if not type(value) is float: return None
+    rts = 0; pow = 0
+    for a in coeffs:
+        rts += a*(value**pow)
+        pow += 1
+    return round(rts,2)
+
+# unpack base64 TTN LoRa payload string into array of values
+def payload2fields(payload):
+    if     (not 'calibrations' in Conf.keys()) \
+        or (not 'fields' in Conf.keys()) \
+        or (not 'packing' in Conf.keys()):
+        return {}
+    rts = {}
+    try:
+        load = base64.decodestring(payload)
+        load = unpack(Conf['packing'],load)
+        for idx in range(0,len(Conf['fields'])):
+            rts[Conf['fields'][idx]] = calibrate(Conf['calibrations'][idx],load[idx])
+    except:
+        MyLogger.log(modulename,'ERROR','Unpacking LoRa MQTT payload. Record skipped.')
+        return{}
+    return rts
         
 # update ident record with info from json admin file
 def updateIdent( AppId, devAddr, ident):
@@ -138,7 +187,7 @@ def ReadFromFile(filename):
         try:
             Conf['fileFD'] = open(Conf['file'],'r')
         except:
-            MySyslog.log(modulename,"FATAL','unable to open json input file %s\n" % Conf['file'])
+            MyLogger.log(modulename,'FATAL',"unable to open json input file %s" % Conf['file'])
             exit(1)
     while(1):
         line = Conf['fileFD'].readline()
@@ -159,20 +208,20 @@ def PubOrSub(topic,option):
     # following is the telegram as is expected from TTN MQTT server
     if ('debug' in Conf.keys()) and Conf['debug']:
         return ( { 
-            'topic': 'pmsensors/devices/pmsensor10/up',
-            'payload': '{"app_id":"pmsensors","dev_id":"pmsensor10","hardware_serial":"EEABABABBAABABAB","port":1,"counter":73,"payload_raw":"ACgALAG0ASU=","payload_fields":{"PM10":4.4,"PM25":4,"hum":29.3,"temp":23.6,"type":"SDS011"},"metadata":{"time":"2017-12-15T19:32:04.220584016Z","frequency":868.3,"modulation":"LORA","data_rate":"SF12BW125","coding_rate":"4/5","gateways":[{"gtw_id":"eui-1dee14d549d1e063","timestamp":536700428,"time":"","channel":1,"rssi":-100,"snr":6,"rf_chain":1,"latitude":51.35284,"longitude":6.154711,"altitude":40,"location_source":"registry"}],"latitude":51.353,"longitude":6.1538496,"altitude":2,"location_source":"registry"}}'
+            'topic': 'pmsensors/devices/pmsensor1/up',
+            'payload': '{"app_id":"pmsensors","dev_id":"pmsensor10","hardware_serial":"EEABABABBAABABAB","port":1,"counter":73,"payload_raw":"ACgALAG0ASU=","payload__fields":{"PM10":4.4,"PM25":4,"hum":29.3,"temp":23.6,"type":"SDS011"},"metadata":{"time":"2017-12-15T19:32:04.220584016Z","frequency":868.3,"modulation":"LORA","data_rate":"SF12BW125","coding_rate":"4/5","gateways":[{"gtw_id":"eui-1dee14d549d1e063","timestamp":536700428,"time":"","channel":1,"rssi":-100,"snr":6,"rf_chain":1,"latitude":51.35284,"longitude":6.154711,"altitude":40,"location_source":"registry"}],"latitude":51.353,"longitude":6.1538496,"altitude":2,"location_source":"registry"}}'
             })
 
     def on_connect(client, obj, rc):
         global waiting
         if rc != 0:
-            MySyslog.log(modulename,'ERROR','Connection error nr: %s\n' % str(rc))
+            MyLogger.log(modulename,'ERROR','Connection error nr: %s' % str(rc))
             waiting = False
             if 'fd' in Conf.keys():
                 Conf['fd'] = None
             raise IOError("MQTTsub connect failure.")
         else:
-            MySyslog.log(modulename,'DEBUG','Connected.\n')
+            MyLogger.log(modulename,'DEBUG','Connected.')
             pass
     
     def on_message(client, obj, msg):
@@ -180,7 +229,7 @@ def PubOrSub(topic,option):
         waiting = False
         try:
             if len(telegrams) > 100:    # 100 * 250 bytes
-                MySyslog.log(modulename,'ERROR','Input buffer is full.\n')
+                MyLogger.log(modulename,'ERROR','Input buffer is full.')
                 return
             # append the TTN data to local FiFo buffer
             # print str(msg.topic)
@@ -191,12 +240,12 @@ def PubOrSub(topic,option):
                 'payload': str(msg.payload),
                 })
         except:
-            MySyslog.log(modulename,'ERROR Except','In message.\n')
+            MyLogger.log(modulename,'ERROR Except','In message.')
     
     def on_subscribe(client, obj, MiD, granted_qos):
         global waiting, mid
         mid = MiD
-        MySyslog.log(modulename,'DEBUG','mid: ' + str(mid) + ",qos:" + str(granted_qos))
+        MyLogger.log(modulename,'DEBUG','mid: ' + str(mid) + ",qos:" + str(granted_qos))
     
     def on_log(client, obj, level, string):
         global PingTimeout, Conf, ErrorCnt
@@ -204,7 +253,7 @@ def PubOrSub(topic,option):
             if not PingTimeout:
                 PingTimeout = int(time())
             elif int(time())-PingTimeout > 10*60: # should receive pong in 10 minutes
-                MySyslog.log(modulename,'ATTENT','Ping/pong timeout exceeded.\n')
+                MyLogger.log(modulename,'ATTENT','Ping/pong timeout exceeded.')
                 if ('fd' in Conf.keys()) and (Conf['fd'] != None):
                     Conf['fd'].disconnect()
                     waiting = False
@@ -214,10 +263,10 @@ def PubOrSub(topic,option):
                     PingTimeout = 0
         elif string.find('PINGRESP') >= 0:
             if int(time())-PingTimeout != 0:
-                MySyslog.log(modulename,'DEBUG','Log: ping/pong time: %d secs\n' % (int(time())-PingTimeout))
+                MyLogger.log(modulename,'DEBUG','Log: ping/pong time: %d secs' % (int(time())-PingTimeout))
             PingTimeout = 0
         else:
-            MySyslog.log(modulename,'DEBUG','Log: %s...\n' % string[:17])
+            MyLogger.log(modulename,'DEBUG','Log: %s...' % string[:17])
 
     def on_disconnect(client, obj, MiD):
         global waiting, mid, Conf
@@ -225,7 +274,7 @@ def PubOrSub(topic,option):
         if 'fd' in Conf.keys():
             Conf['fd'] = None
         mid = MiD
-        MySyslog.log(modulename,'DEBUG','Disconnect mid: ' + str(mid))
+        MyLogger.log(modulename,'DEBUG','Disconnect mid: ' + str(mid))
         raise IOError("MQTTsub: disconnected")
 
     if ('file' in Conf.keys()) and Conf['file']:
@@ -256,16 +305,16 @@ def PubOrSub(topic,option):
         # Conf['fd'].disconnect()
         # Conf['fd'].loop_stop()
     except:
-        MySyslog.log(modulename,'ERROR','Failure type: %s; value: %s. MQTT broker aborted.\n' % (sys.exc_info()[0],sys.exc_info()[1]) )
+        MyLogger.log(modulename,'ERROR','Failure type: %s; value: %s. MQTT broker aborted.' % (sys.exc_info()[0],sys.exc_info()[1]) )
         Conf['output'] = False
         del Conf['fd']
         raise IOError("%s" % str(mid))
         return telegram
     if waiting:
-        MySyslog.log(modulename,'ATTENT','Sending telegram to broker')
+        MyLogger.log(modulename,'ATTENT','Sending telegram to broker')
         raise IOError("%s" % str(mid))
         return telegram
-    MySyslog.log(modulename,'DEBUG','Received telegram from broker, waiting = %s, message id: %s' % (str(waiting),str(mid)) )
+    MyLogger.log(modulename,'DEBUG','Received telegram from broker, waiting = %s, message id: %s' % (str(waiting),str(mid)) )
     if len(telegrams):
         return telegrams.pop(0)
     return telegram
@@ -303,27 +352,41 @@ def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
     # make sure we use nomenclature of MySQL DB
     meteo_units = { "temp": 'C', "humidity": '%', "pressure": 'hpa' }
     record = {}
+    types = ['type','dust','meteo','gps']
     for item in ['counter','payload_raw']:
         if item in data['payload'].keys():
             record[item] = data['payload'][item]
-    if "payload_fields" in data['payload'].keys():
+    if ("payload_fields" in data['payload'].keys()) \
+        and len(data['payload']['payload_fields']):
+        dtype = 'dust'
         if 'type' in data['payload']['payload_fields'].keys():
-            if data['payload']['payload_fields']['type'] in name_table.keys():
-                dust = data['payload']['payload_fields']['type']
+            dtype = 'type'
+        if dtype in data['payload']['payload_fields'].keys():
+            if data['payload']['payload_fields'][dtype] in name_table.keys():
+                dust = data['payload']['payload_fields'][dtype]
             else:
-                MySyslog.log(modulename,'ERROR','Unknown dust sensor type: %s' % data['payload']['payload_fields']['type'])
-        for item in data['payload']['payload_fields'].keys():
-            if item == 'type':
-               continue
-            name = item.lower()
-            if name in name_table[dust].keys():
-                name = name_table[dust][name]
-            elif name in name_table[meteo].keys():
-                name = name_table[meteo][name]
+                MyLogger.log(modulename,'ERROR','Unknown dust sensor type: %s. Using dflt %s' % (data['payload']['payload_fields'][dtype],dust))
+        if 'meteo' in data['payload']['payload_fields'].keys():
+            if data['payload']['payload_fields']['meteo'] in name_table.keys():
+                dust = data['payload']['payload_fields']['meteo']
             else:
-                MySyslog.log(modulename,'ATTENT','Unknown sensor item: %s' % item)
-                continue
-            values[name] = data['payload']['payload_fields'][item]
+                MyLogger.log(modulename,'ERROR','Unknown dust sensor type: %s. Using dflt %s' % (data['payload']['payload_fields']['meteo'],meteo))
+    elif ('payload_raw' in data['payload'].keys()) \
+        and len(data['payload']['payload_raw']):
+            data['payload']['payload_fields'] = payload2fields(data['payload']['payload_raw'])
+    else: return record
+    for item in data['payload']['payload_fields'].keys():
+        # may need to change this, as with is meant dust type only
+        if item in types: continue
+        name = item.lower()
+        if name in name_table[dust].keys():
+            name = name_table[dust][name]
+        elif name in name_table[meteo].keys():
+            name = name_table[meteo][name]
+        else:
+            MyLogger.log(modulename,'ATTENT','Unknown sensor item: %s' % item)
+            continue
+        values[name] = data['payload']['payload_fields'][item]
 
     # default sensors SDS011 and DHT22
     for sensor in Conf['dust']:
@@ -377,7 +440,7 @@ def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
     return { 'ident': ident, 'data': values }
 
 def getdata():
-    global Conf, ErrorCnt
+    global Conf, ErrorCnt, devices
     if ErrorCnt:
         if ErrorCnt > 20:
             Conf['registrated'] = None
@@ -392,21 +455,26 @@ def getdata():
             sleep(ErrorCnt)
     
     # input from file or from MQTT LoRa TTN broker
-    if (not 'file' in Conf.keys()) or (not Conf['file']):
-        if (not 'registrated' in Conf.keys()) or (Conf['registrated'] == None):
-            if 'registrated' in Conf.keys():
-                MySyslog.log(modulename,'ATTENT','Try to reconnect to broker.')
-            if (not 'AppId' in Conf.keys()) or (not len(Conf['AppId'])):
-                Conf['AppId'] = '+'
-            if (not 'DevAddr' in Conf.keys()) or (not len(Conf['DevAddr'])):
-                Conf['DevAddr'] = '+'
-            if (not 'topic' in Conf.keys()) or (Conf['topic'] == None):
-                Conf['topic'] = 'devices'
-            for key in ['user','password','hostname']:
-                if (not key in Conf.keys()) or (Conf[key] == None):
-                    Conf['input'] = False
-                    MySyslog.log(modulename,'FATAL','Missing login %s credentials.' % key)
-            Conf['registrated'] = True
+    if not 'registrated' in Conf.keys(): Conf['registrated'] = False
+    if not Conf['registrated']:
+        if (not 'file' in Conf.keys()) or (not Conf['file']):
+            if (not 'registrated' in Conf.keys()) or (Conf['registrated'] == None):
+                if 'registrated' in Conf.keys():
+                    MyLogger.log(modulename,'ATTENT','Try to reconnect to broker.')
+                if (not 'AppId' in Conf.keys()) or (not len(Conf['AppId'])):
+                    Conf['AppId'] = '+'
+                if (not 'DevAddr' in Conf.keys()) or (not len(Conf['DevAddr'])):
+                    Conf['DevAddr'] = '+'
+                if (not 'topic' in Conf.keys()) or (Conf['topic'] == None):
+                    Conf['topic'] = 'devices'
+                for key in ['user','password','hostname']:
+                    if (not key in Conf.keys()) or (Conf[key] == None):
+                        Conf['input'] = False
+                        MyLogger.log(modulename,'FATAL','Missing login %s credentials.' % key)
+        if (not 'types' in Conf.keys()) or (len(Conf['types']) < 2):
+            MyLogger.log(modulename,'FATAL','Missing missing modules types for dust and/or meteo sensors.')
+        GetAdminDevicesInfo()
+        Conf['registrated'] = True
 
     try:
         msg = PubOrSub("%s/%s/%s/up" % (Conf['AppId'],Conf['topic'],Conf['DevAddr']), None)
@@ -418,11 +486,11 @@ def getdata():
         msg['payload'] = json.loads(msg['payload'])
     except IOError as e:
         if ErrorCnt > 40:
-            MySyslog.log(modulename,'FATAL','Subscription failed Mid: %s. Aborted.' % e)
+            MyLogger.log(modulename,'FATAL','Subscription failed Mid: %s. Aborted.' % e)
         ErrorCnt += 1
-        MySyslog.log(modulename,'WARNING','Subscription is failing Mid: %s. Slowing down.' % e)
+        MyLogger.log(modulename,'WARNING','Subscription is failing Mid: %s. Slowing down.' % e)
     if (len(msg['topic']) < 3) or (msg['topic'][1] != Conf['topic']) or (not type(msg['payload']) is dict) or (not 'dev_id' in msg['payload'].keys()):
-        MySyslog.log(modulename,'ERROR','Received an unknow record %s' % str(msg))
+        MyLogger.log(modulename,'ERROR','Received an unknow record %s' % str(msg))
         sleep(0.1)
         return getdata()
     msg['AppId'] = msg['topic'][0]
@@ -433,7 +501,13 @@ def getdata():
         return getdata()
     # TO DO: check DevAddr to api key (mqtt broker checks user with AppId/DevAddr)
     # copy items we need
-    return convert2MySense(msg)
+    # use types of sensors if provided via admin info, may be overwritten by telegram
+    dust = Conf['types'][0] ; meteo = Conf['types'][1]  # defaults by config
+    if (msg['DevAddr'] in devices.keys()) and ('dust' in devices[msg['DevAddr']].keys()):
+        dust = devices[msg['DevAddr']]['dust']
+    if (msg['DevAddr'] in devices.keys()) and ('meteo' in devices[msg['DevAddr']].keys()):
+        meteo = devices[msg['DevAddr']]['meteo']
+    return convert2MySense(msg, dust, meteo)
 
 # MAIN part of Broker for VW 2017
 
@@ -441,11 +515,12 @@ if __name__ == '__main__':
     # 'NOTSET','DEBUG','INFO','ATTENT','WARNING','ERROR','CRITICAL','FATAL'
     MyLogger.Conf['level'] = 10     # log from and above 10 * index nr
     MyLogger.Conf['file'] = '/dev/stderr'
+    Conf['debug'] = True
     error_cnt = 0
     OutputChannels = [
         {   'name': 'MySQL DB', 'script': 'DB-upload-MySQL', 'module': None,
             'Conf': {
-                'output': True,
+                'output': False,
                 'hostname': 'localhost', 'database': 'luchtmetingen',
                 'user': 'IoS', 'password': 'acacadabra',
             }
@@ -457,31 +532,31 @@ if __name__ == '__main__':
             for item in OutputChannels[indx]['Conf'].keys():
                 OutputChannels[indx]['module'].Conf[item] = OutputChannels[indx]['Conf'][item]
                 OutputChannels[indx]['errors'] = 0
-            MySyslog.log(modulename,'INFO','Enabled output channel %s' % OutputChannels[indx]['name'])
+            MyLogger.log(modulename,'INFO','Enabled output channel %s' % OutputChannels[indx]['name'])
     except ImportError as e:
-        MySyslog.log(modulename,'ERROR','One of the import modules not found: %s' % e)
+        MyLogger.log(modulename,'ERROR','One of the import modules not found: %s' % e)
     net = { 'module': True, 'connected': True }
 
 # devices
     # configure MySQL luchtmetingen DB access
     while 1:
         if error_cnt > 20:
-            MySyslog.log(modulename,'FATAL','To many input errors. Stopped broker')
+            MyLogger.log(modulename,'FATAL','To many input errors. Stopped broker')
             exit(1)
         try:
             record = getdata()
         except:
-            MySyslog.log(modulename,'INFO','No more input data available')
+            MyLogger.log(modulename,'INFO','No more input data available')
             exit(0)
         if (not dict(record)) or (len(record['data']) < 2):
-            MySyslog.log(modulename,'ATTENT','Data failure from LoRaWan data concentrator')
+            MyLogger.log(modulename,'ATTENT','Data failure from LoRaWan data concentrator')
             error_cnt += 1
             continue
         cnt = 0
         if 'description' in record['ident'].keys():
-            MySyslog.log(modulename,'INFO','%s Got data from %s' % (datetime.datetime.fromtimestamp(record['data']['time']).strftime("%Y-%m-%d %H:%M"),record['ident']['description']))
+            MyLogger.log(modulename,'INFO','%s Got data from %s' % (datetime.datetime.fromtimestamp(record['data']['time']).strftime("%Y-%m-%d %H:%M"),record['ident']['description']))
         else:
-            MySyslog.log(modulename,'INFO','%s Got data (no description)' % datetime.datetime.fromtimestamp(record['data']['time']).strftime("%Y-%m-%d %H:%M"))
+            MyLogger.log(modulename,'INFO','%s Got data (no description)' % datetime.datetime.fromtimestamp(record['data']['time']).strftime("%Y-%m-%d %H:%M"))
         for indx in range(0,len(OutputChannels)):
             if OutputChannels[indx]['module'] and OutputChannels[indx]['Conf']['output']:
                 try:
@@ -493,9 +568,9 @@ if __name__ == '__main__':
                     OutputChannels[indx]['errors'] = 0
                     cnt += 1
                 except:
-                    MySyslog.log(modulename,'ERROR','sending record to %s' % OutputChannels[indx]['name'])
+                    MyLogger.log(modulename,'ERROR','sending record to %s' % OutputChannels[indx]['name'])
                     OutputChannels[indx]['errors'] += 1
             if OutputChannels[indx]['errors'] > 20: OutputChannels[indx]['module']['Conf']['output'] = False
         if not cnt:
-            MySyslog.log(modulename,'FATAL','No output channel available. Exiting')
+            MyLogger.log(modulename,'FATAL','No output channel available. Exiting')
             exit(1)
