@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MakeReports.sh,v 1.20 2017/10/02 14:30:03 teus Exp teus $
+# $Id: MakeReports.sh,v 1.21 2017/12/17 17:19:07 teus Exp teus $
 
 # shell file produces pdf correlation report of influx raw series of timed data
 # for the dust sensor only pcs/qf is used
@@ -45,6 +45,8 @@ CONTENT=$REPORTS/CorrelationReportContent_$(date '+%Y-%m-%dT%H:%M').html
 HTML2PDF=/usr/local/wkhtmltox/bin/wkhtmltopdf
 
 HTML=${HTML:---HTML}
+DBTYPE=${DBTYPE:-MySQL} # type of database to use: MySQL or Influx
+DBTYPE="-T ${DBTYPE,,}"
 
 if [ -z "$1" ] || [ -z "${1/*help*/}" ]
 then
@@ -62,6 +64,8 @@ Usage: $0 type ... where type is dust or climate
         START dflt DAYS ago from now, format YYYY-MM-DD,,
         END dflt  today 0h 0m, format YYYY-MM-DD
         PROJECT dflt BdP_
+    Example:
+        DBHOST=localhost DBUSER=IoS DBPASS=acacadabra PROJECT=BdP DAYS=2 ./MakeReport.sh dust climate TableName1=sds011,dht22 TableName2=pms7003,beme280
     dflt output dir: $REPORTS files $TOTAL and $CONTENT
     InfluxDB series $MTYPE and time field $FIELD
     script depends on wkhtmltopdf to collect content overview.
@@ -355,8 +359,8 @@ SENSOR[pms7003,pm25]=pm25_atm
 SENSOR[pms7003,pm10]=pm10_atm
 SENSOR[dht22,temp]=temp
 SENSOR[bme280,temp]=temp
-SENSOR[dht22,rh]=rh
-SENSOR[bme280,rh]=rh
+SENSOR[dht22,rh]=rv
+SENSOR[bme280,rh]=rv
 SENSOR[bme280,pha]=pha
 declare -a DUST=(dylos sds011 pms7003 ppd42ns)
 declare -a DUST_TYPE=(pm1 pm25 pm10)
@@ -364,6 +368,7 @@ declare -a CLIMATE=(dht22 bme280)
 declare -a CLIMATE_TYPE=(temp rh pha)
 declare -A CONFIG
 declare -a KITS
+declare -a ARG_KITS
 
 SENSES=""
 for arg
@@ -380,7 +385,7 @@ do
     ;;
     *=*)
         CONFIG[${arg/=*/}]=$( echo "${arg/*=/}" | sed 's/,/ /g')
-        ARG_KITS+="${arg/=*/}"
+        ARG_KITS+=("${arg/=*/}")
     ;;
     *)
         echo "$arg Unknown sensing element type: use dust and/or climate"
@@ -426,7 +431,7 @@ do
     for kit in ${ARG_KITS[*]}
     # ordered list sensor kits, sensor types, measurement ID
     do
-        for Type in ${CONFIG[$kit]}
+        for Type in ${CONFIG[$kit],,}
         do
             if [ -n "${SENSOR[$Type,$SENSE]}" ]
             then
@@ -450,7 +455,7 @@ do
             else
                 PNG=''
             fi
-            python MyRegression.py -T influx $HTML  $PNG -t $STRT/$END -i $INTERVAL \
+            python MyRegression.py ${DBTYPE}  $HTML  $PNG -t $STRT/$END -i $INTERVAL \
                 ${KITS[$I]}/${SENSES[$I]}/${FIELD}/${TYPES[$I]}/${MTYPE} \
                 ${KITS[$J]}/${SENSES[$J]}/${FIELD}/${TYPES[$J]}/${MTYPE} \
                 2>>/var/tmp/ERR$$ >>"$OUTPUT"

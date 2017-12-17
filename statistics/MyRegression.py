@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 3.9 2017/07/07 15:16:34 teus Exp teus $
+# $Id: MyRegression.py,v 3.10 2017/12/17 17:19:25 teus Exp teus $
 
 """ Create and show best fit for at least two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -31,7 +31,7 @@
     Script uses: numpy package, SciPy and statPY and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.9 $"[11:-2]
+__version__ = "0." + "$Revision: 3.10 $"[11:-2]
 
 try:
     import sys
@@ -286,8 +286,10 @@ def fromMySQL(fd,sensor,period):
     if not fnd:
         sys.exit("Sensor (column) \"%s\" in table %s does not exists." % (sensor['column'],sensor['table']))
     # get the tuples (UNIX time stamp, valid value) for this period of time
-    qry = "SELECT UNIX_TIMESTAMP(%s),(if(isnull(%s),'nan',%s)) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d and %s_valid  order by datum" % \
-        (sensor['date'],sensor['column'],sensor['column'],sensor['table'],period['start'],period['end'],sensor['column'])
+    #qry = "SELECT UNIX_TIMESTAMP(%s),(if(isnull(%s),'nan',%s)) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d and %s_valid  order by datum" % \
+    #    (sensor['date'],sensor['column'],sensor['column'],sensor['table'],period['start'],period['end'],sensor['column'])
+    qry = "SELECT UNIX_TIMESTAMP(datum),(if(isnull(%s),'nan',%s)) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d and %s_valid  order by datum" % \
+        (sensor['column'],sensor['column'],sensor['table'],period['start'],period['end'],sensor['column'])
     return db_query(fd,qry, True)
 
 def fromInFlux(fd,sensor,period):
