@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.5 2017/12/18 15:44:00 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.6 2017/12/18 20:10:37 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,13 +34,14 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+__version__ = "0." + "$Revision: 1.6 $"[11:-2]
 
 try:
     import MyLogger
     import dateutil.parser as dp
     import datetime
     import sys, os
+    import signal
     import json
     import socket
     import re
@@ -343,8 +344,21 @@ name_table = {
 last_records = {}       # remember last record seen so far
 
 # sensor module name is received via TTN record field 'type'
+# maintain some logging
+logged = {
+    # 'applID/deviceID: {
+    # 'unknown_fields': []
+    # 'last_seen': unix timestamp secs
+    # },
+}
+
+def SigUSR1handler(signum,frame):
+    global modulename
+    for name in logged.keys():
+        MyLogger.log(modulename,'INFO',"Status device %s: last seen: %s, unknown fields: %s" % (name,datetime.datetime.fromtimestamp(logged[name]['last_seen']).strftime("%Y-%m-%d %H:%M:%S"), ' '.join(logged[name]['unknown_fields'])))
+
 def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
-    global Conf
+    global Conf, logged
 
     ident = { 'project': 'VW2017', 'fields': ['time', ], 'types': ['time'], 'units': ['s',] }
     ident['description'] = 'MQTT AppID=' + data['topic'][0] + ' MQTT DeviceID=' + data['topic'][2]
@@ -352,6 +366,12 @@ def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
     # make sure we use nomenclature of MySQL DB
     meteo_units = { "temp": 'C', "humidity": '%', "pressure": 'hpa' }
     record = {}
+    myID = data['topic'][0]+'/'+data['topic'][2]
+    if not myID in logged.keys():
+        if len(logged) >= 100: # forget more as 100 to avoid exhaustion
+            myID = 'default'
+        logged[myID] = { 'unknown_fields': [], }
+    logged[myID]['last_seen'] = time()
     types = ['type','dust','meteo','gps']
     for item in ['counter','payload_raw']:
         if item in data['payload'].keys():
@@ -383,8 +403,11 @@ def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
             name = name_table[dust][name]
         elif name in name_table[meteo].keys():
             name = name_table[meteo][name]
+        elif not item in logged[myID]['unknown_fields']:
+            logged[myID]['unknown_fields'].append(item)
+            MyLogger.log(modulename,'ATTENT','Unknown sensor item: %s first seen in %s/%s' % (item,data['topic'][0],data['topic'][2]))
+            continue
         else:
-            MyLogger.log(modulename,'ATTENT','Unknown sensor item: %s' % item)
             continue
         values[name] = data['payload']['payload_fields'][item]
 
@@ -509,6 +532,9 @@ def getdata():
         meteo = devices[msg['DevAddr']]['meteo']
     return convert2MySense(msg, dust, meteo)
 
+# send kill -USR1 <process id> to dump status overview
+signal.signal(signal.SIGUSR1, SigUSR1handler)
+
 # MAIN part of Broker for VW 2017
 
 if __name__ == '__main__':
@@ -554,9 +580,9 @@ if __name__ == '__main__':
             continue
         cnt = 0
         if 'description' in record['ident'].keys():
-            MyLogger.log(modulename,'INFO','%s Got data from %s' % (datetime.datetime.fromtimestamp(record['data']['time']).strftime("%Y-%m-%d %H:%M"),record['ident']['description']))
+            MyLogger.log(modulename,'DEBUG','%s Got data from %s' % (datetime.datetime.fromtimestamp(record['data']['time']).strftime("%Y-%m-%d %H:%M"),record['ident']['description']))
         else:
-            MyLogger.log(modulename,'INFO','%s Got data (no description)' % datetime.datetime.fromtimestamp(record['data']['time']).strftime("%Y-%m-%d %H:%M"))
+            MyLogger.log(modulename,'DEBUG','%s Got data (no description)' % datetime.datetime.fromtimestamp(record['data']['time']).strftime("%Y-%m-%d %H:%M"))
         for indx in range(0,len(OutputChannels)):
             if OutputChannels[indx]['module'] and OutputChannels[indx]['Conf']['output']:
                 try:
