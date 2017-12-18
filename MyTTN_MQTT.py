@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.3 2017/12/17 14:52:00 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.5 2017/12/18 15:44:00 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,7 +34,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 
 try:
     import MyLogger
@@ -77,8 +77,8 @@ Conf = {
     'input': True,
     'hostname': 'eu.thethings.network', # server host number for mqtt broker
     'port': 1883,        # default MQTT port
-    'user': 'pm', # TTN Fontys
-    'password': 'ttn-account-v2.vFXzbhQUI5zQF35BYmq4X_dOOEaIXKU3JzYXELfNZ2s',
+    'user': 'pmsensors', # TTN Fontys
+    'password': 'ttn-account-v2.vFacacadabra',
     # credentials to access broker
     'qos' : 0,           # dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
     'cert' : None,       # X.509 encryption
@@ -89,7 +89,7 @@ Conf = {
     'AppId': '+',        # regular expression to accept AppId to subscribe to
     'DevAddr': '+',      # regular expression to accept DevAddr numbers
     'timeout' : 2*60*60, # timeout for this broker
-    'file': 'Dumped.json', # comment this for operation, this will read from a dump MQTT file
+    # 'file': 'Dumped.json', # comment this for operation, this will read from a dump MQTT file
     'adminfile': 'VM2017devices.json', # meta identy data for sensor kits
     # 'debug': True     # use TTN record example in stead of server access
     'dust': ['pm2.5','pm10',],   # dust names we can get, SDS011, PMS7003, PPD42NS
@@ -306,7 +306,7 @@ def PubOrSub(topic,option):
         # Conf['fd'].loop_stop()
     except:
         MyLogger.log(modulename,'ERROR','Failure type: %s; value: %s. MQTT broker aborted.' % (sys.exc_info()[0],sys.exc_info()[1]) )
-        Conf['output'] = False
+        Conf['input'] = False
         del Conf['fd']
         raise IOError("%s" % str(mid))
         return telegram
@@ -513,14 +513,14 @@ def getdata():
 
 if __name__ == '__main__':
     # 'NOTSET','DEBUG','INFO','ATTENT','WARNING','ERROR','CRITICAL','FATAL'
-    MyLogger.Conf['level'] = 10     # log from and above 10 * index nr
+    MyLogger.Conf['level'] = 'INFO'     # log from and above 10 * index nr
     MyLogger.Conf['file'] = '/dev/stderr'
-    Conf['debug'] = True
+    # Conf['debug'] = True
     error_cnt = 0
     OutputChannels = [
         {   'name': 'MySQL DB', 'script': 'DB-upload-MySQL', 'module': None,
             'Conf': {
-                'output': False,
+                'output': True,
                 'hostname': 'localhost', 'database': 'luchtmetingen',
                 'user': 'IoS', 'password': 'acacadabra',
             }
