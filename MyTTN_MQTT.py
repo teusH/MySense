@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.6 2017/12/18 20:10:37 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.7 2017/12/20 14:48:34 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,7 +34,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.6 $"[11:-2]
+__version__ = "0." + "$Revision: 1.7 $"[11:-2]
 
 try:
     import MyLogger
@@ -61,7 +61,7 @@ ErrorCnt = 0             # connectivit error count, slows down, >20 reconnect, >
 PingTimeout = 0          # last time ping request was sent
 
 # TTN working command line example
-# mosquitto_sub -v -h eu.thethings.network -p 1883 -u 20170921597128 -P 'ttn-account-v2.ZJvoRKh3XkHsegybn_hADOOGEglqf6CCGAhqLUJLrXA'  -t '+/devices/+/up' -v
+# mosquitto_sub -v -h eu.thethings.network -p 1883 -u 20179 -P 'ttn-account-v2.ZJvoRKh3kHegybn_XhADOGEglqf6CGAChsqLUA'  -t '+/devices/+/up' -v
 
 # configurable options
 __options__ = [ 'input',       # output enables
@@ -79,7 +79,7 @@ Conf = {
     'hostname': 'eu.thethings.network', # server host number for mqtt broker
     'port': 1883,        # default MQTT port
     'user': 'pmsensors', # TTN Fontys
-    'password': 'ttn-account-v2.vFacacadabra',
+    'password': 'ttn-account-v2.vFXacacadabra',
     # credentials to access broker
     'qos' : 0,           # dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
     'cert' : None,       # X.509 encryption
@@ -117,6 +117,7 @@ def GetAdminDevicesInfo():
             # return
             MyLogger.log(modulename,'ATTENT','Using test def for pmsensor1')
             # example of content of admin file specified for TTN MQTT RIVM records
+            # fields may be optional
             # TO DO: per AppID one devices dict (device name may not be unique per TTN)
             devices = {
                 'pmsensor1': {           # DevAddr from eg RIVM
@@ -126,11 +127,14 @@ def GetAdminDevicesInfo():
                     'village': 'Venlo', 'pcode': '5888 XY',
                     'province': 'Limburg', 'municipality': 'Venlo',
                     'date': '20 december 2017', # start date
+                    'tel': '+31773270012',
                     'comment': 'test device',
                     'AppSKEY': 'xyz',    # LoRa key from eg RIVM, firmware item
                     'NwkSKey': 'xyzxyz', # LoRa key from eg RIVM, firmware item
-                    'meteo': 'BME280',    # meteo sensor type, default
+                    'meteo': 'BME280',   # meteo sensor type, default
+                    'dust': 'SDS011',    # dust sensor type
                     'luftdaten.info': False,     # forward to Open Data Germany?
+                    'active': False,
                 }
             }
 
@@ -168,7 +172,7 @@ def updateIdent( AppId, devAddr, ident):
     if not 'geolocation' in devices[devAddr].keys():
         if 'GPS' in devices[devAddr].keys():
             devices[devAddr]['geolocation'] = str(devices[devAddr]['GPS']['longitude'])+','+str(devices[devAddr]['GPS']['latitude'])+','+str(devices[devAddr]['GPS']['altitude'])
-    for item in ["geolocation",'label','village','street','pcode','province','municipality']:
+    for item in ["geolocation",'label','village','street','pcode','province','municipality','active']:
         if item in devices[devAddr].keys():
             ident[item] = devices[devAddr][item]
     if ('comment' in devices[devAddr].keys()) and devices[devAddr]['comment']:
