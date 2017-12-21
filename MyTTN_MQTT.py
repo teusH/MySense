@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.7 2017/12/20 14:48:34 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.8 2017/12/21 14:03:50 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,7 +34,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 
 try:
     import MyLogger
@@ -61,7 +61,7 @@ ErrorCnt = 0             # connectivit error count, slows down, >20 reconnect, >
 PingTimeout = 0          # last time ping request was sent
 
 # TTN working command line example
-# mosquitto_sub -v -h eu.thethings.network -p 1883 -u 20179 -P 'ttn-account-v2.ZJvoRKh3kHegybn_XhADOGEglqf6CGAChsqLUA'  -t '+/devices/+/up' -v
+# mosquitto_sub -v -h eu.thethings.network -p 1883 -u 20179215970128 -P 'ttn-account-v2.ZJvoRKh3kHsegybn_XhADOGEglqf6CGAChqLUJLrXA'  -t '+/devices/+/up' -v
 
 # configurable options
 __options__ = [ 'input',       # output enables
@@ -72,14 +72,15 @@ __options__ = [ 'input',       # output enables
                 'calibrations' # calibrate value
                 'packing'      # how it is packed, here 4 X unsigned int16/short
                 'types',       # ordered list of module types: dust, meteo ...
+                'all',         # skip not registered and "inactive"  devices
                 'file', 'adminfile']
 
 Conf = {
     'input': True,
     'hostname': 'eu.thethings.network', # server host number for mqtt broker
     'port': 1883,        # default MQTT port
-    'user': 'pmsensors', # TTN Fontys
-    'password': 'ttn-account-v2.vFXacacadabra',
+    'user': 'pmsens', # TTN Fontys
+    'password': 'ttn-account-v2.vFacacadabra',
     # credentials to access broker
     'qos' : 0,           # dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
     'cert' : None,       # X.509 encryption
@@ -87,8 +88,8 @@ Conf = {
     'prefix': 'VW_',     # prefix to unique device number, used in Api Key
     # + is a wild card in TTN
     # To Do: use reg exp
-    'AppId': '+',        # regular expression to accept AppId to subscribe to
-    'DevAddr': '+',      # regular expression to accept DevAddr numbers
+    'AppId': '+',        # to be fixed regular expression to accept AppId to subscribe to
+    'DevAddr': '+',      # to be fixed regular expression to accept DevAddr numbers
     'timeout' : 2*60*60, # timeout for this broker
     # 'file': 'Dumped.json', # comment this for operation, this will read from a dump MQTT file
     'adminfile': 'VM2017devices.json', # meta identy data for sensor kits
@@ -100,18 +101,25 @@ Conf = {
     'calibrations': [[0,0.1],[0,0.1],[-20,0.1],[0,0.1]], # calibrate value
     'packing': '>HHHH', # how it is packed, here 4 X unsigned int16/short
     'types': ['SDS011', 'DHT22'], # ordered list of module types: dust, meteo, ...
+    'all': False,       # skip non active and not registered devices
 }
 
 devices = {}
-def GetAdminDevicesInfo():
+def GetAdminDevicesInfo( overwrite = False ):
     global Conf, devices
-    if len(devices) > 0: return # only once
+    if (not overwrite) and (len(devices) > 0): return # only once
+    prev = {}
     if 'adminfile' in Conf.keys():
         # json should be read from file
         try:
+            prev = devices.copy()
             devices = json.load(open(Conf['adminfile']))
             return
         except:
+            if len(prev):
+                devices = prev.copy()
+                MyLogger.log(modulename,'ERROR',"Json error in admin file %s" % Conf['adminfile'])
+                return
             MyLogger.log(modulename,'ATTENT','Missing LoRa admin json file with info for all LaRa devices')
             devices = { 'no_devices': {} }
             # return
@@ -137,6 +145,13 @@ def GetAdminDevicesInfo():
                     'active': False,
                 }
             }
+    if not 'all' in Conf.keys():        # handle devices: dflt all if not configured
+        Conf['all'] = True
+        if len(devices) > 1: Conf['all'] = False # dflt: only registrated devices
+
+# reread admin meta info of nodes in, may de/activate data arcghiving of the node
+def SigUSR2handler(signum,frame):
+    GetAdminDevicesInfo( True ) # reload admin info from admin file
 
 # calibrate as ordered function order defined by length calibration factor array
 def calibrate(coeffs,value):
@@ -350,16 +365,18 @@ last_records = {}       # remember last record seen so far
 # sensor module name is received via TTN record field 'type'
 # maintain some logging
 logged = {
-    # 'applID/deviceID: {
-    # 'unknown_fields': []
+    # 'applID/deviceID': {
+    # 'unknown_fields': [] seen but not used fields
     # 'last_seen': unix timestamp secs
+    # 'count': received records count
     # },
 }
 
+# show current status of nodes seen so far
 def SigUSR1handler(signum,frame):
-    global modulename
+    global modulename, logged
     for name in logged.keys():
-        MyLogger.log(modulename,'INFO',"Status device %s: last seen: %s, unknown fields: %s" % (name,datetime.datetime.fromtimestamp(logged[name]['last_seen']).strftime("%Y-%m-%d %H:%M:%S"), ' '.join(logged[name]['unknown_fields'])))
+        MyLogger.log(modulename,'INFO',"Status device %s: count: %d, last seen: %s, unknown fields: %s" % (name,logged[name]['count'],datetime.datetime.fromtimestamp(logged[name]['last_seen']).strftime("%Y-%m-%d %H:%M:%S"), ' '.join(logged[name]['unknown_fields'])))
 
 def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
     global Conf, logged
@@ -374,8 +391,8 @@ def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
     if not myID in logged.keys():
         if len(logged) >= 100: # forget more as 100 to avoid exhaustion
             myID = 'default'
-        logged[myID] = { 'unknown_fields': [], }
-    logged[myID]['last_seen'] = time()
+        logged[myID] = { 'unknown_fields': [], 'count': 0 }
+    logged[myID]['last_seen'] = time() ; logged[myID] += 1
     types = ['type','dust','meteo','gps']
     for item in ['counter','payload_raw']:
         if item in data['payload'].keys():
@@ -522,10 +539,16 @@ def getdata():
         return getdata()
     msg['AppId'] = msg['topic'][0]
     msg['DevAddr'] = msg['topic'][2]
+    # recursive getdata() call may lead to stack exhaustion
     # check the pay load
     if not type(msg['payload']) is dict:
         sleep(0.1)
         return getdata()
+    if  not Conf['all']:        # skip unknown devices
+        if not msg['topic'][2] in devices.keys(): return getdata()
+        if 'active' in devices[msg['topic'][2]].keys():
+            if not devices[msg['topic'][2]]['active']: return getdata()
+        
     # TO DO: check DevAddr to api key (mqtt broker checks user with AppId/DevAddr)
     # copy items we need
     # use types of sensors if provided via admin info, may be overwritten by telegram
@@ -538,6 +561,7 @@ def getdata():
 
 # send kill -USR1 <process id> to dump status overview
 signal.signal(signal.SIGUSR1, SigUSR1handler)
+signal.signal(signal.SIGUSR2, SigUSR2handler)
 
 # MAIN part of Broker for VW 2017
 
@@ -545,6 +569,9 @@ if __name__ == '__main__':
     # 'NOTSET','DEBUG','INFO','ATTENT','WARNING','ERROR','CRITICAL','FATAL'
     MyLogger.Conf['level'] = 'INFO'     # log from and above 10 * index nr
     MyLogger.Conf['file'] = '/dev/stderr'
+    sys.stderr.write("Starting up %s, logging level %s\n" % (modulename,Conf['level']))
+    sys.stderr.write("Using admin file %s, collect mode: %s nodes\n" % ( Conf['adminfile'], 'all' if Conf['all'] else 'only administered and activa'))
+
     # Conf['debug'] = True
     error_cnt = 0
     OutputChannels = [
