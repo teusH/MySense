@@ -24,3 +24,7 @@ See script for all configuration possibilities. 'Conf["all"]' will force measure
 
 ### APPLICATION
 forward measurements of LoRaWan TTN nodes to different configured output channels.
+On reception of USR1 signal/event the process will log current status of telegrams received so far and last timestamp.
+On reception of USR2 signal the process will reload the admin file if defined.
+
+i of the sensor to the first gateway) he signal strength (rssi) of first node will be included in the measurements.
