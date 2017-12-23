@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MakeReports.sh,v 1.21 2017/12/17 17:19:07 teus Exp teus $
+# $Id: MakeReports.sh,v 1.22 2017/12/17 19:05:27 teus Exp teus $
 
 # shell file produces pdf correlation report of influx raw series of timed data
 # for the dust sensor only pcs/qf is used
@@ -513,6 +513,7 @@ then
     if $HTML2PDF --title "$TITLE" --footer-left "MySense correlation report, project ${KITS[0]/_*/}, [date]" --footer-right "page [page]/[topage]"  toc ${SUM_HTML[*]} ${HTML_REPORTS[*]/.pdf/.html} ${TOTAL/.html/.pdf}
     then
         echo "Combined HTML correlation reports are in ${TOTAL/.html/.pdf}" >/dev/stderr
+        echo "${TOTAL/.html/.pdf}"
         # make it git ready
         if [ -d ../MySense/statistics/ ]
         then
