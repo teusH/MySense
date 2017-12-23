@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.8 2017/12/21 14:03:50 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.9 2017/12/23 14:58:44 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,7 +34,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__version__ = "0." + "$Revision: 1.9 $"[11:-2]
 
 try:
     import MyLogger
@@ -51,7 +51,7 @@ try:
     from struct import *
     import base64
 except ImportError as e:
-    sys.stderr.write("One of the import modules not found: %s\n" % e)
+    print("One of the import modules not found: %s\n" % e)
     exit(1)
 
 waiting = False          # waiting for telegram
@@ -61,7 +61,7 @@ ErrorCnt = 0             # connectivit error count, slows down, >20 reconnect, >
 PingTimeout = 0          # last time ping request was sent
 
 # TTN working command line example
-# mosquitto_sub -v -h eu.thethings.network -p 1883 -u 20179215970128 -P 'ttn-account-v2.ZJvoRKh3kHsegybn_XhADOGEglqf6CGAChqLUJLrXA'  -t '+/devices/+/up' -v
+# mosquitto_sub -v -h eu.thethings.network -p 1883 -u 2017 -P 'ttn-account-v2.ZJacacadabra'  -t '+/devices/+/up' -v
 
 # configurable options
 __options__ = [ 'input',       # output enables
@@ -80,7 +80,7 @@ Conf = {
     'hostname': 'eu.thethings.network', # server host number for mqtt broker
     'port': 1883,        # default MQTT port
     'user': 'pmsens', # TTN Fontys
-    'password': 'ttn-account-v2.vFacacadabra',
+    'password': 'ttn-account-v2.vFXacacadabra',
     # credentials to access broker
     'qos' : 0,           # dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
     'cert' : None,       # X.509 encryption
@@ -119,6 +119,8 @@ def GetAdminDevicesInfo( overwrite = False ):
             if len(prev):
                 devices = prev.copy()
                 MyLogger.log(modulename,'ERROR',"Json error in admin file %s" % Conf['adminfile'])
+                if not overwrite:
+                    MyLogger.log(modulename,'FATAL','Unable to proceed. Fix admin file.')
                 return
             MyLogger.log(modulename,'ATTENT','Missing LoRa admin json file with info for all LaRa devices')
             devices = { 'no_devices': {} }
@@ -378,12 +380,25 @@ def SigUSR1handler(signum,frame):
     for name in logged.keys():
         MyLogger.log(modulename,'INFO',"Status device %s: count: %d, last seen: %s, unknown fields: %s" % (name,logged[name]['count'],datetime.datetime.fromtimestamp(logged[name]['last_seen']).strftime("%Y-%m-%d %H:%M:%S"), ' '.join(logged[name]['unknown_fields'])))
 
+# search record for first rssi value: rssi of the sensor/node
+def FirstRSSI(msg):
+    if (not 'gateways' in msg.keys()) or (not type(msg['gateways']) is list):
+        return None
+    tfirst = 0 ; rssi = None
+    for one in msg['gateways']:
+        if (not 'timestamp' in one.keys()) or (not 'rssi' in one.keys()):
+            continue
+        if not tfirst: tfirst = one['timestamp']
+        if one['timestamp'] <= tfirst:
+            tfirst = one['timestamp'] ; rssi = one['rssi']
+    return rssi
+    
 def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
     global Conf, logged
 
     ident = { 'project': 'VW2017', 'fields': ['time', ], 'types': ['time'], 'units': ['s',] }
     ident['description'] = 'MQTT AppID=' + data['topic'][0] + ' MQTT DeviceID=' + data['topic'][2]
-    values = { 'time': int(time()) }
+    values = { 'time': int(time()) } # init record with measurements
     # make sure we use nomenclature of MySQL DB
     meteo_units = { "temp": 'C', "humidity": '%', "pressure": 'hpa' }
     record = {}
@@ -392,11 +407,16 @@ def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
         if len(logged) >= 100: # forget more as 100 to avoid exhaustion
             myID = 'default'
         logged[myID] = { 'unknown_fields': [], 'count': 0 }
-    logged[myID]['last_seen'] = time() ; logged[myID] += 1
+    logged[myID]['last_seen'] = time() ; logged[myID]['count'] += 1
     types = ['type','dust','meteo','gps']
     for item in ['counter','payload_raw']:
         if item in data['payload'].keys():
             record[item] = data['payload'][item]
+    rssi = None
+    if 'metadata' in data['payload'].keys():
+        rssi = FirstRSSI(data['payload']['metadata'])    # get signal strength of end node
+    if rssi != None:
+        values['rssi'] = record['rssi'] = rssi
     if ("payload_fields" in data['payload'].keys()) \
         and len(data['payload']['payload_fields']):
         dtype = 'dust'
@@ -569,7 +589,7 @@ if __name__ == '__main__':
     # 'NOTSET','DEBUG','INFO','ATTENT','WARNING','ERROR','CRITICAL','FATAL'
     MyLogger.Conf['level'] = 'INFO'     # log from and above 10 * index nr
     MyLogger.Conf['file'] = '/dev/stderr'
-    sys.stderr.write("Starting up %s, logging level %s\n" % (modulename,Conf['level']))
+    sys.stderr.write("Starting up %s, logging level %s\n" % (modulename,MyLogger.Conf['level']))
     sys.stderr.write("Using admin file %s, collect mode: %s nodes\n" % ( Conf['adminfile'], 'all' if Conf['all'] else 'only administered and activa'))
 
     # Conf['debug'] = True
@@ -577,19 +597,27 @@ if __name__ == '__main__':
     OutputChannels = [
         {   'name': 'MySQL DB', 'script': 'DB-upload-MySQL', 'module': None,
             'Conf': {
-                'output': True,
+                'output': False,
                 'hostname': 'localhost', 'database': 'luchtmetingen',
                 'user': 'IoS', 'password': 'acacadabra',
+            }
+        },
+        {   'name': 'Console', 'script': 'MyCONSOLE', 'module': None,
+            'Conf': {
+                'output': True,
             }
         },
         ]
     try:
         for indx in range(0,len(OutputChannels)):
-            OutputChannels[indx]['module'] = __import__(OutputChannels[indx]['script'])
+            try:
+                OutputChannels[indx]['module'] = __import__(OutputChannels[indx]['script'])
+            except:
+                MyLogger.log(modulename,'FATAL','Unable to load module %s' % OutputChannels[indx]['script'])
             for item in OutputChannels[indx]['Conf'].keys():
                 OutputChannels[indx]['module'].Conf[item] = OutputChannels[indx]['Conf'][item]
                 OutputChannels[indx]['errors'] = 0
-            MyLogger.log(modulename,'INFO','Enabled output channel %s' % OutputChannels[indx]['name'])
+            MyLogger.log(modulename,'INFO','Loaded output channel %s: ouput is %s' % (OutputChannels[indx]['name'], 'enabled' if OutputChannels[indx]['Conf']['output'] else 'DISabled'))
     except ImportError as e:
         MyLogger.log(modulename,'ERROR','One of the import modules not found: %s' % e)
     net = { 'module': True, 'connected': True }
