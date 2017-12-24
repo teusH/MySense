@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.9 2017/12/23 14:58:44 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.10 2017/12/24 20:49:01 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,7 +34,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.9 $"[11:-2]
+__version__ = "0." + "$Revision: 1.10 $"[11:-2]
 
 try:
     import MyLogger
@@ -61,7 +61,7 @@ ErrorCnt = 0             # connectivit error count, slows down, >20 reconnect, >
 PingTimeout = 0          # last time ping request was sent
 
 # TTN working command line example
-# mosquitto_sub -v -h eu.thethings.network -p 1883 -u 2017 -P 'ttn-account-v2.ZJacacadabra'  -t '+/devices/+/up' -v
+# mosquitto_sub -v -h eu.thethings.network -p 1883 -u 2017 -P 'ttn-account-v2.ZJvacacadabra'  -t '+/devices/+/up' -v
 
 # configurable options
 __options__ = [ 'input',       # output enables
@@ -371,6 +371,7 @@ logged = {
     # 'unknown_fields': [] seen but not used fields
     # 'last_seen': unix timestamp secs
     # 'count': received records count
+    # 'eui': LoRa EUI ID
     # },
 }
 
@@ -378,20 +379,23 @@ logged = {
 def SigUSR1handler(signum,frame):
     global modulename, logged
     for name in logged.keys():
-        MyLogger.log(modulename,'INFO',"Status device %s: count: %d, last seen: %s, unknown fields: %s" % (name,logged[name]['count'],datetime.datetime.fromtimestamp(logged[name]['last_seen']).strftime("%Y-%m-%d %H:%M:%S"), ' '.join(logged[name]['unknown_fields'])))
+        MyLogger.log(modulename,'INFO',"Status device %s EUI=%s: count: %d, last seen: %s, unknown fields: %s" % (name,logged[name]['count'],logged[name]['eui'] if 'eui' in logged[name].keys() else 'unknown',datetime.datetime.fromtimestamp(logged[name]['last_seen']).strftime("%Y-%m-%d %H:%M:%S"), ' '.join(logged[name]['unknown_fields'])))
 
-# search record for first rssi value: rssi of the sensor/node
-def FirstRSSI(msg):
+# search record for first EUI and rssi value of the sensor/node
+def Get_GtwID(msg):
     if (not 'gateways' in msg.keys()) or (not type(msg['gateways']) is list):
         return None
-    tfirst = 0 ; rssi = None
+    tfirst = 0 ; rssi = None ; eui = None
     for one in msg['gateways']:
-        if (not 'timestamp' in one.keys()) or (not 'rssi' in one.keys()):
+        if (not 'timestamp' in one.keys()) or (not 'gtw_id' in one.keys()) or (not 'rssi' in one.keys()):
             continue
         if not tfirst: tfirst = one['timestamp']
         if one['timestamp'] <= tfirst:
-            tfirst = one['timestamp'] ; rssi = one['rssi']
-    return rssi
+            tfirst = one['timestamp']
+            rssi = one['rssi']
+            eui = one['gtw_id'][4:]
+    if tfirst: return (eui,rssi)
+    return None
     
 def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
     global Conf, logged
@@ -402,7 +406,7 @@ def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
     # make sure we use nomenclature of MySQL DB
     meteo_units = { "temp": 'C', "humidity": '%', "pressure": 'hpa' }
     record = {}
-    myID = data['topic'][0]+'/'+data['topic'][2]
+    myID = data['topic'][0]+'/'+data['topic'][2] # to do: should use eui ID
     if not myID in logged.keys():
         if len(logged) >= 100: # forget more as 100 to avoid exhaustion
             myID = 'default'
@@ -412,11 +416,14 @@ def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
     for item in ['counter','payload_raw']:
         if item in data['payload'].keys():
             record[item] = data['payload'][item]
-    rssi = None
+    gtwID = None
     if 'metadata' in data['payload'].keys():
-        rssi = FirstRSSI(data['payload']['metadata'])    # get signal strength of end node
-    if rssi != None:
-        values['rssi'] = record['rssi'] = rssi
+        gtwID = Get_GtwID(data['payload']['metadata'])    # get signal strength of end node
+    if gtwID != None:
+        ident['description'] += ' EUI='+gtwID[0]
+        if (not 'eui' in logged[myID].keys()) or (logged[myID]['eui'] != gtwID[0]):
+            logged[myID]['eui'] = gtwID[0]
+        values['rssi'] = record['rssi'] = gtwID[1]
     if ("payload_fields" in data['payload'].keys()) \
         and len(data['payload']['payload_fields']):
         dtype = 'dust'
@@ -463,6 +470,10 @@ def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
             ident['fields'].append(name_table[meteo][sensor])
             ident['types'].append(meteo)
             ident['units'].append(meteo_units[sensor])
+    if 'rssi' in values.keys():    # add LoRa signal strength
+        ident['fields'].append('rssi')
+        ident['types'].append('LoRa')
+        ident['units'].append('dB')
 
     # provide the device with a static serial number
     ident['serial'] = hex(hash(data['topic'][0] + '/' + data['topic'][2])&0xFFFFFFFFFF)[2:]
@@ -586,6 +597,7 @@ signal.signal(signal.SIGUSR2, SigUSR2handler)
 # MAIN part of Broker for VW 2017
 
 if __name__ == '__main__':
+    # Conf['file'] = 'test_dev11.json'    # read from file iso TTN MQTT server
     # 'NOTSET','DEBUG','INFO','ATTENT','WARNING','ERROR','CRITICAL','FATAL'
     MyLogger.Conf['level'] = 'INFO'     # log from and above 10 * index nr
     MyLogger.Conf['file'] = '/dev/stderr'
@@ -597,8 +609,8 @@ if __name__ == '__main__':
     OutputChannels = [
         {   'name': 'MySQL DB', 'script': 'DB-upload-MySQL', 'module': None,
             'Conf': {
-                'output': False,
-                'hostname': 'localhost', 'database': 'luchtmetingen',
+                'output': True,
+                'hostname': 'elx8', 'database': 'luchtmetingen',
                 'user': 'IoS', 'password': 'acacadabra',
             }
         },
@@ -617,7 +629,7 @@ if __name__ == '__main__':
             for item in OutputChannels[indx]['Conf'].keys():
                 OutputChannels[indx]['module'].Conf[item] = OutputChannels[indx]['Conf'][item]
                 OutputChannels[indx]['errors'] = 0
-            MyLogger.log(modulename,'INFO','Loaded output channel %s: ouput is %s' % (OutputChannels[indx]['name'], 'enabled' if OutputChannels[indx]['Conf']['output'] else 'DISabled'))
+            MyLogger.log(modulename,'INFO','Loaded output channel %s: output is %s' % (OutputChannels[indx]['name'], 'enabled' if OutputChannels[indx]['Conf']['output'] else 'DISabled'))
     except ImportError as e:
         MyLogger.log(modulename,'ERROR','One of the import modules not found: %s' % e)
     net = { 'module': True, 'connected': True }
