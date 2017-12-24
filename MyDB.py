@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.29 2017/12/16 21:16:03 teus Exp teus $
+# $Id: MyDB.py,v 2.30 2017/12/24 20:49:01 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.29 $"[11:-2]
+__version__ = "0." + "$Revision: 2.30 $"[11:-2]
 
 try:
     import MyLogger
@@ -50,7 +50,7 @@ Conf = {
     'database': None,    # MySQL database name
     'port': 3306,        # default mysql port number
     'fd': None,           # have sent to db: current fd descriptor, 0 on IO error
-    'omit' : ['time','geolocation','rssi']        # fields not archived
+    'omit' : ['time','geolocation']        # fields not archived
 }
 # ========================================================
 # write data directly to a database
@@ -68,6 +68,7 @@ def db_connect(net):
     if not 'fd' in Conf.keys(): Conf['fd'] = None
     if not 'last' in Conf.keys():
         Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
+    if not 'net' in Conf.keys(): Conf['net'] = net
     if (Conf['fd'] == None) or (not Conf['fd']):
         if (Conf['hostname'] != 'localhost') and ((not net['module']) or (not net['connected'])):
             MyLogger.log(modulename,'ERROR',"Access database %s / %s."  % (Conf['hostname'], Conf['database']))      
@@ -105,11 +106,14 @@ def db_connect(net):
         return Conf['output']
 
 # registrate the sensor to the Sensors table and update location/activity
+serials = []     # remember serials of sensor kits chect in table Sensors
 def db_registrate(ident):
     """ create or update identification inf to Sensors table in database """
     global Conf
-    if ("registrated") in Conf.keys():
-        return Conf['registrated']
+    if not 'serial' in ident.keys():
+        MyLogger.log(modulename,'DEBUG','serial missing in identification record')
+        return False
+    if ident['serial'] in serials: return True
     if len(ident['fields']) == 0:
         return False
     if not db_table(ident,'Sensors'):
@@ -170,7 +174,7 @@ def db_registrate(ident):
             if item[1] == ident['geolocation']:
                 db_query("UPDATE Sensors SET last_check = now(), active = 1, sensors = %s, description = %s WHERE coordinates like '%s%%'  AND serial = '%s'" % (fld_units,fld_types,','.join(ident['geolocation'].split(',')[0:2]),ident['serial']) , False)
                 Conf["registrated"] = True
-                MyLogger.log(modulename,'ATTENT',"Registrated to database table Sensors.")
+                MyLogger.log(modulename,'ATTENT',"Registrated (renew) %s  to database table Sensors." % ident['serial'])
                 db_WhereAmI(ident)
                 return True
     db_query("UPDATE Sensors SET active = 0 WHERE project = '%s' AND serial = '%s'" % (ident['project'],ident['serial']),False)
@@ -179,11 +183,12 @@ def db_registrate(ident):
     except:
         pass
     MyLogger.log(modulename,'ATTENT',"New registration to database table Sensors.")
-    Conf["registrated"] = True
+    serials.append(ident['serial'])       # remember we know this one
     db_WhereAmI(ident)
     return True
 
 # do a query
+Retry = False
 def db_query(query,answer):
     """ communicate in sql to database """
     global Conf
@@ -201,6 +206,23 @@ def db_query(query,answer):
         raise IOError
     except:
         MyLogger.log(modulename,'ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
+        MyLogger.log(modulename,'ERROR',"On query: %s" % query)
+        # try once to reconnect
+        try:
+            Conf['fd'].close
+            Conf['fd'] = None
+            db_connect(Conf['net'])
+        except:
+            MyLogger.log(modulename,'ERROR','Failed to reconnect to MySQL DB.')
+            return False
+        if Retry:
+            return False
+        Retry = True
+        MyLogger.log(modulename,'INFO',"Retry the query")
+        if dp_query(query,answer):
+            Retry = False
+            return True
+        MyLogger.log(modulename,'ERROR','Failed to redo query.')
         return False
     return True
 
@@ -283,6 +305,7 @@ def publish(**args):
             'pm1_cnt':     "DECIMAL(9,2) default NULL",
             'pm03_cnt':    "DECIMAL(9,2) default NULL",
             'pm05_cnt':    "DECIMAL(9,2) default NULL",
+            'rssi':        "SMALLINT(4) default NULL",
             'default':     "DECIMAL(7,2) default NULL",
             "_valid":      "BOOL default 1"
         }
@@ -377,9 +400,9 @@ if __name__ == '__main__':
     from time import sleep
     Conf['output'] = True
     Conf['hostname'] = 'localhost'         # host InFlux server
-    Conf['database'] = 'luchtmetingen'     # the MySql db for test usage, must exists
-    Conf['user'] = 'IoS'                   # user with insert permission of InFlux DB
-    Conf['password'] = 'acacadabra'        # DB credential secret to use InFlux DB
+    Conf['database'] = 'luchtmetingen' # the MySql db for test usage, must exists
+    Conf['user'] = 'IoS'              # user with insert permission of InFlux DB
+    Conf['password'] = 'acacadabra'     # DB credential secret to use InFlux DB
     net = { 'module': True, 'connected': True }
     Output_test_data = [
         { 'ident': {'geolocation': '?', 'description': 'MQTT AppID=pmsensors MQTT DeviceID=pmsensor2', 'fields': ['time', 'pm25', 'pm10', 'temp', 'rv'], 'project': 'VW2017', 'units': ['s', 'ug/m3', 'ug/m3', 'C', '%'], 'serial': 'XXXXXXX', 'types': ['time', u'SDS011', u'SDS011', 'DHT22', 'DHT22']},
