@@ -18,3 +18,10 @@ Note that Luftdaten.info has a limited range of Particular Matter and weather mo
 In order to get records Postage succesfully at the Luftdaten database however one need to provide the prefix, serial number and location details of the sensor kit to Luftdaten.info. Please see for the requirements the Luftdaten.info website before starting to send Posts to Luftdaten.info.
 ### INSTALLATION
 ### APPLICATION
+MySense can act as a broker or proxy to different output channels. In this case it acts with output channel to Luftdaten.info.
+
+See also the input channels of MySense e.g. MyTTN_MQTT.py as input channel and others.
+### REFERENCES
+See also:
+* https://github.com/verschwoerhaus/ttn-ulm-muecke as MQTT e.g. TTN proxi for Luftdaten.info
+* https://github.com/corny/luftdaten-python another Pi Python example
