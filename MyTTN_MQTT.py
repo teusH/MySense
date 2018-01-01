@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.10 2017/12/24 20:49:01 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.12 2018/01/01 12:40:56 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,7 +34,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.10 $"[11:-2]
+__version__ = "0." + "$Revision: 1.12 $"[11:-2]
 
 try:
     import MyLogger
@@ -61,7 +61,7 @@ ErrorCnt = 0             # connectivit error count, slows down, >20 reconnect, >
 PingTimeout = 0          # last time ping request was sent
 
 # TTN working command line example
-# mosquitto_sub -v -h eu.thethings.network -p 1883 -u 2017 -P 'ttn-account-v2.ZJvacacadabra'  -t '+/devices/+/up' -v
+# mosquitto_sub -v -h eu.thethings.network -p 1883 -u 20179215970128 -P 'ttn-account-v2.ZJvoRKh3kHsegybn_XhADOGEglqf6CGAChqLUJLrXA'  -t '+/devices/+/up' -v
 
 # configurable options
 __options__ = [ 'input',       # output enables
@@ -76,11 +76,10 @@ __options__ = [ 'input',       # output enables
                 'file', 'adminfile']
 
 Conf = {
-    'input': True,
+    'input': False,
     'hostname': 'eu.thethings.network', # server host number for mqtt broker
     'port': 1883,        # default MQTT port
-    'user': 'pmsens', # TTN Fontys
-    'password': 'ttn-account-v2.vFXacacadabra',
+    'user': 'account_name', 'password': 'ttn-account-v2.acacadabra',
     # credentials to access broker
     'qos' : 0,           # dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
     'cert' : None,       # X.509 encryption
@@ -195,6 +194,9 @@ def updateIdent( AppId, devAddr, ident):
     if ('comment' in devices[devAddr].keys()) and devices[devAddr]['comment']:
         if not 'description' in ident.keys(): ident['description'] = ''
         ident['description'] = devices[devAddr]['comment'] + '; ' + ident['description']
+    for item in ['luftdaten.info','luftdaten','madavi']:
+        if item in devices[devAddr].keys():
+            ident[item.replace('.info','')] = devices[devAddr][item]
     return ident
 
 # =======================================================
@@ -597,14 +599,17 @@ signal.signal(signal.SIGUSR2, SigUSR2handler)
 # MAIN part of Broker for VW 2017
 
 if __name__ == '__main__':
+    Conf['input'] = True
     # Conf['file'] = 'test_dev11.json'    # read from file iso TTN MQTT server
     # 'NOTSET','DEBUG','INFO','ATTENT','WARNING','ERROR','CRITICAL','FATAL'
     MyLogger.Conf['level'] = 'INFO'     # log from and above 10 * index nr
     MyLogger.Conf['file'] = '/dev/stderr'
     sys.stderr.write("Starting up %s, logging level %s\n" % (modulename,MyLogger.Conf['level']))
     sys.stderr.write("Using admin file %s, collect mode: %s nodes\n" % ( Conf['adminfile'], 'all' if Conf['all'] else 'only administered and activa'))
-
     # Conf['debug'] = True
+    Conf['user'] =  'account XYZ' # please complete
+    Conf['password'] = 'ttn-account-v2.acacadabra'
+
     error_cnt = 0
     OutputChannels = [
         {   'name': 'MySQL DB', 'script': 'DB-upload-MySQL', 'module': None,
