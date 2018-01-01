@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.30 2017/12/24 20:49:01 teus Exp teus $
+# $Id: DB-upload-MySQL.py,v 1.5 2017/12/24 20:44:41 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -26,8 +26,8 @@
 """ Publish measurements to MySQL database
     Relies on Conf setting by main program
 """
-modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.30 $"[11:-2]
+modulename='$RCSfile: DB-upload-MySQL.py,v $'[10:-4]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 
 try:
     import MyLogger
@@ -70,6 +70,15 @@ def db_connect(net):
         Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
     if not 'net' in Conf.keys(): Conf['net'] = net
     if (Conf['fd'] == None) or (not Conf['fd']):
+        # get DBUSER, DBHOST, DBPASS from process environment if present
+        for credit in ['hostname','user','password']:
+            if not credit in Conf[name].keys():
+                Conf[name][credit] = None
+            try:
+                Conf[name][credit] = os.getenv(name.upper()+credit[0:4].upper(),Conf[name][credit])
+            except:
+                pass
+        MyLogger.log(modulename,'INFO','Using database %s on host %s, user %s credits.' % (Conf['database'],Conf['hostname'],Conf['user']))
         if (Conf['hostname'] != 'localhost') and ((not net['module']) or (not net['connected'])):
             MyLogger.log(modulename,'ERROR',"Access database %s / %s."  % (Conf['hostname'], Conf['database']))      
             Conf['output'] = False
