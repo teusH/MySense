@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.12 2018/01/01 12:40:56 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.13 2018/01/01 15:32:49 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,7 +34,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.12 $"[11:-2]
+__version__ = "0." + "$Revision: 1.13 $"[11:-2]
 
 try:
     import MyLogger
@@ -138,6 +138,7 @@ def GetAdminDevicesInfo( overwrite = False ):
                     'date': '20 december 2017', # start date
                     'tel': '+31773270012',
                     'comment': 'test device',
+                    # 'serial': None, if not defined use hash topic/device name
                     'AppSKEY': 'xyz',    # LoRa key from eg RIVM, firmware item
                     'NwkSKey': 'xyzxyz', # LoRa key from eg RIVM, firmware item
                     'meteo': 'BME280',   # meteo sensor type, default
@@ -400,7 +401,7 @@ def Get_GtwID(msg):
     return None
     
 def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
-    global Conf, logged
+    global Conf, logged, devices
 
     ident = { 'project': 'VW2017', 'fields': ['time', ], 'types': ['time'], 'units': ['s',] }
     ident['description'] = 'MQTT AppID=' + data['topic'][0] + ' MQTT DeviceID=' + data['topic'][2]
@@ -478,7 +479,12 @@ def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
         ident['units'].append('dB')
 
     # provide the device with a static serial number
-    ident['serial'] = hex(hash(data['topic'][0] + '/' + data['topic'][2])&0xFFFFFFFFFF)[2:]
+    if ('serial' in devices[data['topic'][2]].keys()) and devices[data['topic'][2]]['serial']:
+        # serial is externaly defined
+        ident['serial'] = devices[data['topic'][2]]['serial']
+    else:
+        # create one
+        ident['serial'] = hex(hash(data['topic'][0] + '/' + data['topic'][2])&0xFFFFFFFFFF)[2:]
     # try to get geolocation
     geolocation = []
     if "metadata" in data['payload'].keys():
@@ -518,6 +524,7 @@ def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
 
 def getdata():
     global Conf, ErrorCnt, devices
+    if not Conf['input']: return True
     if ErrorCnt:
         if ErrorCnt > 20:
             Conf['registrated'] = None
@@ -598,7 +605,9 @@ signal.signal(signal.SIGUSR2, SigUSR2handler)
 
 # MAIN part of Broker for VW 2017
 
+# next only for standalone testing
 if __name__ == '__main__':
+    # one should use the MySense main script in stead of next statements
     Conf['input'] = True
     # Conf['file'] = 'test_dev11.json'    # read from file iso TTN MQTT server
     # 'NOTSET','DEBUG','INFO','ATTENT','WARNING','ERROR','CRITICAL','FATAL'
@@ -612,13 +621,6 @@ if __name__ == '__main__':
 
     error_cnt = 0
     OutputChannels = [
-        {   'name': 'MySQL DB', 'script': 'DB-upload-MySQL', 'module': None,
-            'Conf': {
-                'output': True,
-                'hostname': 'elx8', 'database': 'luchtmetingen',
-                'user': 'IoS', 'password': 'acacadabra',
-            }
-        },
         {   'name': 'Console', 'script': 'MyCONSOLE', 'module': None,
             'Conf': {
                 'output': True,
@@ -627,6 +629,8 @@ if __name__ == '__main__':
         ]
     try:
         for indx in range(0,len(OutputChannels)):
+            MyLogger.log(modulename,'INFO','Loaded output channel %s: output is %s' % (OutputChannels[indx]['name'], 'enabled' if OutputChannels[indx]['Conf']['output'] else 'DISabled'))
+            if not OutputChannels[indx]['Conf']['output']: continue
             try:
                 OutputChannels[indx]['module'] = __import__(OutputChannels[indx]['script'])
             except:
@@ -634,7 +638,6 @@ if __name__ == '__main__':
             for item in OutputChannels[indx]['Conf'].keys():
                 OutputChannels[indx]['module'].Conf[item] = OutputChannels[indx]['Conf'][item]
                 OutputChannels[indx]['errors'] = 0
-            MyLogger.log(modulename,'INFO','Loaded output channel %s: output is %s' % (OutputChannels[indx]['name'], 'enabled' if OutputChannels[indx]['Conf']['output'] else 'DISabled'))
     except ImportError as e:
         MyLogger.log(modulename,'ERROR','One of the import modules not found: %s' % e)
     net = { 'module': True, 'connected': True }
@@ -660,6 +663,7 @@ if __name__ == '__main__':
         else:
             MyLogger.log(modulename,'DEBUG','%s Got data (no description)' % datetime.datetime.fromtimestamp(record['data']['time']).strftime("%Y-%m-%d %H:%M"))
         for indx in range(0,len(OutputChannels)):
+            if not OutputChannels[indx]['Conf']['output']: continue
             if OutputChannels[indx]['module'] and OutputChannels[indx]['Conf']['output']:
                 try:
                     OutputChannels[indx]['module'].publish(
@@ -672,7 +676,9 @@ if __name__ == '__main__':
                 except:
                     MyLogger.log(modulename,'ERROR','sending record to %s' % OutputChannels[indx]['name'])
                     OutputChannels[indx]['errors'] += 1
-            if OutputChannels[indx]['errors'] > 20: OutputChannels[indx]['module']['Conf']['output'] = False
+            if OutputChannels[indx]['errors'] > 20:
+                OutputChannels[indx]['module']['Conf']['output'] = False
+                MyLogger.log(modulename,'ERROR','Too many errors. Loaded output channel %s: output is DISabled' % OutputChannels[indx]['name'])
         if not cnt:
             MyLogger.log(modulename,'FATAL','No output channel available. Exiting')
             exit(1)
