@@ -18,13 +18,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 1.1 2017/12/31 15:07:21 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 1.1 2018/01/01 12:42:42 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
 
-""" Publish measurements to Luftdaten.info (http://www.madavi.de/sensor/graph.php))
-    time series database
+""" Publish measurements to Madavi.de and Luftdaten.info
+    they will appear as graphs in http://www.madavi.de/sensor/graph.php
+    Make sure to enable acceptance for publishing in the map of Luftdaten
+    by emailing the prefix-serial and location details.
+    if 'madavi' and/or 'luftdaten' is enabled in ident send them a HTTP POST
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
@@ -42,7 +45,7 @@ except ImportError as e:
     MyLogger.log(modulename,"FATAL","One of the import modules not found: %s" % e)
 
 # configurable options
-__options__ = ['output','hostname','port','url','id_prefix', 'serials', 'projects','active']
+__options__ = ['output','luftdaten','madavi','id_prefix', 'serials', 'projects','active']
 
 Conf = {
     'output': False,
@@ -53,9 +56,8 @@ Conf = {
     # expression to identify serials to be subjected to be posted
     'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from pmsensors
     'projects': 'VW2017',  # expression to identify projects to be posted
-    'active': True,      # output to luftdaten is active
+    'active': True,      # output to luftdaten is also activated
     'registrated': None, # has done initial setup
-    'fd': None,          # 1 internet connect success, 0 connectivity broke down
 }
 
 # ========================================================
@@ -72,22 +74,24 @@ def registrate(net):
         if (not net['module']) or (not net['connected']): return False
     Conf['match'] = re.compile(Conf['projects']+'_'+Conf['serials'], re.I)
     Conf['registrated'] = True
-    if not 'fd' in Conf.keys(): Conf['fd'] = None
     return Conf['registrated']
 
 # Luftdaten nomenclature and ID codes:
 sense_table = {
     "meteo": {
-        # X-PIN codes as id used by Luftdaten for meteo sensors
+        # X-Pin codes as id used by Luftdaten for meteo sensors
         "types": {'DHT22': 9,'BME280': 17,},
         "temperature": ['temperature','temp','dtemp',],
         "humidity": ['humidity','hum','rv','rh',],
         "pressure": ['pres','pressure','luchtdruk',],
     },
     "dust": {
-        # X-PIN codes as id used by Luftdaten for dust sensors
-        # TO DO: complete the ID codes
-        "types": {'SDS011': 14, 'PMS3003': 16, 'PMS7003': 22, 'HPM': 25, 'PPD42NS': 1, 'SHINEY': 1, },
+        # X-Pin codes as id used by Luftdaten for dust sensors
+        # TO DO: complete the ID codes used by Luftdaten
+        "types": {
+            'SDS011': 14, 'PMS3003': 16, 'PMS7003': 22,
+            'HPM': 25, 'PPD42NS': 1, 'SHINEY': 1,
+        },
         "P1": ['pm10','pm10_atm',],  # should be P10
         "P2": ['pm2.5','pm25'],      # should be P25
         # missing pm1
@@ -132,6 +136,7 @@ def sendLuftdaten(ident,values):
             return False
     return True
         
+# do an HTTP POST to [ Madavi.de, Luftdaten, ...]
 def post2Luftdaten(headers,postdata,postTo):
     global Conf
     # debug time: do not really post this
@@ -151,8 +156,9 @@ def post2Luftdaten(headers,postdata,postTo):
             return False
     return True
 
+notMatchedSerials = []
 def publish(**args):
-    global Conf
+    global Conf, notMatchedSerials
     if (not 'output' in Conf.keys()) or (not Conf['output']):
         return
     for key in ['data','internet','ident']:
@@ -165,13 +171,18 @@ def publish(**args):
         if (not key in args['ident'].keys()) or (not args['ident'][key]):
             return True
     matched = Conf['match'].match(args['ident']['project']+'_'+args['ident']['serial'])
+    # publish only records of the matched project/serial combi,
+    # default Madavi is enabled for those matches
     if not matched:
-        MyLogger.log(modulename,'INFO',"Skip record of project %s with serial %s to post to Luftdaten" % (args['ident']['project'],args['ident']['serial']))
+        if not hash(args['ident']['project']+'_'+args['ident']['serial']) in notMatchedSerials:
+            notMatchedSerials.append(hash(args['ident']['project']+'_'+args['ident']['serial']))
+            MyLogger.log(modulename,'INFO',"Skip record of project %s with serial %s to post to Luftdaten" % (args['ident']['project'],args['ident']['serial']))
         return True
     elif not 'madavi' in args['ident'].keys():  # dflt: Post to madavi.de
         args['ident']['madavi'] = True
     mayPost = False
-    for postTo in ['madavi','luftdaten']:
+    # if 'madavi' and/or 'luftdaten' is enabled in ident send them a HTTP POST
+    for postTo in ['madavi','luftdaten',]:
         if not postTo in args['ident'].keys(): args['ident'][postTo] = False
         elif args['ident'][postTo]: mayPost = True
     if args['ident']['luftdaten']: args['ident']['madavi'] = True
@@ -186,33 +197,41 @@ if __name__ == '__main__':
     net = { 'module': True, 'connected': True }
     Conf['debug'] = True        # e.g. print Posts
     Output_test_data = [
-        { 'ident': {'geolocation': '?',
-            'description': 'MQTT AppID=pmsensors MQTT DeviceID=pmsensor11',
-            'fields': ['time', 'pm25', 'pm10', 'temp', 'rv'],
-            'project': 'VW2017', 'units': ['s', 'ug/m3', 'ug/m3', 'C', '%'],
-            'serial': '93d73279dc',
-            'types': ['time', u'SDS011', u'SDS011', 'DHT22', 'DHT22']},
-           'data': {'pm10': 3.6, 'rv': 39.8, 'pm25': 1.4, 'temp': 25,
+        {   'ident': {'geolocation': '?',
+              'luftdaten': False,
+              'description': 'MQTT AppID=pmsensors MQTT DeviceID=pmsensor11',
+              'fields': ['time', 'pm25', 'pm10', 'temp', 'rv'],
+              'project': 'VW2017', 'units': ['s', 'ug/m3', 'ug/m3', 'C', '%'],
+              'serial': '93d73279dc',
+              'types': ['time', u'SDS011', u'SDS011', 'DHT22', 'DHT22']},
+           'data': {
+                'pm10': 3.6, 'rv': 39.8, 'pm25': 1.4, 'temp': 25,
                 'time': int(time())-24*60*60}},
-        { 'ident': {'description': 'MQTT AppID=pmsensors MQTT DeviceID=pmsensor1',
-            'fields': ['time', 'pm25', 'pm10', 'temp', 'rv'],
-            'project': 'VW2017', 'units': ['s', 'ug/m3', 'ug/m3', 'C', '%'],
-            'serial': 'f07df1c500',
-            'types': ['time', u'PMS7003', u'PMS7003', 'BME280', 'BME280']},
-           'data': {'pm10': 3.6, 'rv': 39.8, 'pm25': 1.6, 'temp': 24, 'pressure': 1024.2,
-            'time': int(time())-23*60*60}},
-        { 'ident': { 'geolocation': '51.420635,6.1356117,22.9',
-            'version': '0.2.28', 'serial': 'test_sense',
-            'fields': ['time', 'pm_25', 'pm_10', 'dtemp', 'drh', 'temp', 'rh', 'hpa'],
-            'extern_ip': ['83.161.151.250'], 'label': 'alphaTest', 'project': 'BdP',
-            'units': ['s', 'pcs/qf', u'pcs/qf', 'C', '%', 'C', '%', 'hPa'],
-            'intern_ip': ['192.168.178.49', '2001:980:ac6a:1:83c2:7b8d:90b7:8750', '2001:980:ac6a:1:17bf:6b65:17d2:dd7a'],
-            'types': ['time','Dylos DC1100', 'Dylos DC1100',
+        {   'ident': {
+              'description': 'MQTT AppID=pmsensors MQTT DeviceID=pmsensor1',
+              'luftdaten': False,
+              'fields': ['time', 'pm25', 'pm10', 'temp', 'rv'],
+              'project': 'VW2017', 'units': ['s', 'ug/m3', 'ug/m3', 'C', '%'],
+              'serial': 'f07df1c500',
+              'types': ['time', u'PMS7003', u'PMS7003', 'BME280', 'BME280']},
+           'data': {
+                'pm10': 3.6, 'rv': 39.8, 'pm25': 1.6, 'temp': 24, 'pressure': 1024.2,
+                'time': int(time())-23*60*60}},
+        {   'ident': {
+              'geolocation': '51.420635,6.1356117,22.9',
+              'version': '0.2.28', 'serial': 'test_sense', # no serial match
+              'fields': ['time', 'pm_25', 'pm_10', 'dtemp', 'drh', 'temp', 'rh', 'hpa'],
+              'extern_ip': ['83.161.151.250'], 'label': 'alphaTest', 'project': 'BdP',
+              'units': ['s', 'pcs/qf', u'pcs/qf', 'C', '%', 'C', '%', 'hPa'],
+              'intern_ip': ['192.168.178.49', '2001:980:ac6a:1:83c2:7b8d:90b7:8750',
+                    '2001:980:ac6a:1:17bf:6b65:17d2:dd7a'],
+              'types': ['time','Dylos DC1100', 'Dylos DC1100',
                 'DHT22', 'DHT22', 'BME280', 'BME280', 'BME280'],
-            },
-          'data': {'drh': 29.3, 'pm_25': 318.0, 'temp': 28.75,
-            'time': 1494777772, 'hpa': 712.0, 'dtemp': 27.8,
-            'rh': 25.0, 'pm_10': 62.0 },
+              },
+            'data': {
+              'drh': 29.3, 'pm_25': 318.0, 'temp': 28.75,
+              'time': 1494777772, 'hpa': 712.0, 'dtemp': 27.8,
+              'rh': 25.0, 'pm_10': 62.0 },
         },
         ]
     for post in Output_test_data:
