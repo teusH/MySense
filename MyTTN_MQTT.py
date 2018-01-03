@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.13 2018/01/01 15:32:49 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.14 2018/01/03 21:02:27 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,7 +34,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.13 $"[11:-2]
+__version__ = "0." + "$Revision: 1.14 $"[11:-2]
 
 try:
     import MyLogger
@@ -624,6 +624,30 @@ if __name__ == '__main__':
         {   'name': 'Console', 'script': 'MyCONSOLE', 'module': None,
             'Conf': {
                 'output': True,
+            }
+        },
+        {   'name': 'MySQL DB', 'script': 'DB-upload-MySQL', 'module': None,
+            'Conf': {
+                'output': False,
+                # use credentials from environment
+                'hostname': None, 'database': 'luchtmetingen',
+                'user': None, 'password': None,
+            }
+        },
+        {   'name': 'Luftdaten data push', 'script': 'MyLUFTDATEN', 'module': None,
+            'Conf': {
+                'output': False,
+                'id_prefix': "TTNXYZ-", # prefix ID prepended to serial number 
+ module
+            'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api e
+ point
+             'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
+             # expression to identify serials to be subjected to be posted
+             'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from
+msensors
+             'projects': 'V2W107',  # expression to identify projects to be posted
+             'active': False,       # output to luftdaten is also activated
+             # 'debug' : True,        # show what is sent and POST status
             }
         },
         ]
