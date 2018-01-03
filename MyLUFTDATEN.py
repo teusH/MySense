@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 1.2 2018/01/01 21:50:06 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 1.3 2018/01/03 21:02:27 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
 
 try:
     import MyLogger
@@ -58,6 +58,7 @@ Conf = {
     'projects': 'VW2017',  # expression to identify projects to be posted
     'active': True,      # output to luftdaten is also activated
     'registrated': None, # has done initial setup
+    # 'debug': True,       # print output on POSTs
 }
 
 # ========================================================
@@ -110,7 +111,7 @@ def sendLuftdaten(ident,values):
     # suggest to limit posts and allow one post with multiple measurements
     headers = {
         'X-Sensor': Conf['id_prefix'] + ident['serial'],
-        # 'X-Pin': integer_ID,  # this should be deprecated. It is doubling traffic
+        # 'X-Pin': str(integer_ID),  # this should be deprecated. It is doubling traffic
     }
     postdata = {
         'software_version': 'MySense' + __version__,
@@ -124,17 +125,17 @@ def sendLuftdaten(ident,values):
             postTo.append(Conf[url])
     if not len(postTo): return True
     for sensed in ['dust','meteo']:
-        headers['X-Pin'] = 0
+        headers['X-Pin'] = None
         for sensorType in sense_table[sensed]['types']:
             if sensorType.upper() in ident['types']:
-                headers['X-Pin'] = sense_table[sensed]['types'][sensorType]
+                headers['X-Pin'] = str(sense_table[sensed]['types'][sensorType])
                 break
         if not headers['X-Pin']: continue
         postdata['sensordatavalues'] = []
         for field in sense_table[sensed].keys():
             for valueField in values:
                 if valueField in sense_table[sensed][field]:
-                    postdata['sensordatavalues'].append({ field: str(round(values[valueField],2)) })
+                    postdata['sensordatavalues'].append({ 'value_type': field, 'value': str(round(values[valueField],2)) })
         if not len(postdata['sensordatavalues']): continue
         if not post2Luftdaten(headers,postdata,postTo):
             return False
@@ -145,11 +146,12 @@ def post2Luftdaten(headers,postdata,postTo):
     global Conf
     # debug time: do not really post this
     if ('debug' in Conf.keys()) and Conf['debug']:
-        print str(headers) ; print str(postdata)
+        MyLogger.log(modulename,'DEBUG',"Post headers: %s" % str(headers)
+        MyLogger.log(modulename,'DEBUG',"Post data   : %s" % str(postdata)
     for url in postTo:
         try:
             r = requests.post(url, json=postdata, headers=headers)
-            MyLogger.log(modulename,'DEBUG','Post returnd status: %d' % r.status_code)
+            MyLogger.log(modulename,'DEBUG','Post returned status: %d' % r.status_code)
             if r.status_code != requests.codes.ok:
                 MyLogger.log(modulename,'ERROR','Post to %s with status code: %d' % (headers['X-Sensor'],r.status_code))
         except requests.ConnectionError as e:
