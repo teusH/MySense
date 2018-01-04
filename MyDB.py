@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: DB-upload-MySQL.py,v 1.5 2017/12/24 20:44:41 teus Exp teus $
+# $Id: MyDB.py,v 2.31 2018/01/03 21:02:41 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -26,12 +26,13 @@
 """ Publish measurements to MySQL database
     Relies on Conf setting by main program
 """
-modulename='$RCSfile: DB-upload-MySQL.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+modulename='$RCSfile: MyDB.py,v $'[10:-4]
+__version__ = "0." + "$Revision: 2.31 $"[11:-2]
 
 try:
     import MyLogger
     import sys
+    import os
     import mysql
     import mysql.connector
     import datetime
@@ -72,10 +73,10 @@ def db_connect(net):
     if (Conf['fd'] == None) or (not Conf['fd']):
         # get DBUSER, DBHOST, DBPASS from process environment if present
         for credit in ['hostname','user','password']:
-            if not credit in Conf[name].keys():
-                Conf[name][credit] = None
+            if not credit in Conf.keys():
+                Conf[credit] = None
             try:
-                Conf[name][credit] = os.getenv(name.upper()+credit[0:4].upper(),Conf[name][credit])
+                Conf[credit] = os.getenv('DB'+credit[0:4].upper(),Conf[credit])
             except:
                 pass
         MyLogger.log(modulename,'INFO','Using database %s on host %s, user %s credits.' % (Conf['database'],Conf['hostname'],Conf['user']))
@@ -150,7 +151,8 @@ def db_registrate(ident):
             ADD COLUMN village VARCHAR(50) DEFAULT NULL,
             ADD COLUMN province VARCHAR(50) DEFAULT NULL,
             ADD COLUMN municipality VARCHAR(50) DEFAULT NULL,
-            ADD COLUMN last_check DATETIME DEFAULT CURRENT_TIMESTAMP
+            ADD COLUMN last_check DATETIME DEFAULT CURRENT_TIMESTAMP,
+            CHANGE datum datum datetime DEFAULT current_timestamp ON UPDATE current_timestamp
         """, False):
             return False
     Rslt =  db_query("SELECT first,coordinates FROM Sensors WHERE project = '%s' AND serial = '%s' AND active" % (ident['project'],ident['serial']), True)
