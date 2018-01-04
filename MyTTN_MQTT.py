@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.14 2018/01/03 21:02:27 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.15 2018/01/04 14:09:05 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,7 +34,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.14 $"[11:-2]
+__version__ = "0." + "$Revision: 1.15 $"[11:-2]
 
 try:
     import MyLogger
@@ -382,7 +382,7 @@ logged = {
 def SigUSR1handler(signum,frame):
     global modulename, logged
     for name in logged.keys():
-        MyLogger.log(modulename,'INFO',"Status device %s EUI=%s: count: %d, last seen: %s, unknown fields: %s" % (name,logged[name]['count'],logged[name]['eui'] if 'eui' in logged[name].keys() else 'unknown',datetime.datetime.fromtimestamp(logged[name]['last_seen']).strftime("%Y-%m-%d %H:%M:%S"), ' '.join(logged[name]['unknown_fields'])))
+        MyLogger.log(modulename,'INFO',"Status device %s EUI=%s: count: %d, last seen: %s, unknown fields: %s" % (name,logged[name]['eui'] if 'eui' in logged[name].keys() else 'unknown',logged[name]['count'],datetime.datetime.fromtimestamp(logged[name]['last_seen']).strftime("%Y-%m-%d %H:%M:%S"), ' '.join(logged[name]['unknown_fields'])))
 
 # search record for first EUI and rssi value of the sensor/node
 def Get_GtwID(msg):
@@ -612,6 +612,7 @@ if __name__ == '__main__':
     # Conf['file'] = 'test_dev11.json'    # read from file iso TTN MQTT server
     # 'NOTSET','DEBUG','INFO','ATTENT','WARNING','ERROR','CRITICAL','FATAL'
     MyLogger.Conf['level'] = 'INFO'     # log from and above 10 * index nr
+    #MyLogger.Conf['level'] = 'DEBUG'    # log from and above 10 * index nr
     MyLogger.Conf['file'] = '/dev/stderr'
     sys.stderr.write("Starting up %s, logging level %s\n" % (modulename,MyLogger.Conf['level']))
     sys.stderr.write("Using admin file %s, collect mode: %s nodes\n" % ( Conf['adminfile'], 'all' if Conf['all'] else 'only administered and activa'))
@@ -628,7 +629,7 @@ if __name__ == '__main__':
         },
         {   'name': 'MySQL DB', 'script': 'DB-upload-MySQL', 'module': None,
             'Conf': {
-                'output': False,
+                'output': True,
                 # use credentials from environment
                 'hostname': None, 'database': 'luchtmetingen',
                 'user': None, 'password': None,
@@ -637,15 +638,12 @@ if __name__ == '__main__':
         {   'name': 'Luftdaten data push', 'script': 'MyLUFTDATEN', 'module': None,
             'Conf': {
                 'output': False,
-                'id_prefix': "TTNXYZ-", # prefix ID prepended to serial number 
- module
-            'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api e
- point
+                'id_prefix': "TTNMySense-", # prefix ID prepended to serial number of module
+            'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
              'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
              # expression to identify serials to be subjected to be posted
-             'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from
-msensors
-             'projects': 'V2W107',  # expression to identify projects to be posted
+             'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from pmsensors
+             'projects': 'BdP',  # expression to identify projects to be posted
              'active': False,       # output to luftdaten is also activated
              # 'debug' : True,        # show what is sent and POST status
             }
