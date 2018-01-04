@@ -19,6 +19,40 @@ SDS011 Rx -> P15, SDS011 Tx -> P16. Pins are on the back of the Marvin board.
 
 DHT22 is connected with a Grove connecytor to the second (analogue) connector position on the Marvin board.
 
+Wiring:
+* SDS011
+```
+    |_._._._._._| SDS011 connector
+      | | | | |
+     nc R B b y   R=Red-Vcc B=Black-Gnd b=Blew-Rx y=Yellow-Tx
+```
+* Marvin Uart backside board, 6 pins at board side
+```
+    ---------
+    | 1  2R |             2 Red-VCC
+    | 3B 4Y |  3 Blew-Rx  4 Yellow-Tx
+    | 5  6B |             6 Black-Grnd
+    ---------
+_______________board side
+```
+* DHT22
+```
+              -----
+   Gnd black -|    \
+   Vcc red   -|    o|
+       nc    -|     |
+   sig yellow-|    /
+              -----
+```
+* Marvin Lora Grove connector for DHT22
+```
+      -----------------------------
+      |  ||  ||  XX  ||   ------- |   DHT22 Grove connector
+      |  ||  ||  XX  ||   | RN  | |   . Black-Grnd
+      |                   |     | |   . Red-VCC
+      |  Marvin LoRa      ------- |   . White
+      -----------------------------   . Yellow-signal
+```
 ### ANTENNA
 The Marvin has an on board antenna. Make sure if installed that one of the antenna end point is pointing into the direction of the TTN data forwarder.
 
