@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 1.3 2018/01/03 21:02:27 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 1.4 2018/01/06 11:23:31 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 
 try:
     import MyLogger
@@ -56,7 +56,7 @@ Conf = {
     # expression to identify serials to be subjected to be posted
     'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from pmsensors
     'projects': 'VW2017',  # expression to identify projects to be posted
-    'active': True,      # output to luftdaten is also activated
+    'active': True,      # output to luftdaten maps is also activated
     'registrated': None, # has done initial setup
     # 'debug': True,       # print output on POSTs
 }
@@ -146,8 +146,8 @@ def post2Luftdaten(headers,postdata,postTo):
     global Conf
     # debug time: do not really post this
     if ('debug' in Conf.keys()) and Conf['debug']:
-        MyLogger.log(modulename,'DEBUG',"Post headers: %s" % str(headers)
-        MyLogger.log(modulename,'DEBUG',"Post data   : %s" % str(postdata)
+        MyLogger.log(modulename,'DEBUG',"Post headers: %s" % str(headers))
+        MyLogger.log(modulename,'DEBUG',"Post data   : %s" % str(postdata))
     for url in postTo:
         try:
             r = requests.post(url, json=postdata, headers=headers)
@@ -180,9 +180,9 @@ def publish(**args):
     # publish only records of the matched project/serial combi,
     # default Madavi is enabled for those matches
     if not matched:
-        if not hash(args['ident']['project']+'_'+args['ident']['serial']) in notMatchedSerials:
-            notMatchedSerials.append(hash(args['ident']['project']+'_'+args['ident']['serial']))
-            MyLogger.log(modulename,'INFO',"Skip record of project %s with serial %s to post to Luftdaten" % (args['ident']['project'],args['ident']['serial']))
+        if not args['ident']['project']+'_'+args['ident']['serial'] in notMatchedSerials:
+            notMatchedSerials.append(args['ident']['project']+'_'+args['ident']['serial'])
+            MyLogger.log(modulename,'INFO',"Skipping records of project %s with serial %s to post to Luftdaten" % (args['ident']['project'],args['ident']['serial']))
         return True
     elif not 'madavi' in args['ident'].keys():  # dflt: Post to madavi.de
         args['ident']['madavi'] = True
