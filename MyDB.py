@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.31 2018/01/03 21:02:41 teus Exp teus $
+# $Id: MyDB.py,v 2.32 2018/01/05 20:15:30 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.31 $"[11:-2]
+__version__ = "0." + "$Revision: 2.32 $"[11:-2]
 
 try:
     import MyLogger
@@ -185,7 +185,7 @@ def db_registrate(ident):
             if item[1] == ident['geolocation']:
                 db_query("UPDATE Sensors SET last_check = now(), active = 1, sensors = %s, description = %s WHERE coordinates like '%s%%'  AND serial = '%s'" % (fld_units,fld_types,','.join(ident['geolocation'].split(',')[0:2]),ident['serial']) , False)
                 Conf["registrated"] = True
-                MyLogger.log(modulename,'ATTENT',"Registrated (renew) %s  to database table Sensors." % ident['serial'])
+                # MyLogger.log(modulename,'ATTENT',"Registrated (renew last access) %s  to database table Sensors." % ident['serial'])
                 db_WhereAmI(ident)
                 return True
     db_query("UPDATE Sensors SET active = 0 WHERE project = '%s' AND serial = '%s'" % (ident['project'],ident['serial']),False)
