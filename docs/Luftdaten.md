@@ -24,6 +24,26 @@ MySense can act as a broker or proxy to different output channels. In this case 
 One way of operation is to use TTN LoraWan as dataconcentrator to forward measurements to Luftdaten. 
 TTN-MQTT.py is such an input channel. TTN-MQTT.py uses an own json formated configuration file to add meta data to the TTN records.
 
+### CONFIGURATION items
+The follwing configuration settings can be altered:
+* `output` False/True: enabling output handling
+* `id_prefix` string to be prepended to the serial number: ID to Luftdaten
+* `luftdaten` URL to Luftdaten maps database for Posts
+* `madavi` URL to Madavi.de measurements database
+* `serials` expression to match serial numbers candidates to be Posted
+* `projects` expression to match projects id's candidates to be Posted
+* `active` False/True, enable Posts to Luftdaten maps database
+* `debug` False/True will enable/disable to display the Posted records.
+
+The module has a conversion table `sense_table` to translate internal nomenclature to the nomenclature and X-Pin id's  used by Luftdaten.
+
+### TESTING
+Put the module step by step into operation:
+* First run the module in standlone mode and turn debugging level to `DEBUG`. Avoid output to Madavi.de and certainly Luftdaten in this phase.
+* Run the module e.g. via MyTTNMQTT module in standalone mode of MyTTNMQTT
+* Turn Posts to Madavi.de on,. And see if the entries appear at madavi.de/graphs web page overview.
+* Supply Luftdaten.info via email with the meta info: coordinates and location details. After an acknowledgement one can Posts the records to Luftdaten as well.
+
 ### EXAMPLE of POST
 Example of 2 Post records: SDS011 PM10 (P1) and PM2.5 (P2), and DHT22 (temperature and humidity). All values are posted as strings in the json formated records here.
 ```json
@@ -75,10 +95,14 @@ The list needs to be completed with PM1, PM0.3, PM50, loadness, and different ga
 * Suggest to combine the header and data part into data with an array of sensors per sensor kit. This saves bandwidth and performance.
 * The measurement time is taken from time stamp of the Post. This allows only to add records and gives unsecure timings.
 * Suggest to use one `X-Pin` code per sensor module type. So the branch of the sensor product will be clear as will correlations between sensor modules can be taken care of.
-* extent the `value_types` e.g. PM1 is a supported measurement in the Plantower dust sensor. E.g. extent the types as PM01, PM03, PM25, PM10, PM50 etc.
+* Extent the `value_types` e.g. PM1 is a supported measurement in the Plantower dust sensor. E.g. extent the types as PM01, PM03, PM25, PM10, PM50 etc.
 * Support gasses e.g. CO2, CO, NH3, O3, NO2, etc.
 * Posts with errors in data fields should be notified as errors in the HTTP status
 * Extend the API reference documentation
+* Use a Post server which acts as test server.
+* Automate the enabling of Luftdaten maps server on accepting Post records.
+* Suggest to extend the meta info with calibration info e.g. coefficients of the calibration Taylor schema.
+* Extend the measurement info with weather conditions: wind speed, wind direction, rain scale.
 
 ### REFERENCES
 See also:
