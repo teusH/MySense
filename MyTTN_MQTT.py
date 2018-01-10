@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.15 2018/01/04 14:09:05 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.16 2018/01/10 14:05:33 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,7 +34,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.15 $"[11:-2]
+__version__ = "0." + "$Revision: 1.16 $"[11:-2]
 
 try:
     import MyLogger
@@ -92,7 +92,7 @@ Conf = {
     'timeout' : 2*60*60, # timeout for this broker
     # 'file': 'Dumped.json', # comment this for operation, this will read from a dump MQTT file
     'adminfile': 'VM2017devices.json', # meta identy data for sensor kits
-    # 'debug': True     # use TTN record example in stead of server access
+    # 'test': True     # use TTN record example in stead of server access
     'dust': ['pm2.5','pm10',],   # dust names we can get, SDS011, PMS7003, PPD42NS
     'meteo': ['temp','humidity','pressure',], # meteo name we get from DHT22, BME280
     # TO DO: should go as conf per device and needs type of sensor
@@ -231,7 +231,7 @@ def PubOrSub(topic,option):
     telegram = None
     # uncomment if TTN server does not publish records
     # following is the telegram as is expected from TTN MQTT server
-    if ('debug' in Conf.keys()) and Conf['debug']:
+    if ('test' in Conf.keys()) and Conf['test']:
         return ( { 
             'topic': 'pmsensors/devices/pmsensor1/up',
             'payload': '{"app_id":"pmsensors","dev_id":"pmsensor10","hardware_serial":"EEABABABBAABABAB","port":1,"counter":73,"payload_raw":"ACgALAG0ASU=","payload__fields":{"PM10":4.4,"PM25":4,"hum":29.3,"temp":23.6,"type":"SDS011"},"metadata":{"time":"2017-12-15T19:32:04.220584016Z","frequency":868.3,"modulation":"LORA","data_rate":"SF12BW125","coding_rate":"4/5","gateways":[{"gtw_id":"eui-1dee14d549d1e063","timestamp":536700428,"time":"","channel":1,"rssi":-100,"snr":6,"rf_chain":1,"latitude":51.35284,"longitude":6.154711,"altitude":40,"location_source":"registry"}],"latitude":51.353,"longitude":6.1538496,"altitude":2,"location_source":"registry"}}'
@@ -495,16 +495,25 @@ def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
                 geolocation.append('?')
         geolocation = ','.join(geolocation)
         for item in data['payload']['metadata'].keys():
+            # meta time field is not time of measurement but from system time gateway
+            # this time can be unreliable
             if item in ['time',]:
+                # w're using the gateway timestamp
                 if item == 'time':      # convert iso timestamp to UNIX timestamp
+                    # time is time() minus 3600 secs !! ?
                     values['time'] = int(dp.parse(data['payload']['metadata']['time']).strftime("%s"))
+                    if values['time'] < (int(time()) -15*60): # max 15 minutes delay
+                        values['time'] = int(time())    # correct python2 problem
                     record['time'] = values['time']
+
                 else:
                     values[item] = data['payload']['metadata'][item]
     if (len(geolocation) <= 10):
         geolocation = "?"
     ident['geolocation'] = geolocation    # might note we did ident once
     record['geolocation'] = geolocation
+    if not 'time' in record.keys():
+        values['time'] = record['time'] = int(time()) # needs correction
 
     # maintain info last seen of this device
     if ident['serial'] in last_records.keys():
@@ -616,9 +625,17 @@ if __name__ == '__main__':
     MyLogger.Conf['file'] = '/dev/stderr'
     sys.stderr.write("Starting up %s, logging level %s\n" % (modulename,MyLogger.Conf['level']))
     sys.stderr.write("Using admin file %s, collect mode: %s nodes\n" % ( Conf['adminfile'], 'all' if Conf['all'] else 'only administered and activa'))
-    # Conf['debug'] = True
+    # Conf['debug'] = True  # print output channel actions
     Conf['user'] =  'account XYZ' # please complete
     Conf['password'] = 'ttn-account-v2.acacadabra'
+
+    for arg in sys.argv[1:]:        # allow: cmd file=abc user=xyz password=acacadabra
+        indx = arg.find('=')
+        if indx > 0:
+            if arg[indx+1:].lower() == 'false': Conf[arg[:indx].lower()] = False
+            elif arg[indx+1:].lower() == 'true': Conf[arg[:indx].lower()] = True
+            elif arg[indx+1:].isdigit(): Conf[arg[:indx].lower()] = int(arg[indx+1:])
+            else: Conf[arg[:indx].lower()] = arg[indx+1:]
 
     error_cnt = 0
     OutputChannels = [
@@ -637,14 +654,14 @@ if __name__ == '__main__':
         },
         {   'name': 'Luftdaten data push', 'script': 'MyLUFTDATEN', 'module': None,
             'Conf': {
-                'output': False,
+                'output': True,
                 'id_prefix': "TTNMySense-", # prefix ID prepended to serial number of module
             'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
              'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
              # expression to identify serials to be subjected to be posted
              'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from pmsensors
-             'projects': 'BdP',  # expression to identify projects to be posted
-             'active': False,       # output to luftdaten is also activated
+             'projects': 'VW2017',  # expression to identify projects to be posted
+             'active': True,        # output to luftdaten is also activated
              # 'debug' : True,        # show what is sent and POST status
             }
         },
@@ -653,6 +670,9 @@ if __name__ == '__main__':
         for indx in range(0,len(OutputChannels)):
             MyLogger.log(modulename,'INFO','Loaded output channel %s: output is %s' % (OutputChannels[indx]['name'], 'enabled' if OutputChannels[indx]['Conf']['output'] else 'DISabled'))
             if not OutputChannels[indx]['Conf']['output']: continue
+            if (OutputChannels[indx]['script'] == 'MyLUFTDATEN') and ('file' in Conf.keys()) and Conf['file']:
+                # do not output to Luftdaten as timestamp is wrong
+                OutputChannels[indx]['Conf']['ouput'] = False
             try:
                 OutputChannels[indx]['module'] = __import__(OutputChannels[indx]['script'])
             except:
@@ -695,6 +715,8 @@ if __name__ == '__main__':
                     )
                     OutputChannels[indx]['errors'] = 0
                     cnt += 1
+                    if ('debug' in Conf.keys()) and Conf['debug']:
+                        MyLogger.log(modulename,'INFO','Sent record to outputchannel %s' % OutputChannels[indx]['name'])
                 except:
                     MyLogger.log(modulename,'ERROR','sending record to %s' % OutputChannels[indx]['name'])
                     OutputChannels[indx]['errors'] += 1
