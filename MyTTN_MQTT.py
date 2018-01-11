@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.16 2018/01/10 14:05:33 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.17 2018/01/11 19:29:56 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,7 +34,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.16 $"[11:-2]
+__version__ = "0." + "$Revision: 1.17 $"[11:-2]
 
 try:
     import MyLogger
@@ -500,10 +500,9 @@ def convert2MySense( data, dust = "SDS011", meteo = "DHT22" ):
             if item in ['time',]:
                 # w're using the gateway timestamp
                 if item == 'time':      # convert iso timestamp to UNIX timestamp
-                    # time is time() minus 3600 secs !! ?
+                    # time is time() minus 3600 secs with python V2 !! ?
                     values['time'] = int(dp.parse(data['payload']['metadata']['time']).strftime("%s"))
-                    if values['time'] < (int(time()) -15*60): # max 15 minutes delay
-                        values['time'] = int(time())    # correct python2 problem
+                    if sys.version_info[0] < 3: values['time'] += 3600
                     record['time'] = values['time']
 
                 else:
@@ -646,7 +645,7 @@ if __name__ == '__main__':
         },
         {   'name': 'MySQL DB', 'script': 'DB-upload-MySQL', 'module': None,
             'Conf': {
-                'output': True,
+                'output': False,
                 # use credentials from environment
                 'hostname': None, 'database': 'luchtmetingen',
                 'user': None, 'password': None,
@@ -654,7 +653,7 @@ if __name__ == '__main__':
         },
         {   'name': 'Luftdaten data push', 'script': 'MyLUFTDATEN', 'module': None,
             'Conf': {
-                'output': True,
+                'output': False,
                 'id_prefix': "TTNMySense-", # prefix ID prepended to serial number of module
             'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
              'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
