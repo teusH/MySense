@@ -14,10 +14,16 @@ The script has the possibility to generate two or more charts on one webpage. A 
 
 
 ``shell
-perl ./ChartsPM.pl --debug --verbose --web /tmp --pollutants pm10,pm25 --buttons PM10,PM2.5 --last now --output OutputPage Vuurwerk_Sensorkit1  Vuurwerk_Sensorkit2 HadM
+    DBUSER=me DBPASS=acacadabra DBHOST=localhost perl ./ChartsPM.pl \
+    --pollutants pm10,pm25 --buttons PM10,PM2.5 \
+    --debug --verbose --web /tmp \
+    --last now --output OutputPage \
+    Vuurwerk_Sensorkit1 Vuurwerk_Sensorkit2 HadM
 ```
+* DBUSER etc. defines the database credentials
+* buttons/pollutants to switch from PM10 (dflt) table into PM2.5 table.
 * Option `--debug` will force debug modus (complete HTML page OutputPage.html in the directory /tmp) 
-* button to switch from PM10 (dflt) table into PM2.5 table.
+* last defines measurements available up to now, default period is 3 weeks
 
 ### APPLICATION
 The graphs on the chart will allow to visualize the correlation between different sensorkits as well sensors.
