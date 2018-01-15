@@ -17,8 +17,8 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 3.6 2018/01/12 21:37:09 teus Exp teus $
-my $Version = '$Revision: 3.6 $, $Date: 2018/01/12 21:37:09 $.';
+# $Id: ChartsPM.pl,v 3.7 2018/01/15 14:34:16 teus Exp teus $
+my $Version = '$Revision: 3.7 $, $Date: 2018/01/15 14:34:16 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/([0-9]+:[0-9]+):[0-9]+/$1/;
 # Description:
@@ -707,13 +707,13 @@ sub InsertTableHdr {
 
     return '<table width=100% border=0 bordercolor=white><tr><td style=\'padding-right:25px\'><div class="table-button" title="Druk (click) op deze knop om van '.
     join(' of ',@BUTS) .
-    ' weergave te wisselen tav de metingen voor ' . $measurements .'"><span style="position:relative;left:1px;top:+4px;font-size:10px;">'.
+    ' weergave te wisselen tav de metingen voor ' . $measurements .'"><span style="position:relative;left:1px;top:-1px;font-size:9px;">'.
     join('&nbsp;&nbsp;',@BUTS) .
     '</span><button id="tableButton"><div style="margin-right:-4px;font-size:12px">'.
     $BUTS[0] .
     '</div></button><span style="position:absolute;top:-20px;left:+8px;text-shadow:none;text-weight:bold;color:#3b5d9c">keuzeknop</span></div></td><td>De onderstaande tabel met de recente meetwaarden in de regio.<br />Met de keuzeknop kan gewisseld worden van type fijstof: ' .
     join(' of ',@BUTS) .
-    '.</td></tr><tr><td colspan=2>In de legendum kan door aanklikken de grafiek van een bepaalde lokatie aan- of uitgezet worden. Klik "toon" aan voor het aan- of uitzetten van de betreffende grafiekweergave.<br />De grafiek heeft de mogelijkheid om een bepaalde periode van de grafiek te laten zien. Met de "slider" kan de periode vergroot, verkleind of verschoven worden.</td></tr></table><br />'
+    '.</td></tr><tr><td colspan=2>In de legendum kan door aanklikken de grafiek van een bepaalde lokatie aan- of uitgezet worden. Klik "toon" aan voor het aan- of uitzetten van de betreffende grafiekweergave.<br />Zo nodig kan de legendum door met de linker muisknop op de plaats :: ingedrukt te houden, verplaatst worden.<br />De grafiek heeft de mogelijkheid om een bepaalde periode van de grafiek te laten zien. Met de "slider" kan de periode vergroot, verkleind of verschoven worden.</td></tr></table><br />'
 }
 
 sub InsertButtonStyle {
@@ -730,7 +730,7 @@ sub InsertButtonStyle {
         border:1px solid #7d99ca; padding-top:8px;
         -webkit-border-radius: 20px;
         -moz-border-radius: 20px;
-        font-size:10px;
+        font-size:9px;
         font-family:arial, helvetica, sans-serif;
         text-decoration:none; display:inline-block;
         text-shadow: -1px -1px 0 rgba(0,0,0,0.3);
@@ -965,12 +965,17 @@ sub InsertHighChartGraph {
         legend: {
             layout: 'vertical',
             borderRadius: '3px',
-            backgroundColor: 'rgba(196,206,228,0.5)',
+            backgroundColor: 'rgba(196,206,228,0.1)',
             align: 'left',
             y: 60,
             itemStyle: { fontSize: '75\%', color: '#314877' },
             itemHiddenStyle: { color: '#4a6396' },
             verticalAlign: 'center',
+            floating: true,
+            draggable: true,
+            title: {
+                text: '::'
+            },
             enabled: true,
             labelFormatter: function() { if( this.visible ) { return this.name ; } else { return this.name + ' (toon)' }; }
         },
@@ -1078,6 +1083,10 @@ sub InsertHighChartGraph {
         series: [ 
             ${series}
              ]
+        }, function (chart) {
+            \$('#update-legend').click(function () {
+                chart.legend.toggle();
+            });
     });
     ";
     return \$string;
@@ -1289,6 +1298,7 @@ sub Generate {
     $first = strftime("%a %e %b %Y", localtime($first));
     my $prev = 'X';
     my $timeshift = 0;  # we try to start all plot intervals on same minute
+    my $nrLegends = 0;
     # so the tooltip values will be shown in parallel
     # the stations have avg values per hour. It is unclear from the documentation
     # if the given value is of the previous hour, or that hour.
@@ -1297,6 +1307,7 @@ sub Generate {
     for( my $j = 0; $j <= $#DATA; $j++ ) {
       $Mlbls[$j] = $Slbls[$j] = $Olbls[$j] = '';
       my $data = $DATA[$j];
+      $nrLegends = $#{$data} if $#{$data} > $nrLegends; 
       for( my $i = 0; $i <= $#{$data}; $i++ ){    # collect all locations
         $timeshift = $data->[0]{first}%3600 if $i == 0;
         $data->[$i]{first} -= ($data->[$i]{first}%3600) - $timeshift; # shift graph
@@ -1366,6 +1377,8 @@ sub Generate {
         if( /<\/body/ ){ $indoc = 0;  next if not $debug; }
         next if (not $debug) && (not $indoc);
         if( (/<script\s/) && $indoc ){
+            # enable support to drag legend
+            MyPrint($inscript,'<script src=\'https://rawgit.com/highcharts/draggable-legend/master/draggable-legend.js\'></script>');
             MyPrint($inscript,InsertButtonStyle());     # insert graph button styling
             MyPrint($inscript,$_); $inscript = 1;
             # from here we collect javastript statements
@@ -1424,6 +1437,9 @@ sub Generate {
                 MyPrint($inscript, "($poltype)\n");
             } elsif( $type =~ /updated/ ){       # last update of chart
                 MyPrint($inscript, strftime("%Y-%m-%d %H:%M\n",localtime(time)));
+            } elsif( $type =~ /Legend/ ) {       # insert button Legend off/on
+                MyPrint($inscript, '<button id="update-legend" class="autocompare">legendum uit/aan</button>' . "\n")
+                    if $nrLegends > 4;
             } elsif( $type =~ /first/ ){         # first date in chart
                 MyPrint($inscript, $first . "\n");
             } elsif( $type =~ /last/ ){          # last date in chart
@@ -1512,6 +1528,17 @@ __DATA__
 <script type="text/javascript">
 //START GLOB data defs
 //END GLOB data
+Highcharts.Legend.prototype.toggle = function () {
+    if (this.display) {
+        this.group.hide();
+    } else {
+        this.group.show();
+    }
+    this.display = !this.display;
+    this.chart.isDirtyBox = true;
+    this.chart.redraw();
+};
+
 $(function () { // on DOM ready
 //START DOM
     Highcharts.setOptions({
@@ -1537,6 +1564,8 @@ $(function () { // on DOM ready
 </p>
 <p>
 <!-- Highchart graphics -->
+<!-- START Legend -->
+<!-- END Legend -->
 <table style='color:black;background:#f9f9f9;border-radius:7px;-moz-border-radius:7px;-webkit-border-radius:7px;box-shadow: 0px 7px 10px 0px #a0a0a0;text-align:left;padding:0px;padding-top:3px;padding-bottom:0.3%;margin:0px;border-spacing:0px;border:0px solid black;width:100%;'>
 <caption valign=top align=center><span style='color:#0376ab'><a href="http://samenmeten.rivm.nl/dataportaal/" title="meer meetplaatsen met de sensor van het project SamenMetenAanLuchtkwaliteit.nl van het RIVM">Lokale Luchtkwaliteit</a>: de grafieken
 <!-- START type -->
