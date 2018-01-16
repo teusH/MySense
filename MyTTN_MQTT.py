@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.17 2018/01/11 19:29:56 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.18 2018/01/16 14:05:34 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,7 +34,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.17 $"[11:-2]
+__version__ = "0." + "$Revision: 1.18 $"[11:-2]
 
 try:
     import MyLogger
@@ -73,6 +73,8 @@ __options__ = [ 'input',       # output enables
                 'packing'      # how it is packed, here 4 X unsigned int16/short
                 'types',       # ordered list of module types: dust, meteo ...
                 'all',         # skip not registered and "inactive"  devices
+                'timeout',     # timeout for no server active
+                'rate',        # expected rate of telegrams received
                 'file', 'adminfile']
 
 Conf = {
@@ -89,7 +91,8 @@ Conf = {
     # To Do: use reg exp
     'AppId': '+',        # to be fixed regular expression to accept AppId to subscribe to
     'DevAddr': '+',      # to be fixed regular expression to accept DevAddr numbers
-    'timeout' : 2*60*60, # timeout for this broker
+    'timeout': 2*60*60,  # timeout for this broker
+    'rate':    7*60,     # expected time(out) between telegrams published
     # 'file': 'Dumped.json', # comment this for operation, this will read from a dump MQTT file
     'adminfile': 'VM2017devices.json', # meta identy data for sensor kits
     # 'test': True     # use TTN record example in stead of server access
@@ -302,10 +305,15 @@ def PubOrSub(topic,option):
         MyLogger.log(modulename,'DEBUG','Disconnect mid: ' + str(mid))
         raise IOError("MQTTsub: disconnected")
 
-    if ('file' in Conf.keys()) and Conf['file']:
-        return ReadFromFile(Conf['file'])
-    try:
-        if (not 'fd' in Conf.keys()) or (Conf['fd'] == None):
+    def reConnect():
+        global Conf
+        if ('fd' in Conf.keys()) and (Conf['fd'] != None):
+            # disconnect
+            Conf['fd'].disconnect()
+            Conf['fd'].loop_stop()
+            Conf['fd'] = None
+            sleep(2)
+        try:
             Conf['fd']  = mqtt.Client(Conf['prefix']+str(os.getpid()))
             Conf['fd'].on_connect = on_connect
             Conf['fd'].on_disconnect = on_disconnect
@@ -317,18 +325,31 @@ def PubOrSub(topic,option):
             Conf['fd'].on_message = on_message
             Conf['fd'].loop_start()   # start thread
             Conf['fd'].subscribe(topic, qos=Conf['qos'])
+            return True
+        except:
+            return False
 
-        timeout = time() + Conf['timeout']
+    if ('file' in Conf.keys()) and Conf['file']:
+        return ReadFromFile(Conf['file'])
+    try:
+        if (not 'fd' in Conf.keys()) or (Conf['fd'] == None):
+            if not reConnect(): raise IOError
+            sleep(1)
+
+        tryAgain = time()
+        timeout = tryAgain + Conf['timeout']
         waiting = True
         while waiting:
-            if time() > timeout:
-                break
             if len(telegrams):
                 waiting = False
                 break
-            sleep(1)       # maybe it should depend on timeout
-        # Conf['fd'].disconnect()
-        # Conf['fd'].loop_stop()
+            if time() > timeout: # give up
+                break
+            if time() > (tryAgain + Conf['rate']):
+                reConnect()
+                tryAgain = time()
+                MyLogger.log(modulename,'ATTENT','Try to reconnect with TTN MQTT broker')
+            else: sleep(30)   # slow down
     except:
         MyLogger.log(modulename,'ERROR','Failure type: %s; value: %s. MQTT broker aborted.' % (sys.exc_info()[0],sys.exc_info()[1]) )
         Conf['input'] = False
@@ -645,7 +666,7 @@ if __name__ == '__main__':
         },
         {   'name': 'MySQL DB', 'script': 'DB-upload-MySQL', 'module': None,
             'Conf': {
-                'output': False,
+                'output': True,
                 # use credentials from environment
                 'hostname': None, 'database': 'luchtmetingen',
                 'user': None, 'password': None,
@@ -660,7 +681,7 @@ if __name__ == '__main__':
              # expression to identify serials to be subjected to be posted
              'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from pmsensors
              'projects': 'VW2017',  # expression to identify projects to be posted
-             'active': True,        # output to luftdaten is also activated
+             'active': False,        # output to luftdaten is also activated
              # 'debug' : True,        # show what is sent and POST status
             }
         },
