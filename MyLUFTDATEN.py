@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 1.5 2018/01/06 12:30:26 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 1.6 2018/01/16 11:30:27 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+__version__ = "0." + "$Revision: 1.6 $"[11:-2]
 
 try:
     import MyLogger
@@ -39,6 +39,7 @@ try:
     import datetime
     import json
     import requests
+    import signal
     from time import time
     import re
 except ImportError as e:
@@ -141,6 +142,31 @@ def sendLuftdaten(ident,values):
             return False
     return True
         
+# seems https may hang once a while
+def alrmHandler(signal,frame):
+    MyLogger.log(modulename,'ATTENT','HTTP POST hangup, post aborted. Alarm nr %d' % signal)
+    # signal.signal(signal.SIGALRM,None)
+
+def watchOn(url):
+    if url[:6] != 'https:': return None
+    rts = [None,0,0]
+    rts[0] = signal.signal(signal.SIGALRM,alrmHandler)
+    rts[1] = int(time())
+    rts[2] = signal.alarm(3*60)
+    return rts
+
+def watchOff(prev):
+    if prev == None: return 1
+    alrm = signal.alarm(0)
+    if prev[0] and (prev[0] != alrmHandler):
+        signal.signal(signal.SIGALRM,prev[0])
+        if prev[2] > 0: # another alarm and handler was active
+            prev[1] = prev[2] - (int(time()) - prev[1])
+            if prev[1] <= 0:
+                prev[1] = 1
+            signal.alarm(prev[1])
+    return alrm
+    
 # do an HTTP POST to [ Madavi.de, Luftdaten, ...]
 def post2Luftdaten(headers,postdata,postTo):
     global Conf
@@ -148,20 +174,25 @@ def post2Luftdaten(headers,postdata,postTo):
     if ('debug' in Conf.keys()) and Conf['debug']:
         MyLogger.log(modulename,'DEBUG',"Post headers: %s" % str(headers))
         MyLogger.log(modulename,'DEBUG',"Post data   : %s" % str(postdata))
+    rts = True
     for url in postTo:
+        prev = watchOn(url)
         try:
             r = requests.post(url, json=postdata, headers=headers)
-            MyLogger.log(modulename,'INFO','Post to: %s' % url)
+            # MyLogger.log(modulename,'INFO','Post to: %s' % url)
             MyLogger.log(modulename,'DEBUG','Post returned status: %d' % r.status_code)
             if not r.ok:
                 MyLogger.log(modulename,'ERROR','Post to %s with status code: %d' % (headers['X-Sensor'],r.status_code))
         except requests.ConnectionError as e:
             MyLogger.log(modulename,'ERROR','Connection error: ' + str(e))
-            return False
+            rts = False
         except Exception as e:
             MyLogger.log(modulename,'ERROR','Error: ' + str(e))
-            return False
-    return True
+            rts = False
+        if not watchOff(prev):
+            MyLogger.log(modulename,'ERROR','HTTP timeout error on %s' % url)
+            rts = False
+    return rts
 
 notMatchedSerials = []
 def publish(**args):
