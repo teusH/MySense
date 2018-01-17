@@ -17,14 +17,15 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 3.7 2018/01/15 14:34:16 teus Exp teus $
-my $Version = '$Revision: 3.7 $, $Date: 2018/01/15 14:34:16 $.';
+# $Id: ChartsPM.pl,v 3.9 2018/01/17 20:24:36 teus Exp teus $
+my $Version = '$Revision: 3.9 $, $Date: 2018/01/17 20:24:36 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/([0-9]+:[0-9]+):[0-9]+/$1/;
 # Description:
 # script will generate JS script Highchart graphs from pollutant data.
 # The data is collected from the measurement stations and sensors tables
 # in the database.
+# DEPENDS on: yui-compressor java script to compress javascript parts
 # TO DO:
 #       allow the user to select different the levels for EU/WHO/LKI/AQI/AQI_LKI etc.
 use feature "state"; # some output is done only once
@@ -119,6 +120,7 @@ Getopt::Mixed::init(
         'i=s serial>i '.
         'P=s project>P '.
         'e=s pollutants>e '.
+        'E export>E '.
         'g=i graphs>g '.
         'O=s output>O ',
         'a:i aggregation>a '.
@@ -156,6 +158,8 @@ my $output = '/dev/stdout';
 my $aggregation = 30;   # minimal aggregration in minutes (use avg in this period)
 my $reference = REF;
 my $last_time = '';     # last date/time used for end date/time graphs
+my $exportChart = FALSE;# enable/disable button to export Chart Graph
+                        # > 1 will say: print button (no download)
 
 while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
   OPTION: {
@@ -170,6 +174,7 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
     $option eq 'q' and do { $verbose = 0;  last OPTION; };
     $option eq 'h' and do { $myhost = $value; $myhost =~ s/\s//g; last OPTION; };
     $option eq 'D' and do { $mydb = $value; $mydb =~ s/\s//g; last OPTION; };
+    $option eq 'E' and do { $exportChart++; last OPTION; };
     $option eq 'e' and do {
             $pollutants = $value;
             $value =~ s/\|/,/g;
@@ -277,6 +282,7 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
                     pm25|pm10,rv|temp for buutun name e.g. dust,weather
                     or pm25,pm10 for button names PM25,PM10
                 Dflt: $pollutants with name $buttons
+ -E|--export    Enable button to export the chart. If repeated: export to print only.
  -b|--buttons   Comma separated names of button names for table switch: eg PM25,PM10
                 Will need to generate more then one time per button and
                 to combine all generated scripts.
@@ -288,6 +294,8 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
                 station measurement.
  -W|--wdir      The working directory with own modules.
  -w|--web       The website private page directory to store the page.
+                The website path is not prepended if output file name start with
+                ./ or /
  -a|--aggregation [number] Use nr of minutes as minimal period to calculate average values.
                 Default: 6 minutes for small periods. Script will search minimal
                 period of minutes between measurements. Max is one hour.
@@ -668,21 +676,21 @@ sub Collect_data {
 }
 
 my %Sense2Unit = (
-    'pm25'    => '\u00B5g/m\u00B3',
-    'pm10'    => '\u00B5g/m\u00B3',
-    'at_pm25' => 'p/dm\u00B3',
-    'at_pm10' => 'p/dm\u00B3',
+    'pm25'    => '\\u00B5g/m\\u00B3',
+    'pm10'    => '\\u00B5g/m\\u00B3',
+    'at_pm25' => 'p/dm\\u00B3',
+    'at_pm10' => 'p/dm\\u00B3',
     'luchtdruk' => 'pHa',
     'pressure' => 'pHa',
-    'rv'       => '\u0025',
-    'humidity' => '\u0025',
-    'temp'     => '\u2103',
-    'temperature'     => '\u2103',
+    'rv'       => '\\u0025',
+    'humidity' => '\\u0025',
+    'temp'     => '\\u2103',
+    'temperature'     => '\\u2103',
 );
 # convert sensor type to measurement units
 sub ConvertS2U {
     my ($sense) = @_; my $s = lc($sense);
-    $s =~ s/[^_a-z0-9]//g;
+    $s =~ s/<[^>]*>//g; $s =~ s/[^_a-z0-9]//g;
     return $sense if not defined $Sense2Unit{$s};
     return $Sense2Unit{$s};
 }
@@ -844,18 +852,12 @@ $(document).on("click",".table-button",function(){
 
 # insert the javascript part for an identified chart of graphs
 sub InsertHighChartGraph {
-    my ($nr,$units,$series,$bands) = @_;
-    $units =~ s/\|.*//; $units =~ s/\s//g; # first pollutant defines units
-    $units = 'pm10' if $units =~ /BdP/; # dflt ug/m3
-    $units = ConvertS2U( $units ); # get measurements units
+    my ($nr,$units,$series,$yAxis) = @_;
+    # $units =~ s/\|.*//; $units =~ s/\s//g; # first pollutant defines units
+    # $units = 'pm10' if $units =~ /BdP/; # dflt ug/m3
+    # $units = ConvertS2U( $units ); # get measurements units
     $series = $$series if ref($series) eq 'SCALAR';
-    $bands = '
-                {color:"rgba(0, 32, 197, 0.05)",from: 0,to:19.5 },
-                {color:"rgba(244, 230, 69, 0.15)",from: 20 ,to: 25 },
-                {color:"rgba(254, 118, 38, 0.15)",from: 25.5,to: 40},
-                {color:"rgba(220, 6, 16, 0.15)",from: 40.5,to:50 },
-                {color:"rgba(162,23,148,0.15)",from:50.5,to:200}
-            ' if not $bands;
+    $yAxis = $$yAxis if ref($yAxis) eq 'SCALAR';
     $series = '
             { type: \'spline\',
               pointStart: BdPstart1,
@@ -870,6 +872,25 @@ sub InsertHighChartGraph {
               }
             },
             ' if not $series;
+    my $exportPrint = '';
+    $exportPrint = 'exporting: {
+            buttons: {
+                contextButton: {
+                    enabled: false
+                },
+                // exportButton: {
+                //     text: \'Download\',
+                //     menuItems: Highcharts.getOptions().exporting.buttons.contextButton.menuItems.splice(2)
+                // },
+                printButton: {
+                    text: \'Print\',
+                    onclick: function () {
+                        this.print();
+                    }
+                }
+            }
+        },
+        ' if $exportChart > 1;
     my $string = "
     \$('#${nr}SENSORS').highcharts('StockChart',{
             rangeSelector: {
@@ -1009,77 +1030,14 @@ sub InsertHighChartGraph {
             crosshair: { dashStyle: 'dot' }
         },
         yAxis: [
-          {     // particals count
-           title: {
-                // text: '\\u2248 pm/uur',
-                text: '$units',
-                offset: 0,
-                align: 'high',
-                rotation: 0,
-                style: {
-                    fontSize: '10px',
-                },
-                textAlign: 'left',
-                x: 5,
-                y: 10,
-            },
-            labels: {
-                format: \"{value}\",
-                align: 'left',
-                style: {
-                    fontSize: '10px'
-                },
-                x: 5
-            },
-            plotLines: [{ // zero plane
-                value: 0,
-                color: '#BBBBBB',
-                width: 1,
-                zIndex: 2
-            }],
-            showLastLabel: false,
-            maxPadding: 0.3,
-            opposite: false,
-            tickInterval: 1,
-            gridLineColor: (Highcharts.theme && Highcharts.theme.background2) || '#F0F0F0'
-          },
-          {  // this needs some more thought: per serie one element?
-           title: {
-                // text: '\\u00B5g/m\\u00B3',
-                text: '$units',
-                offset: 0,
-                align: 'high',
-                rotation: 0,
-                style: {
-                    fontSize: '10px',
-                },
-                textAlign: 'right',
-                x: -5,
-                y: 10,
-            },
-            labels: {
-                format: \"{value}\",
-                align: 'right',
-                style: {
-                    fontSize: '10px'
-                },
-                x: 0,
-            },
-            plotBands: [
-                ${bands}
-            ],
-            showLastLabel: false,
-            opposite: true,
-            maxPadding: 0.3,
-            tickInterval: 1,
-            gridLineColor: (Highcharts.theme && Highcharts.theme.background2) || '#F0F0F0'
-          }
+            ${yAxis}
         ],
         plotOptions: {
             series: { groupPadding: 0, borderWidth: 0.3, pointPadding: 0.03 },
             column: { shadow: true, colorByPoint: true, showInLegend: false },
             spline: { shadow: false }
         },
+        $exportPrint
         series: [ 
             ${series}
              ]
@@ -1097,7 +1055,7 @@ sub ChartSerie {
     my ($id, $data) = @_;
     my $series = '';
     for( my $i = 0; $i <= $#{$data}; $i++ ){
-        my $ugm3 = '\u00B5g/m\u00B3';
+        my $ugm3 = '\\u00B5g/m\\u00B3';
         my $visible = 1;
         $visible = 0 if not defined $data->[$i]{label};
         # PM2.5 pollutants are all visible
@@ -1127,6 +1085,90 @@ sub ChartSerie {
                 (defined $data->[$i]{label}?1:0) );
     }  # end of for loop series
     return \$series;
+}
+
+# create a new yAxis configuration or return old one
+my %yAxis = ();
+sub MyLength {
+    my ($str) = @_;
+    $str =~ s/\\u[0-9]{4}/u/g;
+    return length($str);
+}
+sub newYaxis {
+    my ($nr,$units,$bands) = @_;
+    state $lastLoc = -1; # right inner, left inner, right out, left out, invis
+    $lastLoc = -1 if not $nr; %yAxis = () if not $nr; # reset
+    my $Tbands = ''; $Tbands = 'B_' if $bands;
+    return "    { 
+            visible: false,
+            linkedTo: $yAxis{$Tbands.$units}
+            },\n" if defined $yAxis{$Tbands.$units} ;
+    my $visible = 'true'; my $textAlign = 'right';
+    my $plotType;
+    $plotType = "
+            plotLines: [{ // zero plane
+                value: 0,
+                color: '#BBBBBB',
+                width: 1,
+                zIndex: 2
+            }]," if not $Tbands;
+    $plotType = "
+            plotBands: [
+                ${$bands}
+            }]," if $Tbands;
+    $lastLoc++;
+    my $opposite = 'true';
+    $opposite = 'false' if ($lastLoc % 2);
+    $visible = 'false' if $lastLoc > 3; # for now no more as 4 visible axes
+    $textAlign = 'left' if ($lastLoc % 2);
+    my $rotation = '0' ; $rotation = '270' if MyLength($units) >= 5;
+    my $x = 0; $x = 5 if $opposite eq 'true';
+    my $y = 0; $y = 5 if MyLength($units) >= 5;
+    my $ceilFloor = '';
+    $ceilFloor = 'floor: 0, ceil: 100, max: 100;' if $units eq ConvertS2U('rv');
+    my $newY = "
+          {     // particals count
+           title: {
+                text: '$units',
+                offset: -10,
+                align: 'high',
+                rotation: $rotation,
+                style: {
+                    fontSize: '10px',
+                },
+                textAlign: '$textAlign',
+                x: -20+7*$x, // -1*$y,
+                y: -5-3*$y,
+            },
+            labels: {
+                format: \"{value}\",
+                align: '$textAlign',
+                style: {
+                    fontSize: '10px'
+                },
+                x: 0+2*$x
+            },
+            $plotType
+            offset: -15,
+            showLastLabel: false,
+            maxPadding: 0.3,
+            opposite: $opposite,
+            tickInterval: 10,
+            visible: $visible,
+            gridLineColor: (Highcharts.theme && Highcharts.theme.background2) || '#F0F0F0'
+          },\n";
+    $yAxis{$Tbands.$units} = $nr;
+    return $newY;
+}
+
+# generate yAxis for a set of series
+sub ChartyAxis {
+    my ($data, $bands) = @_; $yAxis = '';
+    for( my $i = 0; $i <= $#{$data}; $i++) {
+        my $units = ConvertS2U($data->[$i]{pol});
+        $yAxis .= newYaxis($i, $units, ((not defined $data->[$i]{label})? ${$bands} : ''));
+    }
+    return \$yAxis;
 }
 
 # generate plotBands none,EU-WHO or LKI
@@ -1168,7 +1210,13 @@ sub plotBands {
     my $NRM = shift;
     return '' if (not $NRM) || ($NRM =~ /none/);
     print STDERR "Unknown quality level identifier $NRM\n" if not defined $bands{$NRM};
-    return '' if not defined $bands{$NRM};
+    return '
+                {color:"rgba(0, 32, 197, 0.05)",from: 0,to:19.5 },
+                {color:"rgba(244, 230, 69, 0.15)",from: 20 ,to: 25 },
+                {color:"rgba(254, 118, 38, 0.15)",from: 25.5,to: 40},
+                {color:"rgba(220, 6, 16, 0.15)",from: 40.5,to:50 },
+                {color:"rgba(162,23,148,0.15)",from:50.5,to:200}
+            ' if not defined $bands{$NRM};
     my @colors = (
         # maybe we shoud use the colors as defined by the ref doc, see AQI.pl
         ['0, 32, 197, 0.05','0, 32, 197, 0.45'],
@@ -1356,7 +1404,7 @@ sub Generate {
     if( $output !~ /^\/dev\// ) {
         $output =~ s/\.html//i;
         $output .= '.html' if $debug;
-        $output = $webdir . $output if $output !~ /\//;
+        $output = $webdir . $output if $output !~ /\.?\//;
     }
     if( $debug ) {
         $RSLT=sprintf("Debugmodus: HTML page ready output on %s, working dir %s\n",$output,WDIR);
@@ -1378,7 +1426,8 @@ sub Generate {
         next if (not $debug) && (not $indoc);
         if( (/<script\s/) && $indoc ){
             # enable support to drag legend
-            MyPrint($inscript,'<script src=\'https://rawgit.com/highcharts/draggable-legend/master/draggable-legend.js\'></script>');
+            MyPrint($inscript,'<script src=\'<script src="http://code.highcharts.com/modules/exporting.js"></script>'."\n") if $exportChart;
+            MyPrint($inscript,'<script src=\'https://rawgit.com/highcharts/draggable-legend/master/draggable-legend.js\'></script>'."\n");
             MyPrint($inscript,InsertButtonStyle());     # insert graph button styling
             MyPrint($inscript,$_); $inscript = 1;
             # from here we collect javastript statements
@@ -1483,7 +1532,7 @@ sub Generate {
             } elsif( $type =~ /SERIES/ ){     #one graph
               for( my $j = 0; $j <= $#DATA; $j++ ) {
                 my $data = $DATA[$j];
-                MyPrint($inscript,InsertHighChartGraph("C$j",$BUTTONS[$j],ChartSerie("C$j",$data),plotBands($AQI)));
+                MyPrint($inscript,InsertHighChartGraph("C$j",$BUTTONS[$j],ChartSerie("C$j",$data),ChartyAxis($data,plotBands($AQI))));
               }
             }
             while( TRUE ){                         # skip rest
