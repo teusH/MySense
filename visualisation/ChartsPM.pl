@@ -17,8 +17,8 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 3.9 2018/01/17 20:24:36 teus Exp teus $
-my $Version = '$Revision: 3.9 $, $Date: 2018/01/17 20:24:36 $.';
+# $Id: ChartsPM.pl,v 3.10 2018/01/18 12:12:27 teus Exp teus $
+my $Version = '$Revision: 3.10 $, $Date: 2018/01/18 12:12:27 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/([0-9]+:[0-9]+):[0-9]+/$1/;
 # Description:
@@ -28,6 +28,7 @@ $Version =~ s/\s+,\s+Date://; $Version =~ s/([0-9]+:[0-9]+):[0-9]+/$1/;
 # DEPENDS on: yui-compressor java script to compress javascript parts
 # TO DO:
 #       allow the user to select different the levels for EU/WHO/LKI/AQI/AQI_LKI etc.
+
 use feature "state"; # some output is done only once
 use constant {
                                         # Default DB credentials
@@ -199,13 +200,8 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
     $option eq 'p' and do { $mypass = $value; last OPTION; };
     $option eq 'P' and do { $project = $value; last OPTION; };
     $option eq 'g' and do { $mingraphs = $value; last OPTION; };
-    $option eq 'b' and do {
+    $option eq 'b' and do {  # names of the buttons for pollutants in the charts
             $buttons = $value;
-            $value =~ s/^/,/;
-            $value =~ s/[,\|]((PM|pm)(10|2\.?5)?|temp|rv|luchtdruk|w[sr]|([A-O][0-3]?)+|rssi)//g;
-            if( $value ) {
-                print STDERR "ATTENT: unknown pollutant ID in buttons choice: $pollutants.\n";
-            }
             $buttons =~ s/\s*([\|,])\s*/$1/g;
             $buttons = ID if length($buttons) < 1;
             $buttons =~ s/pm/PM/g; $buttons =~ s/PM2.5/PM25/g;
@@ -1103,7 +1099,6 @@ sub newYaxis {
             visible: false,
             linkedTo: $yAxis{$Tbands.$units}
             },\n" if defined $yAxis{$Tbands.$units} ;
-    my $visible = 'true'; my $textAlign = 'right';
     my $plotType;
     $plotType = "
             plotLines: [{ // zero plane
@@ -1114,21 +1109,23 @@ sub newYaxis {
             }]," if not $Tbands;
     $plotType = "
             plotBands: [
-                ${$bands}
-            }]," if $Tbands;
+                $bands
+            ]," if $Tbands;
     $lastLoc++;
     my $opposite = 'true';
     $opposite = 'false' if ($lastLoc % 2);
+    my $visible = 'true';
     $visible = 'false' if $lastLoc > 3; # for now no more as 4 visible axes
+    my $textAlign = 'right';
     $textAlign = 'left' if ($lastLoc % 2);
     my $rotation = '0' ; $rotation = '270' if MyLength($units) >= 5;
     my $x = 0; $x = 5 if $opposite eq 'true';
     my $y = 0; $y = 5 if MyLength($units) >= 5;
+    my $offset = int(($lastLoc+1)/2 + 0.5);
     my $ceilFloor = '';
     $ceilFloor = 'floor: 0, ceil: 100, max: 100;' if $units eq ConvertS2U('rv');
     my $newY = "
-          {     // particals count
-           title: {
+          { title: {
                 text: '$units',
                 offset: -10,
                 align: 'high',
@@ -1149,7 +1146,7 @@ sub newYaxis {
                 x: 0+2*$x
             },
             $plotType
-            offset: -15,
+            offset: -15*$offset,
             showLastLabel: false,
             maxPadding: 0.3,
             opposite: $opposite,
@@ -1166,7 +1163,7 @@ sub ChartyAxis {
     my ($data, $bands) = @_; $yAxis = '';
     for( my $i = 0; $i <= $#{$data}; $i++) {
         my $units = ConvertS2U($data->[$i]{pol});
-        $yAxis .= newYaxis($i, $units, ((not defined $data->[$i]{label})? ${$bands} : ''));
+        $yAxis .= newYaxis($i, $units, ((not defined $data->[$i]{label})? $bands : ''));
     }
     return \$yAxis;
 }
