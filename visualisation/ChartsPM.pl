@@ -17,8 +17,8 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 3.10 2018/01/18 12:12:27 teus Exp teus $
-my $Version = '$Revision: 3.10 $, $Date: 2018/01/18 12:12:27 $.';
+# $Id: ChartsPM.pl,v 3.11 2018/01/18 13:38:40 teus Exp teus $
+my $Version = '$Revision: 3.11 $, $Date: 2018/01/18 13:38:40 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/([0-9]+:[0-9]+):[0-9]+/$1/;
 # Description:
@@ -28,7 +28,6 @@ $Version =~ s/\s+,\s+Date://; $Version =~ s/([0-9]+:[0-9]+):[0-9]+/$1/;
 # DEPENDS on: yui-compressor java script to compress javascript parts
 # TO DO:
 #       allow the user to select different the levels for EU/WHO/LKI/AQI/AQI_LKI etc.
-
 use feature "state"; # some output is done only once
 use constant {
                                         # Default DB credentials
@@ -133,6 +132,7 @@ Getopt::Mixed::init(
         'A=s aqi>A '.
         'b=s buttons>b '.
         'AQI>A '.
+        'B bands>B '.
         'index>A '.
         'w=s web>w '.
         'W=s wd>W '.
@@ -159,8 +159,10 @@ my $output = '/dev/stdout';
 my $aggregation = 30;   # minimal aggregration in minutes (use avg in this period)
 my $reference = REF;
 my $last_time = '';     # last date/time used for end date/time graphs
+# next do not seem to work properly, why?
 my $exportChart = FALSE;# enable/disable button to export Chart Graph
                         # > 1 will say: print button (no download)
+my $ShowBands = FALSE;  # show AQI or LKI bands in the chart for LML stations
 
 while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
   OPTION: {
@@ -176,6 +178,7 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
     $option eq 'h' and do { $myhost = $value; $myhost =~ s/\s//g; last OPTION; };
     $option eq 'D' and do { $mydb = $value; $mydb =~ s/\s//g; last OPTION; };
     $option eq 'E' and do { $exportChart++; last OPTION; };
+    $option eq 'B' and do { $ShowBands = TRUE; last OPTION; };
     $option eq 'e' and do {
             $pollutants = $value;
             $value =~ s/\|/,/g;
@@ -286,6 +289,9 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
                 only one button name provided.
  -A|--{AQI,aqi,index} {LKI|AQI|EU|none} colored bands in background for quality levels.
                 Band is only shown with national station graph.
+                Deprecated.
+ -B|--bands     Turn show of AQI or LKI color bands on with official stations graphs.
+                Currently bands are not working any more for some reason.
  -L|--last      Use this date/time as last date iso last 'datum' of referenced
                 station measurement.
  -W|--wdir      The working directory with own modules.
@@ -1205,6 +1211,7 @@ my %bands = (
         
 sub plotBands {
     my $NRM = shift;
+    return '' if not $ShowBands;  # dflt turned off, deprecated, display problem
     return '' if (not $NRM) || ($NRM =~ /none/);
     print STDERR "Unknown quality level identifier $NRM\n" if not defined $bands{$NRM};
     return '
