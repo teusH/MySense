@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: GeneratePMcharts.sh,v 1.1 2018/01/21 15:26:55 teus Exp teus $
+# $Id: GeneratePMcharts.sh,v 1.2 2018/01/21 16:00:39 teus Exp teus $
 
 # script to generate several charts for sensor kits of a project
 # will notify by email non active sensor kits as well
@@ -130,7 +130,7 @@ function OldCheckActive() {
 # send email if sensorkit is not seen quite active for a period of time (dflt one hour)
 # minimal 5 measurements per hour, no measurements in one hour special warning
 function CheckActive() {
-    local MSG='' NME POLS='Last one hour had number of measurements for '
+    local MSG='' NME POLSMSG='Last one hour had number of measurements for '
     declare -i MAX=-1 MIN=100 SECS=$(date +%s) RTS=0 LAST=0
     if [ -n "${1/*_*/}" ] ; then return 0 ; fi # not a project sensor kit table
     for NME in $($MYSQL -e "$(GenerateQRY $1)")
@@ -142,7 +142,7 @@ function CheckActive() {
         fi
         if (( ${NME/*=/} < $MIN )) ; then MIN=${NME/*=/} ; fi
         if (( ${NME/*=/} > $MAX )) ; then MAX=${NME/*=/} ; fi
-        POLS+="$NME, "
+        POLSMSG+="$NME, "
     done
     if (( $MAX < 1 ))
     then
@@ -162,7 +162,7 @@ function CheckActive() {
     else
         return 0
     fi
-    echo -e "$MSG\n$POLS" | \
+    echo -e "$MSG\n$POLSMSG" | \
         if [ -n "${MAILTO}" ]
         then
             mail --subject="Sensor kit ${1/*_/} of project ${1/_*/} needs attention" ${MAILTO}
