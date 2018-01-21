@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: GeneratePMcharts.sh,v 1.2 2018/01/21 16:00:39 teus Exp teus $
+# $Id: GeneratePMcharts.sh,v 1.3 2018/01/21 16:21:18 teus Exp teus $
 
 # script to generate several charts for sensor kits of a project
 # will notify by email non active sensor kits as well
@@ -198,7 +198,7 @@ do
         echo Failed to get file $DIR/${KIT/${PROJ}/}.html for chart
         continue
     fi
-    if [ -n "$RHOST" ]
+    if [ "${RHOST:-localhost}" != localhost ]
     then
         if ! scp $DIR/${KIT/${PROJ}/}.html ${RHOST}:$DIR/${KIT/${PROJ}/}.html
         then
@@ -220,7 +220,7 @@ then
     date
         echo Failed to generate chart for ${PROJ}${POLs/,*/}.html
 else
-    if [ -z "$RHOST" ]
+    if [ "${RHOST:-localhost}" = localhost ]
     then
         chgrp www-data $DIR/${PROJ}${POLs/,*/}.html
     else
