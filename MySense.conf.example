@@ -298,3 +298,42 @@ file     = /dev/stdout
 #password     = acacadabra for port 587
 #port = 587 for proxy email transports
 # ttl     = 0  # send email every day of operational info
+
+# # we act as broker from TTN LoRa dataconcentrator
+# # on receiving USR2 signal current status and statistics will
+# be sent to console
+# [ttn_mqtt]
+# input = True
+# # TTN Fontys GreenTechLab vuurwerksensors
+# user = TTN_account_name
+# password = ttn-account-v2.acacadabra
+# hostname = eu.thethings.network # server host number for mqtt broker
+# #port = 1883        # default MQTT port
+# #timeout = 7200     # timeout for this broker in secs
+# #rate =    420      # expected time(out) between telegrams published
+# #file = Dumped.json # comment this for operation, this will read from a dump MQTT file
+# next will be reread on receiving USR1 signal
+# #adminfile = VM2017devices.json # meta identy data for sensor kits
+# #dust = ['pm2.5','pm10',]  # dust names we can get, SDS011, PMS7003, PPD42NS
+# #meteo = ['temp','humidity','pressure',] # meteo name we get from DHT22, BME280
+# #fields = ['pm2.5','pm10','temp','hum'], # fields in packed format
+# #calibrations = [[0,0.1],[0,0.1],[-20,0.1],[0,0.1]] # calibrate value
+# #packing = >HHHH    # how it is packed, here 4 X unsigned int16/short
+# #types = ['SDS011','DHT22'] # ordered list of module types: dust, meteo, ...
+# #all = False        # skip non active and not registered devices
+
+# # output to Luftdaten maps and Madavi database Stuttgart
+# [luftdaten]
+# output = True
+# # prefix as received from Luftdaten for these kits
+# id_prefix = MySense-
+# #luftdaten = https://api.luftdaten.info/v1/push-sensor-data/
+# #madavi = https://api-rrd.madavi.de/data.php
+# # reg exp serial numbers to be sent data from
+# serials = (f70fd1c50[02-9]|9d73729d[cd])
+# # reg exp project ID's to be sent data from
+# projects = VW2109
+# # send data also to Luftdaten maps (needs email exchange first for meta data)
+# active = False
+
+
