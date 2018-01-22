@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.18 2018/01/16 14:05:34 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.19 2018/01/22 13:14:52 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -34,7 +34,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.18 $"[11:-2]
+__version__ = "0." + "$Revision: 1.19 $"[11:-2]
 
 try:
     import MyLogger
@@ -674,18 +674,23 @@ if __name__ == '__main__':
         },
         {   'name': 'Luftdaten data push', 'script': 'MyLUFTDATEN', 'module': None,
             'Conf': {
-                'output': False,
+                'output': True,
                 'id_prefix': "TTNMySense-", # prefix ID prepended to serial number of module
-            'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
-             'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
-             # expression to identify serials to be subjected to be posted
-             'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from pmsensors
-             'projects': 'VW2017',  # expression to identify projects to be posted
-             'active': False,        # output to luftdaten is also activated
-             # 'debug' : True,        # show what is sent and POST status
+                'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
+                'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
+                # expression to identify serials to be subjected to be posted
+                'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from pmsensors
+                'projects': 'VW2017',  # expression to identify projects to be posted
+                'active': True,        # output to luftdaten is also activated
+                # 'debug' : True,        # show what is sent and POST status
             }
         },
         ]
+    import os.path
+    # switch output to Luftdaten off if input data is read from file
+    if ('file' in Conf.keys()) and os.path.isfile(Conf['file']):
+        for indx in OutputChannels:
+            if 'luftdaten' in indx['Conf'].keys(): indx['Conf']['output'] = False
     try:
         for indx in range(0,len(OutputChannels)):
             MyLogger.log(modulename,'INFO','Loaded output channel %s: output is %s' % (OutputChannels[indx]['name'], 'enabled' if OutputChannels[indx]['Conf']['output'] else 'DISabled'))
