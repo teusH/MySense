@@ -17,8 +17,8 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 3.11 2018/01/18 13:38:40 teus Exp teus $
-my $Version = '$Revision: 3.11 $, $Date: 2018/01/18 13:38:40 $.';
+# $Id: ChartsPM.pl,v 3.12 2018/01/24 15:05:22 teus Exp teus $
+my $Version = '$Revision: 3.12 $, $Date: 2018/01/24 15:05:22 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/([0-9]+:[0-9]+):[0-9]+/$1/;
 # Description:
@@ -1430,7 +1430,7 @@ sub Generate {
         next if (not $debug) && (not $indoc);
         if( (/<script\s/) && $indoc ){
             # enable support to drag legend
-            MyPrint($inscript,'<script src=\'<script src="http://code.highcharts.com/modules/exporting.js"></script>'."\n") if $exportChart;
+            MyPrint($inscript,'<script src=\'http://code.highcharts.com/modules/exporting.js\'></script>'."\n") if $exportChart;
             MyPrint($inscript,'<script src=\'https://rawgit.com/highcharts/draggable-legend/master/draggable-legend.js\'></script>'."\n");
             MyPrint($inscript,InsertButtonStyle());     # insert graph button styling
             MyPrint($inscript,$_); $inscript = 1;
