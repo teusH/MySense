@@ -1,10 +1,19 @@
 ## Marvin LoRa controller based sensor kit
 ### STATUS
-2017-12-24 operational via TTN Europe
+2017-12-24 operational via TTN Europe and MySense.
 
 ### DESCRIPTION
 The sensorkit is build with a Marvin LoRa controller (ca  84 euro), an dust SDS011 sensor (ca 20 euro) and a waether  DHT22 (ca 10 euro).
 This sensorkit fits in a small outdoor V220 connectionbox.
+
+The measurments are sent via TTN Europe and sent to the TTN Europe datacontratoer. One needs to obtain an application account with TTN Europe to download the data from thgeir TTN MQTT server. See also the MyTTN-MQTT.py module in MySense to download the data with MySense.
+
+The firmware is developped by Jelle Adema Fontys GreenTechLab Dec 2017 under GPL V4 Open Source license agreement. The dust measurment project took part in the RIVM Vuurwerk 2017 measurment project with ca 80 sensorkits distributed over the Netherlands.
+References:
+* <a href="http://behouddeparel.nl/?q=vuurwerk2017">Graphs of measurments region North Limburg Holland</a>
+*  <a href="https://www.samenmetenaanluchtkwaliteit.nl/vuurwerkexperiment-20172018">RIVM Vuurwerk 2018 project</a>
+* <a href="http://samenmeten.rivm.nl/dataportaal/">Data Portal RIVM</a>
+* <a href="https://github.com/SamenMeten/Air-quality-effects-Fireworks-using-Shinyei">Adafruit Feather with Shiney sensor firmware</a>
 
 ### FIRMWARE
 Change the TTN keys in the ino files to the settings at the TTN data concentrator.
