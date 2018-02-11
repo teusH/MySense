@@ -30,3 +30,5 @@ The script has the possibility to generate two or more charts on one webpage. A 
 
 ### APPLICATION
 The graphs on the chart will allow to visualize the correlation between different sensorkits as well sensors.
+
+Experimental: the `--correct` option will enable an apllication of a correction coeeficient to PM measurments. The rel. humidity of the station or neighbour will be used to apply a correction. The coefficient is a best fit calculated from PM measurments and humidy of a reference station. This is fully experimental yet.

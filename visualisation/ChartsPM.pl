@@ -17,8 +17,8 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 3.12 2018/01/24 15:05:22 teus Exp teus $
-my $Version = '$Revision: 3.12 $, $Date: 2018/01/24 15:05:22 $.';
+# $Id: ChartsPM.pl,v 4.2 2018/02/11 16:43:41 teus Exp teus $
+my $Version = '$Revision: 4.2 $, $Date: 2018/02/11 16:43:41 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/([0-9]+:[0-9]+):[0-9]+/$1/;
 # Description:
@@ -35,7 +35,7 @@ use constant {
         DB        => 'luchtmetingen',   # default database
 
         TITLE     => 'Samen Meten aan Luchtkwaliteit', # chart
-        SUBTITLE  => 'metingen',                                               # chart
+        SUBTITLE  => 'metingen',        # chart
 
         # following defaults can be altered on the command line with an option choice
         LOCATION  => 'VW2017_93d73279dc',    # default location nr, sensor label
@@ -124,6 +124,7 @@ Getopt::Mixed::init(
         'g=i graphs>g '.
         'O=s output>O ',
         'a:i aggregation>a '.
+        'c correct>c '.
         't=s title>t '.
         's=s subtitle>s '.
         'r=s region>r '.
@@ -138,31 +139,40 @@ Getopt::Mixed::init(
         'W=s wd>W '.
         ''
 );
-my $label = LOCATION;
-my $identifier = SN;
+
+my $label       = LOCATION;
+my $identifier  = SN;
 my $coordinates = COORDINATES;
-my $project = PROJECT;
-my $title = TITLE;
-my $subtitle = SUBTITLE;
-my $mingraphs = MINGRAPHS;
-my $myRegion = ''; # overwrite region definition
-my $region = '';
-my $poltype = 'fijnstof';     # type of pollutants, e.g. fijnstof
-my $AQI = AQI;
-my $webdir = WEBDIR;
-my $wwwgrp = WWWGRP;
+my $project     = PROJECT;
+my $title       = TITLE;
+my $subtitle    = SUBTITLE;
+my $mingraphs   = MINGRAPHS;
+my $myRegion    = '';   # overwrite region definition
+my $region      = '';
+my $poltype     = 'fijnstof';# type of pollutants, e.g. fijnstof
+my $AQI         = AQI;
+my $webdir      = WEBDIR;
+my $wwwgrp      = WWWGRP;
 # example: pm25|pm10,temp|rv for two buttons and selection of pollutants
-my $pollutants = POLLUTANTS; # comma separated pol select per button
-# example: stof,weer
-my $buttons  = BUTTONS;      # comma separated button names to switch tables
-my $output = '/dev/stdout';
+my $pollutants  = POLLUTANTS; # comma separated pol select per button
+                        # example: stof,weer
+my $buttons     = BUTTONS;      # comma separated button names to switch tables
+my $output      = '/dev/stdout';
 my $aggregation = 30;   # minimal aggregration in minutes (use avg in this period)
-my $reference = REF;
-my $last_time = '';     # last date/time used for end date/time graphs
-# next do not seem to work properly, why?
+my $correctPM   = FALSE; # correct PM value with RIVM Joost value
+                        # may ruin the AQI/LKI values arithmetic!
+                        # needed for optional pm corrections 
+my %RVstations  = ();   # dict of stations table names with humidity values
+                        # will have "default" key with default values of LML station
+my %TimeShifts  = (     # time shift for some stations, in seconds
+    'HadM' => -5*30*60,
+    );
+my $reference   = REF;
+my $last_time   = '';   # last date/time used for end date/time graphs
+                        # next do not seem to work properly, why?
 my $exportChart = FALSE;# enable/disable button to export Chart Graph
                         # > 1 will say: print button (no download)
-my $ShowBands = FALSE;  # show AQI or LKI bands in the chart for LML stations
+my $ShowBands   = FALSE;# show AQI or LKI bands in the chart for LML stations
 
 while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
   OPTION: {
@@ -179,6 +189,7 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
     $option eq 'D' and do { $mydb = $value; $mydb =~ s/\s//g; last OPTION; };
     $option eq 'E' and do { $exportChart++; last OPTION; };
     $option eq 'B' and do { $ShowBands = TRUE; last OPTION; };
+    $option eq 'c' and do { $correctPM = TRUE; last OPTION; };
     $option eq 'e' and do {
             $pollutants = $value;
             $value =~ s/\|/,/g;
@@ -298,12 +309,19 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
  -w|--web       The website private page directory to store the page.
                 The website path is not prepended if output file name start with
                 ./ or /
+ -c|--correct   The PM values are corrected with rel. humidity correction factor
+                factor = 4.65 * (100 - hum)**-0.65
+                Humidity measurments is one element of correction arithmetic.
+                Humidity of stations will be collected per station if present.
  -a|--aggregation [number] Use nr of minutes as minimal period to calculate average values.
                 Default: 6 minutes for small periods. Script will search minimal
-                period of minutes between measurements. Max is one hour.
+                period of minutes between measurements.
+                Max (eg LML statrions)  is one hour.
 
 $Version
 This program is free software: you can redistribute it and/or modify
+                Humidity measurments is one element of correction arithmetic.
+                Humidity of stations will be collected per station if present.
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation.
 The script depends om mysql, yui-compressor,
@@ -319,6 +337,66 @@ $verbose = 3 if $debug;
 
 die "FATAL ERROR: no database user/password defined, e.g. define use environment variable DBUSER and/or DBPASS\n" if length($mypass) <= 0;
 
+
+# the Joost fit correction factor to correct PM values with rel. hum  values
+# correction coefficients come from RIVM VW2017 project 
+# routine is unused if javascript does corrections
+sub CorrectPM {
+    my ($PM,$PMval,$HUMval) = @_;
+    return $PMval if not $correctPM;
+    return 'null' if $PM !~ /PM_?(10|25)/i;
+    return 'null' if (not defined $PMval) or (not defined $HUMval);
+    return 'null' if ($PMval eq 'null') or ($HUMval eq 'null');
+    my $rts = $PMval;
+    return 'null' if $PMval <= 0;
+    $HUMval = 99.0 if $HUMval >= 99.0;
+    $HUMval = 1.0 if $HUMval <= 1.0;
+    if ( $PM =~ /PM_?(10|25)/i ) {
+        # correction factor PM10 from RIVM jan 2018 for SDS011 sensor
+        $rts = int( ($PMval * 4.65 * ((100.0-$HUMval)**-0.65)) * 100.0)/100.0;
+    }
+    return $rts
+}
+
+# if not done from javascript next is called
+# correct PM values in the data strings for PM with RV values 
+# TO DO: second arg should be an array of data indexes
+sub CorrectPMdata {
+    my( $data, $pmIndex) = @_;
+    return undef if not defined $data->[$pmIndex];
+    return undef if not defined $data->[$pmIndex]{data};
+    my $PMtype;
+    $PMtype = $data->[$pmIndex]{pol} if defined $data->[$pmIndex]{pol};
+    $PMtype = $data->[$pmIndex]{sense} if defined $data->[$pmIndex]{sense};
+    return $data->[$pmIndex]{data} if (not defined $PMtype) || ($PMtype !~ /pm/i);
+    # no correction for governmental measurements
+    return $data->[$pmIndex]{data} if not defined $data->[$pmIndex]{label};
+    return $data->[$pmIndex]{data} if not $data->[$pmIndex]{label};
+    return $data->[$pmIndex]{data} if not defined $data->[$pmIndex]{table};
+    my $RVdata;
+    if( not defined $RVstations{$data->[$pmIndex]{table}} ){
+        if( (not defined $RVstations{default}) || (not defined $RVstations{default}{rv}) ){
+            $correctPM = 0;
+            print STDERR "Missing humidity measurments to do corrections. Switched off\n";
+            return $data->[$pmIndex]{data};
+        }
+        $RVdata = $RVstations{default}{rv};
+    } else { $RVdata = $RVstations{$RVstations{$data->[$pmIndex]{table}}}{rv}; }
+    #$RVdata =~ s/[\[\]]//g;
+    #my @RV = split(/,/,$RVdata);
+    my @RV = split(/,/,substr($RVdata,1,-1));
+
+    #my $PMdata = $data->[$pmIndex]{data};
+    #$PMdata =~ s/[\[\]]//g;
+    #my @PM = split(/,/,$PMdata);
+    my @PM = split(/,/,substr($data->[$pmIndex]{data},1,-1));
+
+    # return undef if $#PMdata != $#RVdata;
+    for( my $i = 0; $i <= $#PM; $i++ ) {
+        $PM[$i] = CorrectPM($PMtype,$PM[$i],$RV[$i]);
+    }
+    return '['.join(',',@PM).']';
+}
 
 sub Check_DB { # called only once from first call to query routine
     state $checkedOnce = 1;
@@ -342,7 +420,7 @@ my %DB_cols = ( );      # sensors names per table
 sub Get_Sensors {
     my $tbl = shift; return 0 if not $tbl;
     Check_Tbl($tbl) if not $DB_cols{$tbl};
-    if( not defined $DB_cols{$tbl}{"id"} ){
+    if( not (scalar keys %{$DB_cols{$tbl}}) ){
         # only once at the start we build a column existance cache
         my $qr = query($tbl, "DESCRIBE $tbl;");
         if( (not $qr) || ($#{$qr} < 0) ){
@@ -352,8 +430,9 @@ sub Get_Sensors {
         # mysql counts cells from 0!
         $DB_nr_cols{$tbl} = 0 if not defined $DB_nr_cols{$tbl};
         for( my $index = 0; $index <= $#{$qr} ; $index++ ){
+            
+            next if $qr->[$index] =~ /^((id|datum)|.*_(valid|ppb|color))$/ ;
             $DB_cols{$tbl}{ $qr->[$index] } = 1;
-            next if $qr->[$index] =~ /^(id|datum|.*_(valid|ppb|color))$/ ;
             $DB_nr_cols{$tbl}++;
             $DB_cols{$tbl}{$qr->[$index]} = 1;
         }
@@ -573,6 +652,28 @@ sub Get_data {
     return \%rslt;
 }
 
+# collect humidity values for a station
+sub addRVstation {
+    my ($table, $last, $overWrite) = @_;
+    $overWrite = FALSE if not defined $overWrite;
+    return FALSE if not $correctPM;
+    return TRUE if defined $RVstations{$table};
+    foreach my $S (keys %{$DB_cols{$table}}) {
+       next if $S !~ /(rv)$/i;
+       my %flt = ( cnt => 0 );
+       $RVstations{$table} = \%flt;
+       $RVstations{$table}{$S} = Get_data($table,$S,$last,60*60);
+       $RVstations{$table}{$S} = $RVstations{$table}{$S}->{data};
+       if( $overWrite || (not defined $RVstations{default}) ) {
+           my %new = ( cnt => 0 );
+           $RVstations{default} = \%new;
+           $RVstations{default}{$S} = $table;
+       }
+       return TRUE;
+    }
+    return FALSE;
+}
+    
 # collect the data for a serie of stations (DB table names)
 # return a ref to array of hashes: table name, location name, pm name
 sub Collect_data {
@@ -586,6 +687,7 @@ sub Collect_data {
     }
     for( my $i = 0; $i <= $#stations; $i++ ) {
         if( $stations[$i] =~ /^VW[0-9]{4}_/ ) { # sensor kits only
+            my $CorrectME = 0; my @stationData;
             my $id = $stations[$i] ; $id =~ s/VW[0-9]{4}_//;
             %info = Get_Info($id); # search serial or label with this id
             print STDERR "Cannot find station $stations[$i] in database.\n"
@@ -594,9 +696,9 @@ sub Collect_data {
             my $tbl = 'VW2017_'.$info{serial};
             next if not Check_Tbl($tbl);
             Get_Sensors($tbl);
+            addRVstation($tbl,$last);
             foreach my $S (keys %{$DB_cols{$tbl}}) {
-                next if $S =~ /(^id|^datum|_valid)/;
-                # may add here more sensors
+                # next if $S =~ /(^id|^datum|_valid)/;
                 next if $S !~ /$pols/i; # only pollutants choice
                 # interval of measurements should be 5*60 seconds
                 my $D = Get_data($tbl,$S,$last,60*60);
@@ -611,6 +713,18 @@ sub Collect_data {
                 $D->{sense} = $S;
                 $D->{organisation} = 'BdP/Fontys';
                 $D->{href} = $tbl;
+                if( $correctPM && ($S =~ /pm/i) ) {
+                    my $dflt = $tbl;
+                    if( not defined $RVstations{$tbl} ) {
+                        $dflt = 'default';
+                        if( not defined $RVstations{$dflt} ) {
+                            my %flt = ( cnt => 0 );
+                            $RVstations{$dflt} = \%flt;
+                        }
+                    }
+                    $D->{CorrectME} = $dflt; # flag it to obtain index rv
+                    $RVstations{$dflt}{cnt} += 1;
+                }
                 if( $#data < 0 ) { # always first in array
                     push @data, $D;
                 } else {
@@ -624,6 +738,7 @@ sub Collect_data {
                 next;
             }
             Get_Sensors($stations[$i]);
+            addRVstation($stations[$i],$last,TRUE);
             my @info = ('','','');
             my $qry = query("stations","SELECT CONCAT(name,';;',organisation,';',municipality,';',id) 
                         FROM stations WHERE stations.table = '$stations[$i]' LIMIT 1");
@@ -1054,22 +1169,52 @@ sub InsertHighChartGraph {
  
 # generate one chart for a set of series
 sub ChartSerie {
-    my ($id, $data) = @_;
+    my ($StNr, $data) = @_;
+    my $id = "C$StNr";
     my $series = '';
     for( my $i = 0; $i <= $#{$data}; $i++ ){
         my $ugm3 = '\\u00B5g/m\\u00B3';
         my $visible = 1;
         $visible = 0 if not defined $data->[$i]{label};
-        # PM2.5 pollutants are all visible
+        # pm2.5 pollutants are all visible
         # $visible = 1 if (defined $data->[$i]{sense}) && ($data->[$i]{sense} =~ /pm_25/);
-        # graph not visible if not sensor kit
-        $visible = 0 if $data->[$i]{table} !~ /^VW[0-9]{4}_/;
+        # graph not visible if not vuurwerk (VW20NN)  sensor kit
+        $visible = 0 if $data->[$i]{table} !~ /^VW[0-9]{4}_/i;
+        my $corr = '';
+        if( ($data->[$i]{sense} =~ /pm_?(10|25)/i) && (defined $data->[$i]{CorrectME}) ) {
+            my $name = $data->[$i]{CorrectME}; $name =~ s/.*_//g;
+            # for now only rv TO DO: extent this with a row of indicators!
+            if( $data->[$i]{sense} =~ /pm_?(10|25)/i ) {
+                $series .= sprintf("
+            { type: 'spline', pointStart: ${id}start%d, pointInterval: ${id}unit%d,
+              name: ${id}title%d + ' gecorrigeerd',
+              data: correctPMs('%s',${id}data%d,humrv%s),
+              lineWidth: 1+%d, visible: %s, zIndex: 2,
+              tooltip: { valueSuffix: ' %s' },
+              yAxis: %d,
+              pointPlacement: 'between', marker:{ radius: 1+%d }
+            },\n",
+                $i,$i,
+                $i,
+                $data->[$i]{sense}, $i, $name,
+                (defined $data->[$i]{label}?1:0), ($visible?'true':'false'),
+                (defined $data->[$i]{pol}?ConvertS2U($data->[$i]{pol}):$ugm3),
+                (defined $data->[$i]{label}?0:1),
+                (defined $data->[$i]{label}?1:0) );
+                $visible = 0;
+            }
+            $corr = ' ongecorrigeerd';
+        }
+        my $datavar = sprintf("${id}data%d", $i);
+        if( ($data->[$i]{sense} =~ /(rv)$/i) && (defined $RVstations{$data->[$i]{table}}) ){
+            $datavar = $data->[$i]{table}; $datavar =~ s/.*_//g;
+            $datavar = "humrv$datavar";
+        }
         $series .= sprintf("
             { type: 'spline',
-              pointStart: ${id}start%d,
-              pointInterval: ${id}unit%d,
-              name: ${id}title%d,
-              data: ${id}data%d,
+              pointStart: ${id}start%d, pointInterval: ${id}unit%d,
+              name: ${id}title%d + '$corr',
+              data: $datavar,
               lineWidth: 1+%d,
               visible: %s,
               zIndex: 2,
@@ -1080,7 +1225,7 @@ sub ChartSerie {
                 radius: 1+%d
               }
             },\n",
-                $i,$i,$i,$i,(defined $data->[$i]{label}?1:0),
+                $i,$i,$i,(defined $data->[$i]{label}?1:0),
                 ($visible?'true':'false'),
                 (defined $data->[$i]{pol}?ConvertS2U($data->[$i]{pol}):$ugm3),
                 (defined $data->[$i]{label}?0:1),
@@ -1089,7 +1234,7 @@ sub ChartSerie {
     return \$series;
 }
 
-# create a new yAxis configuration or return old one
+# create a new yaxis configuration or return old one
 my %yAxis = ();
 sub MyLength {
     my ($str) = @_;
@@ -1287,6 +1432,19 @@ sub JScompress {
     system("/bin/rm -f /var/tmp/VW2017_IN.js");
     return $rslt;
 }
+
+# some help text if PM values are corrected
+sub correctPMtext {
+    return '' if not correctME;
+    return "
+<p>Samen met het RIVM wordt gekeken of de procedures voor het meten van PM fijnstofwaarden verbeterd kunnen worden.
+Als experiment worden de PM<sub>10</sub> fijnstofwaarden gecorrigeerd. Door toepassing van de correctie worden de metingen vergelijkbaar met de referentie fijnstofmetingen van een RIVM/PLIM meetstation in de buurt.
+Door te clicken met de muis op 'ongecorrigeerd' worden ook de ongecorrigeerde waarden in de grafiek getoond.
+Het blijkt dat de metingen van Hoogheide verschoven zijn in de tijd. Hierop is ook gecorrigeerd.
+<br />Pas op: Voor de PM<sub>2.5</sub> fijnstofwaarden wordt in afwachting van een betere correctie factor nog dezelfde correctie toegepast.
+</p>
+    ";
+}
     
 my $OUT;
 sub MyPrint {
@@ -1444,6 +1602,49 @@ sub Generate {
         if( /^(\/\/|<!--\s+)START\s+(DOM|GLOB)/ ) {
             my $sw = $2;
             if( $sw =~ /GLOB/ ){        # global var definitions
+              if( $correctPM ) {
+                my $correct = '
+                var PMcorrect = true; // use this with alert question for correction
+                function correctOnePM(sense,pm,rv) {
+                    if( pm == null ) return null;
+                    if( rv == null ) return null;
+                    if( rv > 99.5 ) rv = 99.5;
+                    if( rv < 0 ) rv = 0;
+                    if( pm < 1 ) pm = 1;
+                    return pm/(4.56 * Math.pow(100-rv,-0.65));
+                }
+                function correctPMs(sense,pm,rv) { // arg rv should be an array of indicators
+                    if( !sense.match(/(pm10|pm25)/i) ) return pm;
+                    if( !PMcorrect ) return pm;
+                    var PM = [];
+                    for( var i = 0; i < pm.length; i++ )
+                        PM.push(correctOnePM(sense,pm[i],rv[i]));
+                    return PM;
+                }
+                ';
+                MyPrint($inscript,$correct);
+                if( (defined $RVstations{default}) && $RVstations{default}{cnt} ){
+                    foreach my $S (keys %{$RVstations{default}}) {
+                        next if $S eq 'cnt'; 
+                        next if not defined $RVstations{$RVstations{default}{$S}};
+                        $RVstations{$RVstations{default}{$S}}{cnt} += $RVstations{default}{cnt};
+                    }
+                }
+                foreach my $stat (keys %RVstations) {
+                    next if $stat eq 'default';
+                    my $stat_ = $stat; $stat_ =~ s/.*_//g;
+                    MyPrint($inscript,sprintf("var humrv%s = %s;\n", $stat_, $RVstations{$stat}{rv}));
+                    # TO DO if more indicators are in correction scheme
+                    # javascript does not allow _-char in names
+                    # foreach my $S (keys %{$RVstations{$stat}}) {
+                    #     next if $S eq 'cnt';
+                    #     my $S_ = $S; $S_ =~ s/_//g;
+                    #     MyPrint($inscript,sprintf("var humrv%s%s = %s;\n", $S_, $cwstat_name,
+                    #         $RVstations{$stat}{$S}))
+                    #         if $RVstations{$stat}{cnt};
+                    # }
+                }
+              }
               for( my $j = 0; $j <= $#DATA; $j++ ) {
                 my $data = $DATA[$j];
                 # generate the javascript variables and data for graphs
@@ -1452,8 +1653,17 @@ sub Generate {
                 MyPrint($inscript,sprintf("var C%dsubtitle = '%s%s';\n", $j,
                     $subtitle ? $subtitle: '',' regio '.($myRegion ? $myRegion : $region)));
                 for( my $i = 0; $i <= $#{$data}; $i++ ){
-                    MyPrint($inscript,sprintf("var C%dstart%d = %d*1000;\n", $j, $i, $data->[$i]{first}));
+                    my $timeShift = 0;
+                    $timeShift = $TimeShifts{$data->[$i]{table}}
+                        if defined $TimeShifts{$data->[$i]{table}};
+                    MyPrint($inscript,sprintf("var C%dstart%d = %d*1000 + (%d*1000);\n", $j, $i, $data->[$i]{first},$timeShift));
                     MyPrint($inscript,sprintf("var C%dunit%d = %d*1000;\n", $j, $i, $data->[$i]{unit}));
+                    if( $correctPM && (defined $RVstations{$data->[$i]{table}})
+                        && (defined $RVstations{$data->[$i]{table}}{$data->[$i]{sense}}) ){
+                        my $name = $data->[$i]{table}; $name =~ s/.*_//g;
+                        # extend this not only for rv
+                        $data->[$i]{data} = "humrv$name";
+                    }
                     MyPrint($inscript,sprintf("var C%ddata%d = %s;\n", $j, $i, $data->[$i]{data}));
                     if( defined $data->[$i]{label} ) {
                         MyPrint($inscript,sprintf("var C%dtitle%d = '%s (%s)';\n", $j,
@@ -1505,7 +1715,9 @@ sub Generate {
                 MyPrint($inscript, $Version."\n");
             } elsif( $type =~ /TableHdr/ ) {     # table with button or not
                 MyPrint($inscript,InsertTableHdr(\@BUTTONS,\@POLLUTANTS) ."\n");
-            } elsif( $type =~ /AQI/ ){           # AQI text lines
+            } elsif( $type =~ /correctPM/ ) {    # add text info on PM corrections
+                MyPrint($inscript,correctPMtext());
+            } elsif( $type =~ /showBands/ ){           # AQI text lines
                 # next should be compiled from %bands
                 my %AQItxt = (
                     LKI => 'luchtkwaliteit LKI (RIVM) Index',
@@ -1515,6 +1727,7 @@ sub Generate {
                     # discouraged to be shown
                     AQI_LKI => 'AQI en LKI luchtkwaliteits Index niveaux',
                 );
+                next if not $ShowBands;
                 next if (not defined $AQItxt{$AQI}) || (not defined $bands{$AQI});
                 my $levels = '';
                 for(my $i = 1; $i <= $#{$bands{$AQI}}; $i++) {
@@ -1526,7 +1739,9 @@ sub Generate {
                 $AQItxt{$AQI} .= ' grensen (resp. LEVEL';
                 $AQItxt{$AQI} =~ s/LEVEL/$level/;
                 $AQItxt{$AQI} .= ' &micro;g/m&sup3;)';
-                MyPrint($inscript, $AQItxt{$AQI}."\n");
+                my $string = "
+<p>Bij de grafieken van de meetstations worden tevens met de achtergrondskleur de verschillende " . $AQItxt{$AQI} . " voor fijnstof weergegeven. </p>\n";
+                MyPrint($inscript, $string);
             } elsif( $type =~ /HIGHCHART/ ) {
                 for( my $i = 0; $i <= $#BUTTONS; $i++ ) {
                     my $str = sprintf("<div id=\"C${i}SENSORS\" style=\"width:510px; height:340px;margin:0 auto\"></div>");
@@ -1536,7 +1751,7 @@ sub Generate {
             } elsif( $type =~ /SERIES/ ){     #one graph
               for( my $j = 0; $j <= $#DATA; $j++ ) {
                 my $data = $DATA[$j];
-                MyPrint($inscript,InsertHighChartGraph("C$j",$BUTTONS[$j],ChartSerie("C$j",$data),ChartyAxis($data,plotBands($AQI))));
+                MyPrint($inscript,InsertHighChartGraph("C$j",$BUTTONS[$j],ChartSerie($j,$data),ChartyAxis($data,plotBands($AQI))));
               }
             }
             while( TRUE ){                         # skip rest
@@ -1679,15 +1894,16 @@ op de locatie
 Fake Adres, Location ERROR (Fake)
 <!-- END locations -->
 . Pas op: hoewel de grafieken van de landelijke meetstations met referentie apparatuur en de eenvoudiger sensors elkaar redelijk lijken te volgen is de schaal van de grafieken anders: aan de rechterzijde wordt de schaal vermeld van de metingen van de referentie apparatuur, links staat de schaal van de eenvoudiger sensoren vermeld.
-</p><p>
+</p>
+<!-- START correctPM -->
+<!-- END correctPM -->
+<p>
 De Nova fijnstof sensor telt het aantal fijnstofdeeltjes (PM<span style="font-size:80%">2.5</span> en PM<span style="font-size:80%">10</span>) in een minuut in een periode van telkens 5 minuten. De fijnstofmeting wordt door de Nova fabrikant vervolgens omgerekend naar het gewicht van de deeltjes in &micro;g/m&sup3;. In de omrekening wordt geen rekening gehouden met relatieve vochtigheid, regen en andere invloeden. De fijnstof metingen van de RIVM/PLIM landelijke meetstations zijn ook gewichtsmetingen (&micro;g/m&sup3;) van gemiddelden per uur. De apparatuur van het landelijk meetstation is geijkt. 
 <br />Tav de meetgegevens van goedkope sensoren in deze testperiode zijn wel onderling gecalibreerd.
 Om de hoeveelheid data te bepreken zijn de meetwaarden geaggredeerd - een gemiddelde over een periode van 30 minuten voor de sensors en 60 minuten voor de landelijke meetstations. De getoonde periode is de afgelopen 3 dagen. Eens per uur wordt de grafiek ververst.
-</p><p>Bij de grafieken van de meetstations worden tevens met de achtergrondskleur de verschillende
-<!-- START AQI -->
-EU en WHO norm niveaux (resp. 20, 25, 45 en 50 &micro;g/m&sup3;)
-<!-- END AQI -->
-voor fijnstof weergegeven.
+</p>
+<!-- START showBands -->
+<!-- END showbands -->
 </td></tr>
 </table>
 </p>
