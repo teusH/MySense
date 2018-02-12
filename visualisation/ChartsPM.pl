@@ -17,8 +17,8 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 4.2 2018/02/11 16:43:41 teus Exp teus $
-my $Version = '$Revision: 4.2 $, $Date: 2018/02/11 16:43:41 $.';
+# $Id: ChartsPM.pl,v 4.3 2018/02/12 11:39:53 teus Exp teus $
+my $Version = '$Revision: 4.3 $, $Date: 2018/02/12 11:39:53 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/([0-9]+:[0-9]+):[0-9]+/$1/;
 # Description:
@@ -1608,10 +1608,10 @@ sub Generate {
                 function correctOnePM(sense,pm,rv) {
                     if( pm == null ) return null;
                     if( rv == null ) return null;
-                    if( rv > 99.5 ) rv = 99.5;
+                    if( rv > 100.0 ) rv = 100.0;
                     if( rv < 0 ) rv = 0;
                     if( pm < 1 ) pm = 1;
-                    return pm/(4.56 * Math.pow(100-rv,-0.65));
+                    return pm * (4.56 * Math.pow(100-rv,-0.65));
                 }
                 function correctPMs(sense,pm,rv) { // arg rv should be an array of indicators
                     if( !sense.match(/(pm10|pm25)/i) ) return pm;
