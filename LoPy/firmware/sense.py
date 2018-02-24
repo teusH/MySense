@@ -1,5 +1,6 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
+# $Id: sense.py,v 1.2 2018/02/24 11:39:04 teus Exp teus $
 #
 from LoRaConfig import dev_eui, app_eui, app_key
 from lora import LORA
@@ -40,11 +41,11 @@ def runMe():
 
   toSleep = 0
   while True:
-    if (not sensor_sds011.SDSisRunning) and (toSleep <= 30):
+    if not sensor_sds011.SDSisRunning:
       sensor_sds011.startstopSDS(True)
-      LED.blink(1,0.2,0xebcf5b)
-      LED.blink(1,0.1,0x000000)
-      sleep(30)
+      for i in range(5):
+          LED.blink(2,0.2,0xebcf5b,False)
+          sleep(6)
 
     # Measure
     try:
@@ -65,7 +66,7 @@ def runMe():
 
     # Send packet
     response = n.send(data)
-    LED.blink(1,0.1,0x000000)
+    if not response: LED.off()
 
     if sleep_time > (5*60-30):
       sensor_sds011.startstopSDS(False)
@@ -73,8 +74,7 @@ def runMe():
     else:
       toSleep = time() + sleep_time
     while time() < toSleep:
-      LED.blink(1,0.2,0xebcf5b)
-      LED.blink(1,0.1,0x000000)
+      LED.blink(1,0.2,0xebcf5b,False)
       sleep(9)
     toSleep = 0
 

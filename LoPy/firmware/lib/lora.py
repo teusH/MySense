@@ -1,3 +1,9 @@
+""" LoRaWan module interface
+"""
+
+# script from https://github.com/TelenorStartIoT/lorawan-weather-station
+# $Id: lora.py,v 1.1 2018/02/24 11:44:44 teus Exp teus $
+
 import socket
 from binascii import unhexlify
 from network import LoRa
@@ -48,11 +54,12 @@ class LORA(object):
     self.s.setblocking(False)
 
     print ("Joined! ",  count)
-    print("Create LoRaWAN socket")
+    # print("Create LoRaWAN socket")
 
     # Create a raw LoRa socket
     self.s = socket.socket(socket.AF_LORA, socket.SOCK_RAW)
     self.s.setblocking(False)
+    LED.off()
 
   def send(self, data):
     """
@@ -62,7 +69,7 @@ class LORA(object):
     try:
       self.s.send(data)
       LED.blink(2, 0.1, 0x0000ff)
-      print("Sending data")
+      # print("Sending data")
       # print(data)
     except OSError as e:
       if e.errno == 11:

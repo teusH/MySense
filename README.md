@@ -6,6 +6,10 @@ Last update of the README on 2nd Sept 2017
 ## Description
 Software Infrastructure or framework for managing environmental sensors and data aquisition
 
+MySense is able to act as *air quality measurement kit* or *node broker*. As measurement kit MySense will collect measurements from sensors and forward the data to external data concentrators (databases as well data broker as eg mosquitto and influx), files eg spreadsheets, and display (Adafruit tiny display or console). As dataconcentrator MySense will connect to other data concentrator in stead of collecting the data from sensors.
+
+MySense sensor kits can also be build as LoRa sensorkits as e.g. using Marvin LoRa, LoPy PyCom controllers with dust and meteo sensors. In this case the data will be forwarded to LoRa dataconcentrators as eg The Things Network. MySense in data concentrator mode has the possiblity to collect these measurments data from e.g. the TTN MQTT dataconcentrator.
+
 ## Goal
 Provide a generalised dynamic Open Source based infrastructure to allow:
 * environmental measurements with sensors
@@ -105,25 +109,39 @@ A working example of MySense script in todays operation:
     INPUT PLUGINs                   |        OUTPUT CHANNELS    GATEWAY/BROKER
                                   __|__
     DHT11/22-meteo ---GPIO---->| ///|\\\ |>- CSV                _____
-    GPS-locator ------RS232--->|=MySense=|>- console           ///|\\\  
+    GPS-locator --USB/Uart --->|=MySense=|>- console           ///|\\\  
     RSSI-wifi signal-strength >||  Pi3  ||>- MYSQL           |=MySense=|>-gspread
+                               ||Pi ZeroW|
     Dylos-dust -USB-- RS232--->||Stretch||>- Mosquitto pub-->|| Debian||>-MySQL
     Grove-loudness ---GPIO---->| \\\|/// |>- HTTP-Post       || Linux ||>-CSV
-    EMS280 -meteo ----I2C----->|    |    |>- email info      | \\\|/// |>-console
+    BME280 -meteo ----I2C----->|    |    |>- email info      | \\\|/// |>-console
     PPD42NS -dust-Arduino-USB->|    |    |>- InFlux publish  |         |>-InFlux pub
     Nova SDS011 -dust -USB --->|    |    |>- display SSD1306
     Plantower PMS7003 -USB --->|    |    |>- Google gspread (alpha, depricated)
     BME680 -meteo+gas--I2C --->|    |    |   (planned Dec 2017)
     Adafruit rain -------GPIO->|    |    |   (in develop Dec 2017)
-    O3,NO2,CO,H2S -SPECK--USB->|    |    |   (beta test Dec 2017)
-    NH3(Alpha)--SPECK-----USB->|    |    |   (planned Jan 2018)
-    LoRaWan (planned) -------->|    |    |>- broker? (planned)
-    Mosquitto sub ----server ->|    |    |>- LoRaWan (planned, TTN end of 2017)
+    O3,NO2,CO,H2S -SPEC --USB->|    |    |   (beta test Dec 2017)
+    NH3(Alpha)--SPEC -----USB->|    |    |   (planned Jan 2018)
+                               |    |    |    
+    LoRaWan (TTN MQTT) ------->|    |    |>- broker? (planned)
+    Mosquitto sub ----server ->|    |    |>- LoRaWan (planned, TTN)
     InFlux subscribe -server ->|    |    |>- Bluetooth (planned)
     LoRa TTN MQTT ----server ->|    |    |>- Luftdaten.info databases
                                     |
                                     |>-raw measurement values -> InFlux server or file
                                            calibration
+```
+
+MySense LoRa air quality measurement kit:
+```
+                                       |-- WiFi / BlueTooth
+                                    ___-__________
+    DHT11/22-meteo ---GPIO---->|   / Marvin        \
+    BME680 -meteo+gas--I2C --->|= <  LoPy         >|-LoRa TTN MQTT >-< MySense >
+    Nova SDS011 -dust -Uart -->|   \ ESP (planned) /
+    Plantower PMS7003 -Uart -->|    --------------
+                                       |
+                                       |> SSD1306 Adafruit display
 ```
 
 ## Configuration

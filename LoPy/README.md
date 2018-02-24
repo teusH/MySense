@@ -4,6 +4,11 @@ Operational: 2018/02/23
 ## DESCRIPTION
 The sensor kit is build with a LoPy-4 (PyCom) ESP controller. The controller has on board LoRa, WiFi and BlueTooth. Use an external LoRa Wan 868/915 LoRa antenna. The LoPy can be programmed via embedded python. To access the baord use the Atom (atom-beta) from PyCom. Atom is interfacing either via WiFi or serial (USB) connection to the controller.
 
+## PyCom programming
+Install *atom* (atom-beta) and pymkr from http://PyCom.com website.
+
+PyCom controller will try to run `/flash/boot.py' and `/flash/main.py`. If not you can interact via atom with the controller. In the directory `/flash`  your scripts will reside.
+
 ## MySense LoPy description
 The python script uses the Adafruit BME280 python module and SDS011 module from Rex Fue Feinstaub `https://github.com/rexfue/Feinstaub_LoPy` and Telenor weather station `https://github.com/TelenorStartIoT/lorawan-weather-station`.
 
@@ -17,7 +22,7 @@ sense.runMe()
 After this initial test rename sense.py to main.py. And upload main.py to the LoPy.
 
 ### how to reset the LoPy
-You can delete old firmware using the instruction by PyCom. Moslty you only need to delete all uploaded file as follows:
+You can delete old firmware using the instruction by PyCom. Usualy you only need to delete all uploaded file as follows:
 
 Use the reset button on the LoPy to get the atom prompt `>>>` and do the following:
 ```python
@@ -25,6 +30,22 @@ Use the reset button on the LoPy to get the atom prompt `>>>` and do the followi
     os.mkfs('/flash')
 ```
 And upload your new files.
+
+How to delete or enable previous firmware? Connect Pin P12 to 3V3: 1-3 sec (safe boot), 4-6 secs (previous user update selected), 7-9 secs (safe boot factory firmware).
+P2 - Gnd low level bootloader (needed to update factory firmware upgrade).
+
+### test PyCom controller
+The PyCom will initiate the wifi. Use Wifi AO with pass: www.pycom.io and telnet (192.168.4.1) access user/password micro/python.
+
+Make sure you have to upgrade the PyCom controller first. However upgrading LoPy-4 failed somehow.
+
+Simple test to silence the blue flashing, at the prompt `>>>`:
+```python
+    import pycom
+    pycom.heartbeat(False) # silence the blue flash
+    pycom.rgbled(0x99ff55) # some color
+    pycom.rgbled(0x000000) # led OFF
+```
 
 ## MySense LoPy status
 The console will print status as will the flashing led on the LoPy will flash different collors: red to establish LoRa connectivity, blue when LoRa is ready, green when measuremnts are arriving, and blue when data is sent, and white when SDS011 fan is turned off to save the fan and laser as well LoPy is in idle state. LoPy will send every 5 minutes (`sleep_time`) a measurement sample  to the TTN data concentrator.
