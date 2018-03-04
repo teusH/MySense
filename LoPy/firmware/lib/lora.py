@@ -40,8 +40,10 @@ class LORA(object):
     count = 0
     while not self.lora.has_joined():
       LED.blink(1, 2.5, 0xff0000)
+      if count > 20:
+        return False
       print("Trying to join: " ,  count)
-      count = count + 1
+      count += 1
 
     # Create a LoRa socket
     LED.blink(2, 0.1, 0x009900)
@@ -60,6 +62,7 @@ class LORA(object):
     self.s = socket.socket(socket.AF_LORA, socket.SOCK_RAW)
     self.s.setblocking(False)
     LED.off()
+    return True
 
   def send(self, data):
     """

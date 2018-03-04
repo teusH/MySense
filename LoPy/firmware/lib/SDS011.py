@@ -3,9 +3,13 @@ Created on 24 Apr 2017
 
 @author: rxf
 '''
+# comes from https://github.com/rexfue/Feinstaub_LoPy
+# $Id$
+
 from machine import  UART
 
 # read from UART1 V5,Gnd, SDS011/Rx - GPIO P3/Tx, SDS011/Tx - GPIO P4/Rx
+
 ser = UART(1,baudrate=9600)
 SDSisRunning = None
 
