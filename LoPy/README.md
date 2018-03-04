@@ -10,9 +10,9 @@ Install *atom* (atom-beta) and pymkr from http://PyCom.com website.
 PyCom controller will try to run `/flash/boot.py' and `/flash/main.py`. If not you can interact via atom with the controller. In the directory `/flash`  your scripts will reside.
 
 ## MySense LoPy description
-The python script uses the Adafruit BME280 python module and SDS011 module from Rex Fue Feinstaub `https://github.com/rexfue/Feinstaub_LoPy` and Telenor weather station `https://github.com/TelenorStartIoT/lorawan-weather-station`.
+The python script uses the Adafruit BME280 (I2C-bus) python module, SDS011 (Uart 1) module from Rex Fue Feinstaub `https://github.com/rexfue/Feinstaub_LoPy` and Telenor weather station `https://github.com/TelenorStartIoT/lorawan-weather-station` and SSD1306 (Adafruit tiny display SPI-bus).
 
-In the test phase one should not download main.py to the LoPy controller. Use `sense.py` in this phase instead.
+In the test phase one should not download main.py to the LoPy controller. Use `sense.py` in this phase instead and rename it to main.py later.
 Use (open) the directory `firmware` as base for the atom project and upload all file by pressing the upload key.
 On the console prompt `>>>` use the following:
 ```python
@@ -20,6 +20,9 @@ import sense
 sense.runMe()
 ```
 After this initial test rename sense.py to main.py. And upload main.py to the LoPy.
+
+## I2C bus errors
+The I2C together with SPI will cause I2C bus errors. After using the SPI SSD1306 display before the I2C bus can be used initialize the I2C bus first.
 
 ### how to reset the LoPy
 You can delete old firmware using the instruction by PyCom. Usualy you only need to delete all uploaded file as follows:
@@ -54,6 +57,8 @@ The console will print status as will the flashing led on the LoPy will flash di
 Orientate the LoPy with the flash light up (if you use the recommanded development shield the small USB connecter will be on top). The name `pycom lopy` will face to the left side. The left side pins are numbererd top down as RST, P0, P1 ,...,P12.
 The right side pins top down are numbered as: Vin V3.3/V5, Gnd, 3V3, P23, P22, ..., P13.
 
+<img src="images/LoPy-wring-BME-SDS-SSD.png" align=right width=200>
+
 SDS011 TTL Uart connection:
 * SDS Gnd (black) -> LoPy Gnd (on right side 2nd pin, same pin as for BME)
 * SDS V5 (red) -> LoPy V5 (on right side, top pin)
@@ -65,6 +70,15 @@ BME280 I2C  connection (default I2C address):
 * BME V3/5 (red) -> LoPy 3V3 (on right side, 3rd pin from top)
 * BME SDA (white) -> LoPy SDA (on left side, 11th pin from top)
 * BME SCL (yellow) -> LoPy CLK (on left side, 12th pin from top)
+
+SSD1306 SPI connection (using GPIO pins):
+* SSD CS (blue) -> LoPi P22
+* SSD DC (purple) -> LoPy P20
+* SSD RST (gray) -> LoPy P21
+* SSD D1 (white) -> LoPy P23
+* SSD D0 (orange) -> LoPy P19
+* SSD VCC (red) -> LoPy 3V3 (shared with BME280)
+* SSD GND (black) -> LoPy Gnd (on right side, same pin as for SDS)
 
 ## To Do
 Add ssd1306 display, add GPS
