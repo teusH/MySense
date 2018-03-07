@@ -1,4 +1,5 @@
 # LoPy BME280/SDS011 MySense sensor kit
+<img src="images/SDS011-BME280-SSD1306.png" align=right width=150>
 Operational: 2018/02/23
 
 ## DESCRIPTION
