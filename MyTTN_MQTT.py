@@ -846,8 +846,9 @@ def getdata():
             MyLogger.log(modulename,'FATAL','Subscription failed Mid: %s. Aborted.' % e)
         ErrorCnt += 1
         MyLogger.log(modulename,'WARNING','Subscription is failing Mid: %s. Slowing down.' % e)
+        return getdata()
     if (len(msg['topic']) < 3) or (msg['topic'][1] != Conf['topic']) or (not type(msg['payload']) is dict) or (not 'dev_id' in msg['payload'].keys()):
-        MyLogger.log(modulename,'ERROR','Received an unknow record %s' % str(msg))
+        MyLogger.log(modulename,'ERROR','Received an unknown record %s' % str(msg))
         sleep(0.1)
         return getdata()
     msg['AppId'] = msg['topic'][0]
