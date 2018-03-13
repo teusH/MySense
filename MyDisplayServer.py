@@ -72,7 +72,7 @@ class DisplayThread(object):
             self.conf['addLine'] = self.SSD1306.addLine
         except:
             self.logger.fatal("Display error for SSD1306 type %s size %s." %(conf['display'][0],conf['display'][1]))
-            raise ValueError("Unknow SSD1306 type/size")
+            raise ValueError("Unknown SSD1306 type/size")
 
     def start(self):
         threading.Thread(target = self.SSD1306.Show,args = (self.lock,self.conf)).start()
