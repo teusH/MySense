@@ -1,7 +1,7 @@
 <img src="images/MySense-logo.png" align=right width=100>
-# PyCom LoPy or WiPy  BME280/BME680 SDS011/PMS7003 GPS  MySense sensor kit
 
-Simple low cost (€150) satelites sensor kits.
+# PyCom LoPy or WiPy  BME280/BME680 SDS011/PMS7003 GPS  MySense sensor kit
+Simple low cost (€150) satellites sensor kits.
 In beta development: 2018/02/23
 LoRa sensor kit is operational.
 
