@@ -131,14 +131,17 @@ A working example of MySense script in todays operation:
                                     |>-raw measurement values -> InFlux server or file
                                            calibration
 ```
+<img src="images/PVC-luchtpijpcase.png" height=150>
+<img src="images/SDS011-BME280-SSD1306.png" height=150>
 
 MySense LoRa air quality measurement kit:
 ```
                                        |-- WiFi / BlueTooth
                                     ___-__________
     DHT11/22-meteo ---GPIO---->|   / Marvin        \
-    BME680 -meteo+gas--I2C --->|= <  LoPy         >|-LoRa TTN MQTT >-< MySense >
-    Nova SDS011 -dust -Uart -->|   \ ESP (planned) /
+    BME680 -meteo+gas--I2C --->|= <  PyCom LoPy     >|-LoRa TTN MQTT >-< MySense >
+                                   | PyCom WiPy    |                 
+    Nova SDS011 -dust -Uart -->|   \ ESP           /
     Plantower PMS7003 -Uart -->|    --------------
                                        |
                                        |> SSD1306 Adafruit display
