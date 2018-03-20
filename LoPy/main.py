@@ -1,2 +1,0 @@
-import sense
-sense.runMe()
