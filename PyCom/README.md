@@ -1,8 +1,9 @@
 # LoPy BME280/SDS011 MySense sensor kit
-<img src="images/PVC-luchtpijpcase.png" align=right height=150>
-<img src="images/SDS011-BME280-SSD1306.png" align=right height=150>
+
 In development: 2018/02/23
 LoRa part is operational.
+<img src="images/PVC-luchtpijpcase.png" align=right height=150>
+<img src="images/SDS011-BME280-SSD1306.png" align=left height=150>
 
 ## DESCRIPTION
 The sensor kits are build with PyCom (loPy-4 and WiPy-3) ESP controllers and PyCom expansion board.
