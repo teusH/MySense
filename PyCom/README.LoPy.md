@@ -1,10 +1,9 @@
 ## LoPy-4 BME/SDS wiring
-<img src="images/LoPy-wring-BME-SDS-SSD.png" align=right width=150>
 
 Orientate the LoPy with the flash light up (if you use the recommanded development shield the small USB connecter will be on top). The name `pycom lopy` will face to the left side. The left side pins are numbererd top down as RST, P0, P1 ,...,P12.
 The right side pins top down are numbered as: Vin V3.3/V5, Gnd, 3V3, P23, P22, ..., P13.
 
-<img src="images/LoPy-wring-BME-SDS-SSD.png" align=right width=200>
+<img src="images/LoPy-wring-BME-SDS-SSD.png" align=right width=400>
 
 SDS011 TTL Uart connection:
 * SDS Gnd (black) -> LoPy Gnd (on right side 2nd pin, same pin as for BME)
