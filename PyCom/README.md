@@ -1,12 +1,14 @@
-# LoPy BME280/SDS011 MySense sensor kit
+<img src="images/MySense-logo.png" align=right width=100>
+# PyCom LoPy or WiPy  BME280/BME680 SDS011/PMS7003 GPS  MySense sensor kit
 
-In development: 2018/02/23
-LoRa part is operational.
-<img src="images/PVC-luchtpijpcase.png" align=right height=150>
-<img src="images/SDS011-BME280-SSD1306.png" align=left height=150>
+Simple low cost (€150) satelites sensor kits.
+In beta development: 2018/02/23
+LoRa sensor kit is operational.
 
 ## DESCRIPTION
 The sensor kits are build with PyCom (loPy-4 and WiPy-3) ESP controllers and PyCom expansion board.
+<img src="images/PVC-luchtpijpcase.png" align=left height=150>
+<img src="images/SDS011-BME280-SSD1306.png" align=right height=150>
 The controller has on board WiFi, BlueTooth and for LoPy LoRa. Use an external LoRa Wan 868/915 LoRa antenna on the LoPy.
 The PyCom controller can be programmed via embedded micropython.
 To access the board use the Atom (atom-beta) with the makr plugin.
