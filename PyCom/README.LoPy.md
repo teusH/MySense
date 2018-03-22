@@ -27,7 +27,7 @@ SSD1306 SPI connection (using GPIO pins):
 * SSD GND (black) -> LoPy Gnd (on right side, same pin as for SDS)
 
 ## To Do
-Add ssd1306 display, add GPS
+remote command handling
 
 ## TTN how to
 You need to set up an account and password with The Things Network: https://thethingsnetwork.org/
@@ -44,6 +44,13 @@ app_key = "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
 If you want to access (and you want to do that during tests) the TTN MQTT server you need to write down the App ID (NAME_APPLICATION) and Access Key (bottom of the App Id page).
 
 If the LoPy sensor kit is running you
+
+## LoRa test
+Use the script `lora_test.py` to test your configuration and LoRa connectivity.
+```python
+    >>>import lora_test # this will send MySense info and MySense data
+```
+
 ### TTN how to configure TTN decode to json MQTT
 TTN data formats, decoder example.
 Test this with payload: 02 02 01 04 03 FE 00 32 00 2E
@@ -91,3 +98,12 @@ The json string from the server, something like:
             "latitude":15.40283,"longitude":2.15341,"altitude":230}
     ]}}
 ```
+
+### LoRa port usage
+The LoRa connect routine supports to open more ports as the default LoRa port 2. Use the argument: `ports=3` to open 3 ports. The LoRa send routine supports an argument to discriminate to which port to send the payload.
+Currently ports used by MySense:
+* port 2 (default) to send measurement data: PM2.5, PM10, temp, humidity, pressure
+* port 3 sensor kit information: used sensors and location (GPS)
+* port 4 measurement data: PM1, PM2.5,PM10, temp, humidity, pressure, air quality index
+
+The LoRa implementation supports to collect data sent to the sensor kit. Define the argument `callback=commandRoutine` on the connect initialisation. The callback rooutin on reception of data on any LoRa port will be called as: `commandRoutine(port,receieved_data)`. See lora_test.py for examples. 
