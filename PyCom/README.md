@@ -1,7 +1,7 @@
 <img src="images/MySense-logo.png" align=right width=100>
-
 # PyCom LoPy or WiPy  BME280/BME680 SDS011/PMS7003 GPS  MySense sensor kit
-Simple low cost (€150) satellites sensor kits.
+
+Simple low cost (€150) satelites sensor kits.
 In beta development: 2018/02/23
 LoRa sensor kit is operational.
 
@@ -25,7 +25,7 @@ Push and keep it pushed the *user* button on the expansion board first and while
 
 In the PyCom folder you will see some main scripts. The libraries for the sensor modules are in the lib folder. Copy the main scripts to the 'LoRa/firmware' directory, as well the needed libraries (see the statement *import* in the used scripts) to the *lib* directory. Point *atom* as new project to the configured *firmware* directory and press 'sync' or 'reload' button to load the files into the PyCom controller.
 
-## MySense modules
+## tested MySense modules
 Choose one meteo and one dust sensor: MySense modules in development are:
 * BME280 meteo: temp, humidity and pressure on I2C bus
 * BME680 meteo: temp, humidity, pressure and air quality on I2C bus
@@ -34,8 +34,14 @@ Choose one meteo and one dust sensor: MySense modules in development are:
 * GPS location: UART TTL (no USB)
 * SSD1306 tiny oled display: 128X64 pixels on GPIO bus or I2C bus.
 
+## MySense satellite kit configuration
+Use the file `Config.py` to define which sensors are configured for the kit. Have a good look at the *pin*s definitions and bus used for the sensor. The `Config.py` file should reside in the *firmware* directory in order to upload it to the controller.
+
+Do not change the order in the `Meteo` and `Dust` array definition!
+
 ## Testing hardware
-MySense has provided several simple XYZ_test.py python sripts to test the sensor modules for needed libraries and check of wiring. Make sure to configure the right pin ID's in the scripts.
+MySense has provided several simple XYZ_test.py python sripts to test the sensor modules for needed libraries and check of wiring.
+Make sure to configure the right pin ID's in `Config.py` configuration file for the test scripts.
 
 ## MySense scripts
 The main micropython script which drives the sensor kit is `sense.py`. Use `main.py` to import sense.py and run `sense.runMe()` to run the kit.
