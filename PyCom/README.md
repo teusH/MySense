@@ -49,6 +49,25 @@ Make sure to configure the right pin ID's in `Config.py` configuration file for 
 
 Test your setup one by one before trying out the main wrapper `sense.py` via *sense.runMe()* or `main.py`.
 
+## Your First Steps
+* visit the PyCom.io website and follow the installation guide
+The following is an outline how we do the developments and module testing:
+* Add the expansion board to the PyCom LoPy or WiPy module. Make sure about the orientations.
+* hook up the module (USB or via wifi) to your desktop and upgrade the firmware.
+* disconnect the expansion/PyCom module from power and only wire up one module.
+* copy the dependent XXX_test.py, Config.py and library module XXX.py to resp. XxPy/firmware and XxPy/firmware/lib.
+* adjust the Config.py for the right pin setup wiring.
+* Click on the *Upload* button of atom to load the scripts into the PyCom module.
+* fireup XXX_test as follows:
+```python
+>>>import XXX_test
+```
+* if not successfully enter the statements of XXX_test.py one by one via atom REPL.
+
+* on success do the next module wiring and test.
+* on success try out `sense.py` and finally install `main.py`
+* and give feedback
+
 ## MySense scripts
 The main micropython script which drives the sensor kit is `sense.py`. Use `main.py` to import sense.py and run `sense.runMe()` to run the kit.
 
@@ -104,3 +123,6 @@ See for examples of wiring the `README.LopY.md` (LoRaWan TTN, BME280, SDS011 and
 ## To Do
 Add more sensor modules. The Shiney PPD42NS (unreliable and too much errors), DHT22 and DHT11 (too much peaks and outdoor time to live too short) meteo sensor are depricated.
 Note: The Plantower PMS7003 is much smaller and consumes less energy as the Nova SDS011 (has a nice air inlet).
+
+## Licensing
+If not noted the scripts and changes to external scripts are GPL V3.
