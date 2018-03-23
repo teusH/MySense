@@ -7,7 +7,7 @@ LoRa sensor kit is operational.
 
 ## DESCRIPTION
 The sensor kits are build with PyCom (loPy-4 and WiPy-3) ESP controllers and PyCom expansion board.
-<img src="images/PVC-luchtpijpcase.png" align=left height=150>
+<img src="images/PVC-luchtpijpcase.png" align=right height=150>
 <img src="images/SDS011-BME280-SSD1306.png" align=right height=150>
 The controller has on board WiFi, BlueTooth and for LoPy LoRa. Use an external LoRa Wan 868/915 LoRa antenna on the LoPy.
 The PyCom controller can be programmed via embedded micropython.
@@ -34,14 +34,20 @@ Choose one meteo and one dust sensor: MySense modules in development are:
 * GPS location: UART TTL (no USB)
 * SSD1306 tiny oled display: 128X64 pixels on GPIO bus or I2C bus.
 
+## RTC clock
+MySense will use GPS to initilyse the Real Time Clock module. Every time the GPS location is looked up the RTC clock will be updated automatically.
+This will allow MySense to timestamp measurments more precise.
+
 ## MySense satellite kit configuration
 Use the file `Config.py` to define which sensors are configured for the kit. Have a good look at the *pin*s definitions and bus used for the sensor. The `Config.py` file should reside in the *firmware* directory in order to upload it to the controller.
 
 Do not change the order in the `Meteo` and `Dust` array definition!
 
 ## Testing hardware
-MySense has provided several simple XYZ_test.py python sripts to test the sensor modules for needed libraries and check of wiring.
+MySense has provided several simple XYZ_test.py python scripts to test the sensor modules for needed libraries and check of wiring.
 Make sure to configure the right pin ID's in `Config.py` configuration file for the test scripts.
+
+Test your setup one by one before trying out the main wrapper `sense.py` via *sense.runMe()* or `main.py`.
 
 ## MySense scripts
 The main micropython script which drives the sensor kit is `sense.py`. Use `main.py` to import sense.py and run `sense.runMe()` to run the kit.
@@ -90,5 +96,11 @@ Simple test to silence the blue flashing, at the prompt `>>>`:
 The console will print status as will the flashing led on the LoPy will flash different collors: red to establish LoRa connectivity, blue when LoRa is ready, green when measuremnts are arriving, and blue when data is sent, and white when SDS011 fan is turned off to save the fan and laser as well LoPy is in idle state. LoPy will send every 5 minutes (`sleep_time`) a measurement sample  to the TTN data concentrator.
 
 ## controller wiring
+
+<img src="images/PyCom-wiring-BME-SDS-PMS-SSD-GPS.png" align=center height=250>
+
 See for examples of wiring the `README.LopY.md` (LoRaWan TTN, BME280, SDS011 and SSD1306) or `README.WiPy.md` (wifi MQTT, BME680, PMS7003, SSD1306) readme's.
 
+## To Do
+Add more sensor modules. The Shiney PPD42NS (unreliable and too much errors), DHT22 and DHT11 (too much peaks and outdoor time to live too short) meteo sensor are depricated.
+Note: The Plantower PMS7003 is much smaller and consumes less energy as the Nova SDS011 (has a nice air inlet).
