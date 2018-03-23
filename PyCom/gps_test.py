@@ -4,6 +4,23 @@ from time import sleep_ms, ticks_ms
 # dflt pins=(Tx-pin,Rx-pin): wiring Tx-pin -> Rx GPS module
 # default UART(port=1,baudrate=9600,timeout_chars=2,pins=('P3','P4'))
 
+try:
+  from Config import useGPS
+except:
+  useGPS = 1
+
+try:
+  from Config import G_Tx, G_Rx
+except:
+  useGPS = 0
+
+if not useGPS:
+  raise OSError("GPS not configured")
+elif useGPS == 1:
+  G_Tx = 'P3'
+  G_Rx = 'P4'
+print('Using UART %d: GPS Rx -> pin %s, Tx -> pin %s' % (useGPS,G_Tx,G_Rx))
+
 last_read = 0
 def readCR(serial):
   global last_read
@@ -21,13 +38,23 @@ def readCR(serial):
   last_read = ticks_ms()
   return line.strip()
 
-simple = False
 try:
-  if not simple:
+    print("test GPS raw:")
+    ser = UART(useGPS,baudrate=9600,timeout_chars=80,pins=(G_Tx,G_Rx))
+    for cnt in range(10):
+      try:
+        x=readCR(ser)
+      except:
+        print("Cannot read GPS data")
+        break
+      print(x)
+      sleep_ms(200)
+      
+    print("test using GPS Dexter:")
     import GPS_dexter as GPS
     # UART Pins pins=(Tx,Rx) default Tx=P3 and Rx=P4
-    gps = GPS.GROVEGPS(port=2,baud=9600,debug=False,pins=('P11','P12'))
-    for cnt in range(25):
+    gps = GPS.GROVEGPS(port=useGPS,baud=9600,debug=False,pins=(G_Tx,G_Rx))
+    for cnt in range(10):
       data = gps.MyGPS()
       if data:
         print(data)
@@ -38,23 +65,12 @@ try:
         gps.debug = True
       sleep_ms(5000)
 
-  else:
-    ser = UART(2,baudrate=9600,timeout_chars=80,pins=('P11','P12'))
-    for cnt in range(25):
-      try:
-        x=readCR(ser)
-      except:
-        print("Cannot read GPS data")
-        break
-      print(x)
-      sleep_ms(200)
-
 except:
-  print("Unable to open GPS on port 2")
+    print("Unable to get GPS data  on port %s" % useGPS)
 
 
 
-# output something like
+# raw  GPS output something like
 '''
 $GPGGA,001929.799,,,,,0,0,,,M,,M,,*4C
 $GPGSA,A,1,,,,,,,,,,,,,,,*1E
