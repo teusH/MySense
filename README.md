@@ -8,12 +8,7 @@ Software Infrastructure or framework for managing environmental sensors and data
 
 ### MySense Raspberry Pi controller
 
-<div style='vertical-align: top; clear: both'>
-<figure>
-<img src="images/MySenseCase-Pi.png" align=right height=200>
-<br />MySense Pi sensor kits
-</figure>
-</div>
+<img src="images/MySenseCase-Pi.png" align=right height=100>
 MySense is able to act as *air quality measurement kit* or *node broker*. As measurement kit MySense will collect measurements from dust, gas and/or gas sensors and location sensor and forward the data to external data concentrators (databases as well data broker as eg mosquitto and influx), files eg spreadsheets, and display (Adafruit tiny display or console). As dataconcentrator MySense will connect to other data concentrator in stead of collecting the data from sensors.
 
 The controller is based on Raspberry Pi for functionality and easy block building reasons.
@@ -24,13 +19,8 @@ Visual feedback is provided with led/button (power On/Off) and optionally a tiny
 
 ### MySense Marvin or PyCom controller
 
-<div style='vertical-align: top; clear: both'>
-<figure>
 <img src="PyCom/images/PVC-luchtpijpcase.png" align=right height=100>
 <img src="PyCom/images/SDS011-BME280-SSD1306.png" align=right height=100>
-<br />MySense Marvin and PyCom LoRa sensor kits
-</figure>
-</div>
 MySense sensor kits can also be build as *air quality satellite* sensorkits. E.g. using Marvin LoRa, LoPy or WiPy PyCom controllers with GPS, dust and meteo sensors. In this case the data will be forwarded to LoRa dataconcentrators as eg The Things Network or Mosquitto server.
 
 MySense in data concentrator mode has the possiblity to collect these measurements data from e.g. the TTN MQTT dataconcentrator.
@@ -183,6 +173,7 @@ MySense LoRa air quality measurement kit:
 LoRa TTN is also used e.g. to change sample timings or to force information (e.g. location) to be send from the sensor kit.
 
 ## Configuration
+### Configuration of MySense Pi
 See `MySense.conf.example for an example of `MySense.conf`.
 
 Use for configuration of plugins/outputchannels the `section` (plugin name in lowercase) and section options.
@@ -190,6 +181,9 @@ The option `input = True or False` and `output = T/F` will define resp input plu
 to be imported and to be switched on or off.
 Input plugins as for gas and dust (particle counts) will have a configurable sample time (time to get vales) and interval time (time (interval minus sample) to wait before the next sample).
 The MySense main loop has an own `interval` time within input plugin sensor values will be collected (sliding average from sample values) and push values to output channels.
+
+### Configuration of MySense MyCom (LoPy or WiPy)
+See for an example the file `Config.py`. Make sure useXXX and the *pins* are defined and wired correctly.
 
 ## Interaction data format
 Interaction with plugins and output channels is done in json datastructure:
