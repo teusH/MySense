@@ -1,7 +1,7 @@
 <img src="images/MySense-logo.png" align=right width=100>
 
 # MySense
-Last update of the README on 2nd Sept 2017
+Last update of the README on 24th March 2018
 
 ## Description
 Software Infrastructure or framework for managing environmental sensors and data aquisition
@@ -84,8 +84,9 @@ The `@reboot /home/ios/MySense/MyStart.sh` in the ios crontab table will automat
 
 <div style='vertical-align: top; clear: both'>
 <img src="images/MySense-2-kast.png" align=left height=100>
-The sensor kit case is build from PVC roof gutter pieces: gutter end pieces for keeping the air in and the rain out, and overflow gutter box as casing.
-The case has a poweroff button and small window to show a tiny display with current measurements. The senors are fixated on a Lego plate to allow flexibility of sensor changes.
+The main sensor kit case carrying the Raspberry Pi and all sensor/GPS modules is build from PVC roof gutter pieces: gutter end pieces for keeping the air in and the rain out, and overflow gutter box as casing.
+The case has a poweroff button and small window to show a tiny display with current measurements.
+The sensors are fixated on a Lego plate to allow flexibility of sensor changes.
 </div>
 See for a How To: README.case.md
 <p>
@@ -133,7 +134,7 @@ A working example of MySense script in todays operation:
           remote access             |  INTERNET (wired/wifi, wifi-G3/4 mobile)
           syst.mgt.     webmin -----||_ wifi AP -- webmin/ssh system mgt
                     ssh tunnel -----|
-            Remot3 (Weaved)IoT -----|
+   TeamView/Remot3 (Weaved)IoT -----|
                                     |
                                     |    
     INPUT PLUGINs                   |        OUTPUT CHANNELS    GATEWAY/BROKER
@@ -145,13 +146,13 @@ A working example of MySense script in todays operation:
     Dylos-dust -USB-- RS232--->||Stretch||>- Mosquitto pub-->|| Debian||>-MySQL
     Grove-loudness ---GPIO---->| \\\|/// |>- HTTP-Post       || Linux ||>-CSV
     BME280 -meteo ----I2C----->|    |    |>- email info      | \\\|/// |>-console
-    PPD42NS -dust-Arduino-USB->|    |    |>- InFlux publish  |         |>-InFlux pub
-    Nova SDS011 -dust -USB --->|    |    |>- display SSD1306
-    Plantower PMS7003 -USB --->|    |    |>- Google gspread (alpha, depricated)
-    BME680 -meteo+gas--I2C --->|    |    |   (planned Dec 2017)
-    Adafruit rain -------GPIO->|    |    |   (in develop Dec 2017)
-    O3,NO2,CO,H2S -SPEC --USB->|    |    |   (beta test Dec 2017)
-    NH3(Alpha)--SPEC -----USB->|    |    |   (planned Jan 2018)
+    BME680 -meteo+gas--I2C --->|    |    |                   | server  |
+    PPD42NS -dust-Arduino-USB->|    |    |>- InFlux publish  |_________|>-InFlux pub
+    Nova SDS011 -dust -USB --->|    |    |>- Oled display SSD1306 (SPI/I2C)
+    Plantower PMS7003 -USB --->|    |    |>- Google gspread (alpha, deprecated)
+    Adafruit rain -------GPIO->|    |    |   (in develop Jul 2018)
+    O3,NO2,CO,H2S -SPEC --USB->|    |    |   (beta test April 2018)
+    NH3(Alpha)--SPEC -----USB->|    |    |   (planned Jun 2018)
                                |    |    |    
     LoRaWan (TTN MQTT) ------->|    |    |>- broker? (planned)
     Mosquitto sub ----server ->|    |    |>- LoRaWan (planned, TTN)
@@ -166,16 +167,20 @@ A working example of MySense script in todays operation:
 
 MySense LoRa air quality measurement kit:
 ```
-                                       |-- WiFi / BlueTooth
+          Arduino/Atom/Makr WiFi/USB --|-- WiFi / BlueTooth
                                     ___-__________
     DHT11/22-meteo ---GPIO---->|   / Marvin        \
     BME680 -meteo+gas--I2C --->|= <  PyCom LoPy     >|-LoRa TTN MQTT >-< MySense >
-                                   | PyCom WiPy    |                 
+    BME280 - meteo ----I2C --->|   | PyCom WiPy    |
+                                   |               |                 
     Nova SDS011 -dust -Uart -->|   \ ESP           /
     Plantower PMS7003 -Uart -->|    --------------
+    Grove GPS ---------Uart -->|
+    commands - LoRA TTN     -->|       |
                                        |
                                        |> SSD1306 Adafruit display
 ```
+LoRa TTN is also used e.g. to change sample timings or to force information (e.g. location) to be send from the sensor kit.
 
 ## Configuration
 See `MySense.conf.example for an example of `MySense.conf`.
