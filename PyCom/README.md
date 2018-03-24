@@ -18,7 +18,12 @@ The goal is to use the PyCom ESP as controller for MySense sensor satallite kits
 The hardware costs for such a sensor kit (controller+dust:meteo+gps+V220 case+adapter) is around €150.
 
 ## PyCom programming
+The PyCom boards are using MicroPython (see http://docs.micropython.org/en/latest/pyboard/).
+MicroPython is an embedded Python 3 alike scripting language.
+
+### How to interact with the PyCom board?
 Install *atom* (atom-beta) and pymkr from e.g. http://PyCom.com website.
+Or use an alternative *rshell* (Python 3 tool)from: https://github.com/dhylands/rshell. Read the rshell README file how one can use this command line tool to upload, download and use REPL.
 
 The PyCom controller will run on power ON `/flash/boot.py' and `/flash/main.py`. If not you can interact via atom with the controller. In the directory `/flash` ('home' directory) your scripts should reside.
 Push and keep it pushed the *user* button on the expansion board first and while pushing push the *reset* button on the controller will reboot the controller but will not run boot.py as well main.py. The other way is to press <cntrl>C on the keypboard (keyboard interrupt).
