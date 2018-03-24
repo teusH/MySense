@@ -6,9 +6,38 @@ Last update of the README on 2nd Sept 2017
 ## Description
 Software Infrastructure or framework for managing environmental sensors and data aquisition
 
-MySense is able to act as *air quality measurement kit* or *node broker*. As measurement kit MySense will collect measurements from sensors and forward the data to external data concentrators (databases as well data broker as eg mosquitto and influx), files eg spreadsheets, and display (Adafruit tiny display or console). As dataconcentrator MySense will connect to other data concentrator in stead of collecting the data from sensors.
+### MySense Raspberry Pi controller
 
-MySense sensor kits can also be build as LoRa sensorkits as e.g. using Marvin LoRa, LoPy PyCom controllers with dust and meteo sensors. In this case the data will be forwarded to LoRa dataconcentrators as eg The Things Network. MySense in data concentrator mode has the possiblity to collect these measurments data from e.g. the TTN MQTT dataconcentrator.
+<div style='vertical-align: top; clear: both'>
+<figure>
+<img src="images/MySenseCase-Pi.png" align=right height=200>
+<br />MySense Pi sensor kits
+</figure>
+</div>
+MySense is able to act as *air quality measurement kit* or *node broker*. As measurement kit MySense will collect measurements from dust, gas and/or gas sensors and location sensor and forward the data to external data concentrators (databases as well data broker as eg mosquitto and influx), files eg spreadsheets, and display (Adafruit tiny display or console). As dataconcentrator MySense will connect to other data concentrator in stead of collecting the data from sensors.
+
+The controller is based on Raspberry Pi for functionality and easy block building reasons.
+The bus used for sensors are: USB (serial and I2C), GPIO (SPI) and I2C.
+The scripts are written in Python 2.
+
+Visual feedback is provided with led/button (power On/Off) and optionally a tiny Oled display from Adafruit.
+
+### MySense Marvin or PyCom controller
+
+<div style='vertical-align: top; clear: both'>
+<figure>
+<img src="PyCom/images/PVC-luchtpijpcase.png" align=right height=100>
+<img src="PyCom/images/SDS011-BME280-SSD1306.png" align=right height=100>
+<br />MySense Marvin and PyCom LoRa sensor kits
+</figure>
+</div>
+MySense sensor kits can also be build as *air quality satellite* sensorkits. E.g. using Marvin LoRa, LoPy or WiPy PyCom controllers with GPS, dust and meteo sensors. In this case the data will be forwarded to LoRa dataconcentrators as eg The Things Network or Mosquitto server.
+
+MySense in data concentrator mode has the possiblity to collect these measurements data from e.g. the TTN MQTT dataconcentrator.
+The bus used for sensors are: UART (serial), I2C and GPIO.
+The scripts are written in (embedded) micro Python. Micro python has more functionality as the language C used with Arduino boards.
+
+Visual feedback is provided with RGB led and optional a tiny Oled display from Adafruit.
 
 ## Goal
 Provide a generalised dynamic Open Source based infrastructure to allow:
@@ -21,6 +50,7 @@ Provide a generalised dynamic Open Source based infrastructure to allow:
 * free availability of all software (GPLV4 license)
 
 <div style='vertical-align: top; clear: both'>
+<figure>
 <img src="images/MySense-kit-1.png" align=left height=200>
 <img src="images/MySense-kit-2.png" height=200>
 <br />MySense sensor kits examples
