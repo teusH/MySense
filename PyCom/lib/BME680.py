@@ -391,7 +391,7 @@ class Adafruit_BME680:
         raise NotImplementedError()
 
 
-class Adafruit_BME680_I2C(Adafruit_BME680):
+class BME_I2C(Adafruit_BME680):
     """Driver for I2C connected BME680."""
     def __init__(self, i2c, address=0x77, debug=False, raw=False, calibrate=None):
         """Initialize the I2C device at the 'address' given"""
