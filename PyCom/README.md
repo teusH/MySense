@@ -17,6 +17,13 @@ Atom is interfacing either via WiFi (192.168.4.1) or serial (USB) connection to 
 The goal is to use the PyCom ESP as controller for MySense sensor satallite kits. Measuring dust, rel. humidity and GPS to forward this to Mosquitto database (WiFi) or LoRa data concentrator. From which the MySense configured as proxy can pick up sensor data to the MySense databases.
 The hardware costs for such a sensor kit (controller+dust:meteo+gps+V220 case+adapter) is around €150.
 
+The LoRa MySense part is supporting remote control via TTN. The following remote commands are supported yet:
+* '?': send version, configuration and location details to TTN MQTT server
+* 'O': switch the oled display if present OFF (dflt ON)
+* 'S': stop processing (to do: put node to deep sleep)
+* 'i'-value : change the sample interval time to value seconds (dflt: 5 minutes)
+* to be extended
+
 ## PyCom programming
 The PyCom boards are using MicroPython (see http://docs.micropython.org/en/latest/pyboard/).
 MicroPython is an embedded Python 3 alike scripting language.
@@ -30,7 +37,15 @@ Push and keep it pushed the *user* button on the expansion board first and while
 
 In the PyCom folder you will see some main scripts. The libraries for the sensor modules are in the lib folder. Copy the main scripts to the 'LoRa/firmware' directory, as well the needed libraries (see the statement *import* in the used scripts) to the *lib* directory. Point *atom* as new project to the configured *firmware* directory and press 'sync' or 'reload' button to load the files into the PyCom controller.
 
-## tested MySense modules
+## MySense satellite sensor kits
+The MySense satellite sensor kits are less powerfull and build around the Marvin and PyCom ESP controllers.
+The PyCom scripts have the following structure: 
+* sensor module scripts which reside in the lib folder
+* Config.py which describes which module is used and how it is wired. It is used by the other scripts
+* sensor test scripts named as {meteo,dust,gps,ssd1306}_test.py for testing the harware
+* the main script *MySense.py* for operational use.
+
+### tested MySense sensor modules
 Choose one meteo and one dust sensor: MySense modules in development are:
 * BME280 meteo: temp, humidity and pressure on I2C bus
 * BME680 meteo: temp, humidity, pressure and air quality on I2C bus
@@ -38,17 +53,19 @@ Choose one meteo and one dust sensor: MySense modules in development are:
 * SDS011 dust: PM2.5 and PM10 on UART TTL (no USB)
 * GPS location: UART TTL (no USB)
 * SSD1306 tiny oled display: 128X64 pixels on GPIO bus or I2C bus.
+* LoRaWan: using TTN
+* MQTT: not implemented yet
 
-## RTC clock
+### RTC clock
 MySense will use GPS to initilyse the Real Time Clock module. Every time the GPS location is looked up the RTC clock will be updated automatically.
 This will allow MySense to timestamp measurments more precise.
 
-## MySense satellite kit configuration
+### MySense satellite kit configuration
 Use the file `Config.py` to define which sensors are configured for the kit. Have a good look at the *pin*s definitions and bus used for the sensor. The `Config.py` file should reside in the *firmware* directory in order to upload it to the controller.
 
 Do not change the order in the `Meteo` and `Dust` array definition!
 
-## Testing hardware
+### Testing hardware
 MySense has provided several simple XYZ_test.py python scripts to test the sensor modules for needed libraries and check of wiring.
 Make sure to configure the right pin ID's in `Config.py` configuration file for the test scripts.
 
