@@ -22,6 +22,8 @@ The LoRa MySense part is supporting remote control via TTN. The following remote
 * 'O': switch the oled display if present OFF (dflt ON)
 * 'S': stop processing (to do: put node to deep sleep)
 * 'i'-value : change the sample interval time to value seconds (dflt: 5 minutes)
+* 'd' or 'D': turn dust sensor calibration OFF or ON
+* 'm' or 'M': turn meteo sensor calibration OFF or ON
 * to be extended
 
 ## PyCom programming
