@@ -1,7 +1,10 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.1 2018/03/28 15:11:27 teus Exp teus $
+# $Id: MySense.py,v 1.2 2018/03/29 10:08:58 teus Exp teus $
 #
+__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__license__ = 'GPLV4'
+
 try:
   from Config import Network
 except:
@@ -163,13 +166,18 @@ if useMeteo:
       useMeteo = BME280(i2c=i2c[S_ID],address=0x76)
     elif meteo == 4: # BME680
       import BME680
+      try:
+        from Config import M_gBase
+      except:
+        M_gBase = None
       useMeteo = BME680.Adafruit_BME680_I2C(i2c[S_ID], address=0x76, debug=False)
       display('AQI wakeup',0,16,False)
-      if useMeteo._gasBase: display('          ',0,0,16)
+      useMeteo.gas_base = M_gBase
+      if useMeteo._gasBase: display('          ',0,16,False)
       # useMeteo.sea_level_pressure = 1011.25
   except Exception as e:
     useMeteo = None
-    display("%s setup error" % Meteo[meteo], 5, 16, False)
+    display("%s setup error" % Meteo[meteo], 0, 16, False)
     print(e)
 if useMeteo: display('meteo: %s' % Meteo[meteo],0,16, False)
 
@@ -215,15 +223,24 @@ except:
 
 # called via TTN response
 def CallBack(port,what): 
-  global sleep_time, STOP, oled
+  global sleep_time, STOP, oled, useDust, useMeteo
   if not len(what): return True
   if len(what) < 2:
     if what == b'?': return SendInfo(port)
-    if what == b'O': oled.poweroff()
-    if what == b'S':
-      STOP = TRUE
-      return
-    return False
+    elif what == b'O': oled.poweroff()
+    elif what == b'd':
+      if useDust:
+        useDust.raw = True # try: useDust.gase_base = None
+    elif what == b'D':
+      if useDust:
+        useDust.raw = False # try: useDust.gase_base = None
+    elif what == b'm':
+        if useMeteo: Meteo.raw = True
+    elif what == b'M':
+        if Meteo: Meteo.raw = False
+    elif what == b'S': STOP = TRUE
+    else: return False
+    return True
   cmd = None; value = None
   try:
     cmd, value = struct.unpack('>BH',what)
@@ -358,7 +375,8 @@ def SendInfo(port=3):
     location[LONGITUDE] = float(useGPS.longitude)
     location[LATITUDE] = float(useGPS.latitude)
   if lora:
-    data = struct.pack('>BHH',((meteo&07)<<4)|(dust&07), int(location[LATITUDE]*100000),int(location[LONGITUDE]*100000))
+    version = int(__version__[0])*10+int(__version__[2])
+    data = struct.pack('>BBHH',(version,(meteo&07)<<4)|(dust&07), int(location[LATITUDE]*100000),int(location[LONGITUDE]*100000))
     lora.send(data,port=port)
   return location
 
