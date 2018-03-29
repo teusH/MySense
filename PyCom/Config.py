@@ -1,16 +1,20 @@
 # Replace with your own OTAA keys,
 # obtainable through the "files" widget in Managed IoT Cloud.
-# teus 20180221 TTN register:
-#          app id 201802215971az, dev id lopyprototype20180221
-Network = 'TTN'
+# TTN register:
+#          app id  ???, dev id ???
+Network = 'TTN' # or 'WiFi'
 dev_eui = "xxxxxxxxxxxxxxxx"
 app_eui = "yyyyyyyyyyyyyyyy"
 app_key = "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
 
-# static location, define 0 if GPS is used
-latitude  = 50.123456
-longitude = 6.12345
-altitude  = 12.3
+# wifi AP or Node
+W_SSID = 'MySense-IOS-1'
+W_PASS = 'BehoudDeParel'
+
+# define 0 if not used
+latitude  = 11.123456
+longitude = 6.123456
+altitude  = 23.5
 
 useSSD = 'I2C'
 # I2C pins
@@ -20,7 +24,7 @@ S_SCL = 'P8'  # gray shared
 
 #useSSD = 'SPI'
 # SPI pins
-S_CLK  = 'P19'  # brown D0
+S_CLKI = 'P19'  # brown D0
 S_MOSI = 'P23'  # white D1
 S_MISO = 'P18'  # NC
 # SSD pins on GPIO
@@ -42,5 +46,6 @@ Meteo = ['','DHT11','DHT22','BME280','BME680']
 useMeteo = 'I2C'# I2C bus
 meteo = 4       # define 0 if not
 M_ID  = 0       # number I2C bus
-M_SDA = 'P7'    # orange SDA shared
-M_SCL = 'P8'    # brown SCL shared
+M_SDA = 'P7'    # gray SDA shared
+M_SCL = 'P8'    # white SCL shared
+M_gBase = 231865.4 # BME680 gas base line (dflt None recalculate)
