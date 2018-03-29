@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.2 2018/03/29 10:08:58 teus Exp teus $
+# $Id: MySense.py,v 1.3 2018/03/29 19:58:04 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -18,7 +18,7 @@ if Network == 'TTN':
 from led import LED
 
 from time import sleep, time
-from time import gmtime, localtime, timezone
+from time import localtime, timezone
 from machine import Pin # user button/led
 from machine import unique_id
 import binascii
@@ -96,9 +96,17 @@ def ProgressBar(x,y,width,height,secs,blink=0,slp=1):
   return True
 
 # configure the MySense satellite sensor kit
-i2c = [None,None,None]
-psi = [None,None,None]
+i2c = []
+i2cPINs = []
+psi = []
+psiPINs = []
 uart = [-1]
+
+def indexBus(pins,bus,lookup):
+  if not lookup in pins:
+    pins.append(lookup)
+    bus.append(None)
+  return pins.index(lookup)
 
 # tiny display Adafruit 128 X 64 oled
 try:
@@ -108,40 +116,45 @@ try:
 except:
   use_oled = False
 oled = None
+oledBus = None
 if use_oled:
   try:
     import SSD1306
     # red P24 3v3 and black P25 Gnd
     width = 128; height = 64  # display sizes
     if useSSD == 'I2C': # display may flicker on reload
-      from Config import S_ID, S_SDA, S_SCL # I2C pin config
+      from Config import S_SDA, S_SCL # I2C pin config
       from machine import I2C
-      print('Oled I2C: SDA~%s, SCL~%s' % (S_SDA,S_SCL))
-      if not i2c[S_ID]: i2c[S_ID] = I2C(S_ID,I2C.MASTER,pins=(S_SDA,S_SCL))
-      oled = SSD1306.SSD1306_I2C(width,height,i2c[S_ID])
+      nr = indexBus(i2cPINs,i2c,(S_SDA,S_SCL))
+      if i2c[nr] == None: i2c[nr] = I2C(nr,I2C.MASTER,pins=i2cPINs[nr])
+      oled = SSD1306.SSD1306_I2C(width,height,i2c[nr])
+      print('Oled I2C %d:' % nr, ' SDA ~> %s, SCL ~> %s' % i2cPINs[nr])
+      oledBus = nr
     elif useSSD == 'SPI': # for fast display
       try:
         from Config import S_CLKI, S_MOSI, S_MISO  # SPI pins config
       except:
         S_SCKI = 'P10'; S_MOSI = 'P11'; S_MISO = 'P14'  # SPI defaults
+      from machine import SPI
+      nr = indexBus(spiPINs,spi,(S_DC,S_CS,S_RES,S_MOSI,S_CLKI))
+      if spi[nr] == None:
+        spi[nr] = SPI(n,SPI.MASTER, baudrate=100000,pins=(S_CLKI, S_MOSI, S_MISO))
+      print('Oled SPI %d' % nr, 'CLK/D0 ~> %s, MOSI/D1 ~> %s, MISO ~> %s' % spiPINs[nr])
       try:
         from Config import S_DC, S_RES, S_CS      # GPIO SSD pins
       except:
         S_DC = 'P5'; S_RES = 'P6'; S_CS = 'P7'    # SSD defaults
-      from machine import SPI
-      print('Oled SPI: DC~%s, CS~%s, RST~%s, D1~%s, D0~%s' % (S_DC,S_CS,S_RES,S_MOSI,S_CLKI))
-      spi[0] = SPI(0,SPI.MASTER, baudrate=100000,pins=(S_CLKI, S_MOSI, S_MISO))
-      oled = SSD1306.SSD1306_SPI(width,height,spi[0],S_DC, S_RES, S_CS)
+      oled = SSD1306.SSD1306_SPI(width,height,spi[nr],S_DC, S_RES, S_CS)
+      print('Oled GPIO: DC ~> %s, S_RES ~> %s CS ~> %s' % (S_DC,S_RES,S_CS))
     else:
       oled = None
       print("Incorrect display bus %s" % useSSD)
     if oled:
-      oled.fill(1) ; oled.show(); sleep_ms(1000)
-      oled.fill(0); oled.show()
-  except:
+      oled.fill(1) ; oled.show(); sleep(1)
+  except Exception as e:
     oled = None
-    print('Oled display failed')
-display('MySense config',0,0,True)
+    print('Oled display failure: %s' % e)
+display('config MySense',0,0,True)
 
 # oled on SPI creates I2C bus errors
 #  display('BME280 -> OFF',0,0,True)
@@ -155,31 +168,36 @@ except:
 if useMeteo != 'I2C': useMeteo = None
 if useMeteo:
   try:
-    from Config import meteo, M_ID, M_SDA, M_SCL
+    from Config import meteo,  M_SDA, M_SCL
+    nr = indexBus(i2cPINs,i2c,(M_SDA,M_SCL))
+    if not i2c[nr]: i2c[nr] = I2C(nr,I2C.MASTER,pins=i2cPINs[nr])
+    print('%s I2C %d:' % (Meteo[meteo],nr), ' SDA ~> %s, SCL ~> %s' % i2cPINs[nr])
   except:
     useMeteo = None
 if useMeteo:
   try:
-    if not i2c[S_ID]: i2c[S_ID] = I2C(S_ID,I2C.MASTER,pins=(M_SDA,M_SCL))
     if meteo == 3: # BME280
-      import BME280
-      useMeteo = BME280(i2c=i2c[S_ID],address=0x76)
+      import BME280 as BME
     elif meteo == 4: # BME680
-      import BME680
+      import BME680 as BME
       try:
         from Config import M_gBase
       except:
         M_gBase = None
-      useMeteo = BME680.Adafruit_BME680_I2C(i2c[S_ID], address=0x76, debug=False)
+    useMeteo = BME.BME_I2C(i2c[nr], address=0x76, debug=False)
+    if meteo == 4:
       display('AQI wakeup',0,16,False)
       useMeteo.gas_base = M_gBase
-      if useMeteo._gasBase: display('          ',0,16,False)
+      if useMeteo._gasBase: pass
+      rectangle(0,16,128,30,0)
       # useMeteo.sea_level_pressure = 1011.25
+    display('meteo: %s' % Meteo[meteo],0,16, False)
   except Exception as e:
     useMeteo = None
-    display("%s setup error" % Meteo[meteo], 0, 16, False)
+    display("%s failure" % Meteo[meteo],0,0, True)
     print(e)
-if useMeteo: display('meteo: %s' % Meteo[meteo],0,16, False)
+else:
+  display("No meteo  ", 0, 16, False)
 
 Dust = ['','PPD42NS','SDS011','PMS7003']
 try:
@@ -197,29 +215,50 @@ if useDust:
       import SDS011 as senseDust
     elif dust == 3:
       from PMSx003 import PMSx003 as senseDust
-      useDust = senseDust(port=len(uart), debug=True, sample=60, interval=0, pins=(D_Tx,D_Rx))
-      uart.append(len(uart))
     else: raise OSError("Dust index")
+    useDust = senseDust(port=len(uart), debug=True, sample=60, interval=0, pins=(D_Tx,D_Rx))
+    uart.append(len(uart))
+    print("%s UART %d: Rx ~> Tx %s, Tx ~> Rx %s" % (Dust[dust],len(uart),D_Tx, D_Rx))
   except Exception as e:
-    display("%s setup error" % Dust[dust], 5, 30, False)
+    display("%s failure" % Dust[dust],0,0, True)
     useDust = None
-if useDust: display('dust: %s' % Dust[dust],0, 30, False)
+  display('dust: %s' % Dust[dust],0, 30, False)
+else:
+  display("No dust sensing",0,30,False)
 
 # GPS config
 lonGPS = 0.0; latGPS = 0.0
 try:
-  from Config import useGPS, G_Tx, G_Rx
-  import GPS_dexter as GPS
-  useGPS = GPS.GROVEGPS(port=len(uart),baud=9600,debug=False,pins=(G_Tx,G_Rx))
-  if useGPS.UpdateRTC():
-    timezone(3600)
-    now = gmtime(localtime())
-    display('%d/%d/%d %d:%d' % (now[0],now[1],now[2],now[3],now[4]), 0, 44, False)
-    lonGPS = useGPS.longitude; latGPS = useGPS.latitude
-    sleep(30)
-except:
-  display('No GPS', 0,44,False)
-  useGPS = 0
+  try:
+    from Config import useGPS, G_Tx, G_Rx
+    import GPS_dexter as GPS
+  except:
+    useGPS = None
+  if useGPS:
+    useGPS = None
+    useGPS = GPS.GROVEGPS(port=len(uart),baud=9600,debug=False,pins=(G_Tx,G_Rx))
+    uart.append(len(uart))
+    print("GPS UART %d: Rx ~> Tx %s, Tx ~> Rx %s" % (len(uart),G_Tx, G_Rx))
+    if useGPS != None:
+      if not useGPS.date:
+        useGPS.UpdateRTC()
+      if useGPS.date:
+        now = localtime()
+        if 3 < now[1] < 11: timezone(7200) # simple DST
+        else: timezone(3600)
+        display('%d/%d/%d %s' % (now[0],now[1],now[2],('mo','tu','we','th','fr','sa','su')[now[6]]), 0, 44, False)
+        display('time %02d:%02d:%02d' % (now[3],now[4],now[5]), 0, 58, False)
+        lonGPS = useGPS.longitude; latGPS = useGPS.latitude
+      else:
+        display('GPS bad QA %d' % useGPS.quality, 0, 44, False)
+        useGPS.ser.deinit()
+        useGPS = None
+  else:
+    display('No GPS', 0,44,False)
+except Exception as e:
+  display('GPS failure',0,0,True)
+  print(e)
+  useGPS = None
 
 # called via TTN response
 def CallBack(port,what): 
@@ -286,7 +325,7 @@ def DoDust():
   global useDust, Dust, dust
   dData = {}
   if useDust and (useDust.mode != useDust.ACTIVE):
-    useDust.Go_Active()
+    useDust.GoActive()
     display('starting up fan', 5, 30, False)
     if not ProgressBar(0,44,128,14,15,0x004400):
       display('stopped SENSING',0,0,True)
@@ -309,7 +348,7 @@ def DoDust():
     try:
       if 'pm1' in dData.keys() and dData['pm1'] > 0:
         display(" PM1 PM2.5 PM10", 0,  0, True)
-        display("% 3.1f % 4.1f% 4.1f" % (dData['pm1'],dData['pm25'],dData['pm10']),  0, 16, False)
+        display("% 3.1f % 5.1f% 5.1f" % (dData['pm1'],dData['pm25'],dData['pm10']),  0, 16, False)
       else:
         display("ug/m3 PM2.5 PM10", 0,  0, True)
         display("     % 5.1f % 5.1f" % (dData['pm25'],dData['pm10']),  0, 16, False)
@@ -322,6 +361,7 @@ def DoDust():
     dData = [0,0,0]
   else:
     dData = [int(round(dData['pm1'])),int(round(dData['pm25'])),int(round(dData['pm10']))]
+    LED.off()
   return dData
 
 TEMP = const(0)
@@ -330,7 +370,7 @@ PRES = const(2)
 GAS = const(3)
 AQI = const(4)
 def DoMeteo():
-  global useMeteo  
+  global useMeteo, oled
   global Meteo, meteo
   mData = [0,0,0,0,0]
   if not useMeteo or not meteo: return mData
@@ -338,8 +378,13 @@ def DoMeteo():
   # Measure temp oC, rel hum %, pres pHa, gas Ohm, aqi %
   LED.blink(3,0.1,0x002200)
   try: 
-    if oled: i2c[S_ID].init(S_ID, pins=(S_SDA,S_SCL))
-    mData[TEMP] = float(useMeteo.temperature) # string '20.12'
+    try:
+      mData[TEMP] = float(useMeteo.temperature) # string '20.12'
+    except:
+      if oled and oledBus != None:
+        i2c[oledBus].init(S_ID, pins=(S_SDA,S_SCL))
+        sleep(1)
+      mData[TEMP] = float(useMeteo.temperature) # string '20.12'
     mData[HUM] = float(useMeteo.humidity)    # string '25'
     mData[PRES] = float(useMeteo.pressure)    # string '1021.60'
     if meteo == 4: # BME680
@@ -351,7 +396,7 @@ def DoMeteo():
     LED.blink(5,0.1,0xff00ff,True)
     return [0,0,0,0,0]
 
-  if mData[gas] > 0:
+  if mData[GAS] > 0:
     display(" C hum pHa AQI", 0, 34, False)
     display("o",              0, 30, False,False)
     display("% 3d % 2d % 4d % 2d" % (int(round(mData[TEMP])),int(round(mData[HUM])),int(round(mData[PRES])),int(round(mData[AQI]))),0, 48, False)
@@ -359,6 +404,7 @@ def DoMeteo():
     display("   C hum pHa", 0, 34, False)
     display("  o",              0, 30, False,False)
     display("% 3.1 % 2d % 4d" % (round(mData[TEMP],1),int(round(mData[HUM])),int(round(mData[PRES]))),0, 48, False)
+    LED.off()
   return mData
 
 def DoPack(dData,mData):

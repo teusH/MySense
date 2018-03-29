@@ -1,7 +1,7 @@
 # from https://github.com/DexterInd/GrovePi
 # Software/Python/dexter_gps
 # changed for micropython
-# $Id: GPS_dexter.py,v 1.4 2018/03/23 18:57:28 teus Exp teus $
+# $Id: GPS_dexter.py,v 1.6 2018/03/29 18:18:20 teus Exp teus $
 
 import re
 try:
@@ -36,7 +36,7 @@ class GROVEGPS:
     self.validation =[] # contains compiled regex
     self.debug = debug
     self.last_read = 0
-    self.date = None
+    self.date = 0
 
     # compile regex once to use later
     for i in range(len(patterns)-1):
@@ -109,11 +109,14 @@ class GROVEGPS:
 
   # use GPS date/time to update RTC time
   def UpdateRTC(self):
+    for i in range(20):
+      if self.date: break
+      self.read()
     day = int(self.date)
-    hours = int(float(self.timestamp))
-    millis = int(float(self.timestamp)*1000)%1000
     if not day:
       return False
+    hours = int(float(self.timestamp))
+    millis = int(float(self.timestamp)*1000)%1000
     try:
       rtc = RTC()
       rtc.init((2000+(day%100),(day//100)%100,day//10000,hours//10000,(hours//100)%100,hours%100,millis%1000))
