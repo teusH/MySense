@@ -17,6 +17,12 @@ Atom is interfacing either via WiFi (192.168.4.1) or serial (USB) connection to 
 The goal is to use the PyCom ESP as controller for MySense sensor satallite kits. Measuring dust, rel. humidity and GPS to forward this to Mosquitto database (WiFi) or LoRa data concentrator. From which the MySense configured as proxy can pick up sensor data to the MySense databases.
 The hardware costs for such a sensor kit (controller+dust:meteo+gps+V220 case+adapter) is around €150.
 
+### measurement data
+The MySense kit will collect measurements from dust (Nova SDS011 and Plantower PMS7003) sensors and meteo (BME280 or BME680 with air quality support) sensors and send this data either via wifi or LoRaWan (TTN) Mosquitto (MQTT) dataconcentrator. Dust measurements will be collected over a sample time (default 1 minute) and send to the data concentraor at interval (default 5 minutes) periods of time. Fan and laser of the dust sensors will be powered off in the idle periods of time.
+
+The MySense server will collect this information from the MQTT servers and formward these measurments and meta data to e.g. a MySQL database, spreadsheet or another data stream service.
+
+### remote management
 The LoRa MySense part is supporting remote control via TTN. The following remote commands are supported yet:
 * '?': send version, configuration and location details to TTN MQTT server
 * 'O': switch the oled display if present OFF (dflt ON)
@@ -24,7 +30,11 @@ The LoRa MySense part is supporting remote control via TTN. The following remote
 * 'i'-value : change the sample interval time to value seconds (dflt: 5 minutes)
 * 'd' or 'D': turn dust sensor calibration OFF or ON
 * 'm' or 'M': turn meteo sensor calibration OFF or ON
-* to be extended
+* to be extended e.g. meta updateMin and updateMax information frequencies.
+
+### Meta information
+The PyCom MySense kit will send on start and at specific `updateMax` (default 6 hours) intervals *kit information* (type of used sensors) and *GPS location* separately from the data stream to the data concentrator (LoRa port 3).
+If the GPS modules is installed the controller will (re)sent this location information at the moment (`updateMin`: dfault minimal frequency is 7 minutes) a location change is detected (default 50 meters).
 
 ## PyCom programming
 The PyCom boards are using MicroPython (see http://docs.micropython.org/en/latest/pyboard/).
@@ -71,7 +81,7 @@ Do not change the order in the `Meteo` and `Dust` array definition!
 MySense has provided several simple XYZ_test.py python scripts to test the sensor modules for needed libraries and check of wiring.
 Make sure to configure the right pin ID's in `Config.py` configuration file for the test scripts.
 
-Test your setup one by one before trying out the main wrapper `sense.py` via *sense.runMe()* or `main.py`.
+Test your setup one by one before trying out the main wrapper `MySense.py` via *sense.runMe()* or `main.py`.
 
 ## Your First Steps
 * visit the PyCom.io website and follow the installation guide
@@ -79,32 +89,37 @@ The following is an outline how we do the developments and module testing:
 * Add the expansion board to the PyCom LoPy or WiPy module. Make sure about the orientations.
 * hook up the module (USB or via wifi) to your desktop and upgrade the firmware.
 * disconnect the expansion/PyCom module from power and only wire up one module.
+* Install hardware and sonfware one by one: say the first one is XXX (e.g. BME280)
 * copy the dependent XXX_test.py, Config.py and library module XXX.py to resp. XxPy/firmware and XxPy/firmware/lib.
-* adjust the Config.py for the right pin setup wiring.
-* Click on the *Upload* button of atom to load the scripts into the PyCom module.
+* adjust the Config.py for the right pin setup wiring. And check this twice.
+* Click on the *Upload* button of atom to load the scripts into the PyCom module. This will synchronise all files in the firmware directory of your desktop with the PyCom ESP controller.
 * fireup XXX_test as follows:
 ```python
 >>>import XXX_test
 ```
-* if not successfully enter the statements of XXX_test.py one by one via atom REPL.
+* if not successfully copy/paste the statements of XXX_test.py one by one via atom REPL.
 
-* on success do the next module wiring and test.
-* on success try out `sense.py` and finally install `main.py`
+* on success do the next module e.g. PMS7003 wiring and redo the test cycle.
+* on success try out `MySense.py` and finally install `main.py`:
+```python
+    import MySense
+    MySense.runMe()
+```
 * and give feedback
 
 ## MySense scripts
-The main micropython script which drives the sensor kit is `sense.py`. Use `main.py` to import sense.py and run `sense.runMe()` to run the kit.
+The main micropython script which drives the sensor kit is `MySense.py`. Use `main.py` to import MySense.py and run `sense.runMe()` to run the kit.
 
 The micropython (looks like Python 3) script uses the Adafruit BME280 and BME680 (I2C-bus) python module, SDS011 (Uart 1) module from Rex Fue Feinstaub `https://github.com/rexfue/Feinstaub_LoPy` and Telenor weather station `https://github.com/TelenorStartIoT/lorawan-weather-station` and SSD1306 (Adafruit tiny display SPI-bus).
 
-In the test phase one should not download main.py to the LoPy controller. Use `sense.py` in this phase instead and rename it to main.py later.
+In the test phase one should not download main.py to the LoPy controller. Use `MySense.py` in this phase instead and rename it to main.py later.
 Use (open) the directory `firmware` as base for the atom project and upload all file by pressing the upload key.
 On the console prompt `>>>` use the following:
 ```python
 import sense
 sense.runMe()
 ```
-After this initial test rename sense.py to main.py. And upload main.py to the LoPy.
+After this initial test rename MySense.py to main.py. And upload main.py to the LoPy.
 
 ## I2C bus errors
 The I2C together with SPI will cause I2C bus errors. After using the SPI SSD1306 display before the I2C bus can be used initialize the I2C bus first.
