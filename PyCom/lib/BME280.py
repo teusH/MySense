@@ -1,76 +1,76 @@
 """@package docstring
 asdfasdfsadf"""
 # comes from Adafruit
-# Changes by teus "$Revision: 2.1 $"
+# Changes by teus "$Revision: 2.2 $"
 
 from micropython import const
 from Device import *
+from machine import I2C
 import time
 import math
 
 # BME280 default address.
-BME280_I2CADDR = const(0x76)
+_BME280_I2CADDR = const(0x76)
 
 # Operating Modes
-BME280_OSAMPLE_1 = const(1)
-BME280_OSAMPLE_2 = const(2)
-BME280_OSAMPLE_4 = const(3)
-BME280_OSAMPLE_8 = const(4)
-BME280_OSAMPLE_16 = const(5)
+_BME280_OSAMPLE_1 = const(1)
+_BME280_OSAMPLE_2 = const(2)
+_BME280_OSAMPLE_4 = const(3)
+_BME280_OSAMPLE_8 = const(4)
+_BME280_OSAMPLE_16 = const(5)
 
 # BME280 Registers
 
-BME280_REGISTER_DIG_T1 = const(0x88)  # Trimming parameter registers
-BME280_REGISTER_DIG_T2 = const(0x8A)
-BME280_REGISTER_DIG_T3 = const(0x8C)
+_BME280_REGISTER_DIG_T1 = const(0x88)  # Trimming parameter registers
+_BME280_REGISTER_DIG_T2 = const(0x8A)
+_BME280_REGISTER_DIG_T3 = const(0x8C)
 
-BME280_REGISTER_DIG_P1 = const(0x8E)
-BME280_REGISTER_DIG_P2 = const(0x90)
-BME280_REGISTER_DIG_P3 = const(0x92)
-BME280_REGISTER_DIG_P4 = const(0x94)
-BME280_REGISTER_DIG_P5 = const(0x96)
-BME280_REGISTER_DIG_P6 = const(0x98)
-BME280_REGISTER_DIG_P7 = const(0x9A)
-BME280_REGISTER_DIG_P8 = const(0x9C)
-BME280_REGISTER_DIG_P9 = const(0x9E)
+_BME280_REGISTER_DIG_P1 = const(0x8E)
+_BME280_REGISTER_DIG_P2 = const(0x90)
+_BME280_REGISTER_DIG_P3 = const(0x92)
+_BME280_REGISTER_DIG_P4 = const(0x94)
+_BME280_REGISTER_DIG_P5 = const(0x96)
+_BME280_REGISTER_DIG_P6 = const(0x98)
+_BME280_REGISTER_DIG_P7 = const(0x9A)
+_BME280_REGISTER_DIG_P8 = const(0x9C)
+_BME280_REGISTER_DIG_P9 = const(0x9E)
 
-BME280_REGISTER_DIG_H1 = const(0xA1)
-BME280_REGISTER_DIG_H2 = const(0xE1)
-BME280_REGISTER_DIG_H3 = const(0xE3)
-BME280_REGISTER_DIG_H4 = const(0xE4)
-BME280_REGISTER_DIG_H5 = const(0xE5)
-BME280_REGISTER_DIG_H6 = const(0xE6)
-BME280_REGISTER_DIG_H7 = const(0xE7)
+_BME280_REGISTER_DIG_H1 = const(0xA1)
+_BME280_REGISTER_DIG_H2 = const(0xE1)
+_BME280_REGISTER_DIG_H3 = const(0xE3)
+_BME280_REGISTER_DIG_H4 = const(0xE4)
+_BME280_REGISTER_DIG_H5 = const(0xE5)
+_BME280_REGISTER_DIG_H6 = const(0xE6)
+_BME280_REGISTER_DIG_H7 = const(0xE7)
 
-BME280_REGISTER_CHIPID = const(0xD0)
-BME280_REGISTER_VERSION = const(0xD1)
-BME280_REGISTER_SOFTRESET = const(0xE0)
+_BME280_REGISTER_CHIPID = const(0xD0)
+_BME280_REGISTER_VERSION = const(0xD1)
+_BME280_REGISTER_SOFTRESET = const(0xE0)
 
-BME280_REGISTER_CONTROL_HUM = const(0xF2)
-BME280_REGISTER_CONTROL = const(0xF4)
-BME280_REGISTER_CONFIG = const(0xF5)
-BME280_REGISTER_PRESSURE_DATA = const(0xF7)
-BME280_REGISTER_TEMP_DATA = const(0xFA)
-BME280_REGISTER_HUMIDITY_DATA = const(0xFD)
+_BME280_REGISTER_CONTROL_HUM = const(0xF2)
+_BME280_REGISTER_CONTROL = const(0xF4)
+_BME280_REGISTER_CONFIG = const(0xF5)
+_BME280_REGISTER_PRESSURE_DATA = const(0xF7)
+_BME280_REGISTER_TEMP_DATA = const(0xFA)
+_BME280_REGISTER_HUMIDITY_DATA = const(0xFD)
 
 class BME_I2C:
-  def __init__(self, mode=BME280_OSAMPLE_1, address=BME280_I2CADDR, i2c=None, raw=False, calibrate=None
-         **kwargs):
+  def __init__(self, i2c, mode=_BME280_OSAMPLE_1, address=_BME280_I2CADDR, debug=False, raw=False, calibrate=None):
     # Check that mode is valid.
-    if mode not in [BME280_OSAMPLE_1, BME280_OSAMPLE_2, BME280_OSAMPLE_4,
-            BME280_OSAMPLE_8, BME280_OSAMPLE_16]:
+    if mode not in [_BME280_OSAMPLE_1, _BME280_OSAMPLE_2, _BME280_OSAMPLE_4,
+            _BME280_OSAMPLE_8, _BME280_OSAMPLE_16]:
       raise ValueError(
         'Unexpected mode value {0}. Set mode to one of '
         'BME280_ULTRALOWPOWER, BME280_STANDARD, BME280_HIGHRES, or '
         'BME280_ULTRAHIGHRES'.format(mode))
     self._mode = mode
     # Create I2C device.
-    if i2c is None:
+    if not type(i2c) is I2C:
       raise ValueError('An I2C object is required.')
     self._device = Device(address, i2c)
     # Load calibration values.
     self._load_calibration()
-    self._device.write8(BME280_REGISTER_CONTROL, 0x3F)
+    self._device.write8(_BME280_REGISTER_CONTROL, 0x3F)
     self.t_fine = 0
     self.sea_level_pressure = 1010.25
     """Pressure in hectoPascals at sea level. Used to calibrate ``altitude``."""
@@ -98,47 +98,47 @@ class BME_I2C:
 
   def _load_calibration(self):
 
-    self.dig_T1 = self._device.readU16LE(BME280_REGISTER_DIG_T1)
-    self.dig_T2 = self._device.readS16LE(BME280_REGISTER_DIG_T2)
-    self.dig_T3 = self._device.readS16LE(BME280_REGISTER_DIG_T3)
+    self.dig_T1 = self._device.readU16LE(_BME280_REGISTER_DIG_T1)
+    self.dig_T2 = self._device.readS16LE(_BME280_REGISTER_DIG_T2)
+    self.dig_T3 = self._device.readS16LE(_BME280_REGISTER_DIG_T3)
 
-    self.dig_P1 = self._device.readU16LE(BME280_REGISTER_DIG_P1)
-    self.dig_P2 = self._device.readS16LE(BME280_REGISTER_DIG_P2)
-    self.dig_P3 = self._device.readS16LE(BME280_REGISTER_DIG_P3)
-    self.dig_P4 = self._device.readS16LE(BME280_REGISTER_DIG_P4)
-    self.dig_P5 = self._device.readS16LE(BME280_REGISTER_DIG_P5)
-    self.dig_P6 = self._device.readS16LE(BME280_REGISTER_DIG_P6)
-    self.dig_P7 = self._device.readS16LE(BME280_REGISTER_DIG_P7)
-    self.dig_P8 = self._device.readS16LE(BME280_REGISTER_DIG_P8)
-    self.dig_P9 = self._device.readS16LE(BME280_REGISTER_DIG_P9)
+    self.dig_P1 = self._device.readU16LE(_BME280_REGISTER_DIG_P1)
+    self.dig_P2 = self._device.readS16LE(_BME280_REGISTER_DIG_P2)
+    self.dig_P3 = self._device.readS16LE(_BME280_REGISTER_DIG_P3)
+    self.dig_P4 = self._device.readS16LE(_BME280_REGISTER_DIG_P4)
+    self.dig_P5 = self._device.readS16LE(_BME280_REGISTER_DIG_P5)
+    self.dig_P6 = self._device.readS16LE(_BME280_REGISTER_DIG_P6)
+    self.dig_P7 = self._device.readS16LE(_BME280_REGISTER_DIG_P7)
+    self.dig_P8 = self._device.readS16LE(_BME280_REGISTER_DIG_P8)
+    self.dig_P9 = self._device.readS16LE(_BME280_REGISTER_DIG_P9)
 
-    self.dig_H1 = self._device.readU8(BME280_REGISTER_DIG_H1)
-    self.dig_H2 = self._device.readS16LE(BME280_REGISTER_DIG_H2)
-    self.dig_H3 = self._device.readU8(BME280_REGISTER_DIG_H3)
-    self.dig_H6 = self._device.readS8(BME280_REGISTER_DIG_H7)
+    self.dig_H1 = self._device.readU8(_BME280_REGISTER_DIG_H1)
+    self.dig_H2 = self._device.readS16LE(_BME280_REGISTER_DIG_H2)
+    self.dig_H3 = self._device.readU8(_BME280_REGISTER_DIG_H3)
+    self.dig_H6 = self._device.readS8(_BME280_REGISTER_DIG_H7)
 
-    h4 = self._device.readS8(BME280_REGISTER_DIG_H4)
+    h4 = self._device.readS8(_BME280_REGISTER_DIG_H4)
     h4 = (h4 << 24) >> 20
-    self.dig_H4 = h4 | (self._device.readU8(BME280_REGISTER_DIG_H5) & 0x0F)
+    self.dig_H4 = h4 | (self._device.readU8(_BME280_REGISTER_DIG_H5) & 0x0F)
 
-    h5 = self._device.readS8(BME280_REGISTER_DIG_H6)
+    h5 = self._device.readS8(_BME280_REGISTER_DIG_H6)
     h5 = (h5 << 24) >> 20
     self.dig_H5 = h5 | (
-      self._device.readU8(BME280_REGISTER_DIG_H5) >> 4 & 0x0F)
+      self._device.readU8(_BME280_REGISTER_DIG_H5) >> 4 & 0x0F)
 
   def read_raw_temp(self):
     """Reads the raw (uncompensated) temperature from the sensor."""
     meas = self._mode
-    self._device.write8(BME280_REGISTER_CONTROL_HUM, meas)
+    self._device.write8(_BME280_REGISTER_CONTROL_HUM, meas)
     meas = self._mode << 5 | self._mode << 2 | 1
-    self._device.write8(BME280_REGISTER_CONTROL, meas)
+    self._device.write8(_BME280_REGISTER_CONTROL, meas)
     sleep_time = 1250 + 2300 * (1 << self._mode)
     sleep_time = sleep_time + 2300 * (1 << self._mode) + 575
     sleep_time = sleep_time + 2300 * (1 << self._mode) + 575
     time.sleep_us(sleep_time)  # Wait the required time
-    msb = self._device.readU8(BME280_REGISTER_TEMP_DATA)
-    lsb = self._device.readU8(BME280_REGISTER_TEMP_DATA + 1)
-    xlsb = self._device.readU8(BME280_REGISTER_TEMP_DATA + 2)
+    msb = self._device.readU8(_BME280_REGISTER_TEMP_DATA)
+    lsb = self._device.readU8(_BME280_REGISTER_TEMP_DATA + 1)
+    xlsb = self._device.readU8(_BME280_REGISTER_TEMP_DATA + 2)
     raw = ((msb << 16) | (lsb << 8) | xlsb) >> 4
     return raw
 
@@ -146,17 +146,17 @@ class BME_I2C:
     """Reads the raw (uncompensated) pressure level from the sensor."""
     """Assumes that the temperature has already been read """
     """i.e. that enough delay has been provided"""
-    msb = self._device.readU8(BME280_REGISTER_PRESSURE_DATA)
-    lsb = self._device.readU8(BME280_REGISTER_PRESSURE_DATA + 1)
-    xlsb = self._device.readU8(BME280_REGISTER_PRESSURE_DATA + 2)
+    msb = self._device.readU8(_BME280_REGISTER_PRESSURE_DATA)
+    lsb = self._device.readU8(_BME280_REGISTER_PRESSURE_DATA + 1)
+    xlsb = self._device.readU8(_BME280_REGISTER_PRESSURE_DATA + 2)
     raw = ((msb << 16) | (lsb << 8) | xlsb) >> 4
     return raw
 
   def read_raw_humidity(self):
     """Assumes that the temperature has already been read """
     """i.e. that enough delay has been provided"""
-    msb = self._device.readU8(BME280_REGISTER_HUMIDITY_DATA)
-    lsb = self._device.readU8(BME280_REGISTER_HUMIDITY_DATA + 1)
+    msb = self._device.readU8(_BME280_REGISTER_HUMIDITY_DATA)
+    lsb = self._device.readU8(_BME280_REGISTER_HUMIDITY_DATA + 1)
     raw = (msb << 8) | lsb
     return raw
 
@@ -215,7 +215,7 @@ class BME_I2C:
   def pressure(self,raw=False):
     "Return the pressure in hPa."
     p = self.read_pressure() // 256
-    return self._calibrate(self.calibrate['pressure'],p,raw=raw)
+    return self._calibrate(self.calibrate['pressure'],p/100.0,raw=raw)
     #pi = p // 100
     #pd = p - pi * 100
     #return "{}.{:1d}".format(pi, pd)

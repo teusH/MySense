@@ -6,7 +6,7 @@ Created on 24 Apr 2017
 # comes from https://github.com/rexfue/Feinstaub_LoPy
 # changes by teus license GPLV3
 # Frank Heuer wrote a better and more extensive script
-# $Id: SDS011.py,v 1.2 2018/03/26 13:28:05 teus Exp teus $
+# $Id: SDS011.py,v 1.3 2018/03/30 16:12:23 teus Exp teus $
 
 try:
   from machine import  UART
@@ -36,7 +36,7 @@ class SDS011:
   IDLE  = const(120000)   # minimal idle time between sample time and interval
 
   def __init__(self, port=1, debug=False, sample=60, interval=1200, raw=False, calibrate=None,pins=('P3','P4')):
-    ser = UART(1,baudrate=9600,pins=pins)
+    self.ser = UART(1,baudrate=9600,pins=pins)
     self.firmware = None
     self.debug = debug
     self.interval = interval * 1000 # if interval == 0 no auto fan switching
@@ -51,7 +51,7 @@ class SDS011:
       ('pm25','ug/m3',0,[0,1]),
       ('pm10','ug/m3',1,[0,1]),
     ]
-    if calibrate and (type(calibrate) == dict):
+    if type(calibrate) is dict:
       for key in calibrate.keys():
         if calibrate[key] and type(calibrate[key]) != list: continue
         for pm in range(len(self.PM_fields)):
@@ -106,7 +106,7 @@ class SDS011:
       pm25 = (rcv[3]*256+rcv[2])
       pm10 = (rcv[5]*256+rcv[4])
       if not self.deviceID: self.deviceID = '%X%X' % (rcv[6],rcv[7])
-      return pm10/10.0,pm25/10.0
+      return pm25/10.0, pm10/10.0
       
   # SDS anhalten bzw starten
   def startstopSDS(self,was):
@@ -117,11 +117,11 @@ class SDS011:
     """
     if was == ACTIVE or was == NORMAL:
       start_SDS_cmd = bytearray(b'\xAA\xB4\x06\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\x06\xAB')
-      ser.write(start_SDS_cmd)
+      self.ser.write(start_SDS_cmd)
       if self.debug: print("SDS fan/laser start.")
     elif was == STANDBY:
       stop_SDS_cmd =  bytearray(b'\xAA\xB4\x06\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\x05\xAB')
-      ser.write(stop_SDS_cmd)
+      self.ser.write(stop_SDS_cmd)
       if self.debug: print("SDS fan/laser off")
     else: raise OSError("mode not supported")
     self.mode = was
@@ -189,7 +189,7 @@ class SDS011:
           if (wait < 1000) and wait:
             sleep_ms(wait)
         self.PassiveRead()   # passive?:if fan off switch it on, initiate read
-      data = readSDSvalues()
+      data = self.readSDSvalues()
       if not cnt: StrtTime = ticks_ms()
       # one measurement 200-800ms or every second in sample time
       if cnt and (LastTime+1000 > ticks_ms()):
