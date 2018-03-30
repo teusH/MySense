@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.4 2018/03/30 12:53:54 teus Exp teus $
+# $Id: MySense.py,v 1.5 2018/03/30 20:05:26 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -254,7 +254,7 @@ else:
 try:
   from Config import thisGPS
 except:
-  thisGPS = (0.0,0.0)
+  thisGPS = [0.0,0.0,0.0]
 try:
   try:
     from Config import useGPS, G_Tx, G_Rx
@@ -275,8 +275,9 @@ try:
         else: timezone(3600)
         display('%d/%d/%d %s' % (now[0],now[1],now[2],('mo','tu','we','th','fr','sa','su')[now[6]]), 0, 44, False)
         display('time %02d:%02d:%02d' % (now[3],now[4],now[5]), 0, 58, False)
-        thisGPS[LON] = useGPS.longitude; thisGPS[LAT] = useGPS.latitude
-        thisGPS[ALT] = useGPS.altitude
+        thisGPS[LON] = round(float(useGPS.longitude),5)
+        thisGPS[LAT] = round(float(useGPS.latitude),5)
+        thisGPS[ALT] = round(float(useGPS.altitude),1)
       else:
         display('GPS bad QA %d' % useGPS.quality, 0, 44, False)
         useGPS.ser.deinit()
@@ -326,7 +327,7 @@ def setup():
   display("s/n " + myID, 0, 16, False)
   display("dust:  " + Dust[dust], 0, 30, False)
   display("meteo: " + Meteo[meteo], 0, 44, False)
-  if useGPS: display('GPS %.3f/%.3f' % (thisGPS[LAT].thisGPS[LON]), 0, 54, False)
+  if useGPS: display('GPS %.3f/%.3f' % (thisGPS[LAT],thisGPS[LON]), 0, 54, False)
   sleep(30)
 
   if Network == 'TTN':
@@ -449,9 +450,10 @@ def SendInfo(port=3):
     # GPS 5 decimals: resolution 14 meters
     thisGPS[LAT] = round(float(useGPS.latitude),5)
     thisGPS[LON] = round(float(useGPS.longitude),5)
+    thisGPS[ALT] = round(float(useGPS.altitude),1)
   if lora:
     version = int(__version__[0])*10+int(__version__[2])
-    data = struct.pack('>BBHH',(version,(meteo&07)<<4)|(dust&07), int(thisGPS[LAT]*100000),int(thisGPS[LON]*100000))
+    data = struct.pack('>BBlll',(version,(meteo&07)<<4)|(dust&07), int(thisGPS[LAT]*100000),int(thisGPS[LON]*100000),int(thisGPS[ALT]*10))
     lora.send(data,port=port)
     return True
   return False

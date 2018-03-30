@@ -15,6 +15,16 @@ from time import sleep
 import pycom
 pycom.heartbeat(False)
 
+info = None
+n = None
+def SendInfo(port,data):
+  print("info requested")
+  if not data: return
+  if (not info) or (not n): return
+  print("Sent info")
+  sleep(30)
+  n.send(info,port=3)
+  
 n = LORA()
 if not n.connect(dev_eui, app_eui, app_key,ports=2):
   print("Failed to connect to LoRaWan TTN")
@@ -25,10 +35,9 @@ if not n.connect(dev_eui, app_eui, app_key,ports=2):
 # meteo (None,DHT11,DHT22,BME280,BME680, ...) 4 high bits
 # GPS (longitude,latitude, altitude) float
 # send 17 bytes
-try:
-  from Config import useGPS
-except:
-  useGPS = False
+
+Meteo = ['','PPD42NS','SDS011','PMS7003']
+Dust = ['','DHT11','DHT22','BME280','BME680']
 try:
   from Config import meteo
 except:
@@ -39,32 +48,25 @@ except:
   dust = 0
 
 try:
-  from Config import latitude, longitude, altitude
+  from Config import useGPS, thisGPS
 except:
-  latitude = 0
-  if useGPS:
-    latitude = 50.12345; longitude = 6.12345; altitude = 12.34
-if latitude:
-  info = struct.pack('>Blll',dust|(meteo<<4),int(latitude*100000),int(longitude*100000),int(24.5*100000))
-else:
-  info = struct.pack('>Bl',dust|(meteo<<4),0)
-response = n.send(info,port=3)
-print('Sent info')
-if response == b'?':
-  print('Got request to send info')
-  n.send(info,port=3)
+  thisGPS = [0,0,0]
+
+if useGPS:
+  thisGPS = [50.12345,6.12345,12.34]
+
+info = struct.pack('>BBlll',0,dust|(meteo<<4),int(thisGPS[0]*100000),int(thisGPS[1]*100000), int(thisGPS[2]*100000))
+print("Sending version 0, dust %s index %d, meteo %s index %d, GPS: " % (Meteo[meteo], meteo,Dust[dust],dust), thisGPS) 
+
+if not n.send(info,port=3): print("send error")
+else: print('Sent info')
 
 for cnt in range(5):
   data = struct.pack('>HHHHH', 100+cnt, 150+cnt, 200+cnt, 300+cnt, 250+cnt)
   #data = base64.encodestring(data)
   # Send packet
-  response = n.send(data)  # send to LoRa port 2
-  print('Sent data')
-  if response:
-    if response == b'?':
-      print("info requested, send info")
-      n.send(info,port=3)
-    else:
-      print('Response was %s. Quit' % response)
-      break
+  if not n.send(data):  # send to LoRa port 2
+    print("send error")
+  else: print('Sent data')
   sleep(60)
+print('Done')

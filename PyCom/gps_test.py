@@ -7,19 +7,17 @@ from time import sleep_ms, ticks_ms
 try:
   from Config import useGPS
 except:
-  useGPS = 1
+  useGPS = False
 
 try:
   from Config import G_Tx, G_Rx
 except:
-  useGPS = 0
+  useGPS = False
 
 if not useGPS:
   raise OSError("GPS not configured")
-elif useGPS == 1:
-  G_Tx = 'P3'
-  G_Rx = 'P4'
-print('Using UART %d: GPS Rx -> pin %s, Tx -> pin %s' % (useGPS,G_Tx,G_Rx))
+
+print('Using UART %d: GPS Rx -> pin %s, Tx -> pin %s' % (1,G_Tx,G_Rx))
 
 last_read = 0
 def readCR(serial):
@@ -49,15 +47,17 @@ try:
         break
       print(x)
       sleep_ms(200)
-      
+
     print("test using GPS Dexter:")
     import GPS_dexter as GPS
     # UART Pins pins=(Tx,Rx) default Tx=P3 and Rx=P4
-    gps = GPS.GROVEGPS(port=useGPS,baud=9600,debug=False,pins=(G_Tx,G_Rx))
+    gps = GPS.GROVEGPS(port=1,baud=9600,debug=False,pins=(G_Tx,G_Rx))
     for cnt in range(10):
       data = gps.MyGPS()
       if data:
-        print(data)
+        print("Date/time: %s/%s" % (data['date'],data['timestamp']))
+        print("lon %.6f, lat %.6f, alt %.2f m" % (data['longitude'],data['latitude'],data['altitude']))
+        # print(data)
         gps.debug = False
       else:
         print('No satellites found for a fit')

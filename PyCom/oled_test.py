@@ -13,7 +13,7 @@ if useSSD:
       oled = SSD1306.SSD1306_I2C(width,height,i2c)
     elif useSSD == 'SPI': # for fast display
       try:
-        from Config import S_CLK, S_MOSI, S_MISO  # SPI pins config
+        from Config import S_CLKI, S_MOSI, S_MISO  # SPI pins config
       except:
         S_DC = 'P10'; S_MOSI = 'P11'; S_MISO = 'P14'  # SSD defaults
       try:
@@ -21,8 +21,8 @@ if useSSD:
       except:
         S_DC = 'P5'; S_RES = 'P6'; S_CS = 'P7'    # SSD default pins
       from machine import SPI
-      print('Oled SPI: DC ~> %s, CS ~> %s, RST ~> %s, D1/MOSI ~> %s, D0/CLK ~> %s' % (S_DC,S_CS,S_RES,S_MOSI,S_CLK))
-      spi = SPI(0,SPI.MASTER, baudrate=100000,pins=(S_CLK, S_MOSI, S_MISO))
+      print('Oled SPI: DC ~> %s, CS ~> %s, RST ~> %s, D1/MOSI ~> %s, D0/CLK ~> %s' % (S_DC,S_CS,S_RES,S_MOSI,S_CLKI))
+      spi = SPI(0,SPI.MASTER, baudrate=100000,pins=(S_CLKI, S_MOSI, S_MISO))
       oled = SSD1306.SSD1306_SPI(width,height,spi,S_DC, S_RES, S_CS)
     else:
       oled = None
@@ -30,14 +30,18 @@ if useSSD:
     if oled:
       oled.fill(1) ; oled.show(); sleep_ms(1000)
       oled.fill(0); oled.show()
-  except:
+  except Exception as e:
     oled = None
-    print('Oled display failed')
+    print('Oled display failed: %s' % e)
 
 from machine import unique_id
 from machine import Pin
 import binascii
-from led import LED
+try:
+  from led import LED
+except:
+  raise OSError("Install library led")
+
 import pycom
 
 def sleep(secs):
@@ -102,9 +106,10 @@ def ProgressBar(x,y,width,height,secs,blink=0,slp=1):
 try:
     # Turn off hearbeat LED
     pycom.heartbeat(False)
-
-    if not ProgressBar(0,44,128,8,30,0xebcf5b,10):
+    display('test bar',0,0,True)
+    if not ProgressBar(0,44,128,8,10,0xebcf5b,1):
         LED.blink(5,0.3,0xff0000,True)
+    else: LED.blink(5,0.3,0x00ff00,False)
     display("MySense PyCom",0,0,True)
     myID = binascii.hexlify(unique_id()).decode('utf-8')
     display("s/n " + myID, 0, 16, False)
