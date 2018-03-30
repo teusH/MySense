@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.3 2018/03/29 19:58:04 teus Exp teus $
+# $Id: MySense.py,v 1.4 2018/03/30 12:53:54 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -94,6 +94,30 @@ def ProgressBar(x,y,width,height,secs,blink=0,slp=1):
     oled.show()
     x += step
   return True
+
+LAT = const(0)
+LON = const(1)
+ALT = const(2)
+# returns distance in meters between two GPS coodinates
+# hypotheical sphere radius 6372795 meter
+# courtesy of TinyGPS and Maarten Lamers
+# should return 208 meter 5 decimals is diff of 11 meter
+# GPSdistance((51.419563,6.14741),(51.420473,6.144795))
+def GPSdistance(gps1,gps2):
+  from math import sin, cos, radians, pow, sqrt, atan2
+  delta = radians(gps1[LON]-gps2[LON])
+  sdlon = sin(delta)
+  cdlon = cos(delta)
+  lat = radians(gps1[LAT])
+  slat1 = sin(lat); clat1 = cos(lat)
+  lat = radians(gps2[LAT])
+  slat2 = sin(lat); clat2 = cos(lat)
+
+  delta = pow((clat1 * slat2) - (slat1 * clat2 * cdlon),2)
+  delta += pow(clat2 * sdlon,2)
+  delta = sqrt(delta)
+  denom = (slat1 * slat2) + (clat1 * clat2 * cdlon)
+  return int(round(6372795 * atan2(delta, denom)))
 
 # configure the MySense satellite sensor kit
 i2c = []
@@ -226,8 +250,11 @@ if useDust:
 else:
   display("No dust sensing",0,30,False)
 
-# GPS config
-lonGPS = 0.0; latGPS = 0.0
+# GPS config tuple (LAT,LON,ALT)
+try:
+  from Config import thisGPS
+except:
+  thisGPS = (0.0,0.0)
 try:
   try:
     from Config import useGPS, G_Tx, G_Rx
@@ -248,7 +275,8 @@ try:
         else: timezone(3600)
         display('%d/%d/%d %s' % (now[0],now[1],now[2],('mo','tu','we','th','fr','sa','su')[now[6]]), 0, 44, False)
         display('time %02d:%02d:%02d' % (now[3],now[4],now[5]), 0, 58, False)
-        lonGPS = useGPS.longitude; latGPS = useGPS.latitude
+        thisGPS[LON] = useGPS.longitude; thisGPS[LAT] = useGPS.latitude
+        thisGPS[ALT] = useGPS.altitude
       else:
         display('GPS bad QA %d' % useGPS.quality, 0, 44, False)
         useGPS.ser.deinit()
@@ -292,12 +320,13 @@ def CallBack(port,what):
 lora = None
 def setup():
   global lora, sleep_time, STOP, myId, dust, meteo
+  global thisGPS
 
   display("MySense %s" % Network,0,0,True)
   display("s/n " + myID, 0, 16, False)
   display("dust:  " + Dust[dust], 0, 30, False)
   display("meteo: " + Meteo[meteo], 0, 44, False)
-  if useGPS: display('GPS %.3f/%.3f' % (lonGPS.latGPS), 0, 54, False)
+  if useGPS: display('GPS %.3f/%.3f' % (thisGPS[LAT].thisGPS[LON]), 0, 54, False)
   sleep(30)
 
   if Network == 'TTN':
@@ -411,28 +440,54 @@ def DoPack(dData,mData):
   global meteo, dust
   return struct.pack('>HHHHHHHHH',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+30),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10))
 
-LATITUDE = const(0)
-LONGITUDE = const(1)
+lastUpdate = 0
 def SendInfo(port=3):
-  global  lora, meteo, dust, useGPS
-  location = [0,0]
+  global  lora, meteo, dust, useGPS, thisGPS, lastUpdate
+  lastUpdate = time()
   if (not meteo) and (not dust) and (type(useGPS) is None): return [0,0]
   if not type(useGPS) is None:
-    location[LONGITUDE] = float(useGPS.longitude)
-    location[LATITUDE] = float(useGPS.latitude)
+    # GPS 5 decimals: resolution 14 meters
+    thisGPS[LAT] = round(float(useGPS.latitude),5)
+    thisGPS[LON] = round(float(useGPS.longitude),5)
   if lora:
     version = int(__version__[0])*10+int(__version__[2])
-    data = struct.pack('>BBHH',(version,(meteo&07)<<4)|(dust&07), int(location[LATITUDE]*100000),int(location[LONGITUDE]*100000))
+    data = struct.pack('>BBHH',(version,(meteo&07)<<4)|(dust&07), int(thisGPS[LAT]*100000),int(thisGPS[LON]*100000))
     lora.send(data,port=port)
-  return location
+    return True
+  return False
+
+updateMin = 7*60    # 7 minutes, kit moved
+updateMax = 6*60*60 # 6 hours
+updateStable = 5    # control freq of info
+def LocUpdate():
+  global lastUpdate, useGPS, thisGPS
+  global  updateMin, updateMax, updateStable
+  now = time()
+  if now - lastUpdate > updateMax:
+    updateStable = 2
+    return SendInfo()
+  if type(useGPS) is None: return False
+  if now - lastUpdate < updateMin: return False
+  if updateStable <= 0: return False
+  location = (0.0,0.0)
+  location[LAT] = round(float(useGPS.latitude),5)
+  location[LON] = round(float(useGPS.longitude),5)
+  if GPSdistance(location,thisGPS) > 50:
+    updateStable = 5
+    return SendInfo()
+  updateStable -= 1
+  return False
 
 def runMe():
   global lora, sleep_time, oled
   global useDust
-  # Setup network & sensors
-  setup()
+
+  setup() # Setup network & sensors
 
   while True:
+    if LocUpdate():
+      display("Sent info/GPS",0,0,True)
+      sleep(10)
     display("Sensing...",0,0, True)
 
     toSleep = time()
