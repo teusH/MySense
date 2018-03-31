@@ -57,8 +57,11 @@ The payload format at TTN console may be configured like:
 function round(value, decimals) {
   return Number(Math.round(value+'e'+decimals)+'e-'+decimals);
 }
-function bytes2rat(b,nr) {
-  return (b[nr]<<24)+(b[nr+1]<<16)+(b[nr+2]<<8)+b[nr+3];
+function bytes2(b,nr,cnt) {
+  return round(((b[nr]<<8)+b[nr+1])/cnt,1);
+}
+function notZero(b,nr) {
+  if( (b[nr]|b[nr+1]) ){ return true; } else { return false; }
 }
 
 function Decoder(bytes, port) {
@@ -66,18 +69,22 @@ function Decoder(bytes, port) {
   // (array) of bytes to an object of fields.
   var decoded = {};
 
-  if ( port === 2 ) {  // measurements
-    if ( bytes.length == 10 ) {
-      decoded.temperature = round(((bytes[0]<<8)+bytes[1])/10.0-30.0,2);
-      decoded.humidity = round(((bytes[2]<<8)+bytes[3])/10.0,1);
-      decoded.pressure = (bytes[4]<<8)+bytes[5];
-      decoded.pm10 = round(((bytes[6]<<8)+bytes[7])/10.0,1);
-      decoded.pm25 = round(((bytes[8]<<8)+bytes[9])/10.0,1);
+  // if (port === 3) decoded.led = bytes[0];
+  if ( port === 2 ) {
+    if ( bytes.length == 16 ) {
+      if( notZero(bytes,0) ){ decoded.pm1 = bytes2(bytes,0,10.0); }   // ug/m3
+      if( notZero(bytes, 2) ){ decoded.pm25 = bytes2(bytes,2,10.0); } // ug/m3
+      if( notZero(bytes, 4) ){ decoded.pm10 = bytes2(bytes,4,10.0); } // ug/m3
+      if( notZero(bytes, 6) ){ decoded.temperature = bytes2(bytes,6,10.0)-30.0; } // oC
+      if( notZero(bytes, 8 ) ){ decoded.humidity = bytes2(bytes,8,10.0); } // %
+      if( notZero(bytes, 10) ){ decoded.pressure = bytes2(bytes,10,1); }   // hPa
+      if( notZero(bytes, 12) ){ decoded.gas = bytes2(12,10.0,1); }         // kOhm
+      if( notZero(bytes, 14) ){ decoded.aqi = bytes2(14,10.0,1); }        // %
     }
   }
   var dustTypes = ['','PPD42NS','SDS011','PM7003','','','','','','','','','','','',''];
   var meteoTypes = ['','DHT11','DHT22','BME280','BME680','','','','','','','','','','',''];
-  if ( port === 3 ){ //meta data from the sensor kit
+  if ( port === 3 ){
     decoded.version = bytes[0]/10.0;
     if( bytes[1]&0x0f ) { decoded.dust = dustTypes[bytes[1]&017]; }
     if( bytes[1]&0xf0 ) { decoded.meteo = meteoTypes[bytes[1]>>4]; }
