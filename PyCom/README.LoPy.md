@@ -46,10 +46,54 @@ If you want to access (and you want to do that during tests) the TTN MQTT server
 If the LoPy sensor kit is running you
 
 ## LoRa test
+### Send test data to TTN
 Use the script `lora_test.py` to test your configuration and LoRa connectivity.
 ```python
     >>>import lora_test # this will send MySense info and MySense data
 ```
+### Reading at TTN the data
+The payload format at TTN console may be configured like:
+```java script
+function round(value, decimals) {
+  return Number(Math.round(value+'e'+decimals)+'e-'+decimals);
+}
+function bytes2rat(b,nr) {
+  return (b[nr]<<24)+(b[nr+1]<<16)+(b[nr+2]<<8)+b[nr+3];
+}
+
+function Decoder(bytes, port) {
+  // Decode an uplink message from a buffer
+  // (array) of bytes to an object of fields.
+  var decoded = {};
+
+  if ( port === 2 ) {  // measurements
+    if ( bytes.length == 10 ) {
+      decoded.temperature = round(((bytes[0]<<8)+bytes[1])/10.0-30.0,2);
+      decoded.humidity = round(((bytes[2]<<8)+bytes[3])/10.0,1);
+      decoded.pressure = (bytes[4]<<8)+bytes[5];
+      decoded.pm10 = round(((bytes[6]<<8)+bytes[7])/10.0,1);
+      decoded.pm25 = round(((bytes[8]<<8)+bytes[9])/10.0,1);
+    }
+  }
+  var dustTypes = ['','PPD42NS','SDS011','PM7003','','','','','','','','','','','',''];
+  var meteoTypes = ['','DHT11','DHT22','BME280','BME680','','','','','','','','','','',''];
+  if ( port === 3 ){ //meta data from the sensor kit
+    decoded.version = bytes[0]/10.0;
+    if( bytes[1]&0x0f ) { decoded.dust = dustTypes[bytes[1]&017]; }
+    if( bytes[1]&0xf0 ) { decoded.meteo = meteoTypes[bytes[1]>>4]; }
+    var lat = bytes2rat(bytes,2);
+    if( lat ) {
+      decoded.latitude = round(lat/100000.0,6);
+      decoded.longitude = round(bytes2rat(bytes,6)/100000.0,6);
+      decoded.altitude = round(bytes2rat(bytes,10)/100000.0,6);
+    }
+    
+  }
+
+  return decoded;
+}
+```
+
 
 ### TTN how to configure TTN decode to json MQTT
 TTN data formats, decoder example.
