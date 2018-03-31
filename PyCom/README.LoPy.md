@@ -78,8 +78,8 @@ function Decoder(bytes, port) {
       if( notZero(bytes, 6) ){ decoded.temperature = bytes2(bytes,6,10.0)-30.0; } // oC
       if( notZero(bytes, 8 ) ){ decoded.humidity = bytes2(bytes,8,10.0); } // %
       if( notZero(bytes, 10) ){ decoded.pressure = bytes2(bytes,10,1); }   // hPa
-      if( notZero(bytes, 12) ){ decoded.gas = bytes2(12,10.0,1); }         // kOhm
-      if( notZero(bytes, 14) ){ decoded.aqi = bytes2(14,10.0,1); }        // %
+      if( notZero(bytes, 12) ){ decoded.gas = bytes2(bytes,10.0,1); }         // kOhm
+      if( notZero(bytes, 14) ){ decoded.aqi = bytes2(bytes,10.0,1); }        // %
     }
   }
   var dustTypes = ['','PPD42NS','SDS011','PM7003','','','','','','','','','','','',''];
