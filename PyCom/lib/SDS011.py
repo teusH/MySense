@@ -6,7 +6,7 @@ Created on 24 Apr 2017
 # comes from https://github.com/rexfue/Feinstaub_LoPy
 # changes by teus license GPLV3
 # Frank Heuer wrote a better and more extensive script
-# $Id: SDS011.py,v 1.3 2018/03/30 16:12:23 teus Exp teus $
+# $Id: SDS011.py,v 1.4 2018/04/01 15:24:05 teus Exp teus $
 
 try:
   from machine import  UART
@@ -129,7 +129,7 @@ class SDS011:
   # passive mode, go into standby state / sleep: fan OFF
   def Standby(self):
     if self.mode != self.STANDBY:
-      if self.mode == self.ACTIVE: self.GoPassive()
+      # if self.mode == self.ACTIVE: self.GoPassive()
       return self.startstopSDS(self.STANDBY)
     return True
 
