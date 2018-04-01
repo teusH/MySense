@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.8 2018/04/01 19:38:40 teus Exp teus $
+# $Id: MySense.py,v 1.9 2018/04/01 19:45:44 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__version__ = "0." + "$Revision: 1.9 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -506,7 +506,7 @@ def LocUpdate():
   if not useGPS: return False
   if now - lastUpdate < updateMin: return False
   if updateStable <= 0: return False
-  location = (0.0,0.0)
+  location = [0.0,0.0]
   location[LAT] = round(float(useGPS.latitude),5)
   location[LON] = round(float(useGPS.longitude),5)
   if GPSdistance(location,thisGPS) > 50:
