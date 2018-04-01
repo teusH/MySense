@@ -38,6 +38,7 @@ useDust = 'UART'     # UART
 dust = Dust.index('PMS7003')        # define 0 if not
 D_Tx = 'P3'     # white Rx module
 D_Rx = 'P4'     # yellow Tx module
+#sampling = 60  # secs, default dust sampling timing
 
 Meteo = ['','DHT11','DHT22','BME280','BME680']
 useMeteo = 'I2C'# I2C bus
