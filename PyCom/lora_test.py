@@ -24,7 +24,7 @@ def SendInfo(port,data):
   print("Sent info")
   sleep(30)
   n.send(info,port=3)
-  
+
 n = LORA()
 if not n.connect(dev_eui, app_eui, app_key,ports=2):
   print("Failed to connect to LoRaWan TTN")
@@ -55,14 +55,14 @@ except:
 if useGPS:
   thisGPS = [50.12345,6.12345,12.34]
 
-info = struct.pack('>BBlll',0,dust|(meteo<<4),int(thisGPS[0]*100000),int(thisGPS[1]*100000), int(thisGPS[2]*100000))
-print("Sending version 0, dust %s index %d, meteo %s index %d, GPS: " % (Meteo[meteo], meteo,Dust[dust],dust), thisGPS) 
+info = struct.pack('>BBlll',0,dust|(meteo<<4),int(thisGPS[0]*100000),int(thisGPS[1]*100000), int(thisGPS[2]*10))
+print("Sending version 0, dust %s index %d, meteo %s index %d, GPS: " % (Meteo[meteo], meteo,Dust[dust],dust), thisGPS)
 
 if not n.send(info,port=3): print("send error")
 else: print('Sent info')
 
 for cnt in range(5):
-  data = struct.pack('>HHHHH', 100+cnt, 150+cnt, 200+cnt, 300+cnt, 250+cnt)
+  data = struct.pack('>HHHHHHHH', 10+cnt, 15+cnt, 20+cnt, 25+cnt, 30+cnt, 35+cnt, 40+cnt, 45+cnt)
   #data = base64.encodestring(data)
   # Send packet
   if not n.send(data):  # send to LoRa port 2
