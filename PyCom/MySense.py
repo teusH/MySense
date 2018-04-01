@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.7 2018/04/01 15:25:09 teus Exp teus $
+# $Id: MySense.py,v 1.8 2018/04/01 19:38:40 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -289,11 +289,10 @@ try:
   except:
     useGPS = None
   if useGPS:
-    useGPS = None
     useGPS = GPS.GROVEGPS(port=len(uart),baud=9600,debug=False,pins=(G_Tx,G_Rx))
     uart.append(len(uart))
     print("GPS UART %d: Rx ~> Tx %s, Tx ~> Rx %s" % (len(uart),G_Tx, G_Rx))
-    if useGPS != None:
+    if useGPS:
       if not useGPS.date:
         useGPS.UpdateRTC()
       if useGPS.date:
@@ -388,8 +387,8 @@ def DoDust():
   global useDust, Dust, dust, nl
   dData = {}
   display('PM sensing ...',(0,0),clear=True,prt=False)
-  if useDust and (useDust.mode != useDust.ACTIVE):
-    useDust.GoActive()
+  if useDust and (useDust.mode != useDust.NORMAL):
+    useDust.Normal()
     display('starting up fan')
     if not ProgressBar(0,44,128,14,15,0x004400):
       display('stopped SENSING', (0,0), clear=True)
@@ -398,10 +397,10 @@ def DoDust():
     else:
       rectangle(0,44,128,14,0)
       nl -= LF
-      display('measuring ...')
+      display('measure PM ...')
   if useDust:
     LED.blink(3,0.1,0x005500)
-    display('%3d sec sample' % sample_time,prt=False)
+    display('%d sec sample' % sample_time,prt=False)
     try:
       dData = useDust.getData()
     except Exception as e:
@@ -466,11 +465,11 @@ def DoMeteo():
   LED.off()
   nl += 6  # oled spacing
   if mData[GAS] > 0:
-    display(" C hum pHa AQI")
+    display(" C hum%% pHa AQI")
     display("o",(0,-5),prt=False)
     display("% 3d % 2d % 4d % 2d" % (round(mData[TEMP]),round(mData[HUM]),round(mData[PRES]),round(mData[AQI])))
   else:
-    display("    C hum  pHa")
+    display("    C hum%% pHa")
     display("o",(24,-5),prt=False)
     display("% 3.1f % 2d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES])))
   return mData # temp, hum, pres, gas, aqia
@@ -485,7 +484,7 @@ def SendInfo(port=3):
   lastUpdate = time()
   if lora == None: return True
   if (not meteo) and (not dust) and (useGPS == None): return True
-  if useGPS != None:
+  if useGPS:
     # GPS 5 decimals: resolution 14 meters
     thisGPS[LAT] = round(float(useGPS.latitude),5)
     thisGPS[LON] = round(float(useGPS.longitude),5)
@@ -504,7 +503,7 @@ def LocUpdate():
   if now - lastUpdate > updateMax:
     updateStable = 2
     return SendInfo()
-  if useGPS == None: return False
+  if not useGPS: return False
   if now - lastUpdate < updateMin: return False
   if updateStable <= 0: return False
   location = (0.0,0.0)
