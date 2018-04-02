@@ -71,15 +71,28 @@ function Decoder(bytes, port) {
 
   // if (port === 3) decoded.led = bytes[0];
   if ( port === 2 ) {
-    if ( bytes.length == 16 ) {
+    if ( bytes.length == 10 ) {
+      if( notZero(bytes,0) ){ decoded.temperature = bytes2(bytes,0,10.0); } // oC
+      if( notZero(bytes,2) ){ decoded.humidity = bytes2(bytes,2,10.0); } // %
+      if( notZero(bytes,4) ){ decoded.pressure = bytes2(bytes,4,1.0); } // hPa
+      if( notZero(bytes,6) ){ decoded.pm10 = bytes2(bytes,6,10.0); }    // ug/m3
+      if( notZero(bytes,8) ){ decoded.pm25 = bytes2(bytes,8,10.0); }    // ug/m3
+    }
+    if ( bytes.length >= 16 ) {
       if( notZero(bytes,0) ){ decoded.pm1 = bytes2(bytes,0,10.0); }   // ug/m3
       if( notZero(bytes, 2) ){ decoded.pm25 = bytes2(bytes,2,10.0); } // ug/m3
       if( notZero(bytes, 4) ){ decoded.pm10 = bytes2(bytes,4,10.0); } // ug/m3
       if( notZero(bytes, 6) ){ decoded.temperature = bytes2(bytes,6,10.0)-30.0; } // oC
       if( notZero(bytes, 8 ) ){ decoded.humidity = bytes2(bytes,8,10.0); } // %
-      if( notZero(bytes, 10) ){ decoded.pressure = bytes2(bytes,10,1); }   // hPa
-      if( notZero(bytes, 12) ){ decoded.gas = bytes2(bytes,10.0,1); }         // kOhm
-      if( notZero(bytes, 14) ){ decoded.aqi = bytes2(bytes,10.0,1); }        // %
+      if( notZero(bytes, 10) ){ decoded.pressure = bytes2(bytes,10,1.0); }   // hPa
+      if( notZero(bytes, 12) ){ decoded.gas = bytes2(bytes,12,1.0); }         // kOhm
+      if( notZero(bytes, 14) ){ decoded.aqi = bytes2(bytes,14,1.0); }        // %
+      if( bytes.length >= 20 ){ 
+        // timestamp base is Unix Epoch (GPS) or time power on LoPy
+        if( notZero(bytes,16) || notZero(bytes,18) ){ // Unix timestamp
+            decoded.utime = (bytes2(bytes,16,1)<<32) + bytes2(bytes,18,1);
+        }
+      }
     }
   }
   var dustTypes = ['','PPD42NS','SDS011','PM7003','','','','','','','','','','','',''];
@@ -92,7 +105,7 @@ function Decoder(bytes, port) {
     if( lat ) {
       decoded.latitude = round(lat/100000.0,6);
       decoded.longitude = round(bytes2rat(bytes,6)/100000.0,6);
-      decoded.altitude = round(bytes2rat(bytes,10)/100000.0,6);
+      decoded.altitude = round(bytes2rat(bytes,10)/10.0,6);
     }
     
   }

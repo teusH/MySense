@@ -1,9 +1,22 @@
 <img src="images/MySense-logo.png" align=right width=100>
 # PyCom LoPy or WiPy  BME280/BME680 SDS011/PMS7003 GPS  MySense sensor kit
 
-Simple low cost (€150) satelites sensor kits.
-In beta development: 2018/02/23
-LoRa sensor kit is operational.
+Status: *beta* 2018/04/02
+
+Simple low cost (€120) satellites sensor kits.
+
+Shopping list (TinyTronics and AliExpress):
+* PyCom controller € 35
+* PyCom expansion board € 16
+* LoRa antenna € 10
+* Grove GPS € 20
+* Nova/Plantower dust sensor € 15
+* Bosch Adafruit meteo sensor € 15-25
+* V5 adapter € 10
+* DuPont wires (male/female) € 2
+* outdoor V220 case € 5
+* shipping € 3
+* MySense software installation and testing: 1 day, casing 1/2 day
 
 ## DESCRIPTION
 The sensor kits are build with PyCom (loPy-4 and WiPy-3) ESP controllers and PyCom expansion board.
@@ -15,7 +28,9 @@ To access the board use the Atom (atom-beta) with the makr plugin.
 Atom is interfacing either via WiFi (192.168.4.1) or serial (USB) connection to the controller.
 
 The goal is to use the PyCom ESP as controller for MySense sensor satallite kits. Measuring dust, rel. humidity and GPS to forward this to Mosquitto database (WiFi) or LoRa data concentrator. From which the MySense configured as proxy can pick up sensor data to the MySense databases.
-The hardware costs for such a sensor kit (controller+dust:meteo+gps+V220 case+adapter) is around €150.
+
+Datacommunication is done via WiFi (Mosquitto), or LoRa (TTN MQTT data concentrator) and MySense Raspberry Pi  in server mode.
+One may send data via MySense Pi server to RIVM in the Netherlands as well Luftdata in Germany.
 
 ### measurement data
 The MySense kit will collect measurements from dust (Nova SDS011 and Plantower PMS7003) sensors and meteo (BME280 or BME680 with air quality support) sensors and send this data either via wifi or LoRaWan (TTN) Mosquitto (MQTT) dataconcentrator. Dust measurements will be collected over a sample time (default 1 minute) and send to the data concentraor at interval (default 5 minutes) periods of time. Fan and laser of the dust sensors will be powered off in the idle periods of time.
@@ -67,6 +82,9 @@ Choose one meteo and one dust sensor: MySense modules in development are:
 * SSD1306 tiny oled display: 128X64 pixels on GPIO bus or I2C bus.
 * LoRaWan: using TTN
 * MQTT: not implemented yet
+
+Comment: do not use eg UART Rx on pin 12. Pin 12 high on reset will cause to omit executing boot.py and main.py.
+Maximum of UART modules is 2 (e.g. dust and GPS modules).
 
 ### RTC clock
 MySense will use GPS to initilyse the Real Time Clock module. Every time the GPS location is looked up the RTC clock will be updated automatically.
