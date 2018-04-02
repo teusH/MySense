@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.13 2018/04/02 19:26:26 teus Exp teus $
+# $Id: MySense.py,v 1.14 2018/04/02 20:48:53 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.13 $"[11:-2]
+__version__ = "0." + "$Revision: 1.14 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -142,10 +142,20 @@ def showSleep(secs=60,text=None,inThread=False):
   return True
 
 import _thread
+# _thread.stack_size(6144)
+NoThreading = False
 def SleepThread(secs=60, text=None):
-  global STOP
+  global STOP, NoThreading
+  if NoThreading:
+    display('waiting ...')
+    raise OSError
   STOP = False; STOPPED = False
-  _thread.start_new_thread(showSleep,(secs,text,True))
+  try:
+    _thread.start_new_thread(showSleep,(secs,text,True))
+  except Exception as e:
+    print("threading failed: %s" % e)
+    STOPPED=True
+    NoThreading = True
   sleep(1)
 
 LAT = const(0)
@@ -415,7 +425,7 @@ PM10 = const(2)
 def DoDust():
   global useDust, Dust, dust, nl, STOP, STOPPED
   dData = {}
-  display('PM sensing ...',(0,0),clear=True,prt=False)
+  display('PM sensing',(0,0),clear=True,prt=False)
   if useDust and (useDust.mode != useDust.NORMAL):
     useDust.Normal()
     if not showSleep(secs=15,text='starting up fan'):
@@ -423,17 +433,23 @@ def DoDust():
       LED.blink(5,0.3,0xff0000,True,True)
       return [0,0,0]
     else:
-      display('measure PM ...')
+      display('measure PM')
   if useDust:
     LED.blink(3,0.1,0x005500)
     # display('%d sec sample' % sample_time,prt=False)
     try:
       STOPPED = False
-      SleepThread(sample_time,'%d sec sample' % sample_time)
+      try:
+        SleepThread(sample_time,'%d sec sample' % sample_time)
+      except:
+        STOPPED = True
+        display('%d sec sample' % sample_time)
       dData = useDust.getData()
-      while not STOPPED:
+      for cnt in range(10):
+        if STOPPED: break
         STOP = True
-        sleep(1)
+        print('waiting for thread')
+        sleep(2)
       STOP = False
     except Exception as e:
       display("%s ERROR" % Dust[dust])
@@ -497,9 +513,9 @@ def DoMeteo():
   LED.off()
   nl += 6  # oled spacing
   if mData[GAS] > 0:
-    display("  C hum%  pHa AQI")
+    display("  C hum% pHa AQI")
     display("o",(18,-5),prt=False)
-    display("% 2.1f % 2d % 4d % 2d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES]),round(mData[AQI])))
+    display("% 2.1f %2d %4d %2d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES]),round(mData[AQI])))
   else:
     display("    C hum%  pHa")
     display("o",(24,-5),prt=False)
