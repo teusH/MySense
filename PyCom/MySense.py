@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.12 2018/04/02 19:21:04 teus Exp teus $
+# $Id: MySense.py,v 1.13 2018/04/02 19:26:26 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.12 $"[11:-2]
+__version__ = "0." + "$Revision: 1.13 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -429,7 +429,7 @@ def DoDust():
     # display('%d sec sample' % sample_time,prt=False)
     try:
       STOPPED = False
-      SleepThread(70,'%d sec sample' % sample_time)
+      SleepThread(sample_time,'%d sec sample' % sample_time)
       dData = useDust.getData()
       while not STOPPED:
         STOP = True
