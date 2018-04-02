@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.9 2018/04/01 19:45:44 teus Exp teus $
+# $Id: MySense.py,v 1.11 2018/04/02 12:53:47 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.9 $"[11:-2]
+__version__ = "0." + "$Revision: 1.11 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -71,7 +71,7 @@ def display(txt,xy=(0,None),clear=False, prt=True):
     elif xy[1] < 0: 
       if -xy[1] < LF:
         offset = xy[1]
-        y = nl -LF
+        y = nl - LF
     else: y = xy[1]
     x = 0 if ((xy[0] == None) or (xy[0] < 0)) else xy[0]
     if clear:
@@ -89,6 +89,7 @@ def display(txt,xy=(0,None),clear=False, prt=True):
 
 def rectangle(x,y,w,h,col=1):
   global oled
+  if not oled: return
   ex = int(x+w); ey = int(y+h)
   for xi in range(int(x),ex):
     for yi in range(int(y),ey):
@@ -96,6 +97,7 @@ def rectangle(x,y,w,h,col=1):
 
 def ProgressBar(x,y,width,height,secs,blink=0,slp=1):
   global oled, LED, STOP
+  if not oled: return
   rectangle(x,y,width,height)
   if (height > 4) and (width > 4):
     rectangle(x+1,y+1,width-2,height-2,0)
@@ -120,11 +122,27 @@ def ProgressBar(x,y,width,height,secs,blink=0,slp=1):
     x += step
   return True
 
+def showSleep(secs=60,text=None):
+  global nl, oled
+  ye = y = nl
+  if text:
+    display(text)
+    ye += LF
+  if oled:
+    if not ProgressBar(0,ye,128,LF,secs,0x004400):
+      return False
+    else:
+      nl = y
+      rectangle(0,y,128,ye-y+LF,0)
+      oled.show()
+  else: sleep(secs)
+  return True
+
 LAT = const(0)
 LON = const(1)
 ALT = const(2)
 # returns distance in meters between two GPS coodinates
-# hypotheical sphere radius 6372795 meter
+# hypothetical sphere radius 6372795 meter
 # courtesy of TinyGPS and Maarten Lamers
 # should return 208 meter 5 decimals is diff of 11 meter
 # GPSdistance((51.419563,6.14741),(51.420473,6.144795))
@@ -265,7 +283,7 @@ if useDust:
     elif dust == 3:
       from PMSx003 import PMSx003 as senseDust
     else: raise OSError("unknown PM sensor")
-    useDust = senseDust(port=len(uart), debug=True, sample=sample_time, interval=0, pins=(D_Tx,D_Rx))
+    useDust = senseDust(port=len(uart), debug=False, sample=sample_time, interval=0, pins=(D_Tx,D_Rx))
     uart.append(len(uart))
     print("%s UART %d: Rx ~> Tx %s, Tx ~> Rx %s" % (Dust[dust],len(uart),D_Tx, D_Rx))
   except Exception as e:
@@ -367,7 +385,7 @@ def setup():
     display("LoRa App EUI:")
     display(str(app_eui))
     lora = LORA()
-    if lora.connect(dev_eui, app_eui, app_key, ports=2, callback=CallBack):
+    if lora.connect(dev_eui,app_eui,app_key, ports=2, callback=CallBack):
        display("Joined LoRaWan")
        SendInfo()
     else:
@@ -389,14 +407,11 @@ def DoDust():
   display('PM sensing ...',(0,0),clear=True,prt=False)
   if useDust and (useDust.mode != useDust.NORMAL):
     useDust.Normal()
-    display('starting up fan')
-    if not ProgressBar(0,44,128,14,15,0x004400):
+    if not showSleep(secs=15,text='starting up fan'):
       display('stopped SENSING', (0,0), clear=True)
       LED.blink(5,0.3,0xff0000,True,True)
       return [0,0,0]
     else:
-      rectangle(0,44,128,14,0)
-      nl -= LF
       display('measure PM ...')
   if useDust:
     LED.blink(3,0.1,0x005500)
@@ -465,18 +480,18 @@ def DoMeteo():
   LED.off()
   nl += 6  # oled spacing
   if mData[GAS] > 0:
-    display(" C hum%% pHa AQI")
-    display("o",(0,-5),prt=False)
-    display("% 3d % 2d % 4d % 2d" % (round(mData[TEMP]),round(mData[HUM]),round(mData[PRES]),round(mData[AQI])))
+    display("  C hum%  pHa AQI")
+    display("o",(18,-5),prt=False)
+    display("% 2.1f % 2d % 4d % 2d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES]),round(mData[AQI])))
   else:
-    display("    C hum%% pHa")
+    display("    C hum%  pHa")
     display("o",(24,-5),prt=False)
     display("% 3.1f % 2d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES])))
   return mData # temp, hum, pres, gas, aqia
 
 def DoPack(dData,mData):
   global meteo, dust
-  return struct.pack('>HHHHHHHHH',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+30),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10))
+  return struct.pack('>HHHHHHHHHl',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+300),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10),time())
 
 lastUpdate = 0
 def SendInfo(port=3):
@@ -490,7 +505,7 @@ def SendInfo(port=3):
     thisGPS[LON] = round(float(useGPS.longitude),5)
     thisGPS[ALT] = round(float(useGPS.altitude),1)
   version = int(__version__[0])*10+int(__version__[2])
-  data = struct.pack('>BBlll',(version,(meteo&07)<<4)|(dust&07), int(thisGPS[LAT]*100000),int(thisGPS[LON]*100000),int(thisGPS[ALT]*10))
+  data = struct.pack('>BBlll',version,((meteo&07)<<4)|(dust&07), int(thisGPS[LAT]*100000),int(thisGPS[LON]*100000),int(thisGPS[ALT]*10))
   return lora.send(data,port=port)
 
 updateMin = 7*60    # 7 minutes, kit moved
