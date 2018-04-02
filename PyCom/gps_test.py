@@ -38,7 +38,7 @@ def readCR(serial):
 
 try:
     print("test GPS raw:")
-    ser = UART(useGPS,baudrate=9600,timeout_chars=80,pins=(G_Tx,G_Rx))
+    ser = UART(1,baudrate=9600,timeout_chars=80,pins=(G_Tx,G_Rx))
     for cnt in range(10):
       try:
         x=readCR(ser)
