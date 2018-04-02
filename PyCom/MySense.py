@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.11 2018/04/02 12:53:47 teus Exp teus $
+# $Id: MySense.py,v 1.12 2018/04/02 19:21:04 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.11 $"[11:-2]
+__version__ = "0." + "$Revision: 1.12 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -122,21 +122,31 @@ def ProgressBar(x,y,width,height,secs,blink=0,slp=1):
     x += step
   return True
 
-def showSleep(secs=60,text=None):
-  global nl, oled
+STOPPED = False
+def showSleep(secs=60,text=None,inThread=False):
+  global nl, oled, STOP, STOPPED
   ye = y = nl
   if text:
     display(text)
     ye += LF
   if oled:
-    if not ProgressBar(0,ye,128,LF,secs,0x004400):
-      return False
-    else:
-      nl = y
-      rectangle(0,y,128,ye-y+LF,0)
-      oled.show()
+    ProgressBar(0,ye,128,LF,secs,0x004400)
+    nl = y
+    rectangle(0,y,128,ye-y+LF,0)
+    oled.show()
   else: sleep(secs)
+  if inThread:
+    STOP = False
+    STOPPED = True
+    _thread.exit()
   return True
+
+import _thread
+def SleepThread(secs=60, text=None):
+  global STOP
+  STOP = False; STOPPED = False
+  _thread.start_new_thread(showSleep,(secs,text,True))
+  sleep(1)
 
 LAT = const(0)
 LON = const(1)
@@ -335,9 +345,10 @@ except Exception as e:
 
 if Network: display('Network: %s' % Network)
 
+HALT = False
 # called via TTN response
 def CallBack(port,what): 
-  global sleep_time, STOP, oled, useDust, useMeteo
+  global sleep_time, HALT, oled, useDust, useMeteo
   if not len(what): return True
   if len(what) < 2:
     if what == b'?': return SendInfo(port)
@@ -352,7 +363,7 @@ def CallBack(port,what):
         if useMeteo: Meteo.raw = True
     elif what == b'M':
         if Meteo: Meteo.raw = False
-    elif what == b'S': STOP = TRUE
+    elif what == b'S': HALT = True
     else: return False
     return True
   cmd = None; value = None
@@ -402,7 +413,7 @@ PM1 = const(0)
 PM25 = const(1)
 PM10 = const(2)
 def DoDust():
-  global useDust, Dust, dust, nl
+  global useDust, Dust, dust, nl, STOP, STOPPED
   dData = {}
   display('PM sensing ...',(0,0),clear=True,prt=False)
   if useDust and (useDust.mode != useDust.NORMAL):
@@ -415,9 +426,15 @@ def DoDust():
       display('measure PM ...')
   if useDust:
     LED.blink(3,0.1,0x005500)
-    display('%d sec sample' % sample_time,prt=False)
+    # display('%d sec sample' % sample_time,prt=False)
     try:
+      STOPPED = False
+      SleepThread(70,'%d sec sample' % sample_time)
       dData = useDust.getData()
+      while not STOPPED:
+        STOP = True
+        sleep(1)
+      STOP = False
     except Exception as e:
       display("%s ERROR" % Dust[dust])
       print(e)
