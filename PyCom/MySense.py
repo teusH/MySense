@@ -1,21 +1,9 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.14 2018/04/02 20:48:53 teus Exp teus $
+# $Id: MySense.py,v 1.16 2018/04/03 07:50:29 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.14 $"[11:-2]
+__version__ = "0." + "$Revision: 1.16 $"[11:-2]
 __license__ = 'GPLV4'
-
-try:
-  from Config import Network
-except:
-  pass
-if not Network: raise OSError("No network config found")
-if Network == 'TTN':
-  from Config import dev_eui, app_eui, app_key
-  from lora import LORA
-  lora = None
-
-from led import LED
 
 from time import sleep, time
 from time import localtime, timezone
@@ -25,6 +13,28 @@ import binascii
 import pycom
 import struct
 from micropython import const
+PyCom = 'PyCom'
+# identity PyCom SN
+myID = binascii.hexlify(unique_id()).decode('utf-8')
+# Turn off hearbeat LED
+pycom.heartbeat(False)
+
+try:
+  from Config import Network
+except:
+  pass
+if not Network: raise OSError("No network config found")
+if Network == 'TTN':
+  PyCom = 'LoPy'
+  try:
+    from Config import dev_eui, app_eui, app_key
+    from lora import LORA
+    lora = None
+except:
+  pycom.rgbled(0xFF0000)
+  raise OSError('LoRa config failure')
+
+from led import LED
 
 STOP = False
 try:
@@ -38,10 +48,6 @@ try:
   print("frequency of measurements: %d secs" % sleep_time)
 except:
   sleep_time = 5*60       # 5 minutes between sampling
-# identity PyCom SN
-myID = binascii.hexlify(unique_id()).decode('utf-8')
-# Turn off hearbeat LED
-pycom.heartbeat(False)
 
 # # stop processing press user button
 # button = Pin('P10',mode=Pin.IN, pull=Pin.PULL_UP)
@@ -238,7 +244,8 @@ if use_oled:
   except Exception as e:
     oled = None
     print('Oled display failure: %s' % e)
-display('config MySense', (0,0),clear=True)
+
+display('config %s' % PyCom, (0,0),clear=True)
 
 # oled on SPI creates I2C bus errors
 #  display('BME280 -> OFF', (0,0),True)
@@ -390,15 +397,13 @@ def setup():
   global lora, sleep_time, STOP, myId, dust, meteo
   global thisGPS
 
-  PyCom = 'PyCom'
-  if Network == 'TTN': PyCom = 'LoPy'
-  display("MySense %s" % PyCom, (0,0), clear=True)
+  display("MySense V %s" % __version__[:6], (0,0), clear=True)
   display("s/n " + myID)
   display("PM   : " + Dust[dust])
   display("meteo: " + Meteo[meteo])
   if useGPS:
     display('GPS %.3f/%.3f' % (thisGPS[LAT],thisGPS[LON]))
-  sleep(30)
+  sleep(15)
 
   if Network == 'TTN':
     # Connect to LoRaWAN
@@ -519,7 +524,7 @@ def DoMeteo():
   else:
     display("    C hum%  pHa")
     display("o",(24,-5),prt=False)
-    display("% 3.1f % 2d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES])))
+    display("% 3.1f %2d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES])))
   return mData # temp, hum, pres, gas, aqia
 
 def DoPack(dData,mData):
