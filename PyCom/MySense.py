@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.16 2018/04/03 07:50:29 teus Exp teus $
+# $Id: MySense.py,v 1.17 2018/04/03 08:06:54 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.16 $"[11:-2]
+__version__ = "0." + "$Revision: 1.17 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -30,9 +30,9 @@ if Network == 'TTN':
     from Config import dev_eui, app_eui, app_key
     from lora import LORA
     lora = None
-except:
-  pycom.rgbled(0xFF0000)
-  raise OSError('LoRa config failure')
+  except:
+    pycom.rgbled(0xFF0000)
+    raise OSError('LoRa config failure')
 
 from led import LED
 
@@ -469,7 +469,7 @@ def DoDust():
     try:
       if 'pm1' in dData.keys() and dData['pm1'] > 0:
         display(" PM1 PM2.5 PM10", (0,0), clear=True)
-        display("% 3.1f % 5.1f% 5.1f" % (dData['pm1'],dData['pm25'],dData['pm10']))
+        display("% 2.1f % 5.1f% 5.1f" % (dData['pm1'],dData['pm25'],dData['pm10']))
       else:
         display("ug/m3 PM2.5 PM10", (0,0), clear=True)
         display("     % 5.1f % 5.1f" % (dData['pm25'],dData['pm10']))
