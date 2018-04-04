@@ -1,4 +1,5 @@
 <img src="images/MySense-logo.png" align=right width=100>
+
 # PyCom LoPy or WiPy  BME280/BME680 SDS011/PMS7003 GPS  MySense sensor kit
 
 Status: *beta* 2018/04/02
@@ -35,7 +36,7 @@ One may send data via MySense Pi server to RIVM in the Netherlands as well Luftd
 ### measurement data
 The MySense kit will collect measurements from dust (Nova SDS011 and Plantower PMS7003) sensors and meteo (BME280 or BME680 with air quality support) sensors and send this data either via wifi or LoRaWan (TTN) Mosquitto (MQTT) dataconcentrator. Dust measurements will be collected over a sample time (default 1 minute) and send to the data concentraor at interval (default 5 minutes) periods of time. Fan and laser of the dust sensors will be powered off in the idle periods of time.
 
-The MySense server will collect this information from the MQTT servers and formward these measurments and meta data to e.g. a MySQL database, spreadsheet or another data stream service.
+The MySense server will collect this information from the MQTT servers and formward these measurements and meta data to e.g. a MySQL database, spreadsheet or another data stream service.
 
 ### remote management
 The LoRa MySense part is supporting remote control via TTN. The following remote commands are supported yet:
@@ -88,7 +89,7 @@ Maximum of UART modules is 2 (e.g. dust and GPS modules).
 
 ### RTC clock
 MySense will use GPS to initilyse the Real Time Clock module. Every time the GPS location is looked up the RTC clock will be updated automatically.
-This will allow MySense to timestamp measurments more precise.
+This will allow MySense to timestamp measurements more precise.
 
 ### MySense satellite kit configuration
 Use the file `Config.py` to define which sensors are configured for the kit. Have a good look at the *pin*s definitions and bus used for the sensor. The `Config.py` file should reside in the *firmware* directory in order to upload it to the controller.
@@ -99,7 +100,7 @@ Do not change the order in the `Meteo` and `Dust` array definition!
 MySense has provided several simple XYZ_test.py python scripts to test the sensor modules for needed libraries and check of wiring.
 Make sure to configure the right pin ID's in `Config.py` configuration file for the test scripts.
 
-Test your setup one by one before trying out the main wrapper `MySense.py` via *sense.runMe()* or `main.py`.
+Test your setup one by one before trying out the main wrapper `MySense.py` via *MySense.runMe()* or `main.py`.
 
 ## Your First Steps
 * visit the PyCom.io website and follow the installation guide
@@ -126,7 +127,7 @@ The following is an outline how we do the developments and module testing:
 * and give feedback
 
 ## MySense scripts
-The main micropython script which drives the sensor kit is `MySense.py`. Use `main.py` to import MySense.py and run `sense.runMe()` to run the kit.
+The main micropython script which drives the sensor kit is `MySense.py`. Use `main.py` to import MySense.py and run `MySense.runMe()` to run the kit.
 
 The micropython (looks like Python 3) script uses the Adafruit BME280 and BME680 (I2C-bus) python module, SDS011 (Uart 1) module from Rex Fue Feinstaub `https://github.com/rexfue/Feinstaub_LoPy` and Telenor weather station `https://github.com/TelenorStartIoT/lorawan-weather-station` and SSD1306 (Adafruit tiny display SPI-bus).
 
@@ -134,8 +135,8 @@ In the test phase one should not download main.py to the LoPy controller. Use `M
 Use (open) the directory `firmware` as base for the atom project and upload all file by pressing the upload key.
 On the console prompt `>>>` use the following:
 ```python
-import sense
-sense.runMe()
+import MySense
+MySense.runMe()
 ```
 After this initial test rename MySense.py to main.py. And upload main.py to the LoPy.
 

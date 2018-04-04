@@ -1,17 +1,25 @@
+## Description
+The LoPy is a low cost (€ 35) ESP controller which support mi8cropython and has wifi, bluetooth and LoRaWan capabilities. MySense is using the PyCom expansion board (€ 16) for the wiring and programming.
+
+MySense operates with TTN as LoRa dataconcentrator. MySense will initialy try for a period of 5 seconds to join the LoRa network. On failuer it will skip to send measurements to TTN and will continue to show locally the measurements.
+
+For installation, and firmware update see:
+* reference: https://docs.pycom.io
+
 ## LoPy-4 BME/SDS wiring
 
 Orientate the LoPy with the flash light up (if you use the recommanded development shield the small USB connecter will be on top). The name `pycom lopy` will face to the left side. The left side pins are numbererd top down as RST, P0, P1 ,...,P12.
 The right side pins top down are numbered as: Vin V3.3/V5, Gnd, 3V3, P23, P22, ..., P13.
 
-<img src="images/LoPy-wring-BME-SDS-SSD.png" align=right width=400>
+<img src="images/PyCom-wiring-BME-SDS-PMS-SSD-GPS.png" align=right width=400>
 
-SDS011 TTL Uart connection:
+SDS011/PMS7003 TTL Uart connection:
 * SDS Gnd (black) -> LoPy Gnd (on right side 2nd pin, same pin as for BME)
 * SDS V5 (red) -> LoPy V5 (on right side, top pin)
 * SDS Rx (white) -> LoPy P3 / Tx1 (on left side, 5th pin from top)
 * SDS Tx (yellow)-> LoPy P4 / Rx1 (on left side, 6th pin from top)
 
-BME280 I2C  connection (default I2C address):
+BME280/680 I2C  connection (default I2C address):
 * BME Gnd (black) -> LoPy Gnd (on right side, same pin as for SDS)
 * BME V3/5 (red) -> LoPy 3V3 (on right side, 3rd pin from top)
 * BME SDA (white) -> LoPy SDA (on left side, 11th pin from top)
@@ -26,6 +34,12 @@ SSD1306 SPI connection (using GPIO pins):
 * SSD VCC (red) -> LoPy 3V3 (shared with BME280)
 * SSD GND (black) -> LoPy Gnd (on right side, same pin as for SDS)
 
+Grove GPS TTL Uart connection:
+* GPS Gnd (black) -> LoPy Gnd (on right side, shared pin)
+* GPS Vcc (red) -> LoPy 3V3 (shared with others)
+* GPS Rx (green) -> LoPy P12 / Tx2 (on left side, 1st pin from bottom)
+* GPS Tx (yellow) -> LoPy P11 / Rx2 (on left side, 2nd pin from bottom)
+
 ## To Do
 remote command handling
 
@@ -33,9 +47,9 @@ remote command handling
 You need to set up an account and password with The Things Network: https://thethingsnetwork.org/
 
 Via the `console` add an application with a name: https://console.thethingsnetwork.org/applications/add
-If done so click on the added application name and register a device: 
+If done so, click on the added application name and register a device: 
 ://console.thethingsnetwork.org/applications/NAME_APPLICATION/devices/register
-Write down the following information to be entered in the LoRaConfig.py:
+Write down the following information to be entered in the Config.py:
 ```python
 dev_eui = "XXXXXXXXXXXXXXXX"
 app_eui = "YYYYYYYYYYYYYYYY"
@@ -113,29 +127,7 @@ function Decoder(bytes, port) {
   return decoded;
 }
 ```
-
-
-### TTN how to configure TTN decode to json MQTT
-TTN data formats, decoder example.
-Test this with payload: 02 02 01 04 03 FE 00 32 00 2E
-```java
-function Decoder(bytes, port) {
-  // Decode an uplink message from a buffer
-  // (array) of bytes to an object of fields.
-  var decoded = {};
-
-  // if (port === 1) decoded.port = bytes[0];
-  decoded.temperature = ((bytes[0]<<8)+bytes[1])/10.0-30.0;
-  decoded.humidity = ((bytes[2]<<8)+bytes[3])/10.0;
-  decoded.pressure = (bytes[4]<<8)+bytes[5];
-  decoded.pm10 = ((bytes[6]<<8)+bytes[7])/10.0;
-  decoded.pm25 = ((bytes[8]<<8)+bytes[9])/10.0;
-  decoded.dust = 'SDS011';
-  decoded.meteo = 'BME280';
-
-  return decoded;
-}
-```
+Try this with a payload as showed on the tab 'data'.
 
 ### how to collect the data from TTN MQTT server
 Here is an example how your sensor kit will show at the TTN MQTT server via the command:
@@ -149,9 +141,9 @@ The json string from the server, something like:
     "app_id":"20215z","dev_id":"lopyprototype","hardware_serial":"D495613",
     "port":2,"counter":25,
     "payload_raw":"AfsBBAP/ADkANA==",
-    "payload_fields":{
-        "dust":"SDS011","humidity":26,"meteo":"BME280",
-        "pm10":5.7,"pm25":5.2,"pressure":1023,"temperature":20.7},
+    "payload_fields":{ 'temperature': -12.3, 'humidity': 80, ...
+        "utime": 12345678
+    },
     "metadata":{
         "time":"2018-02-23T19:49:29.919556985Z","frequency":868.5,
         "modulation":"LORA","data_rate":"SF7BW125","airtime":61696000,
@@ -166,8 +158,7 @@ The json string from the server, something like:
 ### LoRa port usage
 The LoRa connect routine supports to open more ports as the default LoRa port 2. Use the argument: `ports=3` to open 3 ports. The LoRa send routine supports an argument to discriminate to which port to send the payload.
 Currently ports used by MySense:
-* port 2 (default) to send measurement data: PM2.5, PM10, temp, humidity, pressure
-* port 3 sensor kit information: used sensors and location (GPS)
-* port 4 measurement data: PM1, PM2.5,PM10, temp, humidity, pressure, air quality index
+* port 2 (default) to send measurement data: PM2.5, PM10, temp, humidity, pressure, unix timestamp, etc.
+* port 3 to send meta data as which sensors and location if available.
 
 The LoRa implementation supports to collect data sent to the sensor kit. Define the argument `callback=commandRoutine` on the connect initialisation. The callback rooutin on reception of data on any LoRa port will be called as: `commandRoutine(port,receieved_data)`. See lora_test.py for examples. 
