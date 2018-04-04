@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.18 2018/04/04 13:47:45 teus Exp teus $
+# $Id: MySense.py,v 1.19 2018/04/04 15:34:02 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.18 $"[11:-2]
+__version__ = "0." + "$Revision: 1.19 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -394,8 +394,9 @@ def CallBack(port,what):
 # LoRa setup
 lora = None
 def setup():
-  global lora, sleep_time, STOP, myId, dust, meteo
-  global thisGPS
+  global Network, lora
+  global sleep_time, STOP, myId
+  global dust, meteo, thisGPS, useGPS
 
   display("MySense V %s" % __version__[:6], (0,0), clear=True)
   display("s/n " + myID)
@@ -525,7 +526,7 @@ def DoMeteo():
   else:
     display("    C hum%  pHa")
     display("o",(24,-5),prt=False)
-    display("% 3.1f %2d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES])))
+    display("% 3.1f % 3d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES])))
   return mData # temp, hum, pres, gas, aqia
 
 def DoPack(dData,mData):
