@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.17 2018/04/03 08:06:54 teus Exp teus $
+# $Id: MySense.py,v 1.18 2018/04/04 13:47:45 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.17 $"[11:-2]
+__version__ = "0." + "$Revision: 1.18 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -416,9 +416,10 @@ def setup():
        SendInfo()
     else:
        display("NOT joined LoRa!")
-       raise OSError("No connectivity")
+       lora = None
+       Network = 'None'
     sleep(10)
-  else:
+  if Network == 'None':
     display("No network!", (0,0), clear=True)
     LED.blink(10,0.3,0xff00ff,True)
     # raise OSError("No connectivity")
