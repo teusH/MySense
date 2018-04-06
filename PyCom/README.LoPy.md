@@ -22,14 +22,14 @@ SDS011/PMS7003 TTL Uart connection:
 BME280/680 I2C  connection (default I2C address):
 * BME Gnd (black) -> LoPy Gnd (on right side, same pin as for SDS)
 * BME V3/5 (red) -> LoPy 3V3 (on right side, 3rd pin from top)
-* BME SDA (white) -> LoPy SDA (on left side, 11th pin from top)
-* BME SCL (yellow) -> LoPy CLK (on left side, 12th pin from top)
+* BME SDA (white) -> LoPy SDA (on right side, 4th pin from top)
+* BME SCL (yellow) -> LoPy CLK (on right side, 5th pin from top)
 
 SSD1306 SPI connection (using GPIO pins):
-* SSD CS (blue) -> LoPi P22
+* SSD CS (blue) -> LoPi P18
 * SSD DC (purple) -> LoPy P20
 * SSD RST (gray) -> LoPy P21
-* SSD D1 (white) -> LoPy P23
+* SSD D1 (white) -> LoPy P17
 * SSD D0 (orange) -> LoPy P19
 * SSD VCC (red) -> LoPy 3V3 (shared with BME280)
 * SSD GND (black) -> LoPy Gnd (on right side, same pin as for SDS)

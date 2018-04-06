@@ -16,22 +16,27 @@ thisGPS = [0.0,0.0,0.0] # (LAT,LON,ALT)
 
 useSSD = 'I2C'
 # I2C pins
-S_SDA = 'P7'  # white shared
-S_SCL = 'P8'  # gray shared
+S_SDA = 'P23'  # white shared
+S_SCL = 'P22'  # gray shared
 
 #useSSD = 'SPI'
 # SPI pins
 #S_CLKI = 'P19'  # brown D0
-#S_MOSI = 'P23'  # white D1
-#S_MISO = 'P18'  # NC
+#S_MOSI = 'P18'  # white D1
+#S_MISO = 'P16'  # NC
 # SSD pins on GPIO
 #S_DC   = 'P20'  # purple DC
 #S_RES  = 'P21'  # gray   RES
-#S_CS   = 'P22'  # blew   CS
+#S_CS   = 'P17'  # blew   CS
 
 useGPS = 'UART'      # uart
 G_Tx = 'P11'    # white GPS Rx
 G_Rx = 'P12'    # gray GPS Tx
+
+#sampling = 60   # sample time for dust
+#sleep_time = 5  # interval time between samples
+# calibration Taylor factors
+#calibrate = None # or e.g. { 'temperature': [-6.2,1], 'pm1': [-20.0,0.5], ...}
 
 Dust = ['','PPD42NS','SDS011','PMS7003']
 useDust = 'UART'     # UART
@@ -43,6 +48,6 @@ D_Rx = 'P4'     # yellow Tx module
 Meteo = ['','DHT11','DHT22','BME280','BME680']
 useMeteo = 'I2C'# I2C bus
 meteo = Meteo.index('BME680')       # define 0 if not
-M_SDA = 'P7'    # gray SDA shared
-M_SCL = 'P8'    # white SCL shared
+M_SDA = 'P23'    # gray SDA shared with I2C SSD1306
+M_SCL = 'P22'    # white SCL shared with I2C SSD1306
 M_gBase = 231865.4 # BME680 gas base line (dflt None: recalculate)
