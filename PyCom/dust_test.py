@@ -1,5 +1,5 @@
 # simple test script for dust sensors
-# $Id: dust_test.py,v 1.3 2018/04/01 19:21:44 teus Exp teus $
+# $Id: dust_test.py,v 1.4 2018/04/06 19:42:41 teus Exp teus $
 # standalone test loop
 from time import time, sleep
 Dust = ['','PPD42NS','SDS011','PMS7003']
@@ -22,10 +22,15 @@ except:
 sampling = 60    # each sampling time take average of values
 interval = 5*60  # take very 5 minutes a sample over 60 seconds
 
+try:
+  from Config import calibrate
+except:
+  calibrate = None
+
 print("Using dust sensor %s, UART Rx on pin %s, Tx on pin %s" % (Dust[dust],D_Tx, D_Rx))
 print("Dust module sampling %d secs, interval of measurement %d minutes" % (sampling, interval/60))
 
-sensor = senseDust(port=1, debug=True, sample=sampling, interval=0, pins=(D_Tx,D_Rx))
+sensor = senseDust(port=1, debug=True, sample=sampling, interval=0, pins=(D_Tx,D_Rx), calibrate=calibrate)
 errors = 0
 for cnt in range(15):
     timings = time()

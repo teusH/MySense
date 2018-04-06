@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.19 2018/04/04 15:34:02 teus Exp teus $
+# $Id: MySense.py,v 1.20 2018/04/06 14:27:13 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.19 $"[11:-2]
+__version__ = "0." + "$Revision: 1.20 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -247,6 +247,12 @@ if use_oled:
 
 display('config %s' % PyCom, (0,0),clear=True)
 
+# calibrate dict with lists for sensors { 'temperature': [0,1], ...}
+try:
+  from Config import calibrate
+except:
+  calibrate = None
+
 # oled on SPI creates I2C bus errors
 #  display('BME280 -> OFF', (0,0),True)
 # Connect Sensors
@@ -277,7 +283,7 @@ if useMeteo:
         from Config import M_gBase
       except:
         M_gBase = None
-    useMeteo = BME.BME_I2C(i2c[nr], address=0x76, debug=False)
+    useMeteo = BME.BME_I2C(i2c[nr], address=0x76, debug=False, calibrate=calibrate)
     if meteo == 4:
       display('AQI wakeup')
       useMeteo.gas_base = M_gBase
@@ -310,7 +316,7 @@ if useDust:
     elif dust == 3:
       from PMSx003 import PMSx003 as senseDust
     else: raise OSError("unknown PM sensor")
-    useDust = senseDust(port=len(uart), debug=False, sample=sample_time, interval=0, pins=(D_Tx,D_Rx))
+    useDust = senseDust(port=len(uart), debug=False, sample=sample_time, interval=0, pins=(D_Tx,D_Rx), calibrate=calibrate)
     uart.append(len(uart))
     print("%s UART %d: Rx ~> Tx %s, Tx ~> Rx %s" % (Dust[dust],len(uart),D_Tx, D_Rx))
   except Exception as e:
@@ -469,7 +475,7 @@ def DoDust():
     for k in dData.keys():
         if dData[k] == None: dData[k] = 0
     try:
-      if 'pm1' in dData.keys() and dData['pm1'] > 0:
+      if 'pm1' in dData.keys():   #  and dData['pm1'] > 0:
         display(" PM1 PM2.5 PM10", (0,0), clear=True)
         display("% 2.1f % 5.1f% 5.1f" % (dData['pm1'],dData['pm25'],dData['pm10']))
       else:
@@ -521,12 +527,12 @@ def DoMeteo():
   nl += 6  # oled spacing
   if mData[GAS] > 0:
     display("  C hum% pHa AQI")
-    display("o",(18,-5),prt=False)
+    display("o",(12,-5),prt=False)
     display("% 2.1f %2d %4d %2d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES]),round(mData[AQI])))
   else:
     display("    C hum%  pHa")
     display("o",(24,-5),prt=False)
-    display("% 3.1f % 3d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES])))
+    display("% 3.1f  % 3d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES])))
   return mData # temp, hum, pres, gas, aqia
 
 def DoPack(dData,mData):

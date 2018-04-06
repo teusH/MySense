@@ -18,11 +18,16 @@ try:
 except:
   raise OSError("Missing library %s" % Meteo[meteo])
 
+try:
+  from Config import calibrate
+except:
+  calibrate = None
+
 print("Using %s config I2C %d SDA on pin %s, SCL on pin %s" % (Meteo[meteo],0,M_SDA,M_SCL))
 
 # Create library object using our Bus I2C port
 i2c = I2C(0, pins=(M_SDA,M_SCL)) # master
-useMeteo = BME.BME_I2C(i2c, address=0x76, debug=False)
+useMeteo = BME.BME_I2C(i2c, address=0x76, debug=False, calibrate=calibrate)
 
 # change this to match the location's pressure (hPa) at sea level
 useMeteo.sea_level_pressure = 1014.25 # 1013.25
