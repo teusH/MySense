@@ -100,7 +100,7 @@ function Decoder(bytes, port) {
       if( notZero(bytes, 8 ) ){ decoded.humidity = bytes2(bytes,8,10.0); } // %
       if( notZero(bytes, 10) ){ decoded.pressure = bytes2(bytes,10,1.0); }   // hPa
       if( notZero(bytes, 12) ){ decoded.gas = bytes2(bytes,12,1.0); }         // kOhm
-      if( notZero(bytes, 14) ){ decoded.aqi = bytes2(bytes,14,1.0); }        // %
+      if( notZero(bytes, 14) ){ decoded.aqi = bytes2(bytes,14,10.0); }        // %
       if( bytes.length >= 20 ){ 
         // timestamp base is Unix Epoch (GPS) or time power on LoPy
         if( notZero(bytes,16) || notZero(bytes,18) ){ // Unix timestamp
