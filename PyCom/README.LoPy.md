@@ -107,6 +107,14 @@ function Decoder(bytes, port) {
             decoded.utime = (bytes2(bytes,16,1)<<32) + bytes2(bytes,18,1);
         }
       }
+      if( bytes.length >= 26) {  // sensorkit is moving
+        var lat = bytes2rat(bytes,20);
+        if( lat ) {
+           decoded.latitude = round(lat/100000.0,6);
+           decoded.longitude = round(bytes2rat(bytes,22)/100000.0,6);
+           decoded.altitude = round(bytes2rat(bytes,24)/10.0,6);
+        }
+      }
     }
   }
   var dustTypes = ['','PPD42NS','SDS011','PM7003','','','','','','','','','','','',''];
