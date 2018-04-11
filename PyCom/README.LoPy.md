@@ -118,11 +118,12 @@ function Decoder(bytes, port) {
     }
   }
   var dustTypes = ['','PPD42NS','SDS011','PM7003','','','','','','','','','','','',''];
-  var meteoTypes = ['','DHT11','DHT22','BME280','BME680','','','','','','','','','','',''];
+  var meteoTypes = ['','DHT11','DHT22','BME280','BME680','',''];
   if ( port === 3 ){
     decoded.version = bytes[0]/10.0;
     if( bytes[1]&0x0f ) { decoded.dust = dustTypes[bytes[1]&017]; }
-    if( bytes[1]&0xf0 ) { decoded.meteo = meteoTypes[bytes[1]>>4]; }
+    if( bytes[1]&0x70 ) { decoded.meteo = meteoTypes[(bytes[1]>>4)&07]; }
+    if( bytes[1]&0x80 ) { decoded.gps = 1; }
     var lat = bytes2rat(bytes,2);
     if( lat ) {
       decoded.latitude = round(lat/100000.0,6);
