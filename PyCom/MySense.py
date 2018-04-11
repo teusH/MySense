@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.20 2018/04/06 14:27:13 teus Exp teus $
+# $Id: MySense.py,v 1.21 2018/04/11 14:23:00 teus Exp $
 #
-__version__ = "0." + "$Revision: 1.20 $"[11:-2]
+__version__ = "0." + "$Revision: 1.21 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -537,7 +537,7 @@ def DoMeteo():
 
 def DoPack(dData,mData):
   global meteo, dust
-  return struct.pack('>HHHHHHHHHl',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+300),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10),time())
+  return struct.pack('>HHHHHHHHl',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+300),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10),time())
 
 lastUpdate = 0
 def SendInfo(port=3):
@@ -545,13 +545,15 @@ def SendInfo(port=3):
   lastUpdate = time()
   if lora == None: return True
   if (not meteo) and (not dust) and (useGPS == None): return True
+  gps = 0
   if useGPS:
     # GPS 5 decimals: resolution 14 meters
     thisGPS[LAT] = round(float(useGPS.latitude),5)
     thisGPS[LON] = round(float(useGPS.longitude),5)
     thisGPS[ALT] = round(float(useGPS.altitude),1)
+    gps = 010
   version = int(__version__[0])*10+int(__version__[2])
-  data = struct.pack('>BBlll',version,((meteo&07)<<4)|(dust&07), int(thisGPS[LAT]*100000),int(thisGPS[LON]*100000),int(thisGPS[ALT]*10))
+  data = struct.pack('>BBlll',version,(((gps|meteo)&07)<<4)|(dust&07), int(thisGPS[LAT]*100000),int(thisGPS[LON]*100000),int(thisGPS[ALT]*10))
   return lora.send(data,port=port)
 
 updateMin = 7*60    # 7 minutes, kit moved
