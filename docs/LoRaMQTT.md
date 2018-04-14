@@ -30,6 +30,14 @@ Use the SSL layer of the TTN server.
 ### INSTALLATION
 See script for all configuration possibilities. 'Conf["all"]' will force measurements from all nodes (active or not, in admin file or not) to be used in the output.
 
+### CONFIGURATION
+The file `LoPy-Admin.conf.json` will allow to define which LoRa TTN server, LoRa measurment nodes, which classes of firmware of the nodes, which load unpacking, etc will be used. Default MySense will use the internal defined configurations.
+
+Warning:
+Make sure the configuration items are well referenced. There is not much checking done on the coherence of the configuration definitions. Make sure the file is json compliant.
+
+To Do: move these configuration items into a database.
+
 ### APPLICATION
 Forward measurements of LoRaWan TTN nodes to different configured output channels.
 On reception of USR1 signal/event the process will log current status of telegrams received so far and last timestamp.
