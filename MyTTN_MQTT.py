@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 2.1 2018/02/05 13:41:56 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 2.3 2018/04/14 10:56:56 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -29,12 +29,11 @@
 """ Download measurements from TTN MQTTT server:
     Subscribe to measurements from a Mosquitto Broker server
     e.g.
-    Publish measurements as client to luftdaten.info and MySQL vuurwerk DB
-    This is dedicated to TTN LoRa RIVM records at Fireworks 2017 project time.
+    Publish measurements as client to luftdaten.info and MySQL
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.1 $"[11:-2]
+__version__ = "0." + "$Revision: 2.3 $"[11:-2]
 
 try:
     import MyLogger
@@ -60,6 +59,9 @@ telegrams = []           # telegram buffer, max length is 100
 ErrorCnt = 0             # connectivity error cnt, slows down, >20 reconnect, >40 abort
 PingTimeout = 0          # last time ping request was sent
 
+# TTN working command line example
+# mosquitto_sub -v -h eu.thethings.network -p 1883 -u 20179215970128 -P 'ttn-account-v2.ZJvoRKh3kHsegybn_XhADOGEglqf6CGAChqLUJLrXA'  -t '+/devices/+/up' -v
+
 # configurable options
 __options__ = [
         'input',       # output enables
@@ -84,7 +86,7 @@ Conf = {
     # credentials to access broker
     'qos' : 0,           # dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
     'cert' : None,       # X.509 encryption
-    'prefix': 'VW_',     # prefix to unique device number, used in Api Key
+    'project': 'XYZ',    # default prefix to unique device/serial number
     # + is a wild card in TTN
     'topic': 'devices',  # main topic
     'AppId': '+',        # to be fixed regular expression to accept AppId to subscribe to
@@ -94,124 +96,218 @@ Conf = {
     # this will read from a dump MQTT file, can be defined from command line file=..
     # 'file': 'Dumped.json', # uncomment this for operation from data from file
     # TO DO: adminfile should go to database
-    'adminfile': 'VM2017ADMINfile-TTNmqtt.json', # meta identy data for sensor kits
+    # defines nodes, LoRa, firmware, classes, etc. for Configure info
+    # 'adminfile': 'LoPy-Admin.conf.json', # meta identy data for sensor kits
+    'nodes': {},  # DB of sensorkits info
     # adminfile will define and overwrite:
-    #   nodes, sensors, classes, firmware, and translate
+    #   LoRa, nodes, sensors, classes, firmware, and translate
     # 'test': True     # use TTN record example in stead of server access
     # DB dictionary with different sensors: type, producer, sensors/units
     # should go to a json file
     # key calibrations is optional
     # types need to be capitalized
     # group classification is not used yet
-    'sensors': [ # To Do: push this into a database
-            {'type':'SDS011','producer':'Nova','group':'dust',
-                'fields':['pm25','pm10',],'units':['ug/m3','ug/m3'],
-                'calibrations': [[0,1.0],[0,1.0]],},
+    "LoRa": {   # TO DO: create a row, one per threard
+        "project": "test",
+        "hostname": "eu.thethings.network",
+        "port": 1883,
+        "topic": "app id",      # used as Conf['user'] TTN MQTT access
+        "account": "ttn-account-v2.acacadabra" # TTN password MQTT server
+      },
+    # the sensor products
+    # DB dictionary with different sensors: type, producer, sensors/units
+    # should go to a json adminfile To Do: put this in a DB
+    # types need to be capitalized
+    # group classification is not used yet
+    "sensors": [
+            {  "type":"SDS011",
+                "producer":"Nova","group":"dust",
+                "fields":["pm25","pm10"],
+                "units":["ug/m3","ug/m3"],
+                "calibrations": [[0,1.0],[0,1.0]]},
             # Plantower standard ug/m3 measurements
-            {'type':'PMS7003','producer':'Plantower','group':'dust',
-                'fields':['pm1','pm25','pm10',],
-                'units':['ug/m3','ug/m3','ug/m3'],
-                'calibrations': [None,[0,1.0],[0,1.0]],}, # None is [0,1.0]
+            {  "type":"PMS7003",
+                "producer":"Plantower","group":"dust",
+                "fields":["pm1","pm25","pm10"],
+                "units":["ug/m3","ug/m3","ug/m3"],
+                "calibrations": [None,[0,1.0],[0,1.0]]}, # None is [0,1.0]
             # Plantower the atmosphere ug/m3 measurements
-            {'type':'PMS7003_ATM','producer':'Plantower','group':'dust',
-                'fields':['pm1_atm','pm25_atm','pm10_atm',],
-                'units':['ug/m3','ug/m3','ug/m3'],
-                # 'calibrations': [[0,1.0],[0,1.0],[0,1.0]],
+            {  "type":"PMS7003_ATM",
+                "producer":"Plantower","group":"dust",
+                "fields":["pm1_atm","pm25_atm","pm10_atm"],
+                # "calibrations": [[0,1.0],[0,1.0],[0,1.0]],
+                "units":["ug/m3","ug/m3","ug/m3"]
                 },
             # Plantower the count particulates measurements
-            {'type':'PMS7003_PCS','producer':'Plantower','group':'dust',
-                'fields':['pm03_pcs','pm05_pcs','pm1_pcs','pm25_pcs','pm5_pcs','pm10_pcs',],
-                'units':['pcs/0.1dm3','pcs/0.1dm3','pcs/0.1dm3','pcs/0.1dm3','pcs/0.1dm3','pcs/0.1dm3',],
-                'calibrations': [[0,1.0],[0,1.0],[0,1.0],[0,1.0],[0,1.0],[0,1.0]],},
-            {"type": "PPD42NS",'producer':'Shiney','group':'dust',
-                'fields':['pm25','pm10',],'units':['pcs/0.01qft','pcs/0.01qft'],
-                'calibrations': [[0,1.0],[0,1.0]],},
-            {"type": "DC1100PRO",'producer':'Dylos','group':'dust',
-                'fields':['pm25','pm10',],'units':['pcs/0.01qft','pcs/0.01qft'],
-                'calibrations': [[0,1.0],[0,1.0]],},
-            { 'type': 'DHT22', 'producer':'Adafruit','group':'meteo',
-                'fields':['temp','rv'],'units':['C','%'],
-                'calibrations': [[0,1.0],[0,1.0]],},
-            { 'type': 'BME280', 'producer':'Bosch','group':'meteo',
-                'fields':['temp','rv','luchtdruk'],'units':['C','%','hPa'],
-                'calibrations': [[0,1.0],[0,1.0],[0,1.0]],},
-            { 'type': 'BME680', 'producer':'Bosch','group':'meteo',
-                'fields':['temp','rv','luchtdruk','gas'],'units':['C','%','hPa','level']},
-            { 'type': 'TTN NODE', 'producer':'TTN','group':'LoRa',
-                'fields':['battery','light','temp'],'units':['mV','lux','C'],
-                'calibrations': [[0,1.0],[0,1.0],[0,1.0]],},
+            {  "type":"PMS7003_PCS",
+                "producer":"Plantower","group":"dust",
+                "fields":["pm03_pcs","pm05_pcs","pm1_pcs","pm25_pcs","pm5_pcs","pm10_pcs"],
+                "units":["pcs/0.1dm3","pcs/0.1dm3","pcs/0.1dm3","pcs/0.1dm3","pcs/0.1dm3","pcs/0.1dm3"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0],[0,1.0],[0,1.0],[0,1.0]]},
+            {  "type": "PPD42NS",
+                "producer":"Shiney","group":"dust",
+                "fields":["pm25","pm10"],
+                "units":["pcs/0.01qft","pcs/0.01qft"],
+                "calibrations": [[0,1.0],[0,1.0]]},
+            {  "type": "DC1100PRO",
+                "producer":"Dylos","group":"dust",
+                "fields":["pm25","pm10"],
+                "units":["pcs/0.01qft","pcs/0.01qft"],
+                "calibrations": [[0,1.0],[0,1.0]]},
+            {  "type": "DHT22",
+                "producer":"Adafruit","group":"meteo",
+                "fields":["temp","rv"],"units":["C","%"],
+                "calibrations": [[0,1.0],[0,1.0]]},
+            {  "type": "BME280",
+                "producer":"Bosch","group":"meteo",
+                "fields":["temp","rv","luchtdruk"],
+                "units":["C","%","hPa"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0]]},
+            {  "type": "BME680",
+                "producer":"Bosch","group":"meteo",
+                "fields":["temp","rv","luchtdruk","gas", "aqi"],
+                "units":["C","%","hPa","kOhm","%"],
+                "calibrations": [[0,1],[0,1],[0,1],[0,1],[0,1]]},
+            {  "type": "TTN NODE",
+                "producer":"TTN","group":"LoRa",
+                "fields":["battery","light","temp"],
+                "units":["mV","lux","C"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0]]},
+            {  "type": "TTN EVENT",
+                "producer":"TTN","group":"LoRa",
+                "fields":["event"],
+                "units": ["id"],"calibrations": [None]},
+            {  "type": "GPS",
+                "producer":"Grove","group":"GPS",
+                "fields":["longitude","latitude","altitude"],
+                "units": ["degrees","degrees","m"],
+                "calibrations": [[0,1],[0,1],[0,1]]},
+            {  "type": "PYCOM",
+                "producer": "ESP", "group":"controller",
+                "fields":["time"], "units":["sec"],"calibrations":[None]},
+            {  "type": "MYSENSE",
+                "producer": "BdP", "group": "IoS",
+                "fields": ["version","meteo","dust"],
+                "units": ["nr","type","type"],
+                "calibrations": [None,None,None]},
             # not yet activated
-            { 'type':'ToDo', 'producer':'Spect', 'group':'gas',
-               'fields':['NO2','CO2','O3','NH3'], 'units':['ppm','ppm','ppm','ppm',],
-                'calibrations': [[0,1.0],[0,1.0],[0,1.0],[0,1.0]],},
+            { "type":"ToDo",
+                "producer":"Spect", "group":"gas",
+                "fields":["NO2","CO2","O3","NH3"],
+                "units":["ppm","ppm","ppm","ppm"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0],[0,1.0]]}
     ],
     # if only as payload in packed format
     # To Do: use reg exp, classID gives pointer to payload for a device
     'classes': [
         { 'classID': 'VW2017', 'regexp': 'pmsensor/pmsensor\d+(/\d)?', },
-        { 'classID': 'TTNnodes', 'regexp': '201801\d\d5971az/2018[0-9a-zA-Z]+/[1-4]', },
+        { "classID": "TTNnode",  "regexp": "201801275971az/2018[0-9a-zA-Z]+/[1-4]"},
+        { "classID": "LoPyNode", "regexp": "201802215971az/lopyprototype2018[0-9]{4}"},
         ],
     # To Do: create a handle from application/device to device config
     # AppId eui, Dev eui and fport define the algorithm firmware to be used
-    'firmware': [
-        { 'packing': '>HHHH',   # how it is packed, here 4 X unsigned int16/short
-          'adjust': [[0,0.1],[0,0.1],[-20,0.1],[0,0.1]],  # unpack algorithm
-          'id': 'VW2017',       # size of payload as ident
-          'fields': ['pm25','pm10','temp','rv'],          # fields
-          'sensors': ['SDS011','DHT22'],                  # use upper cased names
-          'ports': [None],      # events
+    # should be in json admin file To Do: put this in a DB
+    # To Do: add packing per length of bytes:
+    # [ {'length': nr bytes, "packing": ">HH", "adjust":[[...]], "fields":[]}
+    # To Do: check all referrals
+    "firmware": [
+        {
+          "id":      "VW2017",    # size of payload as ident
+          "port2": {
+              "packing": ">HHHH", # how it is packed, here 4 X unsigned int16/short
+              "adjust":  [[0,0.1],[0,0.1],[-20,0.1],[0,0.1]],  # unpack algorithm
+              "fields":  ["pm25","pm10","temp","rv"],  # fields
+              "sensors": ["SDS011","DHT22"]  # use upper cased names
+            }
         },
-        { 'packing': '>HHH',    # how it is packed, here 4 X unsigned int16/short
-          'adjust': [[0,1],[0,1],[0,0.01],], # unpack algorithm
-          'id': 'TTNnodes',     # size of payload as ident
-          'fields': ['battery','light','temp',],          # fields
-          'sensors': ['TTN node','TTN node','TTN node',], # use upper cased names
-          'ports': [None] + [ 'setup', 'interval', 'motion', 'button',], # events
+        {
+          "id":      "TTNnode", # size of payload as ident
+          "port2": {
+              "packing": ">HHH",# how it is packed, here 4 X unsigned int16/short
+              "fields":  ["battery","light","temp"], # fields
+              "adjust":  [[0,1],[0,1],[0,0.01]],     # unpack algorithm
+              "sensors": ["TTN node","TTN node","TTN node"] # use upper cased names
+            },
+          # ports may be used as just an event iso 1 byte value
+          "port3": { "packing": ">B", "fields": ["interval"], "adjust": [[0,1]]  },
+          "port4": { "packing": ">B", "fields": ["motion"], "adjust": [[0,1]]  },
+          "port5": { "packing": ">B", "fields": ["button"], "adjust": [[0,1]]  }
         },
+        {
+          "id": "LoPyNode",
+          "port2": {
+              # To Do: add HHH if gps is added
+              # [">HHHHHHHHl",">HHHHHHHHllll"]
+              "packing": ">HHHHHHHHl",
+              # + "longitude","latitude","altitude"
+              "fields": ["pm1","pm25","pm10","temperature","humidity","pressure","gas","aqi","time"],
+              # + [0,0.000001],[0,0.000001],[0,0.1]
+              "adjust": [[0,0.1],[0,0.1],[0,0.1],[-30,0.1],[0,0.1],[0,1],[0,1],[0,0.1],[0,1]],
+              "sensors": ["PMS7003","SDS011","BME680","BME280","GPS","PYCOM"]
+            },
+          "port3": {
+               "packing": ">BBlll",
+                "fields": ["version","meteo","dust","latitude","longitude","altitude"],
+                "adjust": [[0,0.1],[0,1],[0,0.000001],[0,0.00001],[0,0.1]],
+                "sensors": ["MYSENSE","GPS"],
+                "meteo": ["unknown","PPD42NS","SDS011","PMS7003"],
+                "dust": ["unknown","DHT11","DHT22","BME280","BME680"]
+          }
+        }
     ],
-    'translate': {      # defs of used fields by MySense, do not change the keys
-        'pm03': ['pm0.3','PM03'],
-        'pm1': ['roet','soot',],
-        'pm25': ['pm2.5','PM25'],
-        'pm5': ['pm5.0','PM5'],
-        'pm10': ['pm','PM10'],
-        'O3': ['ozon','o3'],
-        'NH3': ['ammoniak','ammonium','nh3'],
-        'NO2': ['stikstof','stikstofdioxide','nitrogendioxide','no2'],
-        'NO': ['stikstof','stikstofoxide','nitrogenoxide','no'],
-        'CO2': ['koolstofdioxide','carbondioxide','co2'],
-        'CO': ['koolstofmonoxide','carbonoxide','co'],
-        'temp': ['temperature'],
-        'luchtdruk': ['pressure','pres',],
-        'rv': ['humidity','hum','vochtigheid',],
-        'ws': ['windspeed','windsnelheid',],
-        'wr': ['windrichting','winddirection','direction',],
-        'alt': ['altitude','hoogte','height',],
-        'lng': ['longitude','lon'],
-        'lat': ['latitude','hoogte','height',],
-        'geolocation': ['gps','GPS','coordinates','geo'],
+    # defs of used fields by MySense, do not change the keys
+    # To Do: put this in a DB
+    "translate": {
+        "pm03": ["pm0.3","PM0.3"],
+        "pm1":  ["roet","soot"],
+        "pm25": ["pm2.5","PM2.5"],
+        "pm5":  ["pm5.0","PM5.0"],
+        "pm10": ["pm","PM"],
+        "O3":   ["ozon"],
+        "NH3":  ["ammoniak","ammonium"],
+        "NO2":  ["stikstof","stikstofdioxide","nitrogendioxide"],
+        "NO":   ["stikstof","stikstofoxide","nitrogenoxide"],
+        "CO2":  ["koolstofdioxide","carbondioxide"],
+        "CO":   ["koolstofmonoxide","carbonoxide"],
+        "temp": ["temperature"],
+        "luchtdruk": ["pressure","pres","pha","pHa"],
+        "rv":   ["humidity","hum","vochtigheid","vocht"],
+        "ws":   ["windspeed","windsnelheid"],
+        "wr":   ["windrichting","winddirection","direction"],
+        "altitude":  ["alt","hoogte","height"],
+        "longitude":  ["long","lon","lengte graad"],
+        "latitude":  ["lat","breedte graad"],
+        "geolocation": ["gps","GPS","coordinates","geo"],
+        "gas":  ["air"],
+        "aqi":  ["air quality","luchtkwaliteit","lki"],
+        "version": ["versie","release"],
+        "meteo": ["weer"],
+        "dust": ["fijnstof"],
+        "time": ["utime","timestamp"]
     },
     'all': False,       # skip non active and not registered nodes
 }
 
+# rename names into known field names
+# prepend with field_ if not known
 def translate( sense ):
     sense.replace('PM','pm')
     for strg in ('O3','NH','NO','CO'):
         sense.replace(strg.lower(),strg)
-    if not 'translate' in Conf.keys(): return sense
+    if not 'translate' in Conf.keys(): return 'field_' + sense
     for strg in Conf['translate'].keys():
+        if sense.lower() == strg.lower(): return strg
         for item in Conf['translate'][strg]:
             if item == sense: return strg
-    return sense
+    return 'field_' + sense
 
-nodes = {}      # this may need to go to Conf dict
 dirtyCaches = False
-def GetAdminDevicesInfo( overwrite = False ):
-    global Conf, nodes, dirtyCaches, dirtyIdentCache
-    if (not overwrite) and (len(nodes) > 0): return # only once
+def GetAdminDevicesInfo( overwrite = True ):
+    global Conf, dirtyCaches, dirtyIdentCache
+    if (not overwrite) and (len(Conf['nodes']) > 0): return # only once
     new = {}
-    if 'adminfile' in Conf.keys():
-        # json should be read from file
+    if ('adminfile' in Conf.keys()) and Conf['adminfile']:
+        # admin conf.json should be read from file
         try:
             # json file may have comments in this case
             from jsmin import jsmin     # tool to delete comments and compress json
@@ -224,13 +320,13 @@ def GetAdminDevicesInfo( overwrite = False ):
                 MyLogger.log(modulename,'FATAL','Unable to proceed. Fix admin file.')
                 return
             MyLogger.log(modulename,'ATTENT','Missing or errors in LoRa admin json file with info for all LaRa nodes. Using defaults.')
-            nodes = { 'no_devices': {} }
+            Conf['nodes'] = { 'no_devices': {} }
             # return
             # example of content of admin file specified for TTN MQTT RIVM records
             # fields may be optional
             # TO DO: per AppID one nodes dict (device name may not be unique per TTN)
-            nodes = {
-                'pmsensor1': {           # DevAddr from eg RIVM
+            Conf['nodes'] = {
+                'pmsensorN': {           # Device id TTN
                     'GPS': {
                         'longitude': 51.12345, 'latitude': 6.12345, 'altitude': 23, },
                     'label': 'Jelle', 'street': 'Fontys nr 8',
@@ -240,43 +336,42 @@ def GetAdminDevicesInfo( overwrite = False ):
                     'tel': '+31773270012',
                     'comment': 'test device',
                     # 'serial': None, if not defined use hash topic/device name
+                    "serial": "30aea4008438", # PyCom unique ID
                     # To Do: add calibration details
-                    'AppSKEY': 'xyz',    # LoRa key from eg RIVM, firmware item
-                    'NwkSKey': 'xyzxyz', # LoRa key from eg RIVM, firmware item
-                    'sensors': [ 'SDS011', 'BME280' ],
-                    'meteo': 'BME280',   # meteo sensor type, default deprecated
-                    'dust': 'SDS011',    # dust sensor type, depricated
-                    'firmware': 'VW2017', # how payload is packed
+                    'AppSKEY': 'xyz',    # LoRa key from eg RIVM
+                    'NwkSKey': 'acacadabra', # LoRa key from eg RIVM
+                    'meteo': 'BME280',   # meteo sensor type
+                    'dust': 'SDS011',    # dust sensor type
                     'luftdaten.info': False,     # forward to Open Data Germany?
                     'active': False,
                 }
             }
         dirtyCaches = True ; dirtyIdentCache = True
-        for item in ['nodes','sensors','firmware','classes','translate']:
+        # nodes should go to database
+        for item in ['project','nodes','sensors','firmware','classes','translate','LoRa']:
             if item in new.keys():
-                if item == 'nodes': nodes = new[item]
-                else: Conf[item] = new[item]
+                Conf[item] = new[item]
                 MyLogger.log(modulename,'ATTENT','Overwriting dflt definitions for Conf[%s].' % item)
     if not 'all' in Conf.keys():        # handle nodes: dflt all if not configured
-        Conf['all'] = True
-        if len(nodes) > 1: Conf['all'] = False # dflt: only registrated nodes
-    for device in nodes.keys():       # build array of sensor types in this device
-        if not 'sensors' in nodes[device].keys(): nodes[device]['sensors'] = []
+        Conf['all'] = False
+        if len(Conf['nodes']) > 1: Conf['all'] = False # dflt: only registrated nodes
+    for device in Conf['nodes'].keys():       # build array of sensor types in this device
+        if not 'sensors' in Conf['nodes'][device].keys(): Conf['nodes'][device]['sensors'] = []
         for sense in ['meteo','dust','gas']:
-            if (sense in nodes[device].keys()):
-                if type(nodes[device][sense]) is unicode:
-                    nodes[device][sense] = str(nodes[device][sense])
-                if type(nodes[device][sense]) is str:
-                    nodes[device][sense] = nodes[device][sense].split(',')
-                for item in nodes[device][sense]:
+            if (sense in Conf['nodes'][device].keys()):
+                if type(Conf['nodes'][device][sense]) is unicode:
+                    Conf['nodes'][device][sense] = str(Conf['nodes'][device][sense])
+                if type(Conf['nodes'][device][sense]) is str:
+                    Conf['nodes'][device][sense] = Conf['nodes'][device][sense].split(',')
+                for item in Conf['nodes'][device][sense]:
                     item = item.upper()
-                    if not item in nodes[device]['sensors']:
-                        nodes[device]['sensors'].append(item)
-        nodes[device]['sensors'].sort()
+                    if not item in Conf['nodes'][device]['sensors']:
+                        Conf['nodes'][device]['sensors'].append(item)
+        Conf['nodes'][device]['sensors'].sort()
 
 # reread admin meta info of nodes in, may de/activate data arcghiving of the node
 def SigUSR2handler(signum,frame):
-    GetAdminDevicesInfo( True ) # reload admin info from admin file
+    GetAdminDevicesInfo() # reload admin info from admin file
 
 # see if we know this product
 unkownProducts = []
@@ -319,51 +414,77 @@ def tryCalibrate(field,value,fields,calibrations):
         pass
     return value
 
-# unpack base64 TTN LoRa payload string into array of values
-def payload2fields(payload, loadId='VW2017'):
+# unpack base64 TTN LoRa payload string into array of values NOT TESTED
+# architecture is changed!, To Do: unpack on length of received bytes!
+def payload2fields(payload, firmware, portNr):
     global cached, Conf
-    if (not 'firmware' in Conf.keys()) or (not Conf['firmware'] is list):
-        MyLogger.log(modulename,'ERROR','Unpacking LoRa paylods not defined. Skip record.')
-        return {}
-    packing = None
+    packing = None; port = 'port%d' % portNr
     load = base64.decodestring(payload)
-    for thisone in Conf['firmware']:
-        if not 'packing' in Conf.keys():
-            continue
-        if loadID == thisone['id']:
-            packing = thisone
-            break
-    if not packing:
-        MyLogger.log(modulename,'ERROR','Cannot find payload converter definition.')
+    import struct
+    try:
+        loadID = firmware['id']
+        packing = firmware['packing']
+        if type(packing) is list:
+            for pack in packing:
+                save = load
+                try:
+                    load = struct.unpack(pack,load)
+                    break
+                except: load = save; pass
+            if not type(load) is list: packing = None
+        else: load = struct.unpack(packing,load)
+    except: packing = None; pass
+    if packing == None:
+        MyLogger.log(modulename,'ERROR','Cannot find payload converter definition for id %s.' % firmware['id'])
         return {}
     rts = {}
     try:
-        load = unpack(packing['packing'],load)
-        for idx in range(0,len(packing['fields'])):
-            rts[packing['fields'][idx]] = calibrate(Conf['adjust'][idx],load[idx])
+        # I do not like special cases
+        if (firmware['id'] == 'LoPyNode') and (portNr == 3):
+            rts['sensors'] = []
+            if (load[idx] & 017) > 0:
+                rts['sensors'].append(firmware['dust'][(load[idx] & 017)] )
+            if ((load[idx]>>4) & 07) > 0:
+                rts['sensors'].append(firmware['meteo'][((load[idx]>>4) & 017)] )
+            if ((load[idx]>>4) & 010) > 0:
+                rts['sensors'].append('GPS')
+            load.insert(2,None); load.insert(3,None)
+        else:
+            rts['sensors'] = firmware['sensors']
+        for idx in range(0,len(load)):
+            if firmware['adjust'][idx] != None:
+                rts[firmware['fields'][idx]] = calibrate(firmware['adjust'][idx],load[idx])
     except:
         MyLogger.log(modulename,'ERROR','Unpacking LoRa MQTT payload. Record skipped.')
         raise ValueError
         return{}
-    rts['sensors'] = packing['sensors']
     return rts
         
 # update ident record with info from json admin file
-def updateIdent( AppId, devAddr, ident):
-    if not devAddr in nodes.keys():
+def updateIdent( AppId, devAddr, ident, updateCache=False):
+    global Conf, cached
+    if not devAddr in Conf['nodes'].keys():
         return ident
-    if not 'geolocation' in nodes[devAddr].keys():
-        if 'GPS' in nodes[devAddr].keys():
-            nodes[devAddr]['geolocation'] = str(nodes[devAddr]['GPS']['longitude'])+','+str(nodes[devAddr]['GPS']['latitude'])+','+str(nodes[devAddr]['GPS']['altitude'])
+    cacheKey = AppId+'/'+devAddr
+    if updateCache:
+        for k in ident.keys():
+            Conf['nodes'][devAddr][k] = ident[k]
+        cached[cacheKey]['ident'] = ident
+    if not 'geolocation' in Conf['nodes'][devAddr].keys():
+        if 'GPS' in Conf['nodes'][devAddr].keys():
+            Conf['nodes'][devAddr]['geolocation'] = str(Conf['nodes'][devAddr]['GPS']['longitude'])+','+str(Conf['nodes'][devAddr]['GPS']['latitude'])+','+str(Conf['nodes'][devAddr]['GPS']['altitude'])
     for item in ["geolocation",'label','village','street','pcode','province','municipality','active']:
-        if item in nodes[devAddr].keys():
-            ident[item] = nodes[devAddr][item]
-    if ('comment' in nodes[devAddr].keys()) and nodes[devAddr]['comment']:
+        if item in Conf['nodes'][devAddr].keys():
+            ident[item] = Conf['nodes'][devAddr][item]
+    if ('comment' in Conf['nodes'][devAddr].keys()) and Conf['nodes'][devAddr]['comment']:
         if not 'description' in ident.keys(): ident['description'] = ''
-        ident['description'] = nodes[devAddr]['comment'] + '; ' + ident['description']
+        else: ident['description'] += ';'
+        ident['description'] += Conf['nodes'][devAddr]['comment']
     for item in ['luftdaten.info','luftdaten','madavi']:
-        if item in nodes[devAddr].keys():
-            ident[item.replace('.info','')] = nodes[devAddr][item]
+        if item in Conf['nodes'][devAddr].keys():
+            ident[item.replace('.info','')] = Conf['nodes'][devAddr][item]
+    if 'ident' in cached[cacheKey].keys():
+        return cached[cacheKey]['ident']
     return ident
 
 # =======================================================
@@ -477,7 +598,7 @@ def PubOrSub(topic,option):
             Conf['fd'] = None
             sleep(2)
         try:
-            Conf['fd']  = mqtt.Client(Conf['prefix']+str(os.getpid()))
+            Conf['fd']  = mqtt.Client(Conf['project']+str(os.getpid()))
             Conf['fd'].on_connect = on_connect
             Conf['fd'].on_disconnect = on_disconnect
             if ('user' in Conf.keys()) and Conf['user'] and ('password' in Conf.keys()) and Conf['password']:
@@ -548,7 +669,10 @@ cached = {
     # 'last_seen': unix timestamp secs
     # 'count': received records count
     # 'eui': LoRa EUI ID
-    # 'sensors': list of sensor types
+    # 'sensors': list of sensor types (same as firmware/sensors) deprecated
+    # 'firmware': {sensors,fields,id (classId)}
+    # 'port%d': {packing, adjust}
+    # 'ident': collected meta info
     # },
 }
 
@@ -556,7 +680,7 @@ cached = {
 def SigUSR1handler(signum,frame):
     global modulename, cached
     for name in cached.keys():
-        MyLogger.log(modulename,'INFO',"Status device %s EUI=%s: count: %d, last seen: %s, unknown fields: %s, sensors %s" % (name,cached[name]['eui'] if 'eui' in cached[name].keys() else 'unknown',cached[name]['count'],datetime.datetime.fromtimestamp(cached[name]['last_seen']).strftime("%Y-%m-%d %H:%M:%S"), ' '.join(cached[name]['unknown_fields']),', '.join(cached[name]['sensors'].keys()) if 'sensors' in cached[name].keys() else 'not defined'))
+        MyLogger.log(modulename,'INFO',"Status device %s EUI=%s: count: %d, last seen: %s, unknown fields: %s, sensors %s" % (name,cached[name]['eui'] if 'eui' in cached[name].keys() else 'unknown',cached[name]['count'],datetime.datetime.fromtimestamp(cached[name]['last_seen']).strftime("%Y-%m-%d %H:%M:%S"), ' '.join(cached[name]['unknown_fields']),', '.join(cached[name]['firmware']['sensors'].keys()) if 'sensors' in cached[name]['firmware'].keys() else 'not defined'))
 
 # search record for first EUI and rssi value of the sensor/node
 def Get_GtwID(msg):
@@ -579,7 +703,7 @@ def Get_GtwID(msg):
 dirtyIdentCache = False
 IdentCache = {}
 def newIdent( sensors ):
-    global IdentCache, dirtyIdentCache
+    global IdentCache, dirtyIdentCache, Conf
     sensors.sort()
     theKey = '/'.join(sensors)
     if dirtyIdentCache:
@@ -587,18 +711,20 @@ def newIdent( sensors ):
     if theKey in IdentCache.keys(): return IdentCache[theKey].copy()
     ident = {
         'project': '', 'sensors': '',
-        'description': ';hw: '+','.join(sensors),
+        'description': 'hw: '+','.join(sensors),
         'fields': ['time', ], 'types': ['time'], 'units': ['s',],
         'calibrations': [None,],
         }
     for sensor in sensors:
         product  = ProductKnown(sensor)
-        for i in range(0,len(product['fields'])):
-            # ident['sensors'] = ','.join([ident['sensors'],'%s(%s)' % (nodes[sensor]['fields'][i],nodes[sensor]['units'][i]])
+        for j in range(0,len(product['fields'])):
+            # ident['sensors'] = ','.join([ident['sensors'],'%s(%s)' % (Conf['nodes'][sensor]['fields'][j],Conf['nodes'][sensor]['units'][j]])
             ident['types'].append(sensor.lower())
-            ident['fields'].append(product['fields'][i])
-            ident['units'].append(product['units'][i])
-            ident['calibrations'].append(product['calibrations'][i] if 'calibrations' in product.keys() else None)
+            for t in ['fields','units','calibrations']:
+                try:
+                    ident[t].append(product[t][j])
+                except:
+                    ident[t].append(None)
     IdentCache[theKey] = ident
     return ident.copy()
     
@@ -617,15 +743,50 @@ def getFirmware( app, device, port):
         if item['regexp'].match(app+'/'+device+'/'+ '%d' % port):
             ID = item['classID'] ; break
     if not ID: return {}
+    portNr = 'port%d' % port
     for item in Conf['firmware']:
-        if item['id'] == ID: return item
+        if (item['id'] == ID) and (portNr in item.keys()):
+            rts = { "id": ID }
+            for k in item[portNr].keys(): rts[k] = item[portNr][k]
+            return rts
     return {}
 
-def convert2MySense( data, **sensor):
-    global Conf, cached, nodes, dirtyCaches
+def addInfo(module,ident,clear=False):
+    try:
+        if clear:
+            for t in ['types','fields','units','calibrations']:
+                ident[t] = []
+            ident['sensors'] = ''
+            try:
+                descr = ident['description'].split(';')
+                for i in range(0,len(descr)):
+                    if descr[i].find('hw:') >= 0: descr.pop(i)
+                ident['description'] = descr.join(';')
+            except: pass
+            return True
+        sensor = None
+        for t in Conf['sensors']:
+            if t['type'] == module:
+                sensor = t; break
+        if not sensor: raise ValueError("Unknown module type %s" % module)
+        ident['sensors'] += ',' if len(ident['sensors']) else ''
+        ident['sensors'] += module
+        for t in ['types','fields','units','calibrations']:
+            for i in range(0,len(sensor['fields'])):
+                if t == 'types': ident[t].append(module.lower())
+                else:
+                    if (type(sensor[t]) is list) and (i <= len(sensor[t])):
+                        ident[t].append(sensor[t][i])
+                    else: ident[t].append(None)
+    except Exception as e:
+        print("addInfo error %s: on module %s, key %s, index %d" % (e,module,t,i))
+        return False
+    return True
 
-    # adjust project ID if needed
-    if data['topic'][0] == 'pmsensors': data['topic'][0] = 'VW2017'
+# convert MQTT structure to MySense ident,value structure
+def convert2MySense( data, **sensor):
+    global Conf, cached, dirtyCaches
+
     device = data['topic'][2]
     record = {}
     for item in ['counter','payload_raw','port',]:
@@ -634,7 +795,6 @@ def convert2MySense( data, **sensor):
         else: record[item] = None       # should be an error: return {}
 
     myID = data['topic'][0]+'/'+data['topic'][2] # to do: should use eui ID
-    myID += '/'+ str(record['port'])
     if dirtyCaches:
         cached = {} ; dirtyCaches = False
     if not myID in cached.keys():       # caching
@@ -646,15 +806,29 @@ def convert2MySense( data, **sensor):
                     oldestKey = key
             del cached[oldestKey]
         cached[myID] = { 'unknown_fields': [], 'count': 0, 'firmware': getFirmware(data['topic'][0],data['topic'][2],record['port']),}
-        cached[myID]['sensors'] = []
+        cached[myID]['port%d' % record['port']] = {}
+        for key in ['packing','adjust']:
+            try:
+                cached[myID]['port%d' % record['port']][key] = cached[myID]['firmware'][key]
+            except: pass
         if 'sensors' in cached[myID]['firmware'].keys():
             if type(cached[myID]['firmware']['sensors']) is unicode:
                 cached[myID]['firmware']['sensors'] = str(cached[myID]['firmware']['sensors'])
             if type(cached[myID]['firmware']['sensors']) is str:
+                cached[myID]['firmware']['sensors'] = cached[myID]['firmware']['sensors'].upper()
                 cached[myID]['firmware']['sensors'] = cached[myID]['firmware']['sensors'].split(',')
-            for sensor in cached[myID]['firmware']['sensors']:
-                if not sensor.upper() in cached[myID]['sensors']:
-                    cached[myID]['sensors'].append(sensor.upper())
+    if not 'port%d' % record['port'] in cached[myID].keys():
+        try:
+            firmware = getFirmware(data['topic'][0],data['topic'][2],record['port'])
+            cached[myID]['port%d' % record['port']] = {}
+            for key in ['packing','adjust']:
+                try:
+                    cached[myID]['port%d' % record['port']][key] = firmware[key]
+                except: pass
+            for key in firmware['sensors']:
+                if not key in cached[myID]['firmware']['sensors']:
+                    cached[myID]['firmware']['sensors'].append(key)
+        except: pass
     cached[myID]['last_seen'] = time() ; cached[myID]['count'] += 1
 
     gtwID = None  # gateway id
@@ -679,7 +853,7 @@ def convert2MySense( data, **sensor):
         for sense in data['payload']['payload_fields'].keys():
             field = translate(sense)
             fnd = False
-            for sensor in cached[myID]['sensors']:
+            for sensor in cached[myID]['firmware']['sensors']:
                 sensor = ProductKnown(sensor)
                 if not sensor: continue
                 if field in sensor['fields']:
@@ -695,14 +869,14 @@ def convert2MySense( data, **sensor):
                 del data['payload']['payload_fields'][sense]
     elif ('payload_raw' in data['payload'].keys()) \
         and len(data['payload']['payload_raw']):
-            if not 'firmware' in cached[myID]:
-                firmware = 'VW2017'   # default packing and configuration of kit
-                if 'firmware' in nodes[myID].keys(): firmware = nodes[myID]['firmware']
-                cached[myID]['firmware'] = firmware
+            if not 'firmware' in cached[myID]:  # try default
+                firmware = getFirmware(data['topic'][0],data['topic'][2],data['payload']['port'])
+                if not len(firmware):
+                    firmware = getFirmware('201802215971az','lopyprototype20180000',2)
+                    print("Unable to find firmware for device %s using LoPyNode" % device)
             else:
                 firmware = cached[myID]['firmware']
-            if 'firmware' in nodes[myID].keys(): firmware = nodes[myID]['firmware']
-            data['payload']['payload_fields'] = payload2fields(data['payload']['payload_raw'])
+            data['payload']['payload_fields'] = payload2fields(data['payload']['payload_raw'],firmware,data['payload']['port'])
             # side effect payload2fields: key sensors
             cached[myID]['sensors'] = data['payload']['payload_fields']['sensors']
             del data['payload']['payload_fields']['sensors']
@@ -710,9 +884,12 @@ def convert2MySense( data, **sensor):
     if not len(data['payload']['payload_fields']): return {}    # nothing to do
 
     # we have now payload_fields with known fields of known sensors
-    ident = newIdent( cached[myID]['sensors'] )
+    ident = newIdent( cached[myID]['firmware']['sensors'] )
     ident['description'] += ';MQTT AppID=' + data['topic'][0] + ' MQTT DeviceID=' + data['topic'][2]
-    ident['project'] = data['topic'][0]
+    try:
+        if Conf['project'] == 'XYZ': raise ValueError
+        ident['project'] = Conf['project']
+    except: ident['project'] = data['topic'][0]
     values = { 'time': int(time()) } # init record with measurements
     if 'metadata' in data['payload'].keys():
         gtwID = Get_GtwID(data['payload']['metadata'])    # get signal strength of end node
@@ -734,32 +911,74 @@ def convert2MySense( data, **sensor):
             pass
 
     # see if FPORT defines something. This may change in the future
+    # FPORT 3 denotes meta data like sensor types, GPS
     # TTN may use port numbers to define events
-    try:
-        values['event'] = cached[myID]['firmware']['ports'][record['port']]
-        if not 'event' in ident['fields']:
-            ident['fields'].append('event')
-            ident['units'].append('nr')
-            ident['types'].append('LoRa port')
-    except: pass
+    gotMetaInfo = False
+    if record['port'] > 2: # event or meta info
+        if len(record['payload_raw']) <= 1:
+            values['event'] = cached[myID]['ports%d' % record['port']]
+            if not 'event' in ident['fields']:
+                ident['fields'].append('event')
+                ident['units'].append('nr')
+                ident['types'].append('LoRa port')
+                ident['calibrations'].append(None)
+        else: # ident info in values
+            #record = values.copy()
+            gotMetaInfo = True
+            addInfo(None,ident,clear=True)
+            location = []; mod = []
+            for t in ['longitude','latitude','altitude']:
+                if t in values.keys():
+                    location.append(str(values[t]))
+                    del values[t]
+            if len(location):
+                ident['geolocation'] = ','.join(location)
+                if 'gps' in values.keys():
+                    addInfo('GPS',ident)
+                    mod.append('GPS')
+            for t in ['meteo','dust']:
+                if t in values.keys():
+                    fnd = False
+                    values[t] = str(values[t])
+                    if values[t]:
+                        for sensor in Conf['sensors']:
+                            if sensor['type'] == values[t]:
+                                fnd = True; break
+                        if fnd:
+                            mod.append(str(values[t]))
+                            addInfo(str(values[t]),ident)
+                        else:
+                            print("Error in sensors conf: %s not found" % values[t])
+                    del values[t]
+            if len(mod):
+                mod = 'hw: ' + ','.join(mod)
+                ident['description'] += ';' + mod
+            #for t in ident.keys():
+            #    if not t in ['project','description']:
+            #        del ident[t]
+            if ('time' in values.keys()) and (values['time'] > 946681200): # 1 jan 2000 00:00
+                values = { 'time': values['time'] }
+            else: values = {}
     # provide the device with a static serial number. Needed for Luftdaten.info
-    if (data['topic'][2] in nodes.keys()) and ('serial' in nodes[data['topic'][2]].keys()) and nodes[data['topic'][2]]['serial']:
+    if (data['topic'][2] in Conf['nodes'].keys()) and ('serial' in Conf['nodes'][data['topic'][2]].keys()) and Conf['nodes'][data['topic'][2]]['serial']:
         # serial is externaly defined
-        ident['serial'] = nodes[data['topic'][2]]['serial']
+        ident['serial'] = Conf['nodes'][data['topic'][2]]['serial']
     else:
         # create one
         ident['serial'] = hex(hash(data['topic'][0] + '/' + data['topic'][2])&0xFFFFFFFFFF)[2:]
-        if not data['topic'][2] in nodes.keys(): nodes[data['topic'][2]] = {}
-        nodes[data['topic'][2]]['serial'] = ident['serial']
+        if not data['topic'][2] in Conf['nodes'].keys(): Conf['nodes'][data['topic'][2]] = {}
+        Conf['nodes'][data['topic'][2]]['serial'] = ident['serial']
         MyLogger.log(modulename,'ATTENT','Created serial number for %s: %s.' % (data['topic'][2],ident['serial']))
     # try to get geolocation
     geolocation = []
+    timing = None
     if "metadata" in data['payload'].keys():
         for item in ['latitude','longitude','altitude']:
             if item in data['payload']['metadata'].keys():
                 geolocation.append(str(data['payload']["metadata"][item]))
             else:
                 geolocation.append('?')
+                break
         geolocation = ','.join(geolocation)
         for item in data['payload']['metadata'].keys():
             # meta time field is not time of measurement but from system time gateway
@@ -768,18 +987,20 @@ def convert2MySense( data, **sensor):
                 # w're using the gateway timestamp
                 if item == 'time':      # convert iso timestamp to UNIX timestamp
                     # time is time() minus 3600 secs with python V2 !! ?
-                    values['time'] = int(dp.parse(data['payload']['metadata']['time']).strftime("%s"))
-                    if sys.version_info[0] < 3: values['time'] += 3600
-                    record['time'] = values['time']
-
+                    timing = int(dp.parse(data['payload']['metadata']['time']).strftime("%s"))
+                    if sys.version_info[0] < 3: timing += 3600
                 else:
                     values[item] = data['payload']['metadata'][item]
     if (len(geolocation) <= 10):
-        geolocation = "?"
-    ident['geolocation'] = geolocation    # might note we did ident once
-    record['geolocation'] = geolocation
-    if not 'time' in record.keys():
-        values['time'] = record['time'] = int(time()) # needs correction
+        geolocation = None
+    if geolocation and (not 'geolocation' in ident.keys()):
+        ident['geolocation'] = geolocation    # might note we did ident once
+        record['geolocation'] = geolocation
+    if ('time' in values.keys()) and (values['time'] < 946681200): # 1 jan 2000 00:00
+        del values['time']      # controller not synced with real time
+    if timing and (not 'time' in values.keys()):
+        if timing: values['time'] = record['time'] = timing
+        else: values['time'] = record['time'] = int(time()) # needs correction
 
     # maintain info last seen of this device
     if ident['serial'] in last_records.keys():
@@ -790,15 +1011,17 @@ def convert2MySense( data, **sensor):
                 # keep first location in ident
                 ident['geolocation'] = last_records[ident['serial']]['geolocation']
     else:
-        record['geolocation'] = ident['geolocation']
+        try:
+            record['geolocation'] = ident['geolocation']
+        except: pass
         last_records[ident['serial']] = record
 
-    ident = updateIdent( data['topic'][0], data['topic'][2], ident)
-    if len(values) < 2: return {}
+    ident = updateIdent( data['topic'][0], data['topic'][2], ident, gotMetaInfo)
+    # assert len(values) > 0, len(ident) > 6
     return { 'ident': ident, 'data': values }
 
 def getdata():
-    global Conf, ErrorCnt, nodes
+    global Conf, ErrorCnt
     if not Conf['input']: return True
     if ErrorCnt:
         if ErrorCnt > 20:
@@ -816,6 +1039,7 @@ def getdata():
     # input from file or from MQTT LoRa TTN broker
     if not 'registrated' in Conf.keys(): Conf['registrated'] = False
     if not Conf['registrated']:
+        GetAdminDevicesInfo()
         if (not 'file' in Conf.keys()) or (not Conf['file']):
             if (not 'registrated' in Conf.keys()) or (Conf['registrated'] == None):
                 if 'registrated' in Conf.keys():
@@ -826,11 +1050,13 @@ def getdata():
                     Conf['DevAddr'] = '+'
                 if (not 'topic' in Conf.keys()) or (Conf['topic'] == None):
                     Conf['topic'] = 'devices'
-                for key in ['user','password','hostname']:
-                    if (not key in Conf.keys()) or (Conf[key] == None):
+                for key in [['user','devices'],['password','account'],['hostname','hostname'],['port','port'],]:
+                    if key[1] in Conf['LoRa'].keys():
+                        Conf[key[0]] = Conf['LoRa'][key[1]]
+                    if (not key[0] in Conf.keys()) or (Conf[key[0]] == None):
                         Conf['input'] = False
-                        MyLogger.log(modulename,'FATAL','Missing login %s credentials.' % key)
-        GetAdminDevicesInfo()
+                        MyLogger.log(modulename,'FATAL','Missing login %s credentials.' % key[0])
+        elif 'LoRa' in Conf.keys(): del Conf['LoRa']
         Conf['registrated'] = True
 
     try:
@@ -846,11 +1072,14 @@ def getdata():
             MyLogger.log(modulename,'FATAL','Subscription failed Mid: %s. Aborted.' % e)
         ErrorCnt += 1
         MyLogger.log(modulename,'WARNING','Subscription is failing Mid: %s. Slowing down.' % e)
-        return getdata()
     if (len(msg['topic']) < 3) or (msg['topic'][1] != Conf['topic']) or (not type(msg['payload']) is dict) or (not 'dev_id' in msg['payload'].keys()):
         MyLogger.log(modulename,'ERROR','Received an unknown record %s' % str(msg))
         sleep(0.1)
         return getdata()
+    if ('app_id' in msg['payload']) and (msg['topic'][0] != msg['payload']['app_id']):
+        msg['topic'][0] = msg['payload']['app_id']
+    if ('dev_id' in msg['payload']) and (msg['topic'][2] != msg['payload']['dev_id']):
+        msg['topic'][2] = msg['payload']['dev_id']
     msg['AppId'] = msg['topic'][0]
     msg['DevAddr'] = msg['topic'][2]
     # recursive getdata() call may lead to stack exhaustion
@@ -870,8 +1099,8 @@ signal.signal(signal.SIGUSR2, SigUSR2handler)
 
 # next only for standalone testing
 if __name__ == '__main__':
-    # del Conf['adminfile']       # no meta data where, who, etc
-    Conf['all'] = True  # do not skip unknown sensors
+    Conf['adminfile']: 'LoPy-Admin.conf.json', # meta identy data for sensor kits
+    Conf['all'] = False  # do not skip unknown sensors
 
     # one should use the MySense main script in stead of next statements
     Conf['input'] = True
@@ -887,9 +1116,6 @@ if __name__ == '__main__':
         sys.stderr.write("No admin file defined, use internal definitions.\n")
     sys.stderr.write("Collect mode for nodes: %s\n" % ('all' if Conf['all'] else 'only administered and activated'))
     # Conf['debug'] = True  # print output channel actions
-    Conf['user'] =  'account XYZ' # please complete
-    Conf['password'] = 'ttn-account-v2.acacadabra'
-
     for arg in sys.argv[1:]:        # allow: cmd file=abc user=xyz password=acacadabra
         indx = arg.find('=')
         if indx > 0:
@@ -905,27 +1131,27 @@ if __name__ == '__main__':
                 'output': True,
             }
         },
-        #{   'name': 'MySQL DB', 'script': 'DB-upload-MySQL', 'module': None,
-        #    'Conf': {
-        #        'output': False,
-        #        # use credentials from environment
-        #        'hostname': None, 'database': 'luchtmetingen',
-        #        'user': None, 'password': None,
-        #    }
-        #},
-        # {   'name': 'Luftdaten data push', 'script': 'MyLUFTDATEN', 'module': None,
-        #     'Conf': {
-        #         'output': False,
-        #         'id_prefix': "TTNMySense-", # prefix ID prepended to serial number of module
-        #         'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
-        #         'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
-        #         # expression to identify serials to be subjected to be posted
-        #         'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from pmsensors
-        #         'projects': 'VW2017',  # expression to identify projects to be posted
-        #         'active': False,        # output to luftdaten is also activated
-        #         # 'debug' : True,        # show what is sent and POST status
-        #     }
-        # },
+        {   'name': 'MySQL DB', 'script': 'MyDB', 'module': None,
+            'Conf': {
+                'output': True,
+                # use credentials from environment
+                'hostname': None, 'database': 'luchtmetingen',
+                'user': None, 'password': None,
+            }
+        },
+        {   'name': 'Luftdaten data push', 'script': 'MyLUFTDATEN', 'module': None,
+            'Conf': {
+                'output': False,
+                'id_prefix': "TTNMySense-", # prefix ID prepended to serial number of module
+                'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
+                'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
+                # expression to identify serials to be subjected to be posted
+                'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from pmsensors
+                'projects': 'VW2017',  # expression to identify projects to be posted
+                'active': False,        # output to luftdaten is also activated
+                # 'debug' : True,        # show what is sent and POST status
+            }
+        },
         ]
 
     import os.path
@@ -959,10 +1185,10 @@ if __name__ == '__main__':
             exit(1)
         try:
             record = getdata()
-        except:
-            MyLogger.log(modulename,'INFO','No more input data available')
+        except Exception as e:
+            MyLogger.log(modulename,'INFO','Get data failed with %s' % e)
             exit(0)
-        if (not dict(record)) or (len(record['data']) < 2):
+        if (not dict(record)) or (len(record) < 2):
             MyLogger.log(modulename,'ATTENT','Data failure from LoRaWan data concentrator')
             error_cnt += 1
             continue
