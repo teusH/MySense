@@ -1,0 +1,188 @@
+{
+"project": "LoPy",
+"LoRa": {
+       "hostname": "eu.thethings.network",
+       "port": 1883,
+       "devices": "devices",
+       "account": "ttn-account-v2.acacadabra"
+      },
+// the nodes meta information
+"nodes": {
+    "lopyprototype20180221": {
+        "GPS": { "altitude":23.5,"latitude":51.4207,"longitude":6.13544},
+        "label":"a label LoPy 1",
+        "serial": "30aae0480348",
+        "street": "Avenue 1",
+        "village": "DownTown", "pcode": "1024 AZ",
+        "province": "Limburg", "municipality": "Maastricht",
+        "date": "21 februari 2019",
+        "comment": "MySense V0.1, LoPy-4",
+        "AppEui":"750B3D7ED4000AD3",
+        "AppSKEY":"BEFFFE54D2C7302B2356361BDEE30E1D",
+        "DevEui":"D4976355E5637613",
+        "meteo": "BME280", "dust": "SDS011",
+        "luftdaten.info": false,
+        "active": false
+        }
+    },
+// the sensor products
+// DB dictionary with different sensors: type, producer, sensors/units
+// should go to a json file
+// types need to be capitalized
+// group classification is not used yet
+    "sensors": [
+            {  "type":"SDS011",
+                "producer":"Nova","group":"dust",
+                "fields":["pm25","pm10"],
+                "units":["ug/m3","ug/m3"],
+                "calibrations": [[0,1.0],[0,1.0]]},
+            // Plantower standard ug/m3 measurements
+            {  "type":"PMS7003",
+                "producer":"Plantower","group":"dust",
+                "fields":["pm1","pm25","pm10"],
+                "units":["ug/m3","ug/m3","ug/m3"],
+                "calibrations": [null,[0,1.0],[0,1.0]]}, // null is [0,1.0]
+            // Plantower the atmosphere ug/m3 measurements
+            {  "type":"PMS7003_ATM",
+                "producer":"Plantower","group":"dust",
+                "fields":["pm1_atm","pm25_atm","pm10_atm"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0]],
+                "units":["ug/m3","ug/m3","ug/m3"]
+                },
+            // Plantower the count particulates measurements
+            {  "type":"PMS7003_PCS",
+                "producer":"Plantower","group":"dust",
+                "fields":["pm03_pcs","pm05_pcs","pm1_pcs","pm25_pcs","pm5_pcs","pm10_pcs"],
+                "units":["pcs/0.1dm3","pcs/0.1dm3","pcs/0.1dm3","pcs/0.1dm3","pcs/0.1dm3","pcs/0.1dm3"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0],[0,1.0],[0,1.0],[0,1.0]]},
+            {  "type": "PPD42NS",
+                "producer":"Shiney","group":"dust",
+                "fields":["pm25","pm10"],
+                "units":["pcs/0.01qft","pcs/0.01qft"],
+                "calibrations": [[0,1.0],[0,1.0]]},
+            {  "type": "DC1100PRO",
+                "producer":"Dylos","group":"dust",
+                "fields":["pm25","pm10"],
+                "units":["pcs/0.01qft","pcs/0.01qft"],
+                "calibrations": [[0,1.0],[0,1.0]]},
+            {  "type": "DHT22",
+                "producer":"Adafruit","group":"meteo",
+                "fields":["temp","rv"],"units":["C","%"],
+                "calibrations": [[0,1.0],[0,1.0]]},
+            {  "type": "BME280",
+                "producer":"Bosch","group":"meteo",
+                "fields":["temp","rv","luchtdruk"],
+                "units":["C","%","hPa"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0]]},
+            {  "type": "BME680",
+                "producer":"Bosch","group":"meteo",
+                "fields":["temp","rv","luchtdruk","gas", "aqi"],
+                "units":["C","%","hPa","kOhm","%"],
+                "calibrations": [[0,1],[0,1],[0,1],[0,1],[0,1]]},
+            {  "type": "TTN NODE",
+                "producer":"TTN","group":"LoRa",
+                "fields":["battery","light","temp"],
+                "units":["mV","lux","C"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0]]},
+            {  "type": "TTN EVENT",
+                "producer":"TTN","group":"LoRa",
+                "fields":["event"],
+                "units": ["id"],"calibrations": [null]},
+            {  "type": "GPS",
+                "producer":"Grove","group":"GPS",
+                "fields":["longitude","latitude","altitude"],
+                "units": ["degrees","degrees","m"],
+                "calibrations": [[0,1],[0,1],[0,1]]},
+            {  "type": "PYCOM",
+                "producer": "ESP", "group":"controller",
+                "fields":["time"], "units":["sec"],"calibrations":[null]},
+            {  "type": "MYSENSE",
+                "producer": "BdP", "group": "IoS",
+                "fields": ["version","meteo","dust"],
+                "units": ["nr","type","type"],
+                "calibrations": [null,null,null]},
+            // not yet activated
+            { "type":"ToDo",
+                "producer":"Spect", "group":"gas",
+                "fields":["NO2","CO2","O3","NH3"],
+                "units":["ppm","ppm","ppm","ppm"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0],[0,1.0]]}
+    ],
+// if only as payload in packed format
+// To Do: use reg exp, classID gives pointer to payload for a device
+    "classes": [
+        { "classID": "VW2017",    "regexp": "pmsensors/pmsensor[0-9]+(/[0-9])?"},
+        { "classID": "TTNnode",  "regexp": "201801275971az/2018[0-9a-zA-Z]+/[1-4]"},
+        { "classID": "LoPyNode", "regexp": "201802215971az/lopyprototype2018[0-9]{4}"}
+        ],
+// To Do: create a handle from application/device to device config
+// appId eui, Dev eui and fport define the algorithm firmware to be used
+    "firmware": [
+        {
+          "id":      "VW2017",       // size of payload as ident
+          "port2": {
+              "packing": ">HHHH",   // how it is packed, here 4 X unsigned int16/short
+              "adjust":  [[0,0.1],[0,0.1],[-20,0.1],[0,0.1]],  // unpack algorithm
+              "fields":  ["pm25","pm10","temp","rv"],          // fields
+              "sensors": ["SDS011","DHT22"]                  // use upper cased names
+            }
+        },
+        {
+          "id":      "TTNnode",     // size of payload as ident
+          "port2": {
+              "packing": ">HHH",    // how it is packed, here 4 X unsigned int16/short
+              "fields":  ["battery","light","temp"],          // fields
+              "adjust":  [[0,1],[0,1],[0,0.01]], // unpack algorithm
+              "sensors": ["TTN node","TTN node","TTN node"] // use upper cased names
+            },
+          "port3": { "packing": ">B", "fields": ["interval"], "adjust": [[0,1]]  },
+          "port4": { "packing": ">B", "fields": ["motion"], "adjust": [[0,1]]  },
+          "port5": { "packing": ">B", "fields": ["button"], "adjust": [[0,1]]  }
+        },
+        {
+          "id": "LoPyNode",
+          "port2": {
+              "packing": ">HHHHHHHHl", // [">HHHHHHHHl",">HHHHHHHHllll"]
+              "fields": ["pm1","pm25","pm10","temperature","humidity","pressure","gas","aqi","time"],
+              "adjust": [[0,0.1],[0,0.1],[0,0.1],[-30,0.1],[0,0.1],[0,1],[0,1],[0,0.1],[0,1]],
+              "sensors": ["PMS7003","SDS011","BME680","BME280","GPS","PYCOM"]
+            },
+          "port3": {
+               "packing": ">BBlll",
+                "fields": ["version","gps","meteo","dust","latitude","longitude","altitude"],
+                "adjust": [[0,0.1],null,null,null,[0,0.000001],[0,0.00001],[0,0.1]],
+                "sensors": ["MYSENSE","GPS"],
+                "meteo": ["unknown","PPD42NS","SDS011","PMS7003"],
+                "dust": ["unknown","DHT11","DHT22","BME280","BME680"]
+          }
+        }
+    ],
+    "translate": {      // defs of used fields by MySense, do not change the keys
+        "pm03": ["pm0.3","PM0.3"],
+        "pm1":  ["roet","soot"],
+        "pm25": ["pm2.5","PM2.5"],
+        "pm5":  ["pm5.0","PM5.0"],
+        "pm10": ["pm","PM"],
+        "O3":   ["ozon"],
+        "NH3":  ["ammoniak","ammonium"],
+        "NO2":  ["stikstof","stikstofdioxide","nitrogendioxide"],
+        "NO":   ["stikstof","stikstofoxide","nitrogenoxide"],
+        "CO2":  ["koolstofdioxide","carbondioxide"],
+        "CO":   ["koolstofmonoxide","carbonoxide"],
+        "temp": ["temperature"],
+        "luchtdruk": ["pressure","pres","pha","pHa"],
+        "rv":   ["humidity","hum","vochtigheid","vocht"],
+        "ws":   ["windspeed","windsnelheid"],
+        "wr":   ["windrichting","winddirection","direction"],
+        "altitude":  ["alt","hoogte","height"],
+        "longitude":  ["long","lon","lengte graad"],
+        "latitude":  ["lat","breedte graad"],
+        "geolocation": ["gps","GPS","coordinates","geo"],
+        "gas":  ["air"],
+        "aqi":  ["air quality","luchtkwaliteit","lki"],
+        "version": ["versie","release"],
+        "meteo": ["weer"],
+        "dust": ["fijnstof"],
+        "time": ["utime","timestamp"]
+    }
+}
