@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.32 2018/01/05 20:15:30 teus Exp teus $
+# $Id: MyDB.py,v 2.33 2018/04/14 11:10:00 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.32 $"[11:-2]
+__version__ = "0." + "$Revision: 2.33 $"[11:-2]
 
 try:
     import MyLogger
@@ -51,7 +51,7 @@ Conf = {
     'database': None,    # MySQL database name
     'port': 3306,        # default mysql port number
     'fd': None,           # have sent to db: current fd descriptor, 0 on IO error
-    'omit' : ['time','geolocation']        # fields not archived
+    'omit' : ['time','geolocation','version','meteo','dust']        # fields not archived
 }
 # ========================================================
 # write data directly to a database
@@ -116,14 +116,16 @@ def db_connect(net):
         return Conf['output']
 
 # registrate the sensor to the Sensors table and update location/activity
-serials = []     # remember serials of sensor kits chect in table Sensors
+serials = {}     # remember serials of sensor kits checked in into table Sensors
 def db_registrate(ident):
     """ create or update identification inf to Sensors table in database """
     global Conf
     if not 'serial' in ident.keys():
         MyLogger.log(modulename,'DEBUG','serial missing in identification record')
         return False
-    if ident['serial'] in serials: return True
+    if ident['serial'] in serials.keys():
+        if cmp(ident,serials[ident['serial']]) == 0: return True
+        del serials[ident['serial']]
     if len(ident['fields']) == 0:
         return False
     if not db_table(ident,'Sensors'):
@@ -158,14 +160,28 @@ def db_registrate(ident):
     Rslt =  db_query("SELECT first,coordinates FROM Sensors WHERE project = '%s' AND serial = '%s' AND active" % (ident['project'],ident['serial']), True)
     if not type(Rslt) is list:
         return False
+    serials[ident['serial']] = ident       # remember we know this one
     first = 'now()'
-    fld_types = ''
-    if ('description' in ident.keys()) and (ident['description'] != None):
-        fld_types = ident['description']
-    if ('types' in ident.keys()) and len(ident['types']):
-        fld_types  += ";hw: %s" % ', '.join(ident['types'])
+    fld_types = []
+    try:
+        ident['description'].index('hw:')
+        flds = ident['description'].split(';')
+        temp = []
+        for i in range(0,len(flds)):
+            if flds[i].find('hw:') >= 0:
+                flds[i] = flds[i].replace('hw:','').upper()
+                flds[i] = flds[i].replace(' ','')
+                temp += flds[i].split(',')
+        for i in temp:
+            if not i in fld_types: fld_types.append(i)
+    except: pass
+    try:
+        for i in ident['types']:
+            if not i.upper() in fld_types: fld_types.append(i.upper())
+    except: pass
     if len(fld_types):
-        fld_types ="'"+fld_types+"'"
+        fld_types.sort()
+        fld_types  = "'"+ ";hw: %s" % ','.join(fld_types) + "'"
     else:
         fld_types = 'NULL'
     fld_units = '' ; gotIts = []
@@ -179,10 +195,11 @@ def db_registrate(ident):
         fld_units ="'"+fld_units+"'"
     else:
         fld_units = 'NULL'
+
     if len(Rslt):
         first = "'%s'" % Rslt[0][0]
         for item in Rslt:
-            if item[1] == ident['geolocation']:
+            if item[1] == ident['geolocation']: # same location, update info
                 db_query("UPDATE Sensors SET last_check = now(), active = 1, sensors = %s, description = %s WHERE coordinates like '%s%%'  AND serial = '%s'" % (fld_units,fld_types,','.join(ident['geolocation'].split(',')[0:2]),ident['serial']) , False)
                 Conf["registrated"] = True
                 # MyLogger.log(modulename,'ATTENT',"Registrated (renew last access) %s  to database table Sensors." % ident['serial'])
@@ -194,7 +211,6 @@ def db_registrate(ident):
     except:
         pass
     MyLogger.log(modulename,'ATTENT',"New registration to database table Sensors.")
-    serials.append(ident['serial'])       # remember we know this one
     db_WhereAmI(ident)
     return True
 
@@ -283,13 +299,13 @@ def publish(**args):
     def db_name(my_name):
         DBnames = {
             'rh': 'rv',
+            'humidity': 'rv',
             'pa': 'luchtdruk',  # deprecated
             'hpa': 'luchtdruk',
+            'pressure': 'luchtdruk',
             'geo': 'geolocation',
             'wd':  'wr',
-            'humidity': 'rv',
             'temperature': 'temp',
-            'pressure': 'luchtdruk',
         }
         if my_name in DBnames.keys(): return DBnames[my_name]
         return my_name
@@ -317,6 +333,11 @@ def publish(**args):
             'pm03_cnt':    "DECIMAL(9,2) default NULL",
             'pm05_cnt':    "DECIMAL(9,2) default NULL",
             'rssi':        "SMALLINT(4) default NULL",
+            'longitude':   "DECIMAL(9,6) default NULL",
+            'latitude':    "DECIMAL(8,6) default NULL",
+            'altitude':    "DECIMAL(7,2) default NULL",
+            'gas':         "DECIMAL(9,3) default NULL",
+            'aqi':         "DECIMAL(4,2) default NULL",
             'default':     "DECIMAL(7,2) default NULL",
             "_valid":      "BOOL default 1"
         }
