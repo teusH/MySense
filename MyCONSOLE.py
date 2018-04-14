@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyCONSOLE.py,v 2.9 2017/12/23 14:48:27 teus Exp teus $
+# $Id: MyCONSOLE.py,v 2.10 2018/04/12 15:46:44 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,7 +26,7 @@
     Relies on Conf setting biy main program
 """
 modulename='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.9 $"[11:-2]
+__version__ = "0." + "$Revision: 2.10 $"[11:-2]
 
 try:
     import MyLogger
@@ -54,30 +54,28 @@ Conf = {
 IdentSeen = {}
 def registrate(ident):
     global Conf
-    fnd = None
+    fnd = None ; new = False
     for Id in ("serial","label","geolocation","street",'apikey','intern_ip'):
         if not ident[Id]:
             continue
         if ident[Id] in IdentSeen.keys():
-            print 'ID: %s' % str(ident[Id])
-            return
-        fnd = ident[Id]
-        IdentSeen[fnd] = True
+            fnd = ident[Id]
+            break
+        fnd = ident[Id]; new = True
         break
     if not fnd:
         fnd = hash(ident)
-        if fnd in IdentSeen.keys():
-            print 'ID: %s' % str(fnd)
-            return
-        IdentSeen[fnd] = True
+        if not fnd in IdentSeen.keys(): new = True
     print 'ID: %s at %s' % (str(fnd),datetime.datetime.fromtimestamp(time()).strftime('%b %d %Y %H:%M:%S'))
+    if (not new) and (cmp(IdentSeen[fnd],ident) == 0): return  # ident is simular as previous
+    else: IdentSeen[fnd] = ident.copy()
     fnd = True
     for Id in ("project","serial","geolocation"):
         if not Id in ident.keys():
             print "Info: in ident record %s field is missing." % Id
             fnd = False
     if fnd:
-        print "Registration of project %s, S/N %s, location %s:" % (ident['project'], ident['serial'],ident['geolocation'])
+        print "%s registration of project %s, S/N %s, location %s:" % ('New' if new else 'Updated',ident['project'], ident['serial'],ident['geolocation'])
     for Id in ("label","serial","description","street","village","province","municipality",'fields','units','calibrations','types','apikey','intern_ip','extern_ip','version'):
         if (Id in ident.keys() and (ident[Id] != None)):
             print "%15s: " % Id, ident[Id]
