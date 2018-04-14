@@ -117,7 +117,7 @@ function Decoder(bytes, port) {
       }
     }
   }
-  var dustTypes = ['','PPD42NS','SDS011','PM7003','','','','','','','','','','','',''];
+  var dustTypes = ['','PPD42NS','SDS011','PMS7003','','','','','','','','','','','',''];
   var meteoTypes = ['','DHT11','DHT22','BME280','BME680','',''];
   if ( port === 3 ){
     decoded.version = bytes[0]/10.0;
