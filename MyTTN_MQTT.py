@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 2.4 2018/04/15 11:19:55 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 2.5 2018/04/15 14:54:14 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -33,7 +33,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.4 $"[11:-2]
+__version__ = "0." + "$Revision: 2.5 $"[11:-2]
 
 try:
     import MyLogger
@@ -414,6 +414,30 @@ def tryCalibrate(field,value,fields,calibrations):
         pass
     return value
 
+# returns distance in meters between two GPS coodinates
+# hypothetical sphere radius 6372795 meter
+# courtesy of TinyGPS and Maarten Lamers
+# should return 208 meter 5 decimals is diff of 11 meter
+# GPSdistance((51.419563,6.14741),(51.420473,6.144795))
+LAT = 0
+LON = 1
+ALT = 2
+def GPSdistance(gps1,gps2):
+  from math import sin, cos, radians, pow, sqrt, atan2
+  delta = radians(gps1[LON]-gps2[LON])
+  sdlon = sin(delta)
+  cdlon = cos(delta)
+  lat = radians(gps1[LAT])
+  slat1 = sin(lat); clat1 = cos(lat)
+  lat = radians(gps2[LAT])
+  slat2 = sin(lat); clat2 = cos(lat)
+
+  delta = pow((clat1 * slat2) - (slat1 * clat2 * cdlon),2)
+  delta += pow(clat2 * sdlon,2)
+  delta = sqrt(delta)
+  denom = (slat1 * slat2) + (clat1 * clat2 * cdlon)
+  return int(round(6372795 * atan2(delta, denom)))
+
 # unpack base64 TTN LoRa payload string into array of values NOT TESTED
 # architecture is changed!, To Do: unpack on length of received bytes!
 def payload2fields(payload, firmware, portNr):
@@ -751,18 +775,22 @@ def getFirmware( app, device, port):
             return rts
     return {}
 
+def delDecrFld(ident,fld):
+    if (not 'description' in ident.keys()) or (not ident['description']):
+        return
+    descr = ident['description'].split(';')
+    ident['description'] = []
+    for item in descr:
+        if item.find(fld) < 0: ident['description'].append(item)
+    ident['description'] = ';'.join(ident['description'])
+
 def addInfo(module,ident,clear=False):
-    try:
+    try: 
         if clear:
             for t in ['types','fields','units','calibrations']:
                 ident[t] = []
             ident['sensors'] = ''
-            try:
-                descr = ident['description'].split(';')
-                for i in range(0,len(descr)):
-                    if descr[i].find('hw:') >= 0: descr.pop(i)
-                ident['description'] = descr.join(';')
-            except: pass
+            delDecrFld(ident,'hw:')
             return True
         sensor = None
         for t in Conf['sensors']:
@@ -877,6 +905,8 @@ def convert2MySense( data, **sensor):
             else:
                 firmware = cached[myID]['firmware']
             data['payload']['payload_fields'] = payload2fields(data['payload']['payload_raw'],firmware,data['payload']['port'])
+            if not len(data['payload']['payload_fields']): # failure
+                return {}
             # side effect payload2fields: key sensors
             cached[myID]['sensors'] = data['payload']['payload_fields']['sensors']
             del data['payload']['payload_fields']['sensors']
@@ -952,6 +982,7 @@ def convert2MySense( data, **sensor):
                     del values[t]
             if len(mod):
                 mod = 'hw: ' + ','.join(mod)
+                delDecrFld(ident,'hw:')
                 ident['description'] += ';' + mod
             #for t in ident.keys():
             #    if not t in ['project','description']:
@@ -1003,18 +1034,22 @@ def convert2MySense( data, **sensor):
         else: values['time'] = record['time'] = int(time()) # needs correction
 
     # maintain info last seen of this device
-    if ident['serial'] in last_records.keys():
-        if 'geolocation' in last_records[ident['serial']].keys():
-            if last_records[ident['serial']]['geolocation'] != ident['geolocation']:
-                # sensorkit changed location
-                values['geolocation'] = ident['geolocation']
-                # keep first location in ident
-                ident['geolocation'] = last_records[ident['serial']]['geolocation']
-    else:
-        try:
+    if 'geolocation' in ident.keys():
+        if ident['serial'] in last_records.keys():
+            if 'geolocation' in last_records[ident['serial']].keys():
+                # compare geo locations
+                if GPSdistance(last_records[ident['serial']]['geolocation'].split(','),ident['geolocation'].split(',')) < 100: # less as 100 meters
+                    # sensorkit changed location
+                    values['geolocation'] = ident['geolocation']
+                    # keep first location in ident
+                    ident['geolocation'] = last_records[ident['serial']]['geolocation']
+        else:
             record['geolocation'] = ident['geolocation']
-        except: pass
-        last_records[ident['serial']] = record
+        if ('latitude' in values.keys()) and ('longitude' in value.keys()):
+            if GPSdistance(ident['geolocation'].split(','),(values['latitude'],values['longitude'])) < 100: # should be > 100 meter from std location
+                del values['latitude']; del values['longitude']
+                if 'altitude' in values.keys(): del values['altitude']
+    last_records[ident['serial']] = record
 
     ident = updateIdent( data['topic'][0], data['topic'][2], ident, gotMetaInfo)
     # assert len(values) > 0, len(ident) > 6
