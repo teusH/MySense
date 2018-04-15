@@ -36,6 +36,9 @@ The file `LoPy-Admin.conf.json` will allow to define which LoRa TTN server, LoRa
 Warning:
 Make sure the configuration items are well referenced. There is not much checking done on the coherence of the configuration definitions. Make sure the file is json compliant.
 
+The `packing` key in the firmware dictonary configuration may be a *tuple*. In this case all elements of the ruple are tried to find the correct packing. E.g. `[">Hl",">Hlll","Hllll"]` will allow to add e.g. latitude, longitude and optionally altitude as field names. Make sure the `adjustment` key has the adjustements for the longest packing!
+The value *null (None)* in adjustments can be used to skip the adjustment arithmatic.
+
 To Do: move these configuration items into a database.
 
 ### APPLICATION
