@@ -142,8 +142,8 @@
         {
           "id": "LoPyNode",
           "port2": {
-              "packing": ">HHHHHHHHl", // [">HHHHHHHHl",">HHHHHHHHllll"]
-              "fields": ["pm1","pm25","pm10","temperature","humidity","pressure","gas","aqi","time"],
+              "packing": [">HHHHHHHHl",">HHHHHHHHlll",">HHHHHHHHllll"],
+              "fields": ["pm1","pm25","pm10","temperature","humidity","pressure","gas","aqi","time","latitude",'longitude","altitude"],
               "adjust": [[0,0.1],[0,0.1],[0,0.1],[-30,0.1],[0,0.1],[0,1],[0,1],[0,0.1],[0,1]],
               "sensors": ["PMS7003","SDS011","BME680","BME280","GPS","PYCOM"]
             },

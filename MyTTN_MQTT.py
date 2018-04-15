@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 2.3 2018/04/14 10:56:56 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 2.4 2018/04/15 11:19:55 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -33,7 +33,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.3 $"[11:-2]
+__version__ = "0." + "$Revision: 2.4 $"[11:-2]
 
 try:
     import MyLogger
@@ -424,7 +424,7 @@ def payload2fields(payload, firmware, portNr):
     try:
         loadID = firmware['id']
         packing = firmware['packing']
-        if type(packing) is list:
+        if type(packing) is tuple:
             for pack in packing:
                 save = load
                 try:
@@ -1099,7 +1099,7 @@ signal.signal(signal.SIGUSR2, SigUSR2handler)
 
 # next only for standalone testing
 if __name__ == '__main__':
-    Conf['adminfile']: 'LoPy-Admin.conf.json', # meta identy data for sensor kits
+    Conf['adminfile'] = 'LoPy-Admin.conf.json' # meta identy data for sensor kits
     Conf['all'] = False  # do not skip unknown sensors
 
     # one should use the MySense main script in stead of next statements
