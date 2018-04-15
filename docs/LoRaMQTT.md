@@ -24,6 +24,8 @@ The included `testdata/TTNMQTTexample.json` file can be used as example and test
 
 MyTTNMQTT will read and uses meta definitions for the sensor kits identified via the TTN server interface. In this way completing the meta data (`ident` part in the output json record) for the output channels as eg GPS coordinates, location, etc.
 
+If GPS sensor is configured, MyTTNMQTT will not update database if location is within 100 meters from startup.
+
 ### SECURITY
 Use the SSL layer of the TTN server.
 
