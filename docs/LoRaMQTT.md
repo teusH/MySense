@@ -19,12 +19,12 @@ The module script can be run standalone while using output channels and modules 
 
 This module was originally written to take part of the RIVM new years firework measurement project of dec 2017.
 
-From the command line the configuration for MyTTNMQTT running as standalone module can be changed by using key=definitionSTRING as argument: e.g. the command `./MyTTNMQTT.py file=testdata/TTNMQTTexample.json` will read its input from the json file iso the TTN server.
-The included `testdata/TTNMQTTexample.json` file can be used as example and test file before getting access to the MQTT server of eg TTN Europe.
+From the command line the configuration for MyTTN_MQTT running as standalone module can be changed by using key=definitionSTRING as argument: e.g. the command `./MyTTN_MQTT.py file=testdata/TTN_MQTTexample.json` will read its input from the json file iso the TTN server.
+The included `testdata/TTN_MQTTexample.json` file can be used as example and test file before getting access to the MQTT server of eg TTN Europe.
 
-MyTTNMQTT will read and uses meta definitions for the sensor kits identified via the TTN server interface. In this way completing the meta data (`ident` part in the output json record) for the output channels as eg GPS coordinates, location, etc.
+MyTTN_MQTT will read and uses meta definitions for the sensor kits identified via the TTN server interface. In this way completing the meta data (`ident` part in the output json record) for the output channels as eg GPS coordinates, location, etc.
 
-If GPS sensor is configured, MyTTNMQTT will not update database if location is within 100 meters from startup.
+If GPS sensor is configured, MyTTN_MQTT will not update database if location is within 100 meters from startup.
 
 ### SECURITY
 Use the SSL layer of the TTN server.

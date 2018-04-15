@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 2.5 2018/04/15 14:54:14 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 2.6 2018/04/15 15:35:50 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -33,7 +33,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.5 $"[11:-2]
+__version__ = "0." + "$Revision: 2.6 $"[11:-2]
 
 try:
     import MyLogger
@@ -1072,7 +1072,7 @@ def getdata():
             sleep(ErrorCnt)
     
     # input from file or from MQTT LoRa TTN broker
-    if not 'registrated' in Conf.keys(): Conf['registrated'] = False
+    if not 'registrated' in Conf.keys(): Conf['registrated'] = None
     if not Conf['registrated']:
         GetAdminDevicesInfo()
         if (not 'file' in Conf.keys()) or (not Conf['file']):
@@ -1091,7 +1091,7 @@ def getdata():
                     if (not key[0] in Conf.keys()) or (Conf[key[0]] == None):
                         Conf['input'] = False
                         MyLogger.log(modulename,'FATAL','Missing login %s credentials.' % key[0])
-        elif 'LoRa' in Conf.keys(): del Conf['LoRa']
+        if 'LoRa' in Conf.keys(): del Conf['LoRa']
         Conf['registrated'] = True
 
     try:
