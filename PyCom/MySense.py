@@ -1,8 +1,8 @@
 # should be main.py
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 1.21 2018/04/11 14:23:00 teus Exp $
+# $Id: MySense.py,v 2.2 2018/04/16 17:44:36 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 1.21 $"[11:-2]
+__version__ = "0." + "$Revision: 2.2 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -136,7 +136,7 @@ def showSleep(secs=60,text=None,inThread=False):
     display(text)
     ye += LF
   if oled:
-    ProgressBar(0,ye,128,LF,secs,0x004400)
+    ProgressBar(0,ye-1,128,LF-3,secs,0x004400)
     nl = y
     rectangle(0,y,128,ye-y+LF,0)
     oled.show()
@@ -365,6 +365,7 @@ except Exception as e:
   display('GPS failure', (0,0), clear=True)
   print(e)
   useGPS = None
+lastGPS = thisGPS
 
 if Network: display('Network: %s' % Network)
 
@@ -409,7 +410,7 @@ def setup():
   display("PM   : " + Dust[dust])
   display("meteo: " + Meteo[meteo])
   if useGPS:
-    display('GPS %.3f/%.3f' % (thisGPS[LAT],thisGPS[LON]))
+    display('G:%.4f/%.4f' % (thisGPS[LAT],thisGPS[LON]))
   sleep(15)
 
   if Network == 'TTN':
@@ -436,7 +437,7 @@ PM1 = const(0)
 PM25 = const(1)
 PM10 = const(2)
 def DoDust():
-  global useDust, Dust, dust, nl, STOP, STOPPED
+  global useDust, Dust, dust, nl, STOP, STOPPED, useGPS, lastGPS
   dData = {}
   display('PM sensing',(0,0),clear=True,prt=False)
   if useDust and (useDust.mode != useDust.NORMAL):
@@ -446,6 +447,8 @@ def DoDust():
       LED.blink(5,0.3,0xff0000,True,True)
       return [0,0,0]
     else:
+      if useGPS != None:
+        display("G:%.4f/%.4f" % (lastGPS[LAT],lastGPS[LON]))
       display('measure PM')
   if useDust:
     LED.blink(3,0.1,0x005500)
@@ -499,7 +502,7 @@ PRES = const(2)
 GAS = const(3)
 AQI = const(4)
 def DoMeteo():
-  global useMeteo, nl
+  global useMeteo, nl, LF
   global Meteo, meteo
   global M_SDA, M_SCL
   mData = [0,0,0,0,0]
@@ -509,6 +512,8 @@ def DoMeteo():
   LED.blink(3,0.1,0x002200,False)
   try: 
     nr = indexBus(i2cPINs,i2c,(M_SDA,M_SCL))
+    if (meteo == 4) and (not useMeteo.gas_base): # BME680
+      display("AQI base: wait"); nl -= LF
     i2c[nr].init(nr, pins=i2cPINs[nr]) # SPI oled causes bus errors
     sleep(1)
     mData[TEMP] = float(useMeteo.temperature) # string '20.12'
@@ -517,6 +522,7 @@ def DoMeteo():
     if meteo == 4: # BME680
       mData[GAS] = float(useMeteo.gas)        # Ohm 29123
       mData[AQI] = round(float(useMeteo.AQI),1) # 0-100% ok
+      rectangle(0,nl,128,LF,0)
   except Exception as e:
     display("%s ERROR" % Meteo[meteo])
     print(e)
@@ -535,15 +541,17 @@ def DoMeteo():
     display("% 3.1f  % 3d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES])))
   return mData # temp, hum, pres, gas, aqia
 
-def DoPack(dData,mData):
+def DoPack(dData,mData,gps=None):
   global meteo, dust
-  return struct.pack('>HHHHHHHHl',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+300),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10),time())
+  if (type(gps) is list) and (gps[LAT] > 0.01):
+    return struct.pack('>HHHHHHHHHlll',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+30),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10),int(round(gps[LAT]*100000)),int(round(gps[LON]*100000)),int(round(gps[ALT]*10)))
+  else:
+    return struct.pack('>HHHHHHHHH',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+30),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10))
 
-lastUpdate = 0
 def SendInfo(port=3):
-  global  lora, meteo, dust, useGPS, thisGPS, lastUpdate
-  lastUpdate = time()
+  global  lora, meteo, dust, useGPS, thisGPS, lastGPS
   if lora == None: return True
+  sense = ((meteo&07)<<4) | (dust&017)
   if (not meteo) and (not dust) and (useGPS == None): return True
   gps = 0
   if useGPS:
@@ -551,32 +559,23 @@ def SendInfo(port=3):
     thisGPS[LAT] = round(float(useGPS.latitude),5)
     thisGPS[LON] = round(float(useGPS.longitude),5)
     thisGPS[ALT] = round(float(useGPS.altitude),1)
-    gps = 010
+    lastGPS = thisGPS
+    sense |=0200
   version = int(__version__[0])*10+int(__version__[2])
-  data = struct.pack('>BBlll',version,(((gps|meteo)&07)<<4)|(dust&07), int(thisGPS[LAT]*100000),int(thisGPS[LON]*100000),int(thisGPS[ALT]*10))
+  data = struct.pack('>BBlll',version,sense, int(thisGPS[LAT]*100000),int(thisGPS[LON]*100000),int(thisGPS[ALT]*10))
   return lora.send(data,port=port)
 
-updateMin = 7*60    # 7 minutes, kit moved
-updateMax = 6*60*60 # 6 hours
-updateStable = 5    # control freq of info
 def LocUpdate():
-  global lastUpdate, useGPS, thisGPS
-  global  updateMin, updateMax, updateStable
-  now = time()
-  if now - lastUpdate > updateMax:
-    updateStable = 2
-    return SendInfo()
-  if not useGPS: return False
-  if now - lastUpdate < updateMin: return False
-  if updateStable <= 0: return False
-  location = [0.0,0.0]
+  global useGPS, lastGPS, LAT, LON, ALT
+  if type(useGPS) is None: return None
+  location = [0.0,0.0,0.0]
   location[LAT] = round(float(useGPS.latitude),5)
   location[LON] = round(float(useGPS.longitude),5)
-  if GPSdistance(location,thisGPS) > 50:
-    updateStable = 5
-    return SendInfo()
-  updateStable -= 1
-  return False
+  location[ALT] = round(float(useGPS.altitude),1)
+  if GPSdistance(location,lastGPS) <= 50.0:
+    return None
+  lastGPS = location
+  return location
 
 def runMe():
   global lora, sleep_time, oled
@@ -585,10 +584,6 @@ def runMe():
   setup() # Setup network & sensors
 
   while True:
-    if LocUpdate():
-      display("Sent info/GPS", (0,0), clear=True)
-      sleep(10)
-    #display("Sensing...", (0,0), clear=True)
 
     toSleep = time()
     dData = DoDust()
@@ -596,7 +591,7 @@ def runMe():
 
     # Send packet
     if lora != None:
-      if  lora.send(DoPack(dData,mData)):
+      if  lora.send(DoPack(dData,mData,LocUpdate())):
         LED.off()
       else:
         display(" LoRa send ERROR")
@@ -610,7 +605,7 @@ def runMe():
       elif toSleep < 15: toSleep = 15
     if not ProgressBar(0,63,128,2,toSleep,0xebcf5b,10):
       display('stopped SENSING', (0,0), clear=True)
-      LED.blink(5,0.3,0xff0000,True,True)
+      LED.blink(5,0.3,0xff0000,True)
     if STOP:
       sleep(60)
       oled.poweroff()
