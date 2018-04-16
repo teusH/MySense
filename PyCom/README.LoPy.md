@@ -34,6 +34,8 @@ SSD1306 SPI connection (using GPIO pins):
 * SSD VCC (red) -> LoPy 3V3 (shared with BME280)
 * SSD GND (black) -> LoPy Gnd (on right side, same pin as for SDS)
 
+Warning: SPI oled display seems not run with PyCom firmware 1.17.3.b1 (April 2018). Previous version was ok.
+
 Grove GPS TTL Uart connection:
 * GPS Gnd (black) -> LoPy Gnd (on right side, shared pin)
 * GPS Vcc (red) -> LoPy 3V3 (shared with others)
