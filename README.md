@@ -1,7 +1,7 @@
 <img src="images/MySense-logo.png" align=right width=100>
 
 # MySense
-Last update of the README on 24th March 2018
+L=ast update of the README on 24th March 2018
 
 ## Description
 Software Infrastructure or framework for managing environmental sensors and data aquisition
@@ -267,6 +267,11 @@ The gas sensor development (NO2, O3, NH3, CO) is just (Febr 2017) started, Aug 2
 ## Calibration
 Calibration of dust counters like Shinyei, Nova SDS011 and Dylos is started in May/June 2017.
 Outdoor correlation tests started Sept 2017.
+Indoor calibration tests with Plantower PMS7003, Nova SDS011 and BME280/BME680 were done in April 2018.
+
+The use of the DHT22 has been depricated after a 3 month period beginning of 2018 with 10 sensots kits equipted with Marvin LoRa/DHT22/SDS011 sensors. The DHT22 differ too much from one to the other. Are much influenced by higher rel. humidity. As well the I2C bus (e.g. BME280) seems more reliable and is easier to use.
+
+The SDS011 (and probably PMS7003) are heavily influenced by rel. humidity of 80% and higher: exponential overestimated dust densities. In study with RIVM is a recalculation scheme to correct the values.
 
 Calibration of Alpha Sense gas sensors is a problematic area. Probably Sept 2017. First tests show Alpha Sense O3, CO2 are OK, NO2 not successfull, NH3 prosponed.
 
@@ -309,7 +314,20 @@ For calibration the Python tool `statistics/Calibration.py` has been developped.
 ### Test remarks and experience
 
 #### meteo
-The DHT meteo sensors show intermittant lots of read errors. The meteo sensor BME280 is current focus.
+The DHT meteo sensors show intermittant lots of read errors. The meteo sensor BME280/680 is current focus.
+
+Calibration test results (April 2018) with 3 sensor kits, indoor (temperature and humidity does not vay much) test of 32 weeks with 5 minute samples:
+1. reference kit with BME680
+2. BME680:
+    * gas R2=0.85, correction 3.192e2, 5.650e-1 (56% of ref BME680)
+    * temp R2=0.843, correction -4.703, 8.528e-1 (85% of ref BME680)
+    * humidity R2= 0.972, correction -2.99e0, 0.519e-1 (5% of ref BME680!)
+    * pressure R2=0.99, correction 1.238e1, 9.820e-1 (-2%)
+3. BME280:
+    * temp R2=0.98, correction -1.662e0, 9.310e-1 (93% of ref BME680)
+    * humidity R2=0.625, correction -4.824e0, 1.404e1 (14 X BME680!)
+    * pressure R2=0.9779, correction 1.291e2, 8.753e-1 (only an offset, -13% of ref)
+In short: air pressure values correlate fine (high R2) and need some correction. R2 for temperature and humidity are just ok. But the SDS011 need corrections to the BME680. Previous tests with DHT22 show a far lower R2 and higher (linear) corrections.
 
 #### dust
 The Shiney PPD42NS (tested 3 sensors) gave lots of null reading on low PM10 values. The sensor values are not stable enough in comparison with newer sensors from Nova and Plantower as well the bulky Dylos handhelt.
@@ -319,6 +337,17 @@ Due to airflow the sensors need to be cleaned periodically. The Plantower sensor
 Plantower dust sensor measures also PM0.3, PM0.5, PM1 and PM5.
 
 Plantower and Nova dust sensors use USB bus. The values are privided in mass values. The conversion from particle count to mass is not made public.
+
+Calibration test results (April 2018) with 3 sensor kits, indoor test of 2 weeks with 5 minute samples:
+1. reference kit with PMS7003
+2. PMS7003:
+    * PM0.1 R2=0.9664, correction 8.635e-3, 1.096e0 (no difference)
+    * PM2.5 R2=0.9638, correction 5.626e-1, 1.092e0 (no difference)
+    * PM10  R2=0.9564, correction 6.630e-1, 1.174e0 (not much difference)
+3. SDS011:
+    * PM2.5 R2=0.9473, correction -5.141e-1, 2.615e0 (ca twice PMS7003)
+    * PM10  R2=0.8805, correction 8.967e-1, 2.704e0 (ca twice PMS7003)
+In short: about no difference (high R2), correction between the Plantower is about none (PM0.1 1%, PM2.5 1%, PM10 17%). Plantower with Nova SDS011 differ not much (high R2), correction is linear (PM2.5 260%, PM10 270%).
 
 #### gas
 Tghe Alpha Sense gas sensors have a high cost level (ca 80 euro per gas). NH3 is hard to test and still planned. NO2 give too many errors in the field. The sensors have a very limited time.
