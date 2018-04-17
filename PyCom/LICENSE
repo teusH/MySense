@@ -1,0 +1,23 @@
+ 
+ Copyright (C) 2018, ver. Behoud de Parel, Teus Hagen, the Netherlands
+
+The python scripts for the PyCom boards use various parts and libraries from different sources. All source used are Open Source under some particular license agreements. Mostly the MIT license agreement.
+If not defined the scripts are licensed under the GNU General Public License.
+All changes to external python scripts are bound to the license agreement of the original author.
+All documentation is licensed under GNU General Public License Agreement.
+
+ Scripts and documentation is free software:
+ you can redistribute it and/or modify it under the terms of 
+ the GNU General Public License as published by
+ the Free Software Foundation,
+ either version 3 of the License, or (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
