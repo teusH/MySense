@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 2.3 2018/04/17 09:04:22 teus Exp teus $
+# $Id: MySense.py,v 2.4 2018/04/17 12:39:03 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 2.3 $"[11:-2]
+__version__ = "0." + "$Revision: 2.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -567,7 +567,7 @@ def SendInfo(port=3):
 
 def LocUpdate():
   global useGPS, lastGPS, LAT, LON, ALT
-  if type(useGPS) is None: return None
+  if useGPS == None: return None
   location = [0.0,0.0,0.0]
   location[LAT] = round(float(useGPS.latitude),5)
   location[LON] = round(float(useGPS.longitude),5)
