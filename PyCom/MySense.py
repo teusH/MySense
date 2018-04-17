@@ -1,8 +1,8 @@
-# should be main.py
+# PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 2.2 2018/04/16 17:44:36 teus Exp teus $
+# $Id: MySense.py,v 2.3 2018/04/17 09:04:22 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 2.2 $"[11:-2]
+__version__ = "0." + "$Revision: 2.3 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -444,7 +444,7 @@ def DoDust():
     useDust.Normal()
     if not showSleep(secs=15,text='starting up fan'):
       display('stopped SENSING', (0,0), clear=True)
-      LED.blink(5,0.3,0xff0000,True,True)
+      LED.blink(5,0.3,0xff0000,True)
       return [0,0,0]
     else:
       if useGPS != None:
