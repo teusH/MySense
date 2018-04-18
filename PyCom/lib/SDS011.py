@@ -6,7 +6,7 @@ Created on 24 Apr 2017
 # comes from https://github.com/rexfue/Feinstaub_LoPy
 # changes by teus license GPLV3
 # Frank Heuer wrote a better and more extensive script
-# $Id: SDS011.py,v 1.4 2018/04/01 15:24:05 teus Exp teus $
+# $Id: SDS011.py,v 1.5 2018/04/18 08:55:29 teus Exp teus $
 
 try:
   from machine import  UART
@@ -48,13 +48,13 @@ class SDS011:
     # pm1=[20,1] adds a calibration offset of 20 to measurement
     self.PM_fields = [
       # the Plantower conversion algorithm is unclear!
-      ('pm25','ug/m3',0,[0,1]),
-      ('pm10','ug/m3',1,[0,1]),
+      ['pm25','ug/m3',0,[0,1]],
+      ['pm10','ug/m3',1,[0,1]],
     ]
     if type(calibrate) is dict:
       for key in calibrate.keys():
         if calibrate[key] and type(calibrate[key]) != list: continue
-        for pm in range(len(self.PM_fields)):
+        for pm in range(0,len(self.PM_fields)):
           if self.PM_fields[pm][0] == key:
             self.PM_fields[pm][3] = calibrate[key]
             break
