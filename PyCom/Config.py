@@ -14,6 +14,19 @@ W_PASS = 'acacadabra'
 # define 0 if not used (GPS may overwrite this)
 thisGPS = [0.0,0.0,0.0] # (LAT,LON,ALT)
 
+# uncomment if calibration is known
+# # date, reference to ?
+# calibrate = {
+#     "temperature": [0,1],
+#     "humidity": [0,1],
+#     "pressure": [0,1],
+#     "gas": [0,1],
+#     "gas base": 0+1.0*178644.6, # use gas calibration
+#     "pm1": [0,1],
+#     "pm25": [0,1],
+#     "pm10": [0,1],
+#}
+
 useSSD = 'I2C'
 # I2C pins
 S_SDA = 'P23'  # white shared
