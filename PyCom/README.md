@@ -56,6 +56,46 @@ If the GPS modules is installed the controller will (re)sent this location infor
 The PyCom boards are using MicroPython (see http://docs.micropython.org/en/latest/pyboard/).
 MicroPython is an embedded Python 3 alike scripting language.
 
+## WiFi SECURITY
+Default the PyCom board will enable WiFi as Access Point with standard public known access passwords en telnet/ftp credentials. MAKE SURE you change this to avoid the use of the controller by anyone. See how to's:
+* https://docs.pycom.io/chapter/tutorials/all/wlan.html
+* Adafruit and https://mike632t.wordpress.com/2017/04/11/connecting-my-wipy-to-my-wifi/:
+
+How to connect the PyCom to your own network (defeat: you will ONLY be able to control the PyCom from remote within the range of your wifi).
+Hint: only change ftp/telnet user/password ...
+
+Create a `boot.py` file with the following content:
+```Python
+    import os
+    import machine
+    import network
+    import time
+   
+    # Duplicate output on UART
+    uart = machine.UART(0, 115200)
+    os.dupterm(uart)
+  
+    # Disable telnet and FTP server before connecting to the network
+    server = network.Server()
+    server.deinit()
+   
+    # Connect to WLAN
+    wlan = network.WLAN()
+    wlan = network.WLAN(mode=network.WLAN.STA)
+    nets = wlan.scan()
+    for net in nets:
+      if net.ssid == '<YOUR OWN PYCOM ssid>':
+        wlan.connect(net.ssid, auth=(net.sec, '<YOUR WiFi wireless-password>'),
+          timeout=5000)
+      while not wlan.isconnected():
+        machine.idle() # save power while waiting
+  
+    # Enable telnet and FTP server with new settings
+    server.init(login=('<YOU/user>', '<YOU/password>'), timeout=600)
+    time.sleep(10) # Wait 10 seconds before continuing
+```
+And load up via FTP the boot.py to the board.
+
 ### How to interact with the PyCom board?
 Install *atom* (atom-beta) and pymkr from e.g. http://PyCom.com website.
 Or use an alternative *rshell* (Python 3 tool)from: https://github.com/dhylands/rshell. Read the rshell README file how one can use this command line tool to upload, download and use REPL.
