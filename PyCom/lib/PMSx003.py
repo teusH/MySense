@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: PMSx003.py,v 1.7 2018/03/15 15:36:17 teus Exp teus $
+# $Id: PMSx003.py,v 1.8 2018/04/19 14:39:04 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -73,23 +73,23 @@ class PMSx003:
     # pm1=[20,1] adds a calibration offset of 20 to measurement
     self.PM_fields = [
       # the Plantower conversion algorithm is unclear!
-      ('pm1','ug/m3',self.PMS_PM1P0,[0,1]),
-      ('pm25','ug/m3',self.PMS_PM2P5,[0,1]),
-      ('pm10','ug/m3',self.PMS_PM10P0,[0,1]),
+      ['pm1','ug/m3',self.PMS_PM1P0,[0,1]],
+      ['pm25','ug/m3',self.PMS_PM2P5,[0,1]],
+      ['pm10','ug/m3',self.PMS_PM10P0,[0,1]],
       # concentration (generic atmosphere conditions) in ug/m3
-      ('pm1_atm','ug/m3',self.PMS_PM1P0_ATM,None),
-      ('pm25_atm','ug/m3',self.PMS_PM2P5_ATM,None),
-      ('pm10_atm','ug/m3',self.PMS_PM10P0_ATM,None),
+      ['pm1_atm','ug/m3',self.PMS_PM1P0_ATM,None],
+      ['pm25_atm','ug/m3',self.PMS_PM2P5_ATM,None],
+      ['pm10_atm','ug/m3',self.PMS_PM10P0_ATM,None],
       # number of particles with diameter N in 0.1 liter air
       # 0.1 liter = 0.00353147 cubic feet, convert -> pcs / 0.01qf
-      ('pm03_cnt','pcs/0.1dm3',self.PMS_PCNT_0P3,None),
-      ('pm05_cnt','pcs/0.1dm3',self.PMS_PCNT_0P5,None),
-      ('pm1_cnt','pcs/0.1dm3',self.PMS_PCNT_1P0,None),
-      ('pm25_cnt','pcs/0.1dm3',self.PMS_PCNT_2P5,None),
-      ('pm5_cnt','pcs/0.1dm3',self.PMS_PCNT_5P0,None),
-      ('pm10_cnt','pcs/0.1dm3',self.PMS_PCNT_10P0,None),
+      ['pm03_cnt','pcs/0.1dm3',self.PMS_PCNT_0P3,None],
+      ['pm05_cnt','pcs/0.1dm3',self.PMS_PCNT_0P5,None],
+      ['pm1_cnt','pcs/0.1dm3',self.PMS_PCNT_1P0,None],
+      ['pm25_cnt','pcs/0.1dm3',self.PMS_PCNT_2P5,None],
+      ['pm5_cnt','pcs/0.1dm3',self.PMS_PCNT_5P0,None],
+      ['pm10_cnt','pcs/0.1dm3',self.PMS_PCNT_10P0,None],
     ]
-    if calibrate and (type(calibrate) == dict):
+    if type(calibrate) is dict:
       for key in calibrate.keys():
         if calibrate[key] and type(calibrate[key]) != list: continue
         for pm in range(len(self.PM_fields)):
