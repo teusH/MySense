@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 2.6 2018/04/15 15:35:50 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 2.7 2018/04/23 08:23:33 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -33,7 +33,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.6 $"[11:-2]
+__version__ = "0." + "$Revision: 2.7 $"[11:-2]
 
 try:
     import MyLogger
@@ -44,7 +44,7 @@ try:
     import json
     import socket
     import re
-    from time import time, sleep
+    from time import time, sleep, localtime
     socket.setdefaulttimeout(60)
     import paho.mqtt.client as mqtt
     from struct import *
@@ -816,7 +816,9 @@ def convert2MySense( data, **sensor):
     global Conf, cached, dirtyCaches
 
     device = data['topic'][2]
+    values = {} # init record with measurements
     record = {}
+    timing = None
     for item in ['counter','payload_raw','port',]:
         if item in data['payload'].keys():
             record[item] = data['payload'][item]
@@ -877,6 +879,10 @@ def convert2MySense( data, **sensor):
                 if not sensor.upper() in cached[myID]['sensors']:
                     cached[myID]['sensors'].append(sensor.upper())
             del data['payload']['payload_fields']['sensors']
+        if ('time' in data['payload']['payload_fields'].keys()) and (data['payload']['payload_fields']['time'] > 946681200): # 1 jan 2000
+            record['time'] = values['time'] = data['payload']['payload_fields']['time']
+            del data['payload']['payload_fields']['time']
+            timing = values['time']
         # cached['sensors'] is now up to date
         for sense in data['payload']['payload_fields'].keys():
             field = translate(sense)
@@ -920,7 +926,6 @@ def convert2MySense( data, **sensor):
         if Conf['project'] == 'XYZ': raise ValueError
         ident['project'] = Conf['project']
     except: ident['project'] = data['topic'][0]
-    values = { 'time': int(time()) } # init record with measurements
     if 'metadata' in data['payload'].keys():
         gtwID = Get_GtwID(data['payload']['metadata'])    # get signal strength of end node
     # see if we have first LoRa signal strengthy
@@ -987,9 +992,11 @@ def convert2MySense( data, **sensor):
             #for t in ident.keys():
             #    if not t in ['project','description']:
             #        del ident[t]
-            if ('time' in values.keys()) and (values['time'] > 946681200): # 1 jan 2000 00:00
+            if ('time' in values.keys()) and (values['time'] > 946681200): # 1 jan 2000
                 values = { 'time': values['time'] }
+                timing = values['time']
             else: values = {}
+            record = values.copy()
     # provide the device with a static serial number. Needed for Luftdaten.info
     if (data['topic'][2] in Conf['nodes'].keys()) and ('serial' in Conf['nodes'][data['topic'][2]].keys()) and Conf['nodes'][data['topic'][2]]['serial']:
         # serial is externaly defined
@@ -1002,7 +1009,6 @@ def convert2MySense( data, **sensor):
         MyLogger.log(modulename,'ATTENT','Created serial number for %s: %s.' % (data['topic'][2],ident['serial']))
     # try to get geolocation
     geolocation = []
-    timing = None
     if "metadata" in data['payload'].keys():
         for item in ['latitude','longitude','altitude']:
             if item in data['payload']['metadata'].keys():
@@ -1019,7 +1025,9 @@ def convert2MySense( data, **sensor):
                 if item == 'time':      # convert iso timestamp to UNIX timestamp
                     # time is time() minus 3600 secs with python V2 !! ?
                     timing = int(dp.parse(data['payload']['metadata']['time']).strftime("%s"))
-                    if sys.version_info[0] < 3: timing += 3600
+                    if sys.version_info[0] < 3: # ?!???
+                        if localtime().tm_isdst: timing -= 3600
+                        else: timing += 3600
                 else:
                     values[item] = data['payload']['metadata'][item]
     if (len(geolocation) <= 10):
@@ -1029,7 +1037,7 @@ def convert2MySense( data, **sensor):
         record['geolocation'] = geolocation
     if ('time' in values.keys()) and (values['time'] < 946681200): # 1 jan 2000 00:00
         del values['time']      # controller not synced with real time
-    if timing and (not 'time' in values.keys()):
+    if not 'time' in values.keys():
         if timing: values['time'] = record['time'] = timing
         else: values['time'] = record['time'] = int(time()) # needs correction
 
