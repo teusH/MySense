@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 2.4 2018/04/17 12:39:03 teus Exp teus $
+# $Id: MySense.py,v 2.6 2018/04/25 07:47:28 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 2.4 $"[11:-2]
+__version__ = "0." + "$Revision: 2.6 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -537,16 +537,16 @@ def DoMeteo():
     display("% 2.1f %2d %4d %2d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES]),round(mData[AQI])))
   else:
     display("    C hum%  pHa")
-    display("o",(24,-5),prt=False)
+    display("o",(21,-5),prt=False)
     display("% 3.1f  % 3d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES])))
   return mData # temp, hum, pres, gas, aqia
 
 def DoPack(dData,mData,gps=None):
   global meteo, dust
   if (type(gps) is list) and (gps[LAT] > 0.01):
-    return struct.pack('>HHHHHHHHHlll',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+30),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10),int(round(gps[LAT]*100000)),int(round(gps[LON]*100000)),int(round(gps[ALT]*10)))
+    return struct.pack('>HHHHHHHHHlll',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+300),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10),int(round(gps[LAT]*100000)),int(round(gps[LON]*100000)),int(round(gps[ALT]*10)))
   else:
-    return struct.pack('>HHHHHHHHH',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+30),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10))
+    return struct.pack('>HHHHHHHHH',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+300),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10))
 
 def SendInfo(port=3):
   global  lora, meteo, dust, useGPS, thisGPS, lastGPS
