@@ -88,7 +88,7 @@ function Decoder(bytes, port) {
   // if (port === 3) decoded.led = bytes[0];
   if ( port === 2 ) {
     if ( bytes.length == 10 ) {
-      if( notZero(bytes,0) ){ decoded.temperature = bytes2(bytes,0,10.0); } // oC
+      if( notZero(bytes,0) ){ decoded.temperature = bytes2(bytes,0,10.0)-30.0; } // oC
       if( notZero(bytes,2) ){ decoded.humidity = bytes2(bytes,2,10.0); } // %
       if( notZero(bytes,4) ){ decoded.pressure = bytes2(bytes,4,1.0); } // hPa
       if( notZero(bytes,6) ){ decoded.pm10 = bytes2(bytes,6,10.0); }    // ug/m3
