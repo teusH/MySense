@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 2.7 2018/04/23 08:23:33 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 2.8 2018/04/26 15:03:18 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -33,7 +33,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.7 $"[11:-2]
+__version__ = "0." + "$Revision: 2.8 $"[11:-2]
 
 try:
     import MyLogger
@@ -1026,8 +1026,8 @@ def convert2MySense( data, **sensor):
                     # time is time() minus 3600 secs with python V2 !! ?
                     timing = int(dp.parse(data['payload']['metadata']['time']).strftime("%s"))
                     if sys.version_info[0] < 3: # ?!???
-                        if localtime().tm_isdst: timing -= 3600
-                        else: timing += 3600
+                        if localtime().tm_isdst: timing += 3600
+                        else: timing -= 3600
                 else:
                     values[item] = data['payload']['metadata'][item]
     if (len(geolocation) <= 10):
