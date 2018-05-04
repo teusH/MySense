@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 2.6 2018/04/25 07:47:28 teus Exp teus $
+# $Id: MySense.py,v 2.8 2018/05/04 14:55:41 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 2.6 $"[11:-2]
+__version__ = "0." + "$Revision: 2.8 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -278,7 +278,7 @@ if useMeteo:
     if meteo == 3: # BME280
       import BME280 as BME
     elif meteo == 4: # BME680
-      import BME680 as BME
+      import BME_I2C as BME
       try:
         from Config import M_gBase
       except:
@@ -505,40 +505,64 @@ def DoMeteo():
   global useMeteo, nl, LF
   global Meteo, meteo
   global M_SDA, M_SCL
-  mData = [0,0,0,0,0]
+  mData = [0,0,0,0,0]; sData = ""
   if not useMeteo or not meteo: return mData
 
   # Measure temp oC, rel hum %, pres pHa, gas Ohm, aqi %
   LED.blink(3,0.1,0x002200,False)
+  error = None
   try: 
     nr = indexBus(i2cPINs,i2c,(M_SDA,M_SCL))
     if (meteo == 4) and (not useMeteo.gas_base): # BME680
       display("AQI base: wait"); nl -= LF
     i2c[nr].init(nr, pins=i2cPINs[nr]) # SPI oled causes bus errors
     sleep(1)
-    mData[TEMP] = float(useMeteo.temperature) # string '20.12'
-    mData[HUM] = float(useMeteo.humidity)     # string '25'
-    mData[PRES] = float(useMeteo.pressure)    # string '1021.60'
+    try:
+      mData[TEMP] = float(useMeteo.temperature) # string '20.12'
+      sData += "%4.1f " % round(mData[TEMP],1)
+    except:
+      mData[TEMP] = 0; error = TEMP
+      sData += "  ?  "
+    try:
+      mData[HUM] = float(useMeteo.humidity)     # string '25'
+      sData += "%2d " % round(mData[HUM])
+    except:
+      mData[HUM] = 0; error = HUM
+      sData += " ? "
+    try:
+      mData[PRES] = float(useMeteo.pressure)    # string '1021.60'
+      sData += "%4d " % round(mData[PRES])
+    except:
+      mData[PRES] = 0; error = PRES
+      sData += "   ? "
     if meteo == 4: # BME680
-      mData[GAS] = float(useMeteo.gas)        # Ohm 29123
-      mData[AQI] = round(float(useMeteo.AQI),1) # 0-100% ok
+      try:
+        mData[GAS] = float(useMeteo.gas)        # Ohm 29123
+        # sData += "%4.1f " % round(mData[GAS]/1000.0,1)
+      except:
+        mData[GAS] = 0; error = GAS
+        #sData += "  ?  "
+      try:
+        mData[AQI] = round(float(useMeteo.AQI),1) # 0-100% ok
+        sData += "%2d" % round(mData[AQI])
+      except:
+        mData[AQI] = 0; error = AQI
+        sData += " ?"
       rectangle(0,nl,128,LF,0)
   except Exception as e:
     display("%s ERROR" % Meteo[meteo])
     print(e)
     LED.blink(5,0.1,0xff00ff,True)
     return [0,0,0,0,0]
+  if error != None:
+    print("no value for %s" % ['oC','RH','hPa','gas','AQI'][error])
+    LED.blink(5,0.1,0xff0099,True)
 
   LED.off()
   nl += 6  # oled spacing
-  if mData[GAS] > 0:
-    display("  C hum% pHa AQI")
-    display("o",(12,-5),prt=False)
-    display("% 2.1f %2d %4d %2d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES]),round(mData[AQI])))
-  else:
-    display("    C hum%  pHa")
-    display("o",(21,-5),prt=False)
-    display("% 3.1f  % 3d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES])))
+  display("  C hum%% pHa%s" % (' AQI' if mData[GAS] > 0 else ''))
+  display("o",(8,-5),prt=False)
+  display(sData)
   return mData # temp, hum, pres, gas, aqia
 
 def DoPack(dData,mData,gps=None):

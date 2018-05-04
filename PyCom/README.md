@@ -127,6 +127,10 @@ Choose one meteo and one dust sensor: MySense modules in development are:
 Comment: do not use eg UART Rx on pin 12. Pin 12 high on reset will cause to omit executing boot.py and main.py.
 Maximum of UART modules is 2 (e.g. dust and GPS modules).
 
+BME280 or BME680 meteo sensors are tuned for indoor applications. Lifetime of sensors differ much because of this. The DHT11 or DHT22 are worse for outdoor application usage.
+
+The dust sensors have a fan and laser. Both have a limited time of life. Hence the fan and laser are powered off in idle state. It is unclear if this method will help to improve the lifetime.
+
 ### RTC clock
 MySense will use GPS to initilyse the Real Time Clock module. Every time the GPS location is looked up the RTC clock will be updated automatically.
 This will allow MySense to timestamp measurements more precise.
@@ -195,6 +199,8 @@ And upload your new files.
 
 How to delete or enable previous firmware? Connect Pin P12 to 3V3: 1-3 sec (safe boot), 4-6 secs (previous user update selected), 7-9 secs (safe boot factory firmware).
 P2 - Gnd low level bootloader (needed to update factory firmware upgrade).
+
+The controller can always be reached via the network. Upload wifi (`www.pycom.io`) an empty main.py into `flash` folder with ftp (insecure version) ore `filezilla` (MacOs; can take some minutes to establish connection) in passive mode to `192.168.4.1` and user/pass `micro/python` to obtain access via telnet (or netcat) or USB.
 
 ### test PyCom controller
 The PyCom will initiate the wifi. Use Wifi AO with pass: www.pycom.io and telnet (192.168.4.1) access user/password micro/python.
