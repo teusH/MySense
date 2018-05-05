@@ -1,4 +1,5 @@
-# comes from https://github.com/pimoroni/bme680
+# original code comes from https://github.com/BoschSensortec/BME680_driver ?
+# Python code comes from https://github.com/pimoroni/bme680
 # updated from https://github.com/gkluoe/bme680 temp bug
 # changes for micro python 2018/05/03 by teus
 from .constants import *

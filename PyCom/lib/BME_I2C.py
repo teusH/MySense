@@ -1,3 +1,4 @@
+# TO DO: allow disable/enable gas, RII filter, etc.
 from time import time, sleep_ms, ticks_ms
 import bme680
 import math
