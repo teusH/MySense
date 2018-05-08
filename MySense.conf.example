@@ -163,6 +163,25 @@ level    = INFO
 ## display raw measurements
 #raw = True
 
+# Spec gas sensors O3, NO2, CO
+#[spec]
+#input   = False
+##type    = Spec ULPSM
+##usbid   = Silicon_Labs_CP210
+#serial  = ['022717020254','030817010154','110816020533']
+#fields  = ['o3','no2','co']
+#units   = ['ppb','ppb','ppb']
+#calibrations = [[0,1],[0,1],[0,1]]
+##interval        =60
+##bufsize = 30
+##sync    = False
+##raw     = False
+##debug   = False
+#is_stable       = 3600
+##omits   = ['nh3']
+# 'sn','ppb','temp','rh','raw','traw','hraw','day','hour','min','sec'
+##data    = [None,'ppb','temp','rh',None,None,None,None,None,None,None]
+
 # Loudness measurement
 # GrovePi+ analogue port
 #[dbgrove]
