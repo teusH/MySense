@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.63 2017/11/29 12:44:27 teus Exp teus $
+# $Id: INSTALL.sh,v 1.64 2018/05/09 15:11:53 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -1061,7 +1061,7 @@ done
 WLAN=\${1:-uap0}
 ADDR=\${2:-192.168.2}
 # led ON-OFF-OFF-OFF-ON ...
-echo "<clear>NO INTERNET" | /bin/nc -w 2 localhost \$D_ADDR
+echo "<clear>NO INTERNET via WiFi" | /bin/nc -w 2 localhost \$D_ADDR
 if [ -x /usr/local/bin/MyLed.py ]
 then
     kill %1
