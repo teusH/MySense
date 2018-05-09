@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 1.3 2018/05/08 18:36:07 teus Exp teus $
+# $Id: MySPEC.py,v 1.4 2018/05/09 15:29:54 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -45,7 +45,7 @@ __options__ = [
 Conf = {
     'input': False,      # Spec gas sensors measuring is required
     'type': "Spec ULPSM",# type of device
-    'usbid': 'Silicon_Labs_CP210',  # usb's ID via serial-byID
+    'usbid': 'SPEC',     # name as defined by udev rules, e.g. /dev/SPEC1
     'serial': ['022717020254','030817010154','110816020533'],# S/N number
     'fields': ['o3','no2','co'],   # types of pollutants
     'units' : ['ppb','ppb','ppb'], # dflt type the measurement unit
@@ -128,10 +128,10 @@ def open_serial():
     if not Conf['usbid']:
         return False
     # try serial with product ID
-    byId = "/dev/serial/by-id/"
+    byId = "/dev/"
     if not os.path.exists(byId):
         MyLogger.log(modulename,'FATAL',"There is no USBserial connected. Abort.")
-    device_re = re.compile(".*%s.*_USB.*(?P<device>ttyUSB\d+)$" % Conf['usbid'], re.I)
+    device_re = re.compile(".*%s\d+ .*(?P<device>ttyUSB\d+)$" % Conf['usbid'], re.I)
     try:
         df = subprocess.check_output(["/bin/ls","-l",byId])
         for i in df.split('\n'):
