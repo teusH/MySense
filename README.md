@@ -39,6 +39,12 @@ Provide a generalised dynamic Open Source based infrastructure to allow:
 * free availability  of the data
 * free availability of all software (GPLV4 license)
 
+## Discussion
+MySense supports calibration of every single sensor. Sensor values will differ between the sensors within a branche and between branches. Correlation software is included. Advised is to calibrate the sensors regularly for a test period of several days (conditions should vary in the test period).
+
+Dust measurements are done by counting the particles. The most common dust sensor is the Nova SDS011. The Plantower PMS7003 is however 1/3 in size and counts more classes of particles as well provides also the raw values. Both have a fan and laser which are powered off in idle state.
+Dust measurments are influenced by humidity. A correction algorithm to enable to compare the dust measurements with reference sensor equipment (e.g. BAM1020) is in beta test (April 2018).
+
 <div style='vertical-align: top; clear: both'>
 <figure>
 <img src="images/MySense-kit-1.png" align=left height=200>
@@ -53,9 +59,10 @@ Provide a generalised dynamic Open Source based infrastructure to allow:
 * Install the software on e.g. the Raspberry Pi 3 on a new user e.g. `ios` in the directory e.g. `MySense`. Use `INSTALL.sh` to install all dependencies and startup scripts.
 * Configure MySense.conf using MySense.conf.example as a lead.
 * Test one by one the input and output scripts in the python debugger as standalone e.g. `pdb MySDS011.py`. Once this is tested, go to the next step.
-* Run Mysense as follows `python MySense.py` and you will see all output on your screen.
+* command line start and control (<cntrlZ> followed by kill %1 will stop the process): Run Mysense as follows `python MySense.py` and you will see all output on your screen.
 * If you use a tiny display: start the display server: `python MyDisplayServer.py start`
-* Start up MySense: `python MySense.py start`
+* Start as daemon process. Start up MySense: `python MySense.py start`
+When first started make sure you configure console output channel, logging to stdout or stderr and logging debug level.
 
 If needed See the README files and documentation files in `docs` for more detailed info.
 
@@ -63,7 +70,7 @@ If you installed a led switch (controlled by `/usr/local/bin/poweroff`:
 * Pressing the switch longer as 20 seconds will poweroff the Pi
 * Pressing the switch longer as 10 seconds will reboot the Pi
 * Pressing the switch 6 seconds will restart a search for wired or wifi internet connectivity.
-* If the Pi is powered off a discoonect and connect of the adapter will boot the Pi.
+* If the Pi is powered off a disconnect and connect of the adapter will boot the Pi.
 
 Without internet connectivity the MySense software will not be started on a reboot.
 
@@ -88,8 +95,8 @@ Scripts have been tested on Raspberry Pi (2 and 3) running Wheezy, Jessie and St
 Scripts have a -h (help) option. With no arguments the script will be started in interactive mode. Arguments: *start*, *status*, *stop*.
 
 ### Support scripts
-* MyLed.py: control the Pi with button to poweroff and put it in wifi WPA mode. Pi will set up a wifi access point `MySense` if no internet connectivity could be established via wifi or LAN.
-* MyDisplayServer.py, a display service: messages received will be shown on a tiny Adafruit display.
+* MyLed.py: control the Pi with button to power off and put it in wifi WPA mode. Pi will set up a wifi access point `MySense` if no internet connectivity could be established via wifi or LAN.
+* MyDisplayServer.py, a display service: messages received will be shown on a tiny 128X64 oled (I2C) display.
 
 ### Main script
 The main python script is MySense.py. It acts as intermediate beween input plugins and output channels. It uses `MySense.conf` (see MySense.conf.example) to configure itself.
@@ -129,23 +136,23 @@ A working example of MySense script in todays operation:
                                     |    
     INPUT PLUGINs                   |        OUTPUT CHANNELS    GATEWAY/BROKER
                                   __|__
-    DHT11/22-meteo ---GPIO---->| ///|\\\ |>- CSV                _____
-    GPS-locator --USB/Uart --->|=MySense=|>- console           ///|\\\  
+    DHT11/22-meteo ---GPIO --->| ///|\\\ |>- CSV                _____
+    GPS-locator -Uart USB  --->|=MySense=|>- console           ///|\\\  
     RSSI-wifi signal-strength >||  Pi3  ||>- MYSQL           |=MySense=|>-gspread
                                ||Pi ZeroW|
     Dylos-dust -USB-- RS232--->||Stretch||>- Mosquitto pub-->|| Debian||>-MySQL
     Grove-loudness ---GPIO---->| \\\|/// |>- HTTP-Post       || Linux ||>-CSV
-    BME280 -meteo ----I2C----->|    |    |>- email info      | \\\|/// |>-console
+    BME280 -meteo ---- I2C --->|    |    |>- email info      | \\\|/// |>-console
     BME680 -meteo+gas--I2C --->|    |    |                   | server  |
     PPD42NS -dust-Arduino-USB->|    |    |>- InFlux publish  |_________|>-InFlux pub
-    Nova SDS011 -dust -USB --->|    |    |>- Oled display SSD1306 (SPI/I2C)
+    Nova SDS011 -dust -USB --->|    |    |>- oled display SSD1306 (SPI/I2C)
     Plantower PMS7003 -USB --->|    |    |>- Google gspread (alpha, deprecated)
-    Adafruit rain -------GPIO->|    |    |   (in develop Jul 2018)
-    O3,NO2,CO,H2S -SPEC --USB->|    |    |   (beta test April 2018)
-    NH3(Alpha)--SPEC -----USB->|    |    |   (planned Jun 2018)
+    O3,NO2,CO SPEC UART USB -->|    |    |   (beta test April 2018)
+    NH3 - AlphaSense - I2C --->|    |    |   (planned Jun 2018)
+    Adafruit rain -----GPIO -->|    |    |   (planned Aug 2018)
                                |    |    |    
     LoRaWan (TTN MQTT) ------->|    |    |>- broker? (planned)
-    Mosquitto sub ----server ->|    |    |>- LoRaWan (planned, TTN)
+    Mosquitto sub ----server ->|    |    |>- LoRaWan (planned TTN)
     InFlux subscribe -server ->|    |    |>- Bluetooth (planned)
     LoRa TTN MQTT ----server ->|    |    |>- Luftdaten.info databases
                                     |
@@ -165,10 +172,11 @@ MySense LoRa air quality measurement kit:
                                    |               |                 
     Nova SDS011 -dust -Uart -->|   \ ESP           /
     Plantower PMS7003 -Uart -->|    --------------
-    Grove GPS ---------Uart -->|
+    Grove GPS ---------Uart -->|       |
+                               |       |
     commands - LoRA TTN     -->|       |
                                        |
-                                       |> SSD1306 Adafruit display
+                                       |> SSD1306 128X64 oled display
 ```
 LoRa TTN is also used e.g. to change sample timings or to force information (e.g. location) to be send from the sensor kit.
 
@@ -325,7 +333,7 @@ Calibration test results (April 2018) with 3 sensor kits, indoor (temperature an
     * pressure R2=0.99, correction 1.238e1, 9.820e-1 (-2%)
 3. BME280:
     * temp R2=0.98, correction -1.662e0, 9.310e-1 (93% of ref BME680)
-    * humidity R2=0.625, correction -4.824e0, 1.404e1 (14 X BME680!)
+    * humidity R2=0.625, correction -4.824e0, 1.404e0 (14 X BME680!)
     * pressure R2=0.9779, correction 1.291e2, 8.753e-1 (only an offset, -13% of ref)
 In short: air pressure values correlate fine (high R2) and need some correction. R2 for temperature and humidity are just ok. But the SDS011 need corrections to the BME680. Previous tests with DHT22 show a far lower R2 and higher (linear) corrections.
 
