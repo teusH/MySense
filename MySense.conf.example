@@ -182,6 +182,20 @@ level    = INFO
 # 'sn','ppb','temp','rh','raw','traw','hraw','day','hour','min','sec'
 ##data    = [None,'ppb','temp','rh',None,None,None,None,None,None,None]
 
+# Alpha Sense gas sensors
+#[alphasense]
+#input    = False
+#type     = AlphaSense
+#fields   = ['nh3']  # NH3-B1 using AS ISB and ADC PCF8591 4 channel 6-bit
+#units    = ['ppm']  # ppm, mV (raw) or mA to do: ug/m3
+#calibrations = [[0,1]]
+#sensitivity = [[4,20,100]] # see Alpha Sense sensor spec
+#interval = 30
+#bufsize = 20
+#raw     = False
+#debug    = False
+
+
 # Loudness measurement
 # GrovePi+ analogue port
 #[dbgrove]
