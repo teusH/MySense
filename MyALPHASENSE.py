@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyALPHASENSE.py,v 1.1 2018/05/11 18:35:48 teus Exp teus $
+# $Id: MyALPHASENSE.py,v 1.2 2018/05/12 09:15:06 teus Exp teus $
 
 """ Get measurements from AlphaSense gas sensor NH3 using
     Digital Transmitter Borad ISB rev4 and
@@ -27,11 +27,12 @@
     Relies on Conf setting by main program.
 """
 modulename='$RCSfile: MyALPHASENSE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.1 $"[11:-2]
+__version__ = "0." + "$Revision: 1.2 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
     from time import time
+    from types import ModuleType as module
     import MyThreading          # needed for multi threaded input
     import MyLogger
 except ImportError:
@@ -127,7 +128,7 @@ def Add(conf):
           print("NH3: %d/%d (%.3f mV)" % (value, reference,1000.0*float(value)/reference))
           print("NH3 converted: %.1f mA, %.1f PPM" % (mAval,ppmval))
         if conf['units'][gas] == 'ppm':
-          value = calibrate(i,conf,ppmval)
+          value = calibrate(gas,conf,ppmval)
         elif conf['units'][gas] == 'mA': value = mAval
       except ValueError:
         MyLogger.log(modulename,'ERROR',"Read or config error")
@@ -145,7 +146,7 @@ def Add(conf):
     else:
       MyLogger.log(modulename,'DEBUG',"%s : None" % conf['fields'][gas])
     rec[conf['fields'][gas]] = round(value,2)
-  if ('raw' in conf.keys()) and (Conf['raw'] != None):
+  if ('raw' in conf.keys()) and (type(conf['raw']) is module):
     conf['raw'].publish(
        tag='%s' % conf['type'].lower(),
        data=','.join(rawData))
@@ -179,7 +180,7 @@ def registrate():
         MyThread.append(MyThreading.MyThreading(
             bufsize=int(Conf['bufsize']),
             interval=int(Conf['interval']),
-            name='Alpha Sense % sensor' % Conf['fields'][gas],
+            name='Alpha Sense %s sensor' % Conf['fields'][gas].upper(),
             callback=Add,
             conf=Conf,
             sync=Conf['sync'],
@@ -206,14 +207,16 @@ def getdata():
     global Conf, MyThread
     if not registrate():                # start up input readings
       return {}
-    try:
-      for thread in range(0,len(MyThread)):  
+    data = {}
+    for thread in range(0,len(MyThread)):  
+      try:
         values =  MyThread[thread].getRecord()     # pick up a record
-        for key in thisSensor.keys():
-                if key in Conf['fields'] + ['time']: values[key] = thisSensor[key]
-    except IOError as er:
-      MyLogger.log(modulename,'WARNING',"Sensor input failure: %s" % er)
-    return values
+        for key in values.keys():
+          if key in Conf['fields'] + ['time']:
+            data[key] = values[key]
+      except IOError as er:
+        MyLogger.log(modulename,'WARNING',"Sensor %s input failure: %s" % (Conf['fields'][thread],er))
+    return data
 
 # test main loop
 if __name__ == '__main__':
