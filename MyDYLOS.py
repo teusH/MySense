@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDYLOS.py,v 2.22 2017/09/01 13:31:12 teus Exp teus $
+# $Id: MyDYLOS.py,v 2.23 2018/05/12 09:27:59 teus Exp teus $
 
 # TO DO: open_serial function may be needed by other modules as well?
 #       add version number, firmware number
@@ -34,7 +34,7 @@
     MET/ONE BAM1020 = Dylos + 5.98 (rel.hum*corr see Dexel University report)
 """
 modulename='$RCSfile: MyDYLOS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.22 $"[11:-2]
+__version__ = "0." + "$Revision: 2.23 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -71,6 +71,7 @@ try:
         import os
         from time import time
         from time import sleep
+        from types import ModuleType as module
         import MyLogger
         import serial
     except:
@@ -277,7 +278,7 @@ def Add(conf):
         # Some other Dylos Error
         MyLogger.log(modulename,'WARNING',error)
     # take notice: index 0 is PM2.5, index 1 is PM10 values
-    if ('raw' in conf.keys()) and (Conf['raw'] != None):
+    if ('raw' in conf.keys()) and (type(Conf['raw']) is module):
         conf['raw'].publish(
             tag='dylos',
             data="pm25=%.1f,pm10=%.1f" % (bin_data[PM25]*1.0,bin_data[PM10]*1.0))

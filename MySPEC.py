@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 1.4 2018/05/09 15:29:54 teus Exp teus $
+# $Id: MySPEC.py,v 1.5 2018/05/12 09:17:32 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -68,6 +68,7 @@ try:
         import os
         from time import time
         from time import sleep
+        from types import ModuleType as module
         import MyLogger
         import serial
     except:
@@ -305,7 +306,7 @@ def Add(conf):
             values[Conf['data'][i]] = calibrate(Conf['fields'].index(Conf['data'][i]),Conf['calibrations'],bin_data[i])
           except:
             values[Conf['data'][i]] = int(bin_data[i])
-    if ('raw' in Conf.keys()) and (Conf['raw'] != None):
+    if ('raw' in Conf.keys()) and (type(Conf['raw']) is module):
         conf['raw'].publish(
             tag='Spec %s' % conf['gas'].upper(),
             data=','.join(data))

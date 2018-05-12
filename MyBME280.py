@@ -18,18 +18,19 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyBME280.py,v 2.15 2017/07/03 12:42:24 teus Exp teus $
+# $Id: MyBME280.py,v 2.16 2018/05/12 09:19:29 teus Exp teus $
 
 """ Get measurements from BME280 Bosch chip via the I2C-bus.
     Measurements have a calibration factor (calibrated to Oregon weather station)
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyBME280.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.15 $"[11:-2]
+__version__ = "0." + "$Revision: 2.16 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
     from time import time
+    from types import ModuleType as module
     import MyThreading          # needed for multi threaded input
     import MyLogger
 except ImportError:
@@ -119,7 +120,7 @@ def Add(conf):
     else:
         MyLogger.log(modulename,'DEBUG',"Air pressure: None")
     if (temp == 0.0) and (humidity == 0.0) and (pascals == 0.0): return rec
-    if ('raw' in conf.keys()) and (Conf['raw'] != None):
+    if ('raw' in conf.keys()) and (type(Conf['raw']) is module):
         conf['raw'].publish(
             tag='%s' % conf['type'].lower(),
             data='temp=%.1f,rh=%.1f,pha=%.1f' % (temp*1.0,humidity*1.0,pascals*1.0))

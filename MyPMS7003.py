@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyPMS7003.py,v 1.9 2017/07/29 16:32:30 teus Exp teus $
+# $Id: MyPMS7003.py,v 1.10 2018/05/12 09:27:59 teus Exp teus $
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
 #         active (monitor) mode: continues read (200-600 msec) during sample time
@@ -39,7 +39,7 @@
     units: pcs/0.01qf, pcs/0.1dm3, ug/m3
 """
 modulename='$RCSfile: MyPMS7003.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.9 $"[11:-2]
+__version__ = "0." + "$Revision: 1.10 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -80,6 +80,7 @@ try:
     import sys
     from time import time
     from time import sleep
+    from types import ModuleType as module
     import MyLogger
     import re
     import subprocess           # needed to find the USB serial
@@ -585,7 +586,7 @@ def Add(conf):
     if len(data):
         if conf['debug']:
             print("raw,sensor=%s %s %d000" % (conf['type'][-7:],','.join(data),values['time']*1.0))
-        else:
+        elif ('raw' in conf.keys()) and type(conf['raw']) is module):
             conf['raw'].publish(tag=conf['type'][-7:].lower(),data=','.join(data))
     return values
 

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyGPS.py,v 2.13 2017/06/07 18:53:14 teus Exp teus $
+# $Id: MyGPS.py,v 2.14 2018/05/12 09:27:59 teus Exp teus $
 
 # TO DO:
 #
@@ -28,10 +28,11 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyGPS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.13 $"[11:-2]
+__version__ = "0." + "$Revision: 2.14 $"[11:-2]
 
 import os
 from time import time, sleep
+from types import ModuleType as module
 import threading
 try:
     import MyLogger
@@ -141,7 +142,7 @@ class GPSthread(threading.Thread):
                     if (prev_l[0] != geo[0]) or (prev_l[1] != geo[1]):
                         prev_t = rec['time']; prev_l = geo
                         with self.threadLock: self.cur_val = rec
-                        if self.raw != None and len(geo):
+                        if (type(self.raw) is module) and len(geo):
                             self.raw.publish(
                                 tag='geo',
                                 data='lat=%s,lon=%s,alt=%s' % (geo[0],geo[1],geo[2])

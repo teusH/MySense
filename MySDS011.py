@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySDS011.py,v 1.16 2017/06/06 13:36:32 teus Exp teus $
+# $Id: MySDS011.py,v 1.18 2018/05/12 09:27:59 teus Exp teus $
 
 # Defeat: output average PM count over 59(?) or 60 seconds:
 #         continious mode: once per 59 minutes and 59 seconds!,
@@ -30,7 +30,7 @@
     if units is not defined as pcs the values are converted to ug/m3 (report Philadelphia)
 """
 modulename='$RCSfile: MySDS011.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.16 $"[11:-2]
+__version__ = "0." + "$Revision: 1.18 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -67,6 +67,7 @@ try:
     import sys
     from time import time
     from time import sleep
+    from types import ModuleType as module
     from sds011 import SDS011
     import MyLogger
     import re
@@ -262,8 +263,8 @@ def Add(conf):
     values = { "time": int(time()),
             conf['fields'][PM25]: calibrate(PM25,conf,values[1]),
             conf['fields'][PM10]: calibrate(PM10,conf,values[0]) }
-    MyLogger.log(modulename,"DEBUG","Readings PM2.5:%5.1f PM10:%5.1f" % (values[conf['fields'][PM25]],values[conf['fields'][PM10]]))
-    if ('raw' in conf.keys()) and (Conf['raw'] != None):
+    if ('raw' in conf.keys()) and (type(Conf['raw']) is module):
+        # in pcs/0.01qf units!
         conf['raw'].publish(
             tag='sds011',
             data="pm25=%.1f,pm10=%.1f" % (values[conf['fields'][PM25]],values[conf['fields'][PM10]]))

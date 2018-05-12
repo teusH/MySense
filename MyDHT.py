@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDHT.py,v 2.32 2017/09/03 14:36:11 teus Exp teus $
+# $Id: MyDHT.py,v 2.33 2018/05/12 09:27:59 teus Exp teus $
 
 # TO DO: make a threat to read every period some values
 # DHT import module can delay some seconds
@@ -28,11 +28,12 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDHT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.32 $"[11:-2]
+__version__ = "0." + "$Revision: 2.33 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
     from time import time
+    from types import ModuleType as module
     import MyThreading          # needed for multi threaded input
     import MyLogger
 except ImportError:
@@ -124,7 +125,7 @@ def Add(conf):
         return rec
     else:
         conf['errors'] = 0
-    if ('raw' in conf.keys()) and (conf['raw'] != None):
+    if ('raw' in conf.keys()) and (type(conf['raw']) is module):
         data = []
         if temp != None: data.append('temp=%.1f' % temp)
         if humidity != None: data.append('rh=%.1f' % humidity)
