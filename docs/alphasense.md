@@ -16,6 +16,22 @@ Cost pricing varies between if you buy the senor not from AliExpress: NH3-B1 sen
 ## Configuration
 As there maybe more as one AlphaSense gas sensor connected to the Pi MySense will need a way to get all the ADC converters. You need to install I2C-tools. Use i2cdetect -y 1 to see if the ADC converter is connected to the Pi at address 0x48.
 
+## Wiring
+```
+                  __V5 -red---Pi
+                 / _Gnd-black-Pi
+    ___________  |/       ___________  _________________
+    | ISB     |  ||       | ADC->I2C | |   Pi           |
+    |         |  ||       |          | |                |
+ /| |      Vcc---/|       |       Vcc--- Vcc - red      |
+ |N-|      Gnd---/       o--aux   Gnd--- Gnd - black    |
+ |H-|      an0--------------an0   SDA--- SDA - white I2C|
+ |3 |      an1--------------an1   SCL--- SCL - yellowI2C|
+ \| |      an3--------------an3      | |                |
+    |      an4--------------an4      | |________________|
+    | AlphaS  |           | PCF8591  |
+    |_________|           |__________|
+```
 ## References
 * PVF8591 A/D 4 channel, 8-bit controller
      delete light, temp, pot straps to disable these sensors
