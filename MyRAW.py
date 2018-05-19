@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRAW.py,v 1.10 2017/09/13 07:54:12 teus Exp teus $
+# $Id: MyRAW.py,v 1.11 2018/05/19 16:06:31 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyRAW.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.10 $"[11:-2]
+__version__ = "0." + "$Revision: 1.11 $"[11:-2]
 
 try:
     import MyLogger
@@ -154,7 +154,8 @@ def checkData(field):
         if fields[i].count('=') != 1:
             fields.pop(i)
         (unused,v) = fields[i].split('=')    # v should be int or float
-        if not v.replace('.','').isdigit(): fields.pop(i)
+        try: float(v)
+        except: fields.pop(i)
     fields = ','.join(fields)
     if len(fields) and (len(field) != len(fields)):
         MyLogger.log(modulename,'ATTENT','Changed raw measurements data %s -> %s.' % (field,fields))
