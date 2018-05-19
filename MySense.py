@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.20 2017/09/06 10:30:11 teus Exp teus $
+# $Id: MySense.py,v 3.23 2018/05/19 15:48:31 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -38,7 +38,7 @@
 # Citi-Sense
 # opensensors.io
 # Smart-Citizen-Kit
-# smartemssion
+# smartemission
 # polluxnzcity
 # AirCastingAndroidClient
 # smart-city-air-challenge (USA GOV)
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.20 $"[11:-2]
+__version__ = "0." + "$Revision: 3.23 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -217,7 +217,7 @@ def read_configuration():
                     Conf[key][opt.lower()] = config.get(key,opt)
                     if opt in ['input','output','raw','sync']:
                         Conf[key][opt.lower()] = config.getboolean(key,opt)
-                    elif opt.lower() in ('port','sample','interval','bufsize'):
+                    elif opt.lower() in ('port','sample','interval','bufsize','is_stable'):
                         if re.compile("^[0-9]+$").match(Conf[key][opt.lower()]):
                             Conf[key][opt.lower()] = int(Conf[key][opt.lower()])
                     elif (opt.lower() == 'level'):
@@ -807,8 +807,8 @@ def sensorread():
                 for key in sensed.keys():
                     if (not type(sensed[key]) is str):
                         if (sensed[key] != None)  and math.isnan(sensed[key]):
-                        MyLogger.log(modulename,'ATTENT','Sensor %s has NaN value.' % Sensor)
-                        sensed[key] = None
+                            MyLogger.log(modulename,'ATTENT','Sensor %s has NaN value.' % Sensor)
+                            sensed[key] = None
                     if key == 'time': continue
                     if (key in data.keys()) and (sensed[key] != None):
                         # some sensor key are the same, except only 2 of them

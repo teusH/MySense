@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 1.5 2018/05/12 09:17:32 teus Exp teus $
+# $Id: MySPEC.py,v 1.8 2018/05/19 16:11:02 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -174,7 +174,7 @@ def open_serial():
               continue
             except: pass
           Conf['serials'][one]['start'] = time() + Conf['is_stable']
-          MyLogger.log(modulename,'INFO',"Gas %s sensor at serial USB: %s" % (Conf['serials'][one]['gas'],Conf['serials'][one]['device']))
+          MyLogger.log(modulename,'INFO',"Gas %s sensor at serial USB: %s" % (Conf['serials'][one]['gas'].upper(),Conf['serials'][one]['device']))
           try:
             Conf['serials'][one]['index'] = Conf['fields'].index(Conf['serials'][one]['gas'])
           except:
@@ -219,6 +219,9 @@ def registrate():
     # if (Conf['type'] == None) or (Conf['type'][6:].upper() != 'ULPSM'):
     #     MyLogger.log(modulename,'ERROR','Incorrect Spec type: %s' % Conf['type'])
     #     return False
+    for key in ['serial','omits']:
+        if (key in Conf.keys()) and (type(Conf[key]) is str):
+            Conf[key] = Conf[key].replace(' ','').split(',')
     if not open_serial():
         return False
     if not len(MyThread): # only the first time
@@ -296,7 +299,7 @@ def Add(conf):
         try:
           if Conf['data'][i] == None: continue
         except: continue
-        data.append('%s=%.1f' % (Conf['data'][i],bin_data[i]))
+        data.append('%s=%.1f' % (conf['gas'].lower() if i == 0 else Conf['data'][i],bin_data[i]))
         if Conf['data'][i] == 'ppb':
           values[conf['gas']] = calibrate(Conf['fields'].index(conf['gas']),Conf['calibrations'],bin_data[i])
         elif Conf['data'][i][-3:] == 'raw':
@@ -307,8 +310,8 @@ def Add(conf):
           except:
             values[Conf['data'][i]] = int(bin_data[i])
     if ('raw' in Conf.keys()) and (type(Conf['raw']) is module):
-        conf['raw'].publish(
-            tag='Spec %s' % conf['gas'].upper(),
+        Conf['raw'].publish(
+            tag='Spec%s' % conf['gas'].upper(),
             data=','.join(data))
     return values
 
