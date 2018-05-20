@@ -37,6 +37,23 @@ lrwxrwxrwx 1 root root 7 May  9 16:31 /dev/SPEC1 -> ttyUSB1
 lrwxrwxrwx 1 root root 7 May  9 16:31 /dev/SPEC2 -> ttyUSB2
 lrwxrwxrwx 1 root root 7 May  9 16:31 /dev/SPEC3 -> ttyUSB3
 ```
+
+You need to know the S/N number of the gassensor to discriminate between the gasses.
+Use the followin small python script for this and to check if the sensor is working:
+```python
+import serial
+from time import sleep
+try:
+  serial = serial.Serial("/dev/SPEC1", baudrate=9600,
+            timeout=5,writeTimeout=1,
+            stopbits=serial.STOPBITS_ONE, parity=serial.PARITY_NONE,
+            bytesize=serial.EIGHTBITS)
+  serial.write('\r')
+  print("Spec S/N:",serial.readline().split(' ')[0])
+except:
+  print('Spec USB not founa or write/read error')
+```
+
 MySense `MySPEC.py` will look for the available gas sensors in a similar way and will detect which gas sensor is attached via a look at the eeprom readout or serial number as is configured in MySense.conf.
 ## References
 * http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf specification of the API
