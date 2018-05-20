@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyALPHASENSE.py,v 1.2 2018/05/12 09:15:06 teus Exp teus $
+# $Id: MyALPHASENSE.py,v 1.4 2018/05/18 16:01:20 teus Exp teus $
 
 """ Get measurements from AlphaSense gas sensor NH3 using
     Digital Transmitter Borad ISB rev4 and
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program.
 """
 modulename='$RCSfile: MyALPHASENSE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -127,9 +127,10 @@ def Add(conf):
         if conf['debug']:
           print("NH3: %d/%d (%.3f mV)" % (value, reference,1000.0*float(value)/reference))
           print("NH3 converted: %.1f mA, %.1f PPM" % (mAval,ppmval))
-        if conf['units'][gas] == 'ppm':
+        if conf['units'][gas].lower() == 'ppm':
           value = calibrate(gas,conf,ppmval)
-        elif conf['units'][gas] == 'mA': value = mAval
+        elif conf['units'][gas].lower() == 'ma': value = mAval
+	elif type(value) is int: value = float(value)
       except ValueError:
         MyLogger.log(modulename,'ERROR',"Read or config error")
         continue
@@ -160,6 +161,17 @@ def registrate():
         return False
     if ('fd' in Conf.keys()) and (Conf['fd'] != None):
         return True
+    for key in ['i2c','sensitivity']: # handle configured arrays of values
+        if (key in Conf.keys()) and (type(Conf[key]) is str):
+            Conf[key] = Conf[key].replace(' ','')
+            Conf[key] = Conf[key].replace('],[','#')
+            Conf[key] = Conf[key].replace('[','')
+            Conf[key] = Conf[key].replace(']','')
+            if key == 'i2c': Conf[key] = Conf[key].split(',')
+            else:
+                Conf[key] = Conf[key].split('#')
+                for i in range(0,len(Conf[key]):
+                    Conf[key][i] = [int(a) for a in Conf[key][i].split(',')]
     Conf['input'] = False; Conf['fd'] = []
     for gas in range(0,len(Conf['i2c'])):
       Conf['fd'].append(None)
@@ -221,11 +233,12 @@ def getdata():
 # test main loop
 if __name__ == '__main__':
     from time import sleep
-    Conf['type'] = 'AlphaSense'
+    # Conf['type'] = 'AlphaSense'
     Conf['input'] = True
-    Conf['i2c'] = ['0x48']        # default I2C-bus address
-    Conf['sync'] = True         # True is in sync (not multi threaded)
-    Conf['debug'] = True        # print collected sensor values
+    # Conf['i2c'] = ['0x48']        # default I2C-bus address
+    # Conf['sync'] = True         # True is in sync (not multi threaded)
+    # Conf['debug'] = True        # print collected sensor values
+    Conf['units'] = ['mV']
     for cnt in range(0,10):
         timing = time()
         try:
