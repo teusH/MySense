@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 1.8 2018/05/19 16:11:02 teus Exp teus $
+# $Id: MySPEC.py,v 1.9 2018/05/22 10:35:32 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__version__ = "0." + "$Revision: 1.9 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -38,7 +38,7 @@ __options__ = [
     'is_stable',                 # start measurements after # seconds
     'omits',                     # omit these sensors
     'serial',                    # serials nr to gas id of fields
-    'data',                      # list of names to measure for sensor
+    'dataFlds',                  # list of names to measure for sensor
     'interval','bufsize','sync'  # multithead buffer size and search for input
 ]
 
@@ -46,10 +46,10 @@ Conf = {
     'input': False,      # Spec gas sensors measuring is required
     'type': "Spec ULPSM",# type of device
     'usbid': 'SPEC',     # name as defined by udev rules, e.g. /dev/SPEC1
-    'serial': ['022717020254','030817010154','110816020533'],# S/N number
-    'fields': ['o3','no2','co'],   # types of pollutants
-    'units' : ['ppb','ppb','ppb'], # dflt type the measurement unit
-    'calibrations': [[0,1],[0,1],[0,1]], # per type calibration (Taylor polonium)
+    'serial': ['022717020254','030817010154','110816020533','030817010154','111116010138'],# S/N number
+    'fields': ['o3','no2','co','so2','no2'],   # types of pollutants
+    'units' : ['ppb','ppb','ppb','ppb','ppb'], # dflt type the measurement unit
+    'calibrations': [[0,1],[0,1],[0,1],[0,1],[0,1]], # per type calibration (Taylor polonium)
     'interval': 60,     # read interval in secs (dflt)
     'bufsize': 30,      # size of the window of values readings max
     'sync': False,      # use thread or not to collect data
@@ -60,7 +60,7 @@ Conf = {
     'omits': ['nh3'],   # sensors to be omitted
     # list of show data: (data format of input)
     # 'sn','ppb','temp','rh','raw','traw','hraw','day','hour','min','sec'
-    'data': [None,'ppb','temp','rh',None,None,None,None,None,None,None],
+    'dataFlds': [None,'ppb','temp','rh',None,None,None,None,None,None,None],
 }
 #    from MySense import log
 try:
@@ -232,7 +232,7 @@ def registrate():
               interval=Conf['interval'],
               name='%s' % Conf['serials'][thread]['gas'].upper(),
               callback=Add,
-              conf={'gas': Conf['serials'][thread]['gas'],'fd': Conf['serials'][thread]['fd'], 'start': Conf['serials'][thread]['start'] },
+              conf=Conf['serials'][thread],
               sync=Conf['sync'],
               DEBUG=Conf['debug']))
             # first call is interval secs delayed by definition
@@ -250,9 +250,27 @@ def registrate():
 # get a record from serial by thread
 def Add(conf):
     global Conf
+    # ref: aqicn.org/faq/2015-09-06/ozone-aqi-using-concentrations-in-milligrams-or-ppb/
+    # ref:  samenmetenaanluchtkwaliteit.nl/zelf-meten
+    def PPB2ugm3(gas,ppb,temp):
+        mol = {
+            'so2': 64.0,   # RIVM 2.71, ?
+            'no2': 46.0,   # RIVM 1.95, ?
+            'no':  30.01,  # RIVM 1.27, ?
+            'o3':  48.0,   # RIVM 2.03, ?
+            'c0':  28.01,  # RIVM 1.18, ?
+            'co2': 44.01,  # RIVM 1.85, ?
+            'nh3': 17.031,
+        }
+        if not gas in mol.keys(): raise ValueError, "%s unknown gas" % gas
+        if ppb < 0: return 0
+        return round(ppb*12.187*mol[gas]/(273.15+temp),2)
+
     # serial line data: SN,PPB,temp oC,RH%,ADCraw,Traw,RHraw,day,hour,min,sec
-    MAX = len(Conf['data'])     # non std Dylos firmware might generate 4 numbers
-    if conf['fd'] == None: return {}
+    MAX = len(Conf['dataFlds'])
+    if conf['fd'] == None:
+        sleep(0)   # sleep for ever thread
+        return {}
     if not 'Serial_Errors' in conf.keys(): conf['Serial_Errors'] = 0
     if conf['Serial_Errors'] > 10:
         MyLogger.log(modulename,'ERROR',"To many serial errors. Disabled.")
@@ -266,8 +284,9 @@ def Add(conf):
                 line = conf['fd'].readline()
             Serial_Errors = 0
             conf['fd'].write(bytes("\r"))   # request measurement
-            sleep(1)
+            sleep(2)
             line = conf['fd'].readline()
+            line = str(line.strip().decode('utf-8'))
         except SerialException:
             conf['Serial_Errors'] += 1
             MyLogger.log(modulename,'ATTENT',"Serial exception. Close/Open serial.")
@@ -280,39 +299,44 @@ def Add(conf):
         if conf['start'] - now > 0:
             sleep (conf['start'] - now)
             return Add(conf)
-        line = str(line.strip().decode('utf-8'))
         try:
             bin_data = [int(x.strip()) for x in line.split(',')]
         except:
             # Spec Error
             MyLogger('WARNING',"Spec Data: Error - Spec Bin data")
             bin_data = [None] * MAX
-        if (len(bin_data) > MAX) or (len(bin_data) < MAX): 
-            MyLogger.log(modulename,'WARNING',"Data error")
+        if len(bin_data) != MAX:
+            MyLogger.log(modulename,'WARNING',"Data length error")
+            conf['Serial_Errors'] += 1
+            return Add(conf)
         conf['Serial_Errors'] = 0
     except (Exception) as error:
         # Some other sensor Error
-        MyLogger.log(modulename,'WARNING',error)
-    # take notice: index 0 is PM2.5, index 1 is PM10 values
-    values = { "time": int(now) }; data = []
+        MyLogger.log(modulename,'WARNING',str(error))
+    values = { "time": int(now) }; rawData = []
     for i in range(0,MAX):
-        try:
-          if Conf['data'][i] == None: continue
-        except: continue
-        data.append('%s=%.1f' % (conf['gas'].lower() if i == 0 else Conf['data'][i],bin_data[i]))
-        if Conf['data'][i] == 'ppb':
-          values[conf['gas']] = calibrate(Conf['fields'].index(conf['gas']),Conf['calibrations'],bin_data[i])
-        elif Conf['data'][i][-3:] == 'raw':
-          values[conf['gas']+Conf['data'][i]] = int(bin_data[i])
+        if Conf['dataFlds'][i] == None: continue
+        rawData.append('%s=%.1f' % (conf['gas'].lower() if i == 0 else Conf['dataFlds'][i],bin_data[i]))
+        if Conf['dataFlds'][i] == 'ppb':
+          idx = Conf['fields'].index(conf['gas'])
+          values[conf['gas']] = calibrate(idx,Conf['calibrations'],bin_data[i])
+          if Conf['units'][idx] == 'ug/m3':
+            try:
+                tempVal = float(bin_data[Conf['dataFlds'].index('temp')])
+            except:
+                tempVal = 25.0
+            values[conf['gas']] = PPB2ugm3(conf['gas'],values[conf['gas']],tempVal)
+        elif Conf['dataFlds'][i][-3:] == 'raw':
+          values[conf['gas']+Conf['dataFlds'][i]] = int(bin_data[i])
         else:
           try:
-            values[Conf['data'][i]] = calibrate(Conf['fields'].index(Conf['data'][i]),Conf['calibrations'],bin_data[i])
+            values[Conf['dataFlds'][i]] = calibrate(Conf['fields'].index(Conf['dataFlds'][i]),Conf['calibrations'],bin_data[i])
           except:
-            values[Conf['data'][i]] = int(bin_data[i])
+            values[Conf['dataFlds'][i]] = int(bin_data[i])
     if ('raw' in Conf.keys()) and (type(Conf['raw']) is module):
         Conf['raw'].publish(
             tag='Spec%s' % conf['gas'].upper(),
-            data=','.join(data))
+            data=','.join(rawData))
     return values
 
 def getdata():
