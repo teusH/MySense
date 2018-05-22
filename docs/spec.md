@@ -54,7 +54,15 @@ except:
   print('Spec USB not founa or write/read error')
 ```
 
+Make sure you define the lists `fielasd`, `unit` and `serials` of Conf configurations.
+E.g. `Conf['fields'][0] = 'no2'`, `Conf['units'][0] = 'ppb'` and `Conf['serials'][0] = '0123456789' is the serial number as in the output of the USB sensor.
+
 MySense `MySPEC.py` will look for the available gas sensors in a similar way and will detect which gas sensor is attached via a look at the eeprom readout or serial number as is configured in MySense.conf.
+
+## PPB to ug/m3 conversion
+If the unit is defined as ug/m3 the Spec PPB value of the measurement will be converted from PPB to ug/m3.
+In the conversion MySense will use the temperature value of the Spec sensor.
+
 ## References
 * http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf specification of the API
 While testing the Spec input module no commands were honored. On any character sent the sensor reacted by sending one measurement.
