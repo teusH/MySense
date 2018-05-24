@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 1.10 2018/05/24 19:07:46 teus Exp teus $
+# $Id: MySPEC.py,v 1.11 2018/05/24 19:29:42 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.10 $"[11:-2]
+__version__ = "0." + "$Revision: 1.11 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -250,7 +250,8 @@ def registrate():
 
 # get a record from serial by thread
 # in stand alone mode the serial input is read well
-# within MySense there is on a second get record a serial problem somehow
+# within MySense there is on a second get record a serial problem, reason unknown
+# if so disable gps in MySense.conf
 def Add(conf, cnt=0):
     global Conf
     # ref: aqicn.org/faq/2015-09-06/ozone-aqi-using-concentrations-in-milligrams-or-ppb/
@@ -261,7 +262,7 @@ def Add(conf, cnt=0):
             'no2': 46.0,   # RIVM 1.95, ?
             'no':  30.01,  # RIVM 1.27, ?
             'o3':  48.0,   # RIVM 2.03, ?
-            'c0':  28.01,  # RIVM 1.18, ?
+            'co':  28.01,  # RIVM 1.18, ?
             'co2': 44.01,  # RIVM 1.85, ?
             'nh3': 17.031,
         }
@@ -313,16 +314,15 @@ def Add(conf, cnt=0):
             if not Open(conf):
                 raise Exception
             while conf['fd'].inWaiting():       # skip to latest record
-                line = conf['fd'].readline()
+                conf['fd'].flushInput()
+                sleep(1)
             Serial_Errors = 0
             for i in range(3,-1,-1):
               if not i: return Add(conf,cnt)
-              conf['fd'].write(bytes("TEST")) # write(bytes("\r"))   # request measurement
-              # sleep(1)
+              conf['fd'].write(bytes("\r"))   # request measurement
               line = conf['fd'].readline()
-              # line = str(line.strip().decode('utf-8'))
               line = str(line.strip())
-              print("Got sensor line: %s" % line)
+              # print("Got sensor line: %s" % line)
               bin_data = []
               try:
                   bin_data = [int(x.strip()) for x in line.split(',')]
@@ -354,9 +354,9 @@ def Add(conf, cnt=0):
         try:
             rawData.append('%s=%.1f' % (conf['gas'].lower() if i == 0 else Conf['dataFlds'][i],bin_data[i]))
         except:
-            print("Error on index %d" % i)
-            print("dataFlds",Conf['dataFlds'])
-            print("bin_data",bin_data)
+            MyLogger('WARNING',"Error on index %d" % i)
+            #print("dataFlds",Conf['dataFlds'])
+            #print("bin_data",bin_data)
         if Conf['dataFlds'][i] == 'ppb':
           try:
             if bin_data[i] < 0:  # on negative Spec sensor has seen no gas
@@ -364,16 +364,17 @@ def Add(conf, cnt=0):
             idx = Conf['fields'].index(conf['gas'])
             values[conf['gas']] = calibrate(idx,Conf['calibrations'],bin_data[i])
           except:
-            print("conf",conf)
-            print("index error on index %d" % i)
-            print("bin_data",bin_data)
+            #print("conf",conf)
+            MyLogger('WARNING',"index error on index %d" % i)
+            #print("bin_data",bin_data)
           if Conf['units'][idx] == 'ug/m3':
             try:
                 tempVal = float(bin_data[Conf['dataFlds'].index('temp')])
             except:
                 tempVal = 25.0
             if not conf['gas'] in values.keys():
-                print("Error on index %d in values on %s" % (i,conf['gas']), values)
+                MyLogger('WARNING',"Error on index %d in values on %s" % (i,conf['gas']))
+                # print(values)
             values[conf['gas']] = PPB2ugm3(conf['gas'],values[conf['gas']],tempVal)
         elif Conf['dataFlds'][i][-3:] == 'raw':
           values[conf['gas']+Conf['dataFlds'][i]] = int(bin_data[i])
@@ -386,7 +387,7 @@ def Add(conf, cnt=0):
         Conf['raw'].publish(
             tag='Spec%s' % conf['gas'].upper(),
             data=','.join(rawData))
-    print("Got values: ", values)
+    # print("Got values: ", values)
     # Close(conf)
     return values
 
