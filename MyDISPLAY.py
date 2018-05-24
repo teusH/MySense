@@ -18,13 +18,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDISPLAY.py,v 1.6 2017/08/13 19:54:37 teus Exp teus $
+# $Id: MyDISPLAY.py,v 1.7 2018/05/24 15:51:34 teus Exp teus $
 
 """ Publish measurements to display service
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDISPLAY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.6 $"[11:-2]
+__version__ = "0." + "$Revision: 1.7 $"[11:-2]
 
 try:
     import MyLogger
@@ -161,7 +161,7 @@ def publish(**args):
         if not key in args.keys():
             MyLogger.log(modulename,'FATAL',"Publish call missing argument %s." % key)
 
-    # TO DO: get the transaltion table from the MySense.conf file
+    # TO DO: get the translation table from the MySense.conf file
     def trans(name):
         global Conf
         if (not 'match' in Conf.keys()) or (not type(Conf['match']) is list):
@@ -177,7 +177,7 @@ def publish(**args):
         try:
             indx = ident['fields'].index(field)
             UT[0] = ident['units'][indx]
-            UT[1] = ident['types'][indx]
+            UT[1] = ident['types'][indx].upper()
         except:
             pass
         finally:
@@ -193,12 +193,11 @@ def publish(**args):
     lines = ['','','','']   # sensor type, DB name, unit, value
     for item in args['data'].keys():
         if item in Conf['omit']: continue
-        if not args['data'][item]: continue
         if type(args['data'][item]) is list:
             MyLogger.log(modulename,'WARNING',"Found list for sensor %s." % item)
             continue
         else:
-            if not args['data'][item]: continue
+            if args['data'][item] == None: continue
             Unit, Type = findInfo(args['ident'],item)
             bar = ''
             if len(lines[0]): bar = '|'
