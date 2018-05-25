@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.23 2018/05/19 15:48:31 teus Exp teus $
+# $Id: MySense.py,v 3.25 2018/05/25 14:40:41 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.23 $"[11:-2]
+__version__ = "0." + "$Revision: 3.25 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -118,15 +118,16 @@ def defFields(name,conf):
     if not 'fields' in conf.keys():
         if not 'fields' in conf['module'].Conf.keys():
             return
-    nr = len(conf['module'].Conf['fields'])
-    for key in ['fields','units','calibrations']:
+        nr = len(conf['module'].Conf['fields'])
+    else: nr = len(conf['fields'].split(','))
+    for key in ['fields','units','calibrations','serials','dataFlds']:
         if not key in conf['module'].Conf.keys(): continue
         if not key in conf.keys():
             new = conf['module'].Conf[key] 
         else: new = conf[key]
         conf[key] = conf['module'].Conf[key]
         if type(new) is str:
-            if key != 'calibrations':
+            if not key in ['calibrations']:
                 while new.find(', ') >= 0:
                     new = new.replace(', ',',')
                 new = new.split(',')
@@ -135,13 +136,15 @@ def defFields(name,conf):
                     new = json.loads(new)
                     if not type(new) is list: raise TypeError
                 except:
-                    MyLogger.log(modulename,'FATAL',"Sensor %s calibration configuration error" % name)
+                    MyLogger.log(modulename,'FATAL',"Sensor %s %s configuration error" % (name,key))
         elif not type(new) is list: new = []
-        while len(new) > nr: new.pop() 
-        while len(new) < nr:
-            if key == 'calibrations': new.append([0,1])
-            else: new.append('unknown')
-        conf[key][0:len(new)] = new
+        if not key in ['dataFlds']:
+            while len(new) > nr: new.pop() 
+            while len(new) < nr:
+                if key == 'calibrations': new.append([0,1])
+                else: new.append('unknown')
+        #conf[key][0:len(new)] = new
+        conf[key] = new
 
 # parse the program configuration (ini) file progname.conf
 #       or uppercase progname as defined by environment variable

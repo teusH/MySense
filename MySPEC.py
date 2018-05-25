@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 1.11 2018/05/24 19:29:42 teus Exp teus $
+# $Id: MySPEC.py,v 1.15 2018/05/25 14:40:41 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.11 $"[11:-2]
+__version__ = "0." + "$Revision: 1.15 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -46,8 +46,8 @@ Conf = {
     'input': False,      # Spec gas sensors measuring is required
     'type': "Spec ULPSM",# type of device
     'usbid': 'SPEC',     # name as defined by udev rules, e.g. /dev/SPEC1
-    'serials': ['022717020254','110816020533','030817010154','111116010138'],# S/N number
-    'fields': ['o3','no2','so2','co'],   # types of pollutants
+    'serials': ['022717020254','110816020533','030817010154','111116010138','123456789'],# S/N number
+    'fields': ['o3','no2','so2','co','eth'],   # types of pollutants
     'units' : ['ug/m3','ug/m3','ug/m3','ug/m3','ug/m3'], # dflt type the measurement unit
     'calibrations': [[0,1],[0,1],[0,1],[0,1],[0,1]], # per type calibration (Taylor polonium)
     'interval': 15,     # read interval in secs (dflt)
@@ -57,7 +57,7 @@ Conf = {
     'debug': False,     # be more versatile on input data collection
     'is_stable': 3600,  # seconds after measuments are stable (dflt 1 hour)
     # 'mySerials': [],    # conf variables fpr threads measurement data
-    'omits': ['nh3','temp','rh'],   # sensors to be omitted
+    'omits': ['nh3','temp','rh','unkown'],   # sensors to be omitted
     # list of show data: (data format of input)
     # 'sn','ppb','temp','rh','raw','traw','hraw','day','hour','min','sec'
     'dataFlds': [None,'ppb','temp','rh',None,None,None,None,None,None,None],
@@ -99,7 +99,7 @@ def ReadEEprom(serial,cnt=0):
           line = line.split('=')
           if len(line) != 2:
             line = line[0].split(',')
-            if len(line) == 11: # we have measurement data
+            if len(line) == 11: # len(Conf['dataFlds']) measurement data
               try:
                 eeprom['gas'] = Conf['fields'][Conf['serials'].index(line[0])]
                 eeprom['sn'] = line[0]
@@ -181,7 +181,8 @@ def open_serial():
             MyLogger.log(modulename,'WARNING','Gas sensor %s not in Spec config fields, skipped')
             raise Exception, 'sensor not configured'
           Conf['mySerials'][one]['calibrations'] = Conf['calibrations']
-          Conf['mySerials'][one]['raw'] = Conf['raw']
+          if 'raw' in Conf.keys(): Conf['mySerials'][one]['raw'] = Conf['raw']
+          else: Conf['mySerials'][one]['raw'] = False
         except (Exception) as error:
           MyLogger.log(modulename,'ERROR',"Cannot connect to %s: %s" % (Conf['mySerials'][one],error))
           if Conf['mySerials'][one]['fd']: Conf['mySerials'][one]['fd'].close()
@@ -297,7 +298,7 @@ def Add(conf, cnt=0):
         return {}
     cnt += 1
     # serial line data: SN,PPB,temp oC,RH%,ADCraw,Traw,RHraw,day,hour,min,sec
-    MAX = len(Conf['dataFlds'])
+    MAX = 11  # len(Conf['dataFlds'])
     if not 'Serial_Errors' in conf.keys(): conf['Serial_Errors'] = 0
     if conf['Serial_Errors'] > 10:
         Close(conf)
@@ -322,7 +323,7 @@ def Add(conf, cnt=0):
               conf['fd'].write(bytes("\r"))   # request measurement
               line = conf['fd'].readline()
               line = str(line.strip())
-              # print("Got sensor line: %s" % line)
+              print("Got sensor line: %s" % line)
               bin_data = []
               try:
                   bin_data = [int(x.strip()) for x in line.split(',')]
@@ -360,6 +361,7 @@ def Add(conf, cnt=0):
         if Conf['dataFlds'][i] == 'ppb':
           try:
             if bin_data[i] < 0:  # on negative Spec sensor has seen no gas
+                values[conf['gas']] = None
                 continue
             idx = Conf['fields'].index(conf['gas'])
             values[conf['gas']] = calibrate(idx,Conf['calibrations'],bin_data[i])
