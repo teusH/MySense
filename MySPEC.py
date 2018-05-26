@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 1.15 2018/05/25 14:40:41 teus Exp teus $
+# $Id: MySPEC.py,v 1.17 2018/05/25 19:27:37 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.15 $"[11:-2]
+__version__ = "0." + "$Revision: 1.17 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -37,8 +37,9 @@ __options__ = [
     'raw',                       # display raw measurements
     'is_stable',                 # start measurements after # seconds
     'omits',                     # omit these sensors
-    'serials',                    # serials nr to gas id of fields
+    'serials',                   # serials nr to gas id of fields
     'dataFlds',                  # list of names to measure for sensor
+    'debug',                     # debugging flag
     'interval','bufsize','sync'  # multithead buffer size and search for input
 ]
 
@@ -113,7 +114,7 @@ def ReadEEprom(serial,cnt=0):
     if Conf['debug']:
         for key in eeprom.keys():
             MyLogger.log(modulename,'INFO','Spec sensor eeprom %s: %s' % (key,eeprom[key].upper()))
-    return eeprom['gas']
+    return eeprom
 
 # =======================================================================
 # serial USB input or via (test) input file
@@ -162,7 +163,8 @@ def open_serial():
             bytesize=serial.EIGHTBITS,
             writeTimeout = 1,
             timeout=15)
-          Conf['mySerials'][one]['gas'] = ReadEEprom(Conf['mySerials'][one]['fd'])
+          Conf['mySerials'][one]['eeprom'] = ReadEEprom(Conf['mySerials'][one]['fd'])
+          Conf['mySerials'][one]['gas'] = Conf['mySerials'][one]['eeprom']['gas']
           if Conf['mySerials'][one]['gas'] == None:
             raise Exception, 'sensor not supported'
           else:
@@ -174,7 +176,7 @@ def open_serial():
               continue
             except: pass
           Conf['mySerials'][one]['start'] = time() + Conf['is_stable']
-          MyLogger.log(modulename,'INFO',"Gas %s sensor at serial USB: %s" % (Conf['mySerials'][one]['gas'].upper(),Conf['mySerials'][one]['device']))
+          MyLogger.log(modulename,'INFO',"Gas %s sensor S/N %s at serial USB: %s" % (Conf['mySerials'][one]['gas'].upper(),Conf['mySerials'][one]['eeprom']['sn'],Conf['mySerials'][one]['device']))
           try:
             Conf['mySerials'][one]['index'] = Conf['fields'].index(Conf['mySerials'][one]['gas'])
           except:
@@ -323,7 +325,8 @@ def Add(conf, cnt=0):
               conf['fd'].write(bytes("\r"))   # request measurement
               line = conf['fd'].readline()
               line = str(line.strip())
-              print("Got sensor line: %s" % line)
+              if Conf['debug']:
+                  print("Got %s sensor line: %s" % (conf['gas'].upper(),line))
               bin_data = []
               try:
                   bin_data = [int(x.strip()) for x in line.split(',')]

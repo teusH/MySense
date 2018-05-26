@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.25 2018/05/25 14:40:41 teus Exp teus $
+# $Id: MySense.py,v 3.26 2018/05/25 15:01:41 teus Exp $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.25 $"[11:-2]
+__version__ = "0." + "$Revision: 3.26 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -776,6 +776,7 @@ def sensorread():
     data = { 'time': 0 }
     first = True
     local = True
+    start = 0
     # for now if input vai internet is defined, local sensor input is disabled
     # TO DO: have 2 threads: one for input and one (main thread) for output
     # TO DO: handle multiple input channels with select and threads
@@ -786,11 +787,15 @@ def sensorread():
         ident = Conf['id']
         local = True
         gotData = False
-        t_cnt = 0 ; t_time = 0
+        t_cnt = 0 ; t_time = 0 ; start += 1
         for Sensor in Conf['inputs']:
             if not Conf[Sensor]['input']:
                 continue
             try:
+                if start == 1:
+                    MyLogger.log(modulename,'INFO','Starting up sensor %s' % Sensor)
+                else:
+                    MyLogger.log(modulename,'DEBUG','Collecting data from sensor %s' % Sensor)
                 sensed = Conf[Sensor]['module'].getdata()
                 if (not type(sensed) is dict) or (not len(sensed)):
                     continue
