@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyGPS.py,v 2.14 2018/05/12 09:27:59 teus Exp teus $
+# $Id: MyGPS.py,v 2.15 2018/05/26 19:05:31 teus Exp teus $
 
 # TO DO:
 #
@@ -28,11 +28,10 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyGPS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.14 $"[11:-2]
+__version__ = "0." + "$Revision: 2.15 $"[11:-2]
 
 import os
 from time import time, sleep
-from types import ModuleType as module
 import threading
 try:
     import MyLogger
@@ -54,7 +53,7 @@ Conf = {
     'units': ['r,r,m','s'],# radials or d (degrees)
     'host': '127.0.0.1',# default gspd service
     'port': 2947,       # default unix socket port for gpsd
-    'interval': 60,     # read location every interval seconds
+    'interval': 5*60,     # read location every interval seconds
     'sync': False,	# get geo info in sync with main process
     'raw': False,       # print raw measurements
     'debug': False,     # be more versatile
@@ -82,10 +81,13 @@ class GPSthread(threading.Thread):
         for key in args.keys():
             inits[key] = args[key]
         self.TINTERV = inits['interval']  # internal max interval for new values
+        self.ReOpen = False         # reopen on every getRecord connection to daemon
+        if not self.TINTERV: self.ReOpen = True
         self.DEBUG = inits['DEBUG']       # debug modus
         self.host = inits['host']
         self.port = inits['port']
         self.name = 'GPS client'
+        self.GPSsock = None
         self.sync = inits['sync']
         self.raw = inits['raw']
         self.cur_val = {}                 # current location record
@@ -103,25 +105,25 @@ class GPSthread(threading.Thread):
 
     def GPSstart(self):
         prev_t = int(self.time()) ; prev_l = ['lat','lon','alt']
-        GPSdata = None
-        GPSsock = None
-        GPSdata = self.gps3.DataStream()
-        GPSsock = self.gps3.GPSDSocket()
-        GPSsock.connect()
-        GPSsock.watch()
-        for new_data in GPSsock:
+        if self.GPSsock == None:
+            self.GPSdata = None
+            self.GPSdata = self.gps3.DataStream()
+            self.GPSsock = self.gps3.GPSDSocket()
+            self.GPSsock.connect()
+        self.GPSsock.watch()
+        for new_data in self.GPSsock:
             if self.STOP: return
             if new_data:
-                GPSdata.unpack(new_data)
-	        if GPSdata.TPV['device'] == 'n/a':
+                self.GPSdata.unpack(new_data)
+	        if self.GPSdata.TPV['device'] == 'n/a':
 		        continue
                 rec = { 'time': int(self.time()) }
                 geo = []
                 rvals = []
                 for item in ['lat','lon','alt']:
-                    if GPSdata.TPV[item] != 'n/a':
+                    if self.GPSdata.TPV[item] != 'n/a':
                         try:
-                            val = float(GPSdata.TPV[item])
+                            val = float(self.GPSdata.TPV[item])
                             # altitude is +- 5 meters
                             # TO DO: add distance calculation
                             if item != 'alt': strg = '%8.5f' % val
@@ -141,22 +143,23 @@ class GPSthread(threading.Thread):
                         print("Got new GPS rec: %s (lat,lon,alt)" % rec['geo'])
                     if (prev_l[0] != geo[0]) or (prev_l[1] != geo[1]):
                         prev_t = rec['time']; prev_l = geo
-                        with self.threadLock: self.cur_val = rec
-                        if (type(self.raw) is module) and len(geo):
+                        with self.threadLock: self.cur_val = { 'time': time(), 'geo': rec['geo']}
+                        if (self.raw != None) and (not type(self.raw) is bool) and len(geo):
                             self.raw.publish(
                                 tag='geo',
                                 data='lat=%s,lon=%s,alt=%s' % (geo[0],geo[1],geo[2])
                                 )
-                        if self.sync:
-                            GPSsock.close()
-                            GPSsock = None
-                            return
                     # slow down if no change in TINTERV minutes
                     elif rec['time'] - prev_t > self.TINTERV:
                         if not self.sync:
                             with self.threadLock: self.cur_val['time'] = 0
-                            GPSsock.close();
-                            return
+                    break
+        self.GPSsock.watch(enable=False)
+        if self.ReOpen:
+            self.GPSsock.close()
+            self.GPSsock = None
+            self.GPSdata = None
+        return
 
     def GPSclient(self):
         while not self.STOP:
@@ -215,6 +218,7 @@ def registrate():
                 raw=Conf['raw'],
                 DEBUG=Conf['debug'])
             # first call is interval secs delayed by definition
+            if not Conf['interval']: Conf['sync'] = True
             if Conf['sync']: return True
             if start_thread():
                 return True
@@ -250,6 +254,7 @@ if __name__ == '__main__':
     # Conf['sync'] = True      # sync = False will start async collect
     Conf['debug'] = True       # True will print GPSD collect info from thread
     Conf['raw'] = True
+    # Conf['interval'] = 0
     for cnt in range(0,10):
         timing = time()
         try:
