@@ -84,6 +84,32 @@ With `/dev/serial/by-id/` one *may* detect the USB port number (see the MySense 
 E.g. the cheaper Prolific serial USB will show a serial zero ID.s
 With the use of two or more USB serial connections advised is to use either different products or serial numbers or change the serial ID (EEPROM) of e.g. FTDI (Future Technologies) serial USB chip: see http://rtr.ca/ft232r/ for a how to.
 
+A good way to assure with USB connection is which sensors it is suggested to define a udev rule set for each different USB adapter.
+The following will use the Spec (SPEC) gassensors on one particular USB serial adapter. We do not use the `by-id` method in this case.
+
+Use `lsusb` command to get an overview before and after the USB adapter is connected. Here the difference as example:
+```
+...
+Bus 001 Device 009: ID 10c4:ea60 Cygnal Integrated Products, Inc. CP210x UART Bridge / myAVR mySmartUSB light
+Bus 001 Device 008: ID 10c4:ea60 Cygnal Integrated Products, Inc. CP210x UART Bridge / myAVR mySmartUSB light
+...
+```
+Denote the idProduct (e.g. "ea60") and idVendor (e.g. "10c4"). And create the following udev rule in in the file `/etc/udev/rules.d/50-Sensor.rules`:
+```
+ACTION=="add", KERNEL=="ttyUSB*", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", MODE="0660", GROUP="dialout", SYMLINK+="SPEC%n"
+```
+After a reboot do a test:
+```shell
+ls -l /dev/SPEC*
+```
+It should show something like:
+```
+lrwxrwxrwx 1 root root 7 May  9 16:31 /dev/SPEC1 -> ttyUSB1
+lrwxrwxrwx 1 root root 7 May  9 16:31 /dev/SPEC2 -> ttyUSB2
+lrwxrwxrwx 1 root root 7 May  9 16:31 /dev/SPEC3 -> ttyUSB3
+```
+MySense `MySPEC.py` will look for the available gas sensors in a similar way and will detect which gas sensor is attached via a look at the eeprom readout or serial number as is configured in MySense.conf.
+
 ### FIRST UPGRADE
 You need for this to have an internet connection.
 You probably do not need the package wolfram-engine (680 MB) so delete the package:
@@ -108,8 +134,10 @@ localisation options:
     set language eg to nl_NL.UTF-8
     set timezone eg Europe/Amsterdam
     set keyboard layout: and check by pushing @-key and see key response.
+    set WiFi country id to your country
 ```
 Had to edit /etc/default/keyboard the "gb" setting into "us" as well.
+On wifi failure please check `/etc/wpa_supplicant/wpa_supplicant.conf` e.g. country=NL. And if needed complete add a network definition with your SSID and PSK.
 
 * Change the Pi default password!
 ```shell
@@ -186,6 +214,8 @@ On your desktop install:
 *notice*: and  knowing PI login/passwd can log into your PI via ssh!
 
 Maybe you should better use *ssh tunneling* (please complete this one)
+
+Or use *TeamViewer*, which is also free for private use.
 
 ### USERS:
 Install Internet of Sense user say *ios* (full name Internet of Sense):
