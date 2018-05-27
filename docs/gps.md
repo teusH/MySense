@@ -152,10 +152,17 @@ and in another window, so you can see what is going on:
 (Not on the Pi) install e.g. a gps-client and try xgsp or cgps -s (less detailed output)
     run: `sudo gpsd /dev/ttyS0 -F /var/run/gpsd.sock`
 
+Another test to see if MySense is able to get gps data is to use the command `python MyGPS.py 1`. This should provide you with the current gps location.
+
 ##### ENABLE GSPD
 Add to `/etc/default/gpsd` the line `DEVICES=/dev/ttyXXX` (XXX is AMA0, S0 or USB1)
 and run: `sudo service gpsd restart`
 On success enable it: `systemctl enable gpsd`
+
+### GSPD and USB serial lines WARNING
+We discovered that the GPSD daemon disrupted some USB serial interfaces e.g. the USB serial interfaces to Spec (gas) adapters. Initiating the GPS daemon with the `-b` flag did not solve the problem. The solution was to disable the GPS daemon: `update-rc.d gpsd disable`.
+
+To-Do: try to read gps data direct from the serial interface?
 
 ### USB TTL serial cable
 Use the command `lsusb` to see it the USB serial is detected by the kernel.

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyGPS.py,v 2.15 2018/05/26 19:05:31 teus Exp teus $
+# $Id: MyGPS.py,v 2.16 2018/05/27 10:27:47 teus Exp teus $
 
 # TO DO:
 #
@@ -28,7 +28,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyGPS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.15 $"[11:-2]
+__version__ = "0." + "$Revision: 2.16 $"[11:-2]
 
 import os
 from time import time, sleep
@@ -250,20 +250,35 @@ def getdata():
 # test main loop
 if __name__ == '__main__':
     from time import sleep
+    import sys
     Conf['input'] = True
     # Conf['sync'] = True      # sync = False will start async collect
     Conf['debug'] = True       # True will print GPSD collect info from thread
-    Conf['raw'] = True
+    # Conf['raw'] = True
     # Conf['interval'] = 0
-    for cnt in range(0,10):
+    nr = 10
+    if len(sys.argv) > 1:
+        try: nr = int(sys.argv[1])
+        except: pass
+    if nr == 1:
+        Conf['debug'] = False
+        Conf['sync'] = True
+        Conf['interval'] = 0
+    for cnt in range(0,nr):
         timing = time()
         try:
             data = getdata()  # get geo info from thread
         except Exception as e:
             print("input sensor error was raised as %s" % e)
-            break
-        print("Getdata returned:")
-        print(data)
+            sys.exit(1)
+        if nr == 1:
+            if 'geo' in data.keys():
+              print(data['geo'])
+              sys.exit(0)
+            else: sys.exit(1)
+        else:
+            print("Getdata returned:")
+            print(data)
         timing = 15 - (time()-timing)
         if timing > 0:
             if Conf['debug']:
