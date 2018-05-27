@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyMQTTSUB.py,v 2.7 2017/10/12 14:46:27 teus Exp teus $
+# $Id: MyMQTTSUB.py,v 2.8 2018/05/27 19:53:57 teus Exp teus $
 
 # module mqtt: git clone https://github.com/eclipse/paho.mqtt.python.git
 # cd paho.mqtt.python ; python setup.py install
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyMQTTSUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.7 $"[11:-2]
+__version__ = "0." + "$Revision: 2.8 $"[11:-2]
 
 try:
     import MyLogger
@@ -282,12 +282,12 @@ if __name__ == '__main__':
     Conf['hostname'] = 'lunar'
     Conf['user'] = 'ios'
     Conf['password'] = 'acacadabra'
-    # Conf['cert'] = None,       # X.509 encryption
-    Conf['topic'] = 'IoS',      # main topic
-    Conf['prefix'] = 'IoS_',    # Internet of Sense base of topic
-    Conf['apikey'] = 'MQTT' + str(os.getpid()), # get unique client id
-    Conf['projects'] = '.*',    # regular expr to accept projects to subscribe to
-    Conf['serials'] = '.*',     # regular expression to accept serial numbers
+    # Conf['cert'] = None       # X.509 encryption
+    Conf['topic'] = 'IoS'      # main topic
+    Conf['prefix'] = 'IoS_'    # Internet of Sense base of topic
+    Conf['apikey'] = 'MQTT' + str(os.getpid()) # get unique client id
+    Conf['projects'] = '.*'    # regular expr to accept projects to subscribe to
+    Conf['serials'] = '.*'     # regular expression to accept serial numbers
 
     Conf['debug'] = True
     for cnt in range(0,25):
