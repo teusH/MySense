@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyMQTTPUB.py,v 1.8 2017/06/18 18:36:01 teus Exp teus $
+# $Id: MyMQTTPUB.py,v 1.9 2018/05/28 11:49:02 teus Exp teus $
 
 # module mqtt: git clone https://github.com/eclipse/paho.mqtt.python.git
 # cd paho.mqtt.python ; python setup.py install
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyMQTTPUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__version__ = "0." + "$Revision: 1.9 $"[11:-2]
 
 try:
     import MyLogger
@@ -49,7 +49,7 @@ __options__ = ['output','hostname','user','password','apikey','prefix','topic','
 
 Conf = {
     'output': False,     # output to MQTT broker is required
-    'host': 'localhost', # server host number for mqtt broker
+    'hostname': 'localhost', # server host number for mqtt broker
     'port': 1883,        # default MQTT port
     'user': None,        # user/password
     'password': None,    # credentials to access broker
@@ -124,7 +124,7 @@ def PubOrSub(topic,telegram):
         if ('user' in Conf.keys()) and Conf['user'] and ('password' in Conf.keys()) and Conf['password']:
             mqttc.username_pw_set(username=Conf['user'],password=Conf['password'])
 
-        mqttc.connect(Conf['host'], Conf['port'])
+        mqttc.connect(Conf['hostname'], Conf['port'])
         Conf['fd'] = 1
         timeout = time() + Conf['timeout']
         waiting = True
@@ -169,7 +169,7 @@ def registrate(args):
     for key in ['ident','internet','data']:
         if not key in args.keys():
             MyLogger.log(modulename,'FATAL',"Register call missing argument %s." % key)
-    if (not args['internet']['module'].internet(args['ident'])):
+    if (not type(args['internet']['module']) is bool) and (not args['internet']['module'].internet(args['ident'])):
         Conf['output'] = False
         return False
 
@@ -200,7 +200,7 @@ def registrate(args):
             data[key] = None
             if key in args['data'].keys():
                 data[key] = args['data'][key]
-    data = json.dumps({ 'id': request, 'data': data })
+    data = json.dumps({ 'metadata': request, 'data': data })
     topic = '%s/%s/%s' % (Conf['topic'],request['project'],request['serial'])
     try:
         PubOrSub(topic, data)
@@ -208,7 +208,7 @@ def registrate(args):
     except IOError as e:
         Conf['last'] = time() ; Conf['fd'] = 0 ; Conf['waitCnt'] += 1
         if not (Conf['waitCnt'] % 5): Conf['waiting'] *= 2
-        MyLogger.log(modulename,'ERROR',"Sending registration to %s, error: %s" % (Conf['host'],e))
+        MyLogger.log(modulename,'ERROR',"Sending registration to %s, error: %s" % (Conf['hostname'],e))
         raise IOError
         return False
     return True
@@ -221,7 +221,7 @@ def publish(**args):
     for key in ['ident','data','internet']:
         if not key in args.keys():
             MyLogger.log(modulename,'FATAL',"Publish call missing argument %s." % key)
-    if not args['internet']['module'].internet(args['ident']):
+    if (not type(args['internet']['module']) is bool) and (not args['internet']['module'].internet(args['ident'])):
         Conf['output'] = False # to do: add recovery time out
         MyLogger.log(modulename,'ERROR',"No internet access. Abort broker output.")
         return False
@@ -246,6 +246,12 @@ if __name__ == '__main__':
     Conf['hostname'] = 'lunar'         # host InFlux server
     Conf['user'] = 'ios'               # user with insert permission of InFlux DB
     Conf['password'] = 'acacadabra'    # DB credential secret to use InFlux DB
+
+    # try to see the telegrams sent via
+    # topic: Conf['topic']/ident 'project'/ident 'serial'
+    # telegram: { 'data': {}, 'metadata': {} }
+    # mosquitto_sub -u ios -P acacadabra -h lunar -t IoS/BdP/+
+
     net = { 'module': True, 'connected': True }
     try:
         import Output_test_data

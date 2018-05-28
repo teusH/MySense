@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyMQTTSUB.py,v 2.8 2018/05/27 19:53:57 teus Exp teus $
+# $Id: MyMQTTSUB.py,v 2.9 2018/05/28 11:49:02 teus Exp teus $
 
 # module mqtt: git clone https://github.com/eclipse/paho.mqtt.python.git
 # cd paho.mqtt.python ; python setup.py install
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyMQTTSUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.8 $"[11:-2]
+__version__ = "0." + "$Revision: 2.9 $"[11:-2]
 
 try:
     import MyLogger
@@ -251,7 +251,7 @@ def getdata():
             MyLogger.log(modulename,'FATAL',"Subscription failed Mid: %s. Aborted." % e)
         ErrorCnt += 1
         MyLogger.log(modulename,'WARNING',"Subscription is failing Mid: %s. Slowing down." % e)
-    if (len(msg['topic']) < 3) or (msg['topic'][0] != Conf['topic']) or (not type(msg['payload']) is dict) or (not 'id' in msg['payload'].keys()):
+    if (len(msg['topic']) < 3) or (msg['topic'][0] != Conf['topic']) or (not type(msg['payload']) is dict) or (not 'metadata' in msg['payload'].keys()):
         sleep(0.1)
         return getdata()
     msg['project'] = msg['topic'][1]
@@ -260,20 +260,20 @@ def getdata():
     if not type(msg['payload']) is dict:
         sleep(0.1)
         return getdata()
-    if not 'id' in msg['payload'].keys():
-        msg['id'] = { 'project': msg['project'], 'serial': msg['serial']}
+    if not 'metadata' in msg['payload'].keys():
+        msg['metadata'] = { 'project': msg['project'], 'serial': msg['serial']}
     else:
-        msg['id'] = msg['payload']['id']
+        msg['metadata'] = msg['payload']['metadata']
     if not 'data' in msg['payload'].keys():
         msg['payload']['data'] = None
     # validate identification
     # TO DO: check serial to api key (mqtt broker checks user with project/serial)
     for key in ['project','serial']:
-        if (not Conf[key+'s'].match(msg[key])) or (not key in msg['payload']['id'].keys()) or (msg[key] != msg['payload']['id'][key]):
+        if (not Conf[key+'s'].match(msg[key])) or (not key in msg['payload']['metadata'].keys()) or (msg[key] != msg['payload']['metadata'][key]):
             MyLogger.log(modulename,'WARNING',"Not a proper telegram. Skipped.")
             sleep(0.1)
             return getdata()
-    return { 'register': msg['id'], 'data': msg['payload']['data'] }
+    return { 'register': msg['metadata'], 'data': msg['payload']['data'] }
 
 # test main loop
 if __name__ == '__main__':
@@ -288,6 +288,11 @@ if __name__ == '__main__':
     Conf['apikey'] = 'MQTT' + str(os.getpid()) # get unique client id
     Conf['projects'] = '.*'    # regular expr to accept projects to subscribe to
     Conf['serials'] = '.*'     # regular expression to accept serial numbers
+
+    # topic: Conf['topic']/ident 'project'/ident 'serial'
+    # telegram: { 'data': {}, 'metadata': {} }
+    # mosquitto_sub -u ios -P acacadabra -h lunar -t IoS/BdP/+
+
 
     Conf['debug'] = True
     for cnt in range(0,25):
