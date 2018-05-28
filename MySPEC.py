@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 1.17 2018/05/25 19:27:37 teus Exp teus $
+# $Id: MySPEC.py,v 1.18 2018/05/28 07:05:35 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.17 $"[11:-2]
+__version__ = "0." + "$Revision: 1.18 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -363,11 +363,11 @@ def Add(conf, cnt=0):
             #print("bin_data",bin_data)
         if Conf['dataFlds'][i] == 'ppb':
           try:
-            if bin_data[i] < 0:  # on negative Spec sensor has seen no gas
-                values[conf['gas']] = None
-                continue
             idx = Conf['fields'].index(conf['gas'])
             values[conf['gas']] = calibrate(idx,Conf['calibrations'],bin_data[i])
+            if values[conf['gas']] < 0:  # on negative Spec sensor has seen no gas
+                values[conf['gas']] = None
+                continue
           except:
             #print("conf",conf)
             MyLogger('WARNING',"index error on index %d" % i)

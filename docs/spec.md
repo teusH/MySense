@@ -70,8 +70,14 @@ While testing the Spec input module no commands were honored. On any character s
 ## Correlation test
 Output has been tested against reference sensors at GGD Amsterdam early 2017. They look good but there is a need to retest after an outdoor period.
 
+The Spec gas module will do the conversion from mVolt and ref mVolt towards the ppb values. We did not succeed to "zero" the Spec module in order to calibrate the ref mVolt. The MySense software will not show negative ppb values (values are forwarded as None values). This might cause that ppb values less as zero may result in false values. To compensate this one is suggested to use the calibration support.
+
+Denote that the Spec module needs ca 60 minutes to establish a more reliable output of measurements.
+
 ## ISSUES
 There is an issue on serial line data corruption with the Cygnal Intergrated Producs USB UART. The issue diappears when the GPS is disabled in MySense. GPS data is read via a GPS deamon. Not sure what the cause is.
+
+Make sure the Pi power adapter is able to provide more a 1.5 A! A warning signal maybe the power icon on the startup screen of the Pi.
 
 ## Dependences
 
