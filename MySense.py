@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.26 2018/05/25 15:01:41 teus Exp $
+# $Id: MySense.py,v 3.27 2018/05/29 10:33:54 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.26 $"[11:-2]
+__version__ = "0." + "$Revision: 3.27 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -120,7 +120,7 @@ def defFields(name,conf):
             return
         nr = len(conf['module'].Conf['fields'])
     else: nr = len(conf['fields'].split(','))
-    for key in ['fields','units','calibrations','serials','dataFlds']:
+    for key in ['fields','units','calibrations','serials','dataFlds','omits']:
         if not key in conf['module'].Conf.keys(): continue
         if not key in conf.keys():
             new = conf['module'].Conf[key] 
