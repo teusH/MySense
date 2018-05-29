@@ -119,6 +119,8 @@ def scroll(linenr,yPos):
     txt = Lines[linenr]['txt']
     if Lines[linenr]['strt'] > 0:
         txt = Lines[linenr]['txt'][Lines[linenr]['strt']:]
+    delay = False
+    if txt[0] == '|': delay = True
     twidth, unused = draw.textsize(txt, font=Lines[linenr]['fnt'])
     trimmed = False
     while twidth > width:
@@ -132,7 +134,7 @@ def scroll(linenr,yPos):
         Lines[linenr]['strt'] += 1
     else:
         Lines[linenr]['strt'] = -6
-    return True
+    return delay
 
 # display as much lines as possible
 DisplayError = 0
@@ -141,7 +143,7 @@ def Display(lock):
     if Lines == None or not len(Lines): return (False,False)
     # ClearDisplay()
     # Clear image buffer by drawing a black filled box.
-    linenr = 0; Ypos = 1
+    linenr = 0; Ypos = 1 ; delay = False
     while True:
         if lock != None:
             with lock: nrLines = len(Lines)
@@ -163,7 +165,7 @@ def Display(lock):
             continue
         if not linenr:      # clear display
             draw.rectangle((0,0,width,height), outline=0, fill=0)
-        scroll(linenr,Ypos)
+        if scroll(linenr,Ypos): delay = True
         Ypos += Lines[linenr]['MaxH']
         linenr += 1
     # Draw the image buffer.
@@ -182,7 +184,7 @@ def Display(lock):
         except:
             DisplayError += 1
         logging.exception("WARNING Display Server: SSD1306 display error.")
-    return trimmedY
+    return trimmedY,delay
 
 # run forever this function
 def Show(lock, conf):
@@ -199,14 +201,15 @@ def Show(lock, conf):
               time.sleep(5)   # first line has a delay of 5 seconds
               count = 0
               continue
-        trimmedy = Display(lock)
+        trimmedy,delay = Display(lock)
         if trimmedy:          # scroll vertical, allow 10 seconds for top line to read
             if int(time.time()) - Lines[0]['timing'] > 10:
                 if lock != None:
                     with lock: Lines.pop(0)
                 else:
                     if len(Lines): Lines.pop(0)
-        time.sleep(0.3)
+        if delay: time.sleep(20)
+        else: time.sleep(0.3)
         
 
 if __name__ == "__main__":
@@ -216,9 +219,9 @@ if __name__ == "__main__":
     addLine('First short line',  font=font, fill=255)
     addLine('Second short line')
     addLine('Third line')
-    addLine('Forth a longer line, more a the previous line.')
+    addLine('|Forth a longer line,  | more a the previous line.')
     addLine('Fifth short line.')
-    addLine('This might be the last line to be displayed.')
+    addLine('|This might be the last| line to be displayed.')
     addLine('Seventh line will scroll the display')
     addLine('Eight line will scroll the display', clear=True)
     addLine('Nine  line will scroll the display')
