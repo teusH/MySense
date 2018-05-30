@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.27 2018/05/29 10:33:54 teus Exp teus $
+# $Id: MySense.py,v 3.28 2018/05/30 19:50:02 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.27 $"[11:-2]
+__version__ = "0." + "$Revision: 3.28 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -753,6 +753,19 @@ def Queue(channels,ident,data):
         Archive[Chan].append( {'ident': id_nr, 'data': da_nr} )
     return True
 
+# maintain meteo values, correct with last seen
+def updateMeteo(old, new):
+    for key in new.keys():
+        if new[key] == None: continue
+        for name in ['temp','rh','rv','hum','press']:
+          if key.find(name) >= 0:
+            if name in ['rv','hum']: name = 'rh'
+            if name in old.keys():
+                if type(old[name]) is int:  old[name] = round(new[key],2)
+                else: old[name] = round((old[name]+new[key])/2.0,2)
+                break
+    return True
+
 # ================ List of Global Variables to be stored in DB
 # next has keys as: time, dylos[4], temp, humidity, asense[8]
 # ================ End of Variable List
@@ -774,6 +787,8 @@ def sensorread():
         Conf['id']['units'] = ['s']
     Conf['id']['types'] = ['time']
     data = { 'time': 0 }
+    # default meteo data for sensor corrections, corrected as soon as seen
+    meteo = { 'temp': 25, 'press': 1000, 'rh': 70 }
     first = True
     local = True
     start = 0
@@ -796,7 +811,10 @@ def sensorread():
                     MyLogger.log(modulename,'INFO','Starting up sensor %s' % Sensor)
                 else:
                     MyLogger.log(modulename,'DEBUG','Collecting data from sensor %s' % Sensor)
-                sensed = Conf[Sensor]['module'].getdata()
+                if Sensor in ['alphasense']:
+                    sensed = Conf[Sensor]['module'].getdata(meteo=meteo)
+                else:
+                    sensed = Conf[Sensor]['module'].getdata()
                 if (not type(sensed) is dict) or (not len(sensed)):
                     continue
                 if 'hostname' in Conf[Sensor].keys():
@@ -827,6 +845,7 @@ def sensorread():
                         else:
                             sensed[key] = (sensed[key]+data[key])/2
                 data.update(sensed)
+                updateMeteo(meteo,sensed)
                 gotData = True
             except KeyboardInterrupt:
                 exit(0)

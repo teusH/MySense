@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyALPHASENSE.py,v 1.4 2018/05/18 16:01:20 teus Exp teus $
+# $Id: MyALPHASENSE.py,v 1.5 2018/05/30 19:50:02 teus Exp teus $
 
 """ Get measurements from AlphaSense gas sensor NH3 using
     Digital Transmitter Borad ISB rev4 and
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program.
 """
 modulename='$RCSfile: MyALPHASENSE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -55,6 +55,7 @@ Conf ={
     'sensitivity': [[4,20,100]], # 4 - 20 mA -> 100 ppm
     'i2c': ['0x48'],     # I2C-bus addresses
     'interval': 30,      # read dht interval in secs (dflt)
+    'meteo': None,       # current meteo values
     'bufsize': 20,       # size of the window of values readings max
     'sync': False,       # use thread or not to collect data
     'debug': False,      # be more versatile
@@ -110,7 +111,22 @@ class ADC:
 # get a record,
 # called back from sensor thread with average of sliding window bufsize
 def Add(conf):
-  rec = {'time': int(time())}
+  def PPB2ugm3(gas,ppb,temp):
+    mol = {
+        'so2': 64.0,   # RIVM 2.71, ?
+        'no2': 46.0,   # RIVM 1.95, ?
+        'no':  30.01,  # RIVM 1.27, ?
+        'o3':  48.0,   # RIVM 2.03, ?
+        'co':  28.01,  # RIVM 1.18, ?
+        'co2': 44.01,  # RIVM 1.85, ?
+        'nh3': 17.031,
+    }
+    if not gas in mol.keys(): raise ValueError, "%s unknown gas" % gas
+    if ppb < 0: return 0
+    return round(ppb*12.187*mol[gas]/(273.15+temp),2)
+
+  try: temp = conf['meteo']['temp']
+  except: temp = 25.0  # default temp
   if (conf['fd'] == None) or (not len(conf['fd'])): return rec
   rawData = []
   for gas in range(0,len(conf['fd'])):
@@ -129,6 +145,9 @@ def Add(conf):
           print("NH3 converted: %.1f mA, %.1f PPM" % (mAval,ppmval))
         if conf['units'][gas].lower() == 'ppm':
           value = calibrate(gas,conf,ppmval)
+        elif conf['units'][gas].lower() == 'ug/m3':
+          value = calibrate(gas,conf,ppmval)
+          value = PPB2ugm3(conf['units'][gas].lower(),value,temp)
         elif conf['units'][gas].lower() == 'ma': value = mAval
 	elif type(value) is int: value = float(value)
       except ValueError:
@@ -170,7 +189,7 @@ def registrate():
             if key == 'i2c': Conf[key] = Conf[key].split(',')
             else:
                 Conf[key] = Conf[key].split('#')
-                for i in range(0,len(Conf[key]):
+                for i in range(0,len(Conf[key])):
                     Conf[key][i] = [int(a) for a in Conf[key][i].split(',')]
     Conf['input'] = False; Conf['fd'] = []
     for gas in range(0,len(Conf['i2c'])):
@@ -215,8 +234,9 @@ def registrate():
 # ============================================================
 # to do: allow different AD converter types,
 # not sure about measurement conversion algorithm use from ADC
-def getdata():
+def getdata(meteo=None):
     global Conf, MyThread
+    Conf['meteo'] = meteo
     if not registrate():                # start up input readings
       return {}
     data = {}
