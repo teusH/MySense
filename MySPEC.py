@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 1.20 2018/05/29 09:26:22 teus Exp teus $
+# $Id: MySPEC.py,v 1.21 2018/05/30 19:55:36 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.20 $"[11:-2]
+__version__ = "0." + "$Revision: 1.21 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -266,12 +266,12 @@ def Add(conf, cnt=0):
     # ToDo: ppb clearly is < 0: what does that mean? For now: no measurement
     def PPB2ugm3(gas,ppb,temp):
         mol = {
-            'so2': 64.0,   # RIVM 2.71, ?
-            'no2': 46.0,   # RIVM 1.95, ?
-            'no':  30.01,  # RIVM 1.27, ?
-            'o3':  48.0,   # RIVM 2.03, ?
-            'co':  28.01,  # RIVM 1.18, ?
-            'co2': 44.01,  # RIVM 1.85, ?
+            'so2': 64.0,   # RIVM 2.71 using fixed 15 oC
+            'no2': 46.0,   # RIVM 1.95 using fixed 15 oC
+            'no':  30.01,  # RIVM 1.27 using fixed 15 oC
+            'o3':  48.0,   # RIVM 2.03 using fixed 15 oC
+            'co':  28.01,  # RIVM 1.18 using fixed 15 oC
+            'co2': 44.01,  # RIVM 1.85 using fixed 15 oC
             'nh3': 17.031,
         }
         if not gas in mol.keys(): raise ValueError, "%s unknown gas" % gas
