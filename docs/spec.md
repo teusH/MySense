@@ -2,7 +2,7 @@
 
 # gas sensors from Spec
 ## Status
-In alpha test since 11th of May 2018
+In beta test since 29th of May 2018
 
 ## Description
 The gas sensors from Spec
@@ -16,6 +16,7 @@ A module has three parts: the Spec sensor (O3, NO2, or CO), the TTL interface wi
 Cost pricing varies between € 50 and higher. Make sure one uses an serial USB converter to interface to the 3V3 based TTL serial interface of the module. MySense used `Cygnal Integrated Products, Inc. CP210x UART Bridge / myAVR mySmartUSB light`. See the config example for the appetrn to recognize which USB has the gas adapter.
 
 ## Configuration
+### hardware
 As there maybe more as one Spec gas sensor connected to the Pi MySense will need a way to get all the serial USB adapters. Plug in the USB adapter of a Spec sensor. Use `lsusb` command to get an overview before and after the USB adapter is connected. Here the difference as example:
 ```
 ...
@@ -54,10 +55,22 @@ except:
   print('Spec USB not founa or write/read error')
 ```
 
+### MySense configuration
 Make sure you define the lists `fields`, `unit` and `serials` of Conf configurations.
 E.g. `Conf['fields'][0] = 'no2'`, `Conf['units'][0] = 'ppb'` and `Conf['serials'][0] = '0123456789' is the serial number as in the output of the USB sensor.
 
 MySense `MySPEC.py` will look for the available gas sensors in a similar way and will detect which gas sensor is attached via a look at the eeprom readout or serial number as is configured in MySense.conf.
+
+* `type` dflt: Spec ULPSM, type of sensor module
+* `usbid` dfld: SPEC, pattern as identified from `ls -l /dev/` for interface
+* `raw` output also raw measurement values (dflt False)
+* 'is_stable` amount of secs (dflt 0) to wait begore measurements are shown (1 hour?)
+* `omits` list of field names to omit in output, dflt: nh3,temp,rh
+* `prefix` (boolean, dflt False) prepend field names with 3 char of type, e.g. spe_temp
+* `interval` interval of measurement sample dflt 60 secs.
+* `debug` be more versatile e.g. print output from serial interface
+* `bufsize` size of internal array of measurements: every read (read period) is sliding average of sample values 
+* `sync` boolean: do not use input threading, dflt: False
 
 ## PPB to ug/m3 conversion
 If the unit is defined as ug/m3 the Spec PPB value of the measurement will be converted from PPB to ug/m3.

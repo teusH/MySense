@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 1.18 2018/05/28 07:05:35 teus Exp teus $
+# $Id: MySPEC.py,v 1.20 2018/05/29 09:26:22 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.18 $"[11:-2]
+__version__ = "0." + "$Revision: 1.20 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -39,8 +39,10 @@ __options__ = [
     'omits',                     # omit these sensors
     'serials',                   # serials nr to gas id of fields
     'dataFlds',                  # list of names to measure for sensor
+    'prefix',                    # boolean prefix field names with 3 type chars
     'debug',                     # debugging flag
     'interval','bufsize','sync'  # multithead buffer size and search for input
+    # may need to add rename
 ]
 
 Conf = {
@@ -62,6 +64,8 @@ Conf = {
     # list of show data: (data format of input)
     # 'sn','ppb','temp','rh','raw','traw','hraw','day','hour','min','sec'
     'dataFlds': [None,'ppb','temp','rh',None,None,None,None,None,None,None],
+    # 'rename' : { 'temp': 'stemp', 'rh': 'srh' },  # rename a field name
+    'prefix':  False,   # prefix field name with first 3 chars of type.lower()
 }
 #    from MySense import log
 try:
@@ -259,6 +263,7 @@ def Add(conf, cnt=0):
     global Conf
     # ref: aqicn.org/faq/2015-09-06/ozone-aqi-using-concentrations-in-milligrams-or-ppb/
     # ref:  samenmetenaanluchtkwaliteit.nl/zelf-meten
+    # ToDo: ppb clearly is < 0: what does that mean? For now: no measurement
     def PPB2ugm3(gas,ppb,temp):
         mol = {
             'so2': 64.0,   # RIVM 2.71, ?
@@ -408,9 +413,23 @@ def avg(values):
     if not cnt: return 0   # on no gas sensed return 0
     return sum/cnt
 
+# rename a key and prepend name with 3 type chars lowered if needed
+# e.g. o3 -> spe_o3, temp -> spe_temp or temp -> temperature
+def rename(key):
+    global Conf
+    prefix = ''
+    try:
+        if Conf['prefix']: prefix = Conf['type'][0:3].lower() + '_'
+    except: pass
+    try:
+        return prefix + Conf['rename'][key]
+    except:
+        return prefix + key
+
+# get input values from threaded sensor module interface
 def getdata():
     global Conf, MyThread
-    if not registrate():                # start up input readings
+    if not registrate():                # start up threads of sensor readings
         return {}
     values = { 'time': [time()], }
     for i in range(0,len(MyThread)):
@@ -419,9 +438,10 @@ def getdata():
         except IOError as er:
             MyLogger.log(modulename,'WARNING',"thread %d: Sensor getRecord input failure: %s" % (i,str(er)))
         for key in thisSensor.keys():
-            if key in Conf['omits']: continue
-            if not key in values.keys(): values[key] = []
-            values[key].append(thisSensor[key])
+            if key in Conf['omits']: continue  # e.g. temp value not published
+            name = rename(key)
+            if not name in values.keys(): values[name] = []
+            values[name].append(thisSensor[key])
     for key in values.keys(): values[key] = avg(values[key])
     return values
 
