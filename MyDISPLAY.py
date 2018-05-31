@@ -18,13 +18,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDISPLAY.py,v 1.7 2018/05/24 15:51:34 teus Exp teus $
+# $Id: MyDISPLAY.py,v 1.8 2018/05/31 19:48:04 teus Exp teus $
 
 """ Publish measurements to display service
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDISPLAY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 
 try:
     import MyLogger
@@ -190,6 +190,21 @@ def publish(**args):
     if Conf['fd'] == None:
         return False
    
+    if 'text' in args['data'].keys():   # special case, overloading this method
+        # show a text line as eg starting up sensor X
+        if type(args['data']['text']) is str:
+            displayMsg(['<clear>' + args['text']])
+        elif type(args['data']['text']) is list:
+            lines = []
+            for string in args['data']['text']:
+                if type(string) is str: lines.append(string)
+            if len(lines):
+                try: displayMsg(lines)
+                except:
+                    MyLogger.log(modulename,'ERROR','Unable to send text to display service.')
+                    return False
+        return True
+
     lines = ['','','','']   # sensor type, DB name, unit, value
     for item in args['data'].keys():
         if item in Conf['omit']: continue

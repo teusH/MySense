@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySense.py,v 3.28 2018/05/30 19:50:02 teus Exp teus $
+# $Id: MySense.py,v 3.29 2018/05/31 19:48:04 teus Exp teus $
 
 # TO DO: encrypt communication if not secured by TLS
 #       and received a session token for this data session e.g. via a broker
@@ -55,7 +55,7 @@
 """
 progname='$RCSfile: MySense.py,v $'[10:-4]
 modulename = progname
-__version__ = "0." + "$Revision: 3.28 $"[11:-2]
+__version__ = "0." + "$Revision: 3.29 $"[11:-2]
 __license__ = 'GPLV4'
 # try to import only those modules which are needed for a configuration
 try:
@@ -809,6 +809,14 @@ def sensorread():
             try:
                 if start == 1:
                     MyLogger.log(modulename,'INFO','Starting up sensor %s' % Sensor)
+                    if ('display' in Conf['outputs']) and Conf['display']['output']:
+                      try:
+                        text = { 'text': ["Starting %s" % Sensor] }
+                        Conf['display']['module'].publish(
+                            ident=ident,
+                            data=text
+                        )
+                      except: pass
                 else:
                     MyLogger.log(modulename,'DEBUG','Collecting data from sensor %s' % Sensor)
                 if Sensor in ['alphasense']:
