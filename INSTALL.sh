@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.64 2018/05/09 15:11:53 teus Exp teus $
+# $Id: INSTALL.sh,v 1.65 2018/05/31 19:11:21 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -212,7 +212,7 @@ function BME280() {
         /bin/cat >>Adafruit_BME280.py <<EOF
 
     # added by teus 2017-07-03 thanks to Thomas Telkamp
-    # to avoid heating up the Boisch chip and so temp measurement raise
+    # to avoid heating up the Bosch chip and so temp measurement raise
     def BME280_sleep(self):
         ''' put the Bosch chip in sleep modus '''
         self._device.write8(BME280_REGISTER_CONTROL,0x0)
@@ -995,6 +995,7 @@ function INTERNET() {
     GetInterfaces
     local WLAN=\${1:-$WIFI}
     local ADDR=''
+    sleep 30
     if /sbin/ifconfig \$WLAN | grep -q 'inet addr'
     then
         ADDR=\$(/sbin/ifconfig \$WLAN | /usr/bin/awk '/inet addr/{ split(\$2,a,":"); print a[2]; }')
