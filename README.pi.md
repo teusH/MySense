@@ -270,3 +270,11 @@ The Pi SD card may be corrupted by disconnecting the power adapter without a pro
 Adafruit made a shell script available to configure a read-only fs on Debian Lite version. Other OS distr may work but one need to disable X11.
 The script:
 * https://raw.githubusercontent.com/adafruit/Raspberry-Pi-Installer-Scripts/master/read-only-fs.sh
+
+### remote Pi configuration
+Best way is to use ssh via WiFi of Lan. Enabling the WiFi Access Point is also a good way. However this requires some Linux system adminstration skills. Initially one may only need to change the WiFi SSID and passphrase. Use ssh to access the WiFi Pi Access Point service and edit the file `/etc/wpa_supplicant/wpa_supplicant.conf` for this.
+
+Other ways:
+* https://github.com/peebles/rpi3-wifi-station-ap
+* https://pifi.imti.co/ This uses Docker and json as wifi configuration interface.
+* https://github.com/billz/raspap-webgui A web GUI for configuring the Pi.
