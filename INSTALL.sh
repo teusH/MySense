@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.65 2018/05/31 19:11:21 teus Exp teus $
+# $Id: INSTALL.sh,v 1.66 2018/06/02 12:06:07 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -1143,6 +1143,67 @@ EOF
     /usr/bin/sudo /bin/cp /tmp/poweroff$$ $MYLED
     /usr/bin/sudo /bin/chmod +x $MYLED
     AddCrontab $MYLED
+}
+
+HELP[BLUETOOTH]+="Installation of termeinal access via BlueTooth."
+UNINSTALLS[BLUETOOTH]+=" /usr/local/bin/BlueToothTerminal.sh"
+# installs remote access via BlueTooth terminal service
+function BLUETOOTH(){
+    sudo cat <<EOF | sudo tee /usr/local/bin/BlueToothTerminal.sh
+#!/bin/bash -e
+
+# comes from: https://hacks.mozilla.org/2017/02/headless-raspberry-pi-configuration-over-bluetooth/
+
+#Edit the display name of the RaspberryPi so you can distinguish
+#your unit from others in the Bluetooth console
+#(very useful in a class setting)
+
+if [ ! -f /etc/machine-info ]
+then
+	echo PRETTY_HOSTNAME=MySense_\$(hostname -s) > /etc/machine-info
+fi
+
+# Edit /lib/systemd/system/bluetooth.service to enable BT services
+if ! grep -q 'ExecStart=/usr/lib/bluetooth/bluetoothd.*-C' /lib/systemd/system/bluetooth.service
+then
+	sudo cp /lib/systemd/system/bluetooth.service /lib/systemd/system/bluetooth.service.orig
+	sudo sed -i: 's|^Exec.*toothd$| \
+ExecStart=/usr/lib/bluetooth/bluetoothd -C \
+ExecStartPost=/usr/bin/sdptool add SP \
+ExecStartPost=/bin/hciconfig hci0 piscan \
+|g' /lib/systemd/system/bluetooth.service
+fi
+
+# create /etc/systemd/system/rfcomm.service to enable 
+# the Bluetooth serial port from systemctl
+if [ ! -f /etc/systemd/system/rfcomm.service ]
+then
+	sudo cat <<EOFI | sudo tee /etc/systemd/system/rfcomm.service > /dev/null
+[Unit]
+Description=RFCOMM service
+After=bluetooth.service
+Requires=bluetooth.service
+
+[Service]
+ExecStart=/usr/bin/rfcomm watch hci0 1 getty rfcomm0 115200 vt100 -a pi
+
+[Install]
+WantedBy=multi-user.target
+EOFI
+
+	# enable the new rfcomm service
+	sudo systemctl enable rfcomm
+
+	# start the rfcomm service
+	sudo systemctl restart rfcomm
+fi
+cat <<EOFI >/dev/stderr
+On your laptop make sure to have enabled BlueTooth and associate (automayically: security breach).
+See which terminal device is Bluetooth connected by 'ls /dev/cu.'.
+Open a window and connect: 'screen screen /dev/cu.MySense_\$(hostname -s)-SerialPort 115200'.
+EOFI
+EOF
+    sudo /bin/chmod +x /usr/local/bin/BlueToothTerminal.sh
 }
 
 INSTALLS+=" WIFI_HOSTAP"

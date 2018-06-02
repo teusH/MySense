@@ -130,7 +130,7 @@ A working example of MySense script in todays operation:
 ```
           remote access             |  INTERNET (wired/wifi, wifi-G3/4 mobile)
           syst.mgt.     webmin -----||_ wifi AP -- webmin/ssh system mgt
-                    ssh tunnel -----|
+                    ssh tunnel -----||_ BlueTooth -- terminal access
    TeamView/Remot3 (Weaved)IoT -----|
                                     |
                                     |    
@@ -229,6 +229,8 @@ Available input plugins:
 ## Remote management
 The Pi allows to install a wifi connectivity with internet as well a virtual wifi Access Point. A backdoor configuration is provided via direct access to `webmin` and `ssh` (Putty), as well via a proxy as *ssh tunneling* and/or using the proxy service of Weaved (`https://www.remot3.it/web/index.html`).
 
+If no access to Internet either via LAN or WiFi is obtained a WiFi AccessPoint is started (SSID MySense-XYZ, and default password) which enable you to use `ssh ios@192.168.2.1` command to obtain shell access. Correct in `/etc/wpa_supplicant/wpa_supplicant.conf` the SSID and psk password phrase to your local access point.
+
 ## Hardware Platform
 Sensors have a hardware interface to I2C, GPIO: those sensors are tested on RaspBerry Pi (and Arduino Uno)
 Sensors with USB serial are tested on Linux Debian platforms which run Python.
@@ -239,8 +241,10 @@ MySense plugins: Use the shell file `INSTALL.sh [DHT GPS DB plugin ...]` to down
 
 The sensor plugins, and output modules can be tested in *standalone mode*, e.g. for BME280 Bosch chip, use `python MyBME280.py`. Or use the Python debugger `pdb` in stead. See the script for the use of sync and debug options at the end of the script to test.
 
+If the Pi supports BlueTooth one could also use BlueTooth terminal access by installing BlueTooth terminal service: `./INSTALL.sh BLUETOOTH`. This type of accesss is not recommanded.
+
 ## Documentation
-See the REAME's and docs directory for descriptions how to prepair the HW, python software and Pi OS for the different modules.
+See the README's and docs directory for descriptions how to prepair the HW, python software and Pi OS for the different modules.
 
 `CONTENT.md` will give an overview of the files and short description.
 

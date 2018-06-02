@@ -47,7 +47,7 @@ The call `python MySense.py stop` will stop MySense. Start MySense with `python 
 
 ## installation on Pi (Pi3 or Pi W)
 ### Intro
-For the first steps with MySense we make use of a Pi (hopefully a Pi 3) with eg Jessie installed as Linux OS. See the various Pi install instruction for a How To install Debian Jessie on the Pi. Use a Pi say with a micro SD card of about 32GB. Hook the Pi up with internet and login as pi user.
+For the first steps with MySense we make use of a Pi (hopefully a Pi3 B+) with eg Jessie or better Stretch installed as Linux OS. See the various Pi install instruction for a How To install Debian Stretch on the Pi. Use a Pi say with a micro SD card of about 32GB. Hook the Pi up with internet and login as pi user.
 
 At first one is advised to use the Python debugger and step throught the MySense main module. The main MySense routine is `sensorread`. So set the break to this routine.
 If anythings break the debugger will give you much inside what is going wrong.

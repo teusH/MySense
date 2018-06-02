@@ -1,10 +1,10 @@
-## Raspberry PI Jessie configuration
+## Raspberry PI Jessie or Stretch configuration
 2017/01/17
 STATUS: BETA operational local
 
 ### Pi 3
 Rasberry Pi basisbundel (incl behuizing, 2.5 A adapter, 16 GB micro card) € 65,-
-Lunix versie Jessie
+Lunix versie Stretch
 Power on with screen: change this if needed via raspi-config
 
 FIRST: make a backup of the micro mem card on your desktop. So you can roll back.
@@ -143,7 +143,7 @@ On wifi failure please check `/etc/wpa_supplicant/wpa_supplicant.conf` e.g. coun
 ```shell
 pi% `passwd pi` -> acacadabra 
 ```
-* You need internet connectivity to update the Jessie: `sudo apt-get update upgrade dist-upgrade`. This takes a while ... and finally `sudo apt-get autoremove`
+* You need internet connectivity to update the Stretch: `sudo apt-get update upgrade dist-upgrade`. This takes a while ... and finally `sudo apt-get autoremove`
 * Allow to remotely login via ssh (or putty):
 ```shell
     sudo update-rc.d ssh enable
