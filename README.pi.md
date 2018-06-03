@@ -35,10 +35,11 @@ The stepts to take to install the OS on the Pi within 10 minutes:
 * make sure you have internet access: `ifconfig` (write down Pi internet address) or `ping -c 2 8.8.8.8`
 * enable ssh remote login: `sudo update-rc.d ssh enable ; /etc/init.d/ssh restart`
 You should be able to install everything from remote by now.
+* or: use `sudo raspi-config` command and define: host name, change pi password, set timezone, change the key board type to yours, in interfaces enable spi, i2c.
+* with internet connectivity use `apt-get update`, `apt-get upgrade`, `apt-get dist-upgrade` and `apt-get autoremove` to bring the Debian OS up to date.
+* add user `ios`
 
-Use the comments below to upgrade the Pi firmware, update/upgrade the system, and configure language, timezone and keyboard.
 Make sure you check the keyboard settings on the console by pressing keys like `|` and `~` on the keyboard.
-By now you will be asked to change the *pi* password. Make sure you remember this phrase.
 
 ### HEADLESS Pi
 No console no screen to the Pi well no problem.
@@ -57,8 +58,8 @@ More on vcgencmd see http://www.elinux.org/RPI_vcgencmd_usage
 
 ### Pi firmware upgrade
 Most common issue's like stalling of the LAN adapter, issues with USB FTDI adapters and SD card compatibility with Raspberry Pi is an outdated firmware.
-To do a firmware update: `sudo rpi-update`
-abd Reboot your Raspberry Pi.
+To do a firmware update: `sudo rpi-update` followed by `sudo apt-get upgrade`.
+And `sudo reboot` your Raspberry Pi.
 See also: `https://github.com/Hexxeh/rpi-update`.
 
 Troubleshooting:
@@ -187,7 +188,7 @@ You probably want to get in touch with the node for remote management. Make sure
 The following creates a backdoor :-( to the Pi via internet cloud.
 Use `ssh` or if the PI is behind a firewall/router one can use simply *weaved*, or use ssh tunneling or VPN.
 
-#### WEAVED
+#### Remot3.it (formerly Weaved)
 Install `Weaved`:
 Create an account with `weaved.com`: meToo@MyHost.io password a6LpWprG41LD
  and respond with email to verify the account configuration.
@@ -205,7 +206,7 @@ On your desktop install:
 ```
     check: webbrowser login  with weaved.com login desk and push SSH-Pi: proxy/portnr
 ```
-    ssh -l pi proxy??.weabevd.com -p "35757"
+    ssh -l pi proxy??.weaved.com -p "35757"
     # on your Pi
     sudo crontab -e and add line:
         @reboot /usr/bin/weavedstart.sh
@@ -213,9 +214,13 @@ On your desktop install:
 *notice*: everyone with weaved password or proxy/port (and so weaved.com)
 *notice*: and  knowing PI login/passwd can log into your PI via ssh!
 
-Maybe you should better use *ssh tunneling* (please complete this one)
-
 Or use *TeamViewer*, which is also free for private use.
+
+#### Remote access via ssh tunneling
+Maybe you should better use *ssh tunneling*. See for instructions the answer paragraph in StackExchange:
+* https://raspberrypi.stackexchange.com/questions/34556/how-to-connect-to-the-raspberry-pi-through-3g-dongle
+
+If one need to use GPRS: The 3G dongle we use is the Huawei E3531 HSPA+USB Stick (ca € 30.00).
 
 ### USERS:
 Install Internet of Sense user say *ios* (full name Internet of Sense):
