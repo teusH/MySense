@@ -220,6 +220,38 @@ Or use *TeamViewer*, which is also free for private use.
 Maybe you should better use *ssh tunneling*. See for instructions the answer paragraph in StackExchange:
 * https://raspberrypi.stackexchange.com/questions/34556/how-to-connect-to-the-raspberry-pi-through-3g-dongle
 
+In MySense wordings:
+You need a server which can be accessed directly from the internet, say MyHost.org (IP 123.456.789.001) with a ssh port not blocked by the ISP of the MySense kit, say port 2222 (so every kit has an own connection point port: for this kit 2222). We configure the remote access in such a way that you accees the port 2222 on MyHost in such a way that the connectrion is "forwarded" (tunneled) to the MySense kit on ssh port 22 (default).
+This is how:
+* on MyHost.org server, make sure ssh daemon is listening on port 2222: edit `/etc/ssh/sshd_config`: add `GatewayPorts clientspecified`.
+* on the MySense kit if not existant create ~/.ssh (mod 0700), and generate an ssh keypair `ssh-keygen -t rsa` (no pass phrase). You will notice the file `~/.ssh/id_rsa.pub. You need this file later.
+* on the MySense kit: create and add in `~/.ssh/config`:
+```
+    host *.MyHost.org 123.456.789.001
+    user this-kit
+    StrictKnownHostsFile /dev/null
+    CheckHostIP no
+    IndentityFile ~/.ssh/id_rsa
+```
+* on MySense kit add the id_rsa.pub generated file to `~/.ssh/authorized_keys` by using for the last time your login and password on MyHost.org:
+```shell
+    this_kit% cat ~/.ssh/id_rsa.pub | ssh this-kit@MyHost.org 'cat >>~/.ssh/authorized_keys'
+```
+and try is out to login to MyHost.org `ssh -l this-kit MyHost.org
+* finally create the ssh tunneling: allow crontab to initiate regularly the tunnel if needed via the shell command file `/usr/local/bin/This_tunnel.sh`:
+```
+    #!/bin/bash
+    CMD='ssh -XfN2R 0.0.0.0:2222:localhost:22 this-kit@MyHost.org'
+    pgrep -f -x "$CMD" >/dev/null 2>&1 || $CMD
+```
+* from your desktop try to connect to the MySense kit:
+```shell
+    ssh -l this-kit MyHost.org -p 2222
+```
+Notice that this is similar to the Weaved or Remot3.it procedure.
+
+* on MyHost.org say as user one-kit 
+
 If one need to use GPRS: The 3G dongle we use is the Huawei E3531 HSPA+USB Stick (ca € 30.00).
 
 ### USERS:
