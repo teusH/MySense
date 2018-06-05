@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.66 2018/06/02 12:06:07 teus Exp teus $
+# $Id: INSTALL.sh,v 1.67 2018/06/05 20:03:20 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -1088,6 +1088,115 @@ EOF
     /bin/rm -f /tmp/hostap$$
     sudo sh -c /usr/local/etc/start_wifi_AP
     AddCrontab /usr/local/etc/start_wifi_AP
+}
+
+INSTALLS+=" GPRS"
+HELP[GPRS]="Installation of internet access via 3G/GPRS mobile network. Use of Huawei E3531 HPSA + USB dongle"
+function GPRSppp() {
+    if [ ! -f /etc/ppp/peers/gprs ]
+    then
+        sudo cat <<EOF | sudo tee /etc/ppp/peers/gprs
+user "ios"
+connect "/usr/sbin/chat -v -f /etc/chatscripts/gprs -T em"
+/dev/gsmmodem
+noipdefault
+defaultroute
+replacedefaultroute
+hide-password
+noauth
+persist
+usepeerdns
+EOF
+        if [ ! -f /dev/gsmmodem ]
+        then
+            echo "Make sure Huawei dongle is installed as modem! See documentation." >/dev/stderr
+        fi
+        echo "Make sure Huawei uses SIM card with code disabled." >/dev/stderr
+    fi
+    if [ ! -f /etc/network/interfaces.d/gprs ]
+    then
+        sudo cat <<EOF | sudo tee /etc/network/interfaces.d/gprs
+auto gprs
+iface gprs inet ppp
+provider gprs
+EOF
+    fi
+    if [ ! -f /usr/local/bin/gprs ]
+    then
+        sudo cat <<EOF | sudo tee /usr/local/bin/gprs
+#!/bin/bash
+# up GPRS internet connectivity only when no internet is available
+if ! ping -c 2 8.8.8.8
+then
+    /sbin/ifup gprs
+    # maybe add chek if ppp is really successful
+fi
+EOF
+        sudo chmod +x /usr/local/bin/gprs
+    fi
+    AddCrontab /usr/local/bin/gprs
+    echo "GPRS will be initiated on no WiFi or Lan. Make sure SIM code is disabled. See gprs.md documentation." >/dev/stderr
+}
+
+# install SMS messages
+INSTALLS+=" SMS"
+HELP[SMS]="Installation of SMS mobile messages support. Need eg Huawei GPRS modem."
+function SMS() {
+    DEPENDS_ON APT gammu
+    if [ ! -f ~/.gammurc ]
+    then
+       # may also use command gammu-config
+       cat <<EOF >~/.gammurc
+[gammu]
+port = /dev/gsmmodem
+connection = at19200
+model =
+synchronizetime = yes
+logfile =
+logformat = nothing
+use_locking =
+gammuloc =
+EOF
+       sudo cp ~/.gammurc /home/root/.gammurc
+       if [ ! -f /dev/gsmmodem ] || ! gammu --identify
+       then
+           echo "Make sure to install the Huawei dongle in modem mode!" >/dev/stderr
+       fi
+    fi
+}
+
+# make sure Huawei dongle is of type E3531
+# change this if it is not (other types were not tested)
+function GPRS() {
+    DEPENDS_ON APT ppp
+    DEPENDS_ON APT usb-modeswitch
+    DEPENDS_ON APT usb-modeswitch-data
+    DEPENDS_ON APT wvdial
+    echo "PLEASE INSERT Huawei GPRS dongle!" >/dev/stderr
+    sleep 20
+    local MP
+    MP=$(/usr/bin/lsusb | /bin/grep "Huawei.*HSPA" | /bin/sed -e 's/.*ID //' -e 's/ .*//')
+    if [ -z "$MP" ] || [ 12d1 != "${MP/:*/}" ]
+    then
+        echo "Did not find Huawei GPRS dongle. INSTALLING default." >/dev/stderr
+    elif [ 1f01 != "${MP/*:/}" ]
+    then
+        echo "Maybe Huawei dongle not inserted as modem. Will use default." >/dev/stderr
+    fi
+    MP='12d1:1f01'
+    if [ ! -f /etc/usb_modeswitch.d/"$MP" ]
+    then
+        sudo cat <<EOF | sudo tee /etc/usb_modeswitch.d/"$MP"
+# Huawei E353 (3.se)
+
+TargetVendor=  0x${MP/*:/}
+TargetProduct= 0x${MP/:*/}
+
+MessageContent="55534243123456780000000000000011062000000100000000000000000000"
+NoDriverLoading=1
+EOF
+    fi
+    GPRSppp
 }
 
 INSTALLS+=" BUTTON"
