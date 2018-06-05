@@ -208,7 +208,7 @@ def Show(lock, conf):
                     with lock: Lines.pop(0)
                 else:
                     if len(Lines): Lines.pop(0)
-        if delay: time.sleep(20)
+        if delay: time.sleep(10)
         else: time.sleep(0.3)
         
 
