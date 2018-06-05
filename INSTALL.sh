@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.67 2018/06/05 20:03:20 teus Exp teus $
+# $Id: INSTALL.sh,v 1.68 2018/06/05 20:21:34 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -1001,7 +1001,7 @@ function INTERNET() {
         ADDR=\$(/sbin/ifconfig \$WLAN | /usr/bin/awk '/inet addr/{ split(\$2,a,":"); print a[2]; }')
         if /sbin/route -n | grep -q '^0.0.0.0.*'\${WLAN}
         then
-            if ! ping -q -W 2 -c 2 8.8.8.8 >/dev/null
+            if ! /bin/ping -q -W 2 -c 2 8.8.8.8 >/dev/null
             then
                 # no outside connectivity
                 return 1
@@ -1126,7 +1126,7 @@ EOF
         sudo cat <<EOF | sudo tee /usr/local/bin/gprs
 #!/bin/bash
 # up GPRS internet connectivity only when no internet is available
-if ! ping -c 2 8.8.8.8
+if ! /bin/ping -q -w 2 -c 2 8.8.8.8
 then
     /sbin/ifup gprs
     # maybe add chek if ppp is really successful
@@ -1167,6 +1167,7 @@ EOF
 
 # make sure Huawei dongle is of type E3531
 # change this if it is not (other types were not tested)
+UNINSTALLS[GPRS]=" /etc/usb_modeswitch.d/12d1\:1f01 /etc/network/interfaces.d/gprs /etc/ppp/peers/gprs"
 function GPRS() {
     DEPENDS_ON APT ppp
     DEPENDS_ON APT usb-modeswitch
