@@ -75,6 +75,26 @@ If you need 2 serial basic (TTL UART) serial connections for modules it is possi
 
 If you use USB serial cables from the same manufacturer one may have trouble to instruct MySense which USB port has which USB connected sensor module.
 
+### Bluetooth
+One may use Bluetooth as wireless terminal interface. This is not recommanded.
+If Bluetooth is present and not used suggested is to disable Blyetooth and related services. Add the following line to `/boot/config.txt`:
+```
+# Disable BlueTooth
+dtoverlay=pi3-disable-bt
+```
+And disable related services as follows:
+```shell
+sudo systemctl disable hciuart.service
+sudo systemctl disable bluealsa.service
+sudo systemctl disable bluetooth.service
+```
+And reboot.
+Bluetooth will be available when an external Bluetooth adapter is inserted. To completely disbale Bluetooth uninstall BlueZ and related packages:
+```shell
+sudo apt-get purge bluez -y
+sudo apt-get autoremove -y
+```
+
 ### Pi energy and USB power consumption
 The Pi uses not much energy. Every USB port uses about 500 mA. So one may run out of power quickly with too many USB socket usage. A USB hup consumes by itself also about 500 mA. Be aware that quite some low cost power enabled hub do feed power to the Pi. Do not use these faulty hubs. There are good hubs with own power supply up to 3A.
 
