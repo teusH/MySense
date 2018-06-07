@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.68 2018/06/05 20:21:34 teus Exp teus $
+# $Id: INSTALL.sh,v 1.69 2018/06/07 15:34:28 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -822,11 +822,11 @@ EOF
     sudo cp /tmp/Int$$ /etc/network/interfaces.d/UAP
     cat >/tmp/Int$$ <<EOF
 #!/bin/bash
-INT=\${1:-$LAN}
+INT="\${1:-$LAN}"
 WLAN=\$2
 EXIT=0
 if [ -z "\$2" ] ; then exit 0 ; fi
-if /sbin/route -n | /bin/grep -q '^0.0.0.0.*dev  *'\${INT}
+if /sbin/route -n | /bin/grep -q -P '^0.0.0.0.*'"\${INT}"
 then
     EXIT=1      # do not bring up \${WLAN:-$WIFI} if not needed
 fi
@@ -1118,7 +1118,8 @@ EOF
         sudo cat <<EOF | sudo tee /etc/network/interfaces.d/gprs
 auto gprs
 iface gprs inet ppp
-provider gprs
+    pre-up /etc/network/if-pre-up.d/Check-internet "(eth|wlan)"
+    provider gprs
 EOF
     fi
     if [ ! -f /usr/local/bin/gprs ]
