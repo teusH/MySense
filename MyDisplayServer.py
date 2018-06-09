@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDisplayServer.py,v 1.10 2017/07/06 09:31:55 teus Exp teus $
+# $Id: MyDisplayServer.py,v 1.12 2018/06/09 12:23:27 teus Exp teus $
 
 # script will run standalone, collects text lines from sockets streams and
 # displays the scrolled lines on an Adafruit display
@@ -66,9 +66,10 @@ class DisplayThread(object):
         else: self.lock = threading.Lock()
         self.type = conf['display'][0]
         self.size = conf['display'][1]
+        self.yb = conf['display'][2]
         self.logger.debug("[+]Adafruit display started")
         try:
-            self.SSD1306.InitDisplay(conf['display'][0],conf['display'][1])
+            self.SSD1306.InitDisplay(conf['display'][0],conf['display'][1],yb=conf['display'][2])
             self.conf['addLine'] = self.SSD1306.addLine
         except:
             self.logger.fatal("Display error for SSD1306 type %s size %s." %(conf['display'][0],conf['display'][1]))
@@ -325,6 +326,7 @@ if __name__ == "__main__":
     import logging
     SIZE = '128x64'
     BUS = None
+    YB = False  # YellowBlue oled (default not)
     for i in range(len(sys.argv)-1,-1,-1):   # parse the command line arguments
         if sys.argv[i][0] != '-': continue
         if sys.argv[i][0:2] == '-d':         # debug modus
@@ -342,6 +344,9 @@ if __name__ == "__main__":
             sys.argv.pop(i+1); sys.argv.pop(i)
         elif sys.argv[i][0:2] == '-b':       # bus type I2C or SPI
             BUS = sys.argv[i+1]
+            sys.argv.pop(i+1); sys.argv.pop(i)
+        elif sys.argv[i][0:2].lower() == '-y': # YellowBlue oled display
+            YB = True
             sys.argv.pop(i+1); sys.argv.pop(i)
 
     if Conf['debug']:
@@ -378,7 +383,7 @@ if __name__ == "__main__":
         sys.exit("Display HW bus needs to be defined: I2C or SPI!")
     elif (BUS != 'SPI') and (BUS != 'I2C'):
         sys.exit("Display bus %s is not supported!" % BUS)
-    Conf['display'] = (BUS,SIZE)
+    Conf['display'] = (BUS,SIZE,YB)
     Active = False
     try:
         if not Active:

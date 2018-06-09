@@ -25,10 +25,11 @@ fntSize = 8
 # font = ImageFont.truetype('Minecraftia.ttf', 8)
 Lines = None
 stop = False
+YB   = False # display is yellow blue type
 
 # initialize the display, return ref to the display
-def InitDisplay(type,size):
-    global disp, width, height, image, draw
+def InitDisplay(type,size,yb = False):
+    global disp, width, height, image, draw, YB
 
     # Raspberry Pi pin configuration:
     RST = 24
@@ -58,6 +59,7 @@ def InitDisplay(type,size):
     # Get display width and height.
     width = disp.width
     height = disp.height
+    YB = yb
     
     # Clear display.
     disp.clear()
@@ -139,7 +141,7 @@ def scroll(linenr,yPos):
 # display as much lines as possible
 DisplayError = 0
 def Display(lock):
-    global Lines, draw, image, disp, DisplayError
+    global Lines, draw, image, disp, DisplayError, YB
     if Lines == None or not len(Lines): return (False,False)
     # ClearDisplay()
     # Clear image buffer by drawing a black filled box.
@@ -167,6 +169,7 @@ def Display(lock):
             draw.rectangle((0,0,width,height), outline=0, fill=0)
         if scroll(linenr,Ypos): delay = True
         Ypos += Lines[linenr]['MaxH']
+        if YB and not linenr: Ypos += 2  # first yellow line takes 2 leds extra
         linenr += 1
     # Draw the image buffer.
     disp.image(image)
@@ -215,7 +218,8 @@ def Show(lock, conf):
 if __name__ == "__main__":
     BUS = 'I2C'
     SIZE = '128x64'
-    InitDisplay(BUS,SIZE)
+    YB = False
+    InitDisplay(BUS,SIZE,yb=YB)
     addLine('First short line',  font=font, fill=255)
     addLine('Second short line')
     addLine('Third line')
