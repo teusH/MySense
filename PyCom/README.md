@@ -6,18 +6,30 @@ Status: *beta* 2018/04/02
 
 Simple low cost (€120) satellites sensor kits.
 
-Shopping list (TinyTronics and AliExpress):
-* PyCom controller € 35
-* PyCom expansion board € 16
-* LoRa antenna € 10
-* Grove GPS € 20
-* Nova/Plantower dust sensor € 15
-* Bosch Adafruit meteo sensor € 15-25
-* V5 adapter € 10
-* DuPont wires (male/female) € 2
-* outdoor V220 case € 5
-* shipping € 3
-* MySense software installation and testing: 1 day, casing 1/2 day
+## Shopping list
+* LoPy-4 controller  PYCLOPY4 (Tinytronics  € 42.-)
+* LoPy Expansie board 2.0 PYCEXPBOARD2.0 (Tinytronics € 19.-)
+* LoPy-Sigfox antenne kit 868 Mhz PYCLOSIAN868KIT (Tinytronics € 10.50)
+* SSD1306 I2C Yellow/Blue 128X64 oled display (AliExpress € 2.23, Tinytronics € 9.50)
+* Plantower PMS7003 laser PM sensor with G7 cable!) (AliExpress € 15.17)
+Alternative is Nova SDS011 (bigger, less PM types, but air inlet tube connection)
+* GY-NE06MV2 NEO-6M GPS module TTL connection (AliExpress € 5.15)
+* BME280 or better BME680 I2C meteo sensor (AliExpress € 3.50)
+* longer USB adapter cable 2-3 meter (Action € 1.50)
+* USB V220 AC-5V= adapter (Action € 2.10)
+* wiring: per module 4 wires: femail/mail for 4 modules:
+2 packs DuPont jumpercables 20cm 10 per package (2 X € 1.50 Tinytronics)
+Remark: better to create a shield/header with Grove sockets and connectors.
+* assortiment thrink tubes (2.5 mm and bigger) (€ 3.45 Ben's Electronics)
+* V220 outdoor cablebox 10X12.5 cm, larger is better. (Praxis € 5.39)
+
+Some fixing materials:
+* small piece of plexiglas for cover oled display
+* 2 component glue
+* some fixing tool to stabalize the antenna
+* 4 cm tube for air inlet of PM module
+* piece of wood to be able to attach the outdoor cable box on a wall.
+* some material to fixate the components and allow airflow in the box
 
 ## DESCRIPTION
 The sensor kits are build with PyCom (loPy-4 and WiPy-3) ESP controllers and PyCom expansion board.
