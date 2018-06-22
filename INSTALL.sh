@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.69 2018/06/07 15:34:28 teus Exp teus $
+# $Id: INSTALL.sh,v 1.70 2018/06/22 15:34:47 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -36,26 +36,6 @@ function AddCrontab() {
         echo "Added at (re)boot to execute $1 as $myUSER user."
     fi
     return $?
-}
-
-WIFI=wlan0
-LAN=eth0
-# Debian has changed names for internet interfaces
-function GetInterfaces(){
-    if /sbin/ifconfig -a | /bin/grep -q '[ew][ln]x.*: flag'
-    then
-        WIFI=$(/sbin/ifconfig -a | /bin/grep 'wlx..*: flag' | /bin/sed 's/: .*//')
-        LAN=$(/sbin/ifconfig -a | /bin/grep 'enx..*: flag' | /bin/sed 's/: .*//')
-    else
-        WIFI=$(/sbin/ifconfig -a | /bin/grep 'wlan.*: flag' | /bin/sed 's/: .*//')
-        LAN=$(/sbin/ifconfig -a | /bin/grep 'eth..*: flag' | /bin/sed 's/: .*//')
-    fi
-    if [ -z "$WIFI" ] || [ -z "$LAN" ]
-    then
-        echo "WARNING: only ${WIFI:-no wifi} and ${LAN:-no lan} internet interface available. Correct it manualy e.g. in /etc/network/interfaces." >/dev/stderr
-    fi
-    WIFI=${WIFI:-wlan0}
-    LAN=${LAN:-eth0}
 }
 
 # function to install python modules via download from github.
@@ -139,7 +119,7 @@ declare -A UNINSTALLS
 PLUGINS=''
 
 function ASK(){
-    local ANS DF QRY='Do you want to install My ${1} and dependences?'
+    local ANS DF QRY="Do you want to install My ${1} and dependences?"
     if [ -z "${DFLT[${1}]}" ] ; then DFLT[${1}]=Y ; fi
     if [ "${DFLT[${1}]/N*/N}" = N  ] ; then DF="N|y" ; fi
     if [ "${DFLT[${1}]/Y*/Y}" = Y  ] ; then DF="Y|n" ; fi
@@ -536,6 +516,26 @@ function KeepOriginal() {
     done
 }
 
+WIFI=wlan0
+LAN=eth0
+# Debian has changed names for internet interfaces
+function GetInterfaces(){
+    if /sbin/ifconfig -a | /bin/grep -q '[ew][ln]x.*: flag'
+    then
+        WIFI=$(/sbin/ifconfig -a | /bin/grep 'wlx..*: flag' | /bin/sed 's/: .*//')
+        LAN=$(/sbin/ifconfig -a | /bin/grep 'enx..*: flag' | /bin/sed 's/: .*//')
+    else
+        WIFI=$(/sbin/ifconfig -a | /bin/grep 'wlan.*: flag' | /bin/sed 's/: .*//')
+        LAN=$(/sbin/ifconfig -a | /bin/grep 'eth..*: flag' | /bin/sed 's/: .*//')
+    fi
+    if [ -z "$WIFI" ] || [ -z "$LAN" ]
+    then
+        echo "WARNING: only ${WIFI:-no wifi} and ${LAN:-no lan} internet interface available. Correct it manualy e.g. in /etc/network/interfaces." >/dev/stderr
+    fi
+    WIFI=${WIFI:-wlan0}
+    LAN=${LAN:-eth0}
+}
+
 #EXTRA+=' WATCHDOG'
 # setup a watchdog using the buildin hardware monitor
 # the Pi may crash so use a watchdog
@@ -804,6 +804,25 @@ INSTALLS+=" WIFI"
 HELP[WIFI]="Installation of WiFi access to the Pi: wifi for internet connectivity, wifi access point on connectivity failures."
 ####### wifi $WIFI for wifi internet access, uap0 (virtual device) for wifi AP
 # wlan1 for USB wifi dongle (use this if wifi $WIFI fails and need wifi AP)
+function AddChckInternet(){
+    if [ -f /etc/network/if-pre-up.d/Check-internet ]
+    then
+	sudo cat <<EOF | sudo tee /etc/network/if-pre-up.d/Check-internet
+#!/bin/bash
+INT="\${1:-$LAN}"
+WLAN=\$2
+EXIT=0
+if [ -z "\$2" ] ; then exit 0 ; fi
+if /sbin/route -n | /bin/grep -q -P '^0.0.0.0.*'"\${INT}"
+then
+    EXIT=1      # do not bring up \${WLAN:-$WIFI} if not needed
+fi
+exit \$EXIT
+EOF
+	sudo chmod +x /etc/network/if-pre-up.d/Check-internet
+    fi
+}
+
 function WIFI(){
     GetInterfaces
     KeepOriginal /etc/network/interfaces
@@ -820,20 +839,7 @@ iface ${AP} inet static
     gateway 192.168.2.1
 EOF
     sudo cp /tmp/Int$$ /etc/network/interfaces.d/UAP
-    cat >/tmp/Int$$ <<EOF
-#!/bin/bash
-INT="\${1:-$LAN}"
-WLAN=\$2
-EXIT=0
-if [ -z "\$2" ] ; then exit 0 ; fi
-if /sbin/route -n | /bin/grep -q -P '^0.0.0.0.*'"\${INT}"
-then
-    EXIT=1      # do not bring up \${WLAN:-$WIFI} if not needed
-fi
-exit \$EXIT
-EOF
-    chmod +x /tmp/Int$$
-    sudo cp /tmp/Int$$ /etc/network/if-pre-up.d/Check-internet
+    AddChckInternet
     cat >/tmp/Int$$ <<EOF
 # interfaces(5) file used by ifup(8) and ifdown(8)
 
@@ -991,6 +997,26 @@ then
     /bin/sleep 2
 fi
 
+WIFI=wlan0
+LAN=eth0
+# Debian has changed names for internet interfaces
+function GetInterfaces(){
+    if /sbin/ifconfig -a | /bin/grep -q '[ew][ln]x.*: flag'
+    then
+        WIFI=\$(/sbin/ifconfig -a | /bin/grep 'wlx..*: flag' | /bin/sed 's/: .*//')
+        LAN=\$(/sbin/ifconfig -a | /bin/grep 'enx..*: flag' | /bin/sed 's/: .*//')
+    else
+        WIFI=\$(/sbin/ifconfig -a | /bin/grep 'wlan.*: flag' | /bin/sed 's/: .*//')
+        LAN=\$(/sbin/ifconfig -a | /bin/grep 'eth..*: flag' | /bin/sed 's/: .*//')
+    fi
+    if [ -z "\$WIFI" ] || [ -z "\$LAN" ]
+    then
+        echo "WARNING: only \${WIFI:-no wifi} and \${LAN:-no lan} internet interface available. Correct it manualy e.g. in /etc/network/interfaces." >/dev/stderr
+    fi
+    WIFI=\${WIFI:-wlan0}
+    LAN=\${LAN:-eth0}
+}
+
 function INTERNET() {
     GetInterfaces
     local WLAN=\${1:-$WIFI}
@@ -1113,6 +1139,7 @@ EOF
         fi
         echo "Make sure Huawei uses SIM card with code disabled." >/dev/stderr
     fi
+    AddChckInternet
     if [ ! -f /etc/network/interfaces.d/gprs ]
     then
         sudo cat <<EOF | sudo tee /etc/network/interfaces.d/gprs
@@ -1177,7 +1204,7 @@ function GPRS() {
     echo "PLEASE INSERT Huawei GPRS dongle!" >/dev/stderr
     sleep 20
     local MP
-    MP=$(/usr/bin/lsusb | /bin/grep "Huawei.*HSPA" | /bin/sed -e 's/.*ID //' -e 's/ .*//')
+    MP=$(/usr/bin/lsusb | /bin/grep "Huawei.*HSDPA" | /bin/sed -e 's/.*ID //' -e 's/ .*//')
     if [ -z "$MP" ] || [ 12d1 != "${MP/:*/}" ]
     then
         echo "Did not find Huawei GPRS dongle. INSTALLING default." >/dev/stderr
@@ -1207,7 +1234,7 @@ UNINSTALLS[BUTTON]+=" /usr/local/bin/MyLed.py"
 # install button/led/relay handler
 function BUTTON(){
     local MYLED=/usr/local/bin/MyLed.py
-    if [ -x $MYLED ] ; then return ; fi
+    if [ -f $MYLED ] && [ -x $MYLED ] ; then return ; fi
     GROVEPI                # depends on govepi
     sudo cp MyLed.py /usr/local/bin/
     sudo chmod +x $MYLED
@@ -1325,7 +1352,7 @@ UNINSTALLS[WIFI_HOSTAP]+=' /etc/systemd/system/hostapd.service'
 function WIFI_HOSTAP(){
     local WLAN=${1:-uap0} SSID=MySense PASS=BehoudDeParel HIDE=1
     KeepOriginal \
-        /etc//etc/hostapd/hostapd.conf \
+        /etc/hostapd/hostapd.conf \
         /etc/systemd/system/hostapd.service
     # if [ -f /etc/hostapd/hostapd.conf ]
     # then /usr/bin/sudo /usr/bin/apt-get remove --purge hostapd -y
