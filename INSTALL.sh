@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.70 2018/06/22 15:34:47 teus Exp teus $
+# $Id: INSTALL.sh,v 1.71 2018/06/22 20:05:08 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -1278,9 +1278,9 @@ do
     fi
 done
 EOF
-    /usr/bin/sudo /bin/cp /tmp/poweroff$$ $MYLED
-    /usr/bin/sudo /bin/chmod +x $MYLED
-    AddCrontab $MYLED
+    /usr/bin/sudo /bin/cp /tmp/poweroff$$ /usr/local/bin/poweroff
+    /usr/bin/sudo /bin/chmod +x /usr/local/bin/poweroff
+    AddCrontab /usr/local/bin/poweroff
 }
 
 HELP[BLUETOOTH]+="Installation of termeinal access via BlueTooth."
