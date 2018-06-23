@@ -169,7 +169,7 @@ def Display(lock):
             draw.rectangle((0,0,width,height), outline=0, fill=0)
         if scroll(linenr,Ypos): delay = True
         Ypos += Lines[linenr]['MaxH']
-        if YB and not linenr: Ypos += 2  # first yellow line takes 2 leds extra
+        if YB and not linenr: Ypos += 3  # first yellow line takes 3 leds extra
         linenr += 1
     # Draw the image buffer.
     disp.image(image)

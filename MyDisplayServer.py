@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDisplayServer.py,v 1.12 2018/06/09 12:23:27 teus Exp teus $
+# $Id: MyDisplayServer.py,v 1.13 2018/06/23 13:52:04 teus Exp teus $
 
 # script will run standalone, collects text lines from sockets streams and
 # displays the scrolled lines on an Adafruit display
@@ -347,7 +347,7 @@ if __name__ == "__main__":
             sys.argv.pop(i+1); sys.argv.pop(i)
         elif sys.argv[i][0:2].lower() == '-y': # YellowBlue oled display
             YB = True
-            sys.argv.pop(i+1); sys.argv.pop(i)
+            sys.argv.pop(i)
 
     if Conf['debug']:
         logging.basicConfig(level=logging.DEBUG)

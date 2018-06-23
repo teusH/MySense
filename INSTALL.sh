@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.71 2018/06/22 20:05:08 teus Exp teus $
+# $Id: INSTALL.sh,v 1.72 2018/06/23 13:52:04 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -357,7 +357,8 @@ EOF
 
 EXTRA+=" DISPLAY"
 HELP[DISPLAY]="Installing tiny Adafruit display support."
-UNINSTALLS[DISPLAY]+=" /usr/local/bin/MyDisplayServer.py"
+UNINSTALLS[DISPLAY]+=" /usr/local/bin/MyDisplayServer.py /usr/local/bin/MySSD1306_display.py"
+DFLT[YB]=N
 function DISPLAY(){
     # this needs to be tested
     echo "Installing Display service and plugin"
@@ -368,6 +369,10 @@ function DISPLAY(){
     DEPENDS_ON apt python-imaging
     DEPENDS_ON apt python-smbus
     local ANS=I2C
+    local YB=''
+    if ASK YB "Is Oled display a Yellow/Blue type of display?"
+    then YB='-y'
+    fi
     read -p "Please answer: SSD1306 display uses I2C or SPI bus? [I2C|SPI]: " ANS
     case X"$ANS" in
     XI2C|XSPI)
@@ -387,9 +392,9 @@ function DISPLAY(){
         echo "ERROR: cannot locate MyDisplayServer.py for display service/server"
         return 1
     fi
-    sudo /bin/cp MyDisplayServer.py /usr/local/bin
-    sudo /bin/chmod +x /usr/local/bin/MyDisplayServer.py
-    AddCrontab "/usr/local/bin/MyDisplayServer.py -b $ANS start" $USER
+    sudo /bin/cp MyDisplayServer.py MySSD1306_display.py /usr/local/bin
+    sudo /bin/chmod +x /usr/local/bin/{MyDisplayServer.py,MySSD1306_display.py}
+    AddCrontab "/usr/local/bin/MyDisplayServer.py $YB -b $ANS start" $USER
     echo "Installed to activate ${ANS} display service on reboot."
     if ! /usr/bin/groups | grep -q ${ANS,,}
     then
@@ -702,6 +707,7 @@ iface $INT inet dhcp
         pre-up /etc/network/if-up.d/wifi-internet $WLAN $WLAN
         post-up /etc/network/if-post-up.d/wifi-gateway $WLAN $WLAN
 
+#auto $WLAN
 allow-hotplug $WLAN
 iface $WLAN inet dhcp
         pre-up /etc/network/if-up.d/wifi-internet $INT $WLAN
@@ -1145,7 +1151,7 @@ EOF
         sudo cat <<EOF | sudo tee /etc/network/interfaces.d/gprs
 auto gprs
 iface gprs inet ppp
-    pre-up /etc/network/if-pre-up.d/Check-internet "(eth|wlan)"
+    pre-up /etc/network/if-pre-up.d/Check-internet "(eth|wlan)" ppp
     provider gprs
 EOF
     fi
@@ -1248,7 +1254,7 @@ MYLED=$MYLED
 D_ADDR=2017
 if [ ! -x \$MYLED ] ; then exit 0 ; fi
 \$MYLED --led \$LED --blink 1,2,1
-while /dev/true
+while /bin/true
 do
     "\$MYLED" --led \$LED --light OFF
     TIMING=$("\$MYLED" --led \$LED --button \$SOCKET)
