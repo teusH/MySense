@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.73 2018/06/23 19:12:36 teus Exp teus $
+# $Id: INSTALL.sh,v 1.74 2018/06/23 19:40:40 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -1258,8 +1258,8 @@ if [ ! -x \$MYLED ] ; then exit 0 ; fi
 while /bin/true
 do
     "\$MYLED" --led \$LED --light OFF
-    TIMING=$("\$MYLED" --led \$LED --button \$SOCKET)
-    TIMING=$(echo "\$TIMING" | /bin/sed 's/[^0-9]//g')
+    TIMING=\$("\$MYLED" --led \$LED --button \$SOCKET)
+    TIMING=\$(echo "\$TIMING" | /bin/sed 's/[^0-9]//g')
     if [ -z "\$TIMING" ]
     then
         sleep 5
@@ -1267,13 +1267,13 @@ do
     fi
     if [ -n "\${TIMING}" -a "\$TIMING" -gt 20 ]
     then
-         echo -e "<clear>POWERED OFF\n   MySense\n                     ..Bye..                     " | /bin/nc -w 2 localhost $D_ADDR
+         echo -e "<clear>POWERED OFF\n   MySense\n                     ..Bye..                     " | /bin/nc -w 2 localhost \$D_ADDR
         "\$MYLED" --led \$LED --blink 0.25,0.25,2 &
         /usr/bin/killall -r ".*MySense.*"
         /sbin/poweroff
     elif [ -n "\${TIMING}" -a "\$TIMING" -gt 10 ]
     then
-         echo -e "<clear>REBOOT\n   MySense\n                     ..=|=..                     " | /bin/nc -w 2 localhost $D_ADDR
+         echo -e "<clear>REBOOT\n   MySense\n                     ..=|=..                     " | /bin/nc -w 2 localhost \$D_ADDR
         "\$MYLED" --led \$LED --blink 0.25,0.5,2 &
         /usr/bin/killall -r ".*MySense.*"
         /sbin/reboot
