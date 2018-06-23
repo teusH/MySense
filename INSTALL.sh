@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.72 2018/06/23 13:52:04 teus Exp teus $
+# $Id: INSTALL.sh,v 1.73 2018/06/23 19:12:36 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -420,6 +420,7 @@ INSTALLS+=" GROVEPI"
 HELP[GROVEPI]="Installing GrovePi+ shield support, needed for several types of sensors."
 # this will install the grovepi library
 function GROVEPI(){
+    DEPENDS_ON pip grovepi
     if PIP_FORMAT=legacy /usr/bin/pip list 2>/dev/null | /bin/grep -q grovepi ; then return ; fi
     if [ -d git/GrovePi ] ; then return ; fi
     echo "This will install Grove Pi shield dependencies. Can take 10 minutes."
