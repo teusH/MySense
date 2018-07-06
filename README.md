@@ -144,6 +144,7 @@ A working example of MySense script in todays operation:
     Grove-loudness ---GPIO---->| \\\|/// |>- HTTP-Post       || Linux ||>-CSV
     BME280 -meteo ---- I2C --->|    |    |>- email info      | \\\|/// |>-console
     BME680 -meteo+gas--I2C --->|    |    |                   | server  |
+    SHT21/31 - planned-I2C --->|    |    |                   |         |
     PPD42NS -dust-Arduino-USB->|    |    |>- InFlux publish  |_________|>-InFlux pub
     Nova SDS011 -dust -USB --->|    |    |>- oled display SSD1306 (SPI/I2C)
     Plantower PMS7003 -USB --->|    |    |>- Google gspread (alpha, deprecated)
