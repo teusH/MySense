@@ -21,7 +21,7 @@ Visual feedback is provided with led/button (power On/Off) and optionally a tiny
 
 <img src="PyCom/images/PVC-luchtpijpcase.png" align=right height=100>
 <img src="PyCom/images/SDS011-BME280-SSD1306.png" align=right height=100>
-MySense sensor kits can also be build as *air quality satellite* sensorkits. E.g. using Marvin LoRa, LoPy or WiPy PyCom controllers with GPS, dust and meteo sensors. In this case the data will be forwarded to LoRa dataconcentrators as eg The Things Network or Mosquitto server.
+MySense sensor kits can also be build as *air quality satellite* sensorkits. E.g. using Marvin LoRa, LoPy or WiPy PyCom controllers with GPS, dust and meteo sensors. In this case the data will be forwarded to <a href="https://www.thethingsnetwork.org/docs/lorawan/">LoRaWan</a> dataconcentrators as eg The Things Network or Mosquitto server. The LopY has support for SiGFox. The upload of data to <a href="https://www.sigfox.com/en">SigFox</a> IoT network is planned.
 
 MySense in data concentrator mode has the possiblity to collect these measurements data from e.g. the TTN MQTT dataconcentrator.
 The bus used for sensors are: UART (serial), I2C and GPIO.
@@ -168,7 +168,7 @@ MySense LoRa air quality measurement kit:
                                     ___-__________
     DHT11/22-meteo ---GPIO---->|   / Marvin        \
     BME680 -meteo+gas--I2C --->|= <  PyCom LoPy     >|-LoRa TTN MQTT >-< MySense >
-    BME280 - meteo ----I2C --->|   | PyCom WiPy    |
+    BME280 - meteo ----I2C --->|   | PyCom WiPy     >|-SigFox IoT (planned)
                                    |               |                 
     Nova SDS011 -dust -Uart -->|   \ ESP           /
     Plantower PMS7003 -Uart -->|    --------------
