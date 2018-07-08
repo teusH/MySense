@@ -10,13 +10,14 @@ alpha test 2017/02/26
 Adafruit SHT31 or other manufacturer. Make sure to order it with connector board. The chip is rather small.
 <img src="images/SHT31.png" align=left width=100>
 rel. humidity (rh,%), temperature (temp,C) sensor.
-The chip is very precise And might be a good alternative to DHT or BME sensor.. It interfaces to the I2C-bus of eg the Pi.
+The chip is very precise And might be a good alternative to DHT or BME sensor. It interfaces to the I2C-bus of eg the Pi.
 
-* AliExpress € 2.85.
+* SHT31 with connection board AliExpress € 2.85.
 
 ## References
-* https://www.adafruit.com/products/2652
 * git clone https://github.com/ralf1070/Adafruit_Python_SHT31
+* https://www.sensirion.com/en/environmental-sensors/humidity-sensors/digital-humidity-sensors-for-various-applications/
+* https://www.sensirion.com/fileadmin/user_upload/customers/sensirion/Dokumente/0_Datasheets/Humidity/Sensirion_Humidity_Sensors_SHT3x_Datasheet_digital.pdf
 
 ## Hardware installation
 
@@ -58,6 +59,10 @@ You should see eg '44' is new address in row '40' (the address 0x44)
 ## MySense and SHT31 configuration
 Enable input for the section [sht31] in the configuration/init file MySense.conf.
 Default the i2c address is 0x44. Set i2c in the section to another hex value if needed.
+
+To avoid condense  the MySense SHT31 driver will startup with heating the sensor for 5 seconds.
+On the first read the temperature read maybe 2 degrees off.
+On a read of 'not a number' or on values not in the normal range the heater will be put again for 5 seconds.
 
 ### TEST
 Test with the command `python My_SHT31.py` to see if it works within MySense. You can comment the Conf['sync'] (if true do not run in multi thread mode) and Conf['debug'] in the script if needed so. To kill the process use `<cntrl>Z and kill %1` in stead of console interrupt (`<cntrl>c`).
