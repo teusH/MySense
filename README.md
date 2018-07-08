@@ -1,7 +1,7 @@
 <img src="images/MySense-logo.png" align=right width=100>
 
 # MySense
-L=ast update of the README on 24th March 2018
+Last update of the README on 8th of July 2018
 
 ## Description
 Software Infrastructure or framework for managing environmental sensors and data aquisition
@@ -327,7 +327,9 @@ For calibration the Python tool `statistics/Calibration.py` has been developped.
 ### Test remarks and experience
 
 #### meteo
-The DHT meteo sensors show intermittant lots of read errors. The meteo sensor BME280/680 is current focus.
+The DHT meteo sensors show intermittant lots of read errors.
+Humidity: outdoor use of the sensor will show after a while 99.5% rel. humidity all the time. Allow the sensor to dry.
+The meteo sensor BME280/680 might be a better alternative. Tests show a linear correlation between this sensor and the DHT. However the chip seems to build up heat and shows a higher temperature as it should be. Airpressure seems very reliable. The current focus however is on the Sensirion SHT31 chip. Which has promissing specifications.
 
 Calibration test results (April 2018) with 3 sensor kits, indoor (temperature and humidity does not vay much) test of 32 weeks with 5 minute samples:
 1. reference kit with BME680
@@ -347,9 +349,11 @@ The Shiney PPD42NS (tested 3 sensors) gave lots of null reading on low PM10 valu
 
 Due to airflow the sensors need to be cleaned periodically. The Plantower sensor is hard to clean as it cannot be opened.
 
-Plantower dust sensor measures also PM0.3, PM0.5, PM1 and PM5.
+Plantower dust sensor measures also PM0.3, PM0.5, PM1 and PM5 as PM counts.
 
-Plantower and Nova dust sensors use USB bus. The values are privided in mass values. The conversion from particle count to mass is not made public.
+Both Plantower and Nova dust sensors use USB bus. The values are provided in mass values. The conversion from particle count to mass is not made public. 
+
+All these PM counting based sensors show an exponential overcalculated value on higher rel. humidity. Research is going on to correct it to values which are compatible with e.g. BAM1020 reference sensors.
 
 Calibration test results (April 2018) with 3 sensor kits, indoor test of 2 weeks with 5 minute samples:
 1. reference kit with PMS7003
