@@ -113,6 +113,24 @@ level    = INFO
 ## display raw measurements
 #raw = True
 
+# meteo serie temp/rel.hum,pressure
+#[bme280]
+## Meteo sensor
+#input = True
+#type = BME280
+#i2c = 0x76
+#calibrations = [[0.0,1.0],[0.0,1.0]]
+#interval = 60
+
+# meteo serie temp/rel.hum,pressure
+#[sht31]
+## Meteo sensor
+#input = True
+#type = SHT31
+#i2c = 0x44
+#calibrations = [[0.0,1.0],[0.0,1.0]]
+#interval = 60
+
 ## Nova SD011 dust module connected via USB (has fan)
 #[sds011]
 #input = True
