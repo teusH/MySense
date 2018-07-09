@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySHT31.py,v 1.1 2018/07/08 14:57:35 teus Exp teus $
+# $Id: MySHT31.py,v 1.2 2018/07/09 08:01:19 teus Exp teus $
 
 """ Get measurements from SHT31 Sensirion chip via the I2C-bus.
     Measurements have a calibration factor (calibrated to Oregon weather station)
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MySHT31.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.1 $"[11:-2]
+__version__ = "0." + "$Revision: 1.2 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -79,7 +79,9 @@ def Add(conf):
     rec = {'time': int(time()),conf['fields'][0]:None,conf['fields'][1]:None}
     temp = None ; humidity = None
     # avoid condense in the chip
-    if not 'alarm' in conf.keys(): conf['alarm'] = True
+    if not 'alarm' in conf.keys():
+        conf['alarm'] = True
+	conf['errors'] = 0
     try:
         if (conf['fd'] != None) and (conf['Ada_import'] != None):
             
@@ -109,12 +111,19 @@ def Add(conf):
         return rec
     if (temp == float("nan")) or (humidity == float("nan")):
         MyLogger.log(modulename,'Arning',"SHT31 read error, heating chip")
+        conf['fd'].reset()
+	conf['fd'].clear_status()
 	conf['fd'].set_heater(True)
+        conf['errors'] += 1
+        if conf['errors'] > 25:
+            MyLogger.log(modulename,'ERROR',"Too many SHT31 %s read errors" % ('temp' if temp == float("nan") else 'hum'))
+            raise IOError("SHT31 %s mailfunctioning" ('temp' if temp == float("nan") else 'hum'))
 	return rec
     if (temp == None) or (humidity == None):
         MyLogger.log(modulename,'ERROR',"Access error. Connection problem?")
         raise IOError("SHT31 lost connection.")
         return rec
+    conf['errors'] = 0
     if type(temp) is float:
         if conf['debug']:
             MyLogger.log(modulename,'DEBUG',"Temperature : %5.2f oC not calibrated" % temp)
@@ -127,8 +136,9 @@ def Add(conf):
 	if humidity > 95.0: conf['alarm'] = True
     else:
         MyLogger.log(modulename,'DEBUG',"Rel.Humidity: None")
-    if conf['fd'].is_command_error() or conf['fd'].is_data_crc_error() or conf['fd'].is_reset_detected():
+    if conf['fd'].is_command_error() or conf['fd'].is_data_crc_error():
         conf['fd'].reset()
+	conf['fd'].clear_status()
         return rec
     if ('raw' in conf.keys()) and (type(Conf['raw']) is module):
         conf['raw'].publish(
@@ -207,7 +217,7 @@ if __name__ == '__main__':
     Conf['type'] = 'SHT31'
     Conf['input'] = True
     Conf['i2c'] = '0x44'        # default I2C-bus address
-    # Conf['sync'] = True         # True is in sync (not multi threaded)
+    Conf['sync'] = True         # True is in sync (not multi threaded)
     Conf['debug'] = True        # print collected sensor values
     for cnt in range(0,10):
         timing = time()
