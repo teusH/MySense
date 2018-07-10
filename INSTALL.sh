@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.75 2018/07/08 12:13:32 teus Exp teus $
+# $Id: INSTALL.sh,v 1.76 2018/07/09 14:13:26 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -194,7 +194,7 @@ function SHT31(){
             cd Adafruit_Python_SHT31
             sudo python setup.py install
             cd ..
-            rm -rf Adafruit_Python_SHT31
+            sudo rm -rf Adafruit_Python_SHT31
         else 
             echo "ERROR: Could not clone github.com/ralf1070/Adafruit_Python_SHT31" >/dev/stderr
             return 0
