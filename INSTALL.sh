@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.76 2018/07/09 14:13:26 teus Exp teus $
+# $Id: INSTALL.sh,v 1.77 2018/07/10 09:54:57 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -374,7 +374,7 @@ python \$HOME/\$WD/MySense.py \$LOCAL start
 exit 0
 EOF
     chmod +x MyStart.sh
-    AddCrontab "$(pwd)/MyStart.sh"
+    AddCrontab "$(pwd)/MyStart.sh" $USER
     /usr/bin/sudo /bin/chmod 4755 /bin/ping
 }
 
@@ -1143,7 +1143,7 @@ EOF
     sudo chmod +x /usr/local/etc/start_wifi_AP
     /bin/rm -f /tmp/hostap$$
     sudo sh -c /usr/local/etc/start_wifi_AP
-    AddCrontab /usr/local/etc/start_wifi_AP
+    AddCrontab /usr/local/etc/start_wifi_AP root
 }
 
 INSTALLS+=" GPRS"
@@ -1192,7 +1192,7 @@ fi
 EOF
         sudo chmod +x /usr/local/bin/gprs
     fi
-    AddCrontab /usr/local/bin/gprs
+    AddCrontab /usr/local/bin/gprs root
     echo "GPRS will be initiated on no WiFi or Lan. Make sure SIM code is disabled. See gprs.md documentation." >/dev/stderr
 }
 
@@ -1308,9 +1308,9 @@ do
     fi
 done
 EOF
-    /usr/bin/sudo /bin/cp /tmp/poweroff$$ /usr/local/bin/poweroff
-    /usr/bin/sudo /bin/chmod +x /usr/local/bin/poweroff
-    AddCrontab /usr/local/bin/poweroff
+    /usr/bin/sudo /bin/cp /tmp/poweroff$$ /usr/local/bin/poweroff.sh
+    /usr/bin/sudo /bin/chmod +x /usr/local/bin/poweroff.sh
+    AddCrontab /usr/local/bin/poweroff.sh root
 }
 
 HELP[BLUETOOTH]+="Installation of termeinal access via BlueTooth."
