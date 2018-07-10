@@ -222,8 +222,8 @@ Typical input rate from a sensor is 60 seconds (can be tuned) and for brokers it
 MySense can act either *sensor manager* or as *input from broker manager* to a set (dynamic) of output channels. 
 
 Available input plugins:
-* Dust: Dylos DC1100 or 1700 via serial interface, Shinyei GPIO (e.g. Grove dust sensor)
-* Temperature/humidity: Adafruit DHT11/22 or AM3202 and Grove variants
+* Dust: Dylos DC1100 or 1700 via serial interface, Shinyei GPIO (e.g. Grove dust sensor), Nova SDS011, Plantower PMS5003/7003.
+* Temperature/humidity: Adafruit DHT11/22, AM3202 and Grove variants, Bosch BME280 or BME680 (has indoor aq gas sensor), Sensirion SHT31-D.
 * RSSI (strength of wifi signal): via the platform
 * Location: GPS (GPS Ultimate from Adafruit/Grove) via TTL serial interface
 
@@ -235,6 +235,10 @@ If no access to Internet either via LAN or WiFi is obtained a WiFi AccessPoint i
 ## Hardware Platform
 Sensors have a hardware interface to I2C, GPIO: those sensors are tested on RaspBerry Pi (and Arduino Uno)
 Sensors with USB serial are tested on Linux Debian platforms which run Python.
+
+The GrovePi+ shield is used to ease hardware installation by just using 4-wired connectors and avoid mistakes. No soldiering, nor DuPont wires which are easily get disconnected. The GrovePi+ shield has 3 I2C connectors.I2C connectors are all in parallel. Use eg a Grove I2C 4-port connector to extent the amount if needed.
+
+We use small USB cables with a 90 degrees connector and/or USB hub with 4 USB connectors with 10-15 cm wires to ease fixation of the wiring. As well use a Lego board and Lego stones to fixate all modules and sensors on the Lego board.
 
 ## Installation
 See README.pi for installation of the Raspberry Pi platform.
