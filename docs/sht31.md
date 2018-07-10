@@ -41,12 +41,12 @@ When selecting the I2C address, it defaults to [0x44] if the pin 5 on the circui
 
 GrovePi defines the pins to use if you use a GrovePi+ shield (€ 35.-).
 
-signal   |Pi pin|GrovePi pin|SHT31
----------|------|-----------|-------
-V 5      |pin 2 |pin 2 V    |Vin pin
-Data SDA |pin 3 |pin 3 S1   |SDI pin
-Clock SCL|pin 5 |pin 4 S0   |SCK pin
-GRND     |pin 6 |pin 1 G    |Gnd pin
+signal   |Pi pin|GrovePi |wire  |pin SHT31
+---------|------|------- |------|---------
+V 5      |pin 2 |pin 2 V |red   |Vin pin
+Data SDA |pin 3 |pin 3 S1|yellow|SDI pin
+Clock SCL|pin 5 |pin 4 S0|white |SCK pin
+GRND     |pin 6 |pin 1 G |black |Gnd pin
 
 Enable i2c in raspi-config (Interfacing Options) and run `sudo i2cdetect -y 1`
 You should see eg '44' is new address in row '40' (the address 0x44)
@@ -61,7 +61,7 @@ Enable input for the section [sht31] in the configuration/init file MySense.conf
 Default the i2c address is 0x44. Set i2c in the section to another hex value if needed.
 
 To avoid condense  the MySense SHT31 driver will startup with heating the sensor for 5 seconds.
-On the first read the temperature read maybe 2 degrees off.
+On the first read the temperature read maybe 2.5 degrees off.
 On a read of 'not a number' or on values not in the normal range the heater will be put again for 5 seconds.
 
 ### TEST
