@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.77 2018/07/10 09:54:57 teus Exp teus $
+# $Id: INSTALL.sh,v 1.78 2018/07/10 10:59:51 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -185,7 +185,7 @@ HELP[SHT31]="Installation of Sensirion SHT31 library script.
 Please make sure I2C is activated: Use raspi-config command -> interfaces for this.
 Use i2cdetect -y 1 and see if 044 is present"
 function SHT31(){
-    DEPENDS_ON pip adafruit/Adafruit_Python_GPIO.git Adafruit_Python_GPIO
+    DEPENDS_ON pip adafruit/Adafruit_Python_GPIO.git Adafruit-GPIO
     #DEPENDS_ON pip https://github.com/ralf1070/Adafruit_Python_SHT31
     if ! pip list | grep -q Adafruit-SHT31
     then
@@ -207,7 +207,7 @@ PLUGINS+=" BME280"
 HELP[BME280]="Installation of BME280 library and BME280 sleep/wakeup script.
 Please make sure I2C is activated: Use raspi-config command -> interfaces for this."
 function BME280() {
-    DEPENDS_ON pip adafruit/Adafruit_Python_GPIO.git Adafruit_Python_GPIO
+    DEPENDS_ON pip adafruit/Adafruit_Python_GPIO.git Adafruit-GPIO
     if [ ! -f ./Adafruit_Python_BME280.py ]
     then
         git clone https://github.com/adafruit/Adafruit_Python_BME280.git
