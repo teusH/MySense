@@ -13,7 +13,7 @@ The module needs one hour to stabalize.
 
 A module has three parts: the Spec sensor (O3, NO2, or CO), the TTL interface with the eeprom, and the USB TTL adapter. All input is read in parrallel (threaded input).
 
-Cost pricing varies between € 50 and higher. Make sure one uses an serial USB converter to interface to the 3V3 based TTL serial interface of the module. MySense used `Cygnal Integrated Products, Inc. CP210x UART Bridge / myAVR mySmartUSB light`. See the config example for the appetrn to recognize which USB has the gas adapter.
+Cost pricing varies between € 50 and higher (e.g. NO2+UL G4V board+TTL-USB: DigiKey € 66.- excl. import tax € 17.22). Make sure one uses an serial USB converter to interface to the 3V3 based TTL serial interface of the module. MySense used `Cygnal Integrated Products, Inc. CP210x UART Bridge / myAVR mySmartUSB light`. See the config example for the appetrn to recognize which USB has the gas adapter.
 
 ## Configuration
 ### hardware
@@ -40,7 +40,7 @@ lrwxrwxrwx 1 root root 7 May  9 16:31 /dev/SPEC3 -> ttyUSB3
 ```
 
 You need to know the S/N number of the gassensor to discriminate between the gasses.
-Use the followin small python script for this and to check if the sensor is working:
+Use the following small python script for this and to check if the sensor is working:
 ```python
 import serial
 from time import sleep
@@ -52,7 +52,16 @@ try:
   serial.write('\r')
   print("Spec S/N:",serial.readline().split(' ')[0])
 except:
-  print('Spec USB not founa or write/read error')
+  print('Spec USB not found or write/read error')
+
+# and read the eeprom
+print('Try to read the EEprom')
+serial.write('e'); sleep(1); serial.write('e')
+while True:
+  line = serial.readline()
+  if line.find('=') < 0: break
+  print(line[:-2])
+  if line[:4] == 'Sens': break
 ```
 
 ### MySense configuration
