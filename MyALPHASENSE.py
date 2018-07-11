@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyALPHASENSE.py,v 1.5 2018/05/30 19:50:02 teus Exp teus $
+# $Id: MyALPHASENSE.py,v 1.6 2018/07/11 13:04:13 teus Exp teus $
 
 """ Get measurements from AlphaSense gas sensor NH3 using
     Digital Transmitter Borad ISB rev4 and
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program.
 """
 modulename='$RCSfile: MyALPHASENSE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+__version__ = "0." + "$Revision: 1.6 $"[11:-2]
 __license__ = 'GPLV4'
 
 try:
@@ -125,6 +125,7 @@ def Add(conf):
     if ppb < 0: return 0
     return round(ppb*12.187*mol[gas]/(273.15+temp),2)
 
+  rec = {'time': int(time())}
   try: temp = conf['meteo']['temp']
   except: temp = 25.0  # default temp
   if (conf['fd'] == None) or (not len(conf['fd'])): return rec
@@ -141,8 +142,8 @@ def Add(conf):
         # R = 400/reference ???
         ppmval = (mAval/conf['sensitivity'][gas][1])*conf['sensitivity'][gas][2]
         if conf['debug']:
-          print("NH3: %d/%d (%.3f mV)" % (value, reference,1000.0*float(value)/reference))
-          print("NH3 converted: %.1f mA, %.1f PPM" % (mAval,ppmval))
+          print("%s: %d/%d (%.3f mV)" % (conf['fields'][gas].upper(),value, reference,1000.0*float(value)/reference))
+          print("%s converted: %.1f mA, %.1f PPM" % (conf['fields'][gas].upper(),mAval,ppmval))
         if conf['units'][gas].lower() == 'ppm':
           value = calibrate(gas,conf,ppmval)
         elif conf['units'][gas].lower() == 'ug/m3':
