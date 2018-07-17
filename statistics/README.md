@@ -1,4 +1,29 @@
-# Best fit Polynomial
+# Delete outiers and spikes from measurments
+## STATE
+operational: 17-07-2018
+# DESCRIPTION
+The grubb.py script will walk throught the databse for a period op time *invalidating* the measurement value in de database as follows:
+- outliers which are manually configured for each type of measurment
+- so called spikes: values which are filtered out with the Grubb Z-score.
+
+A sliding window size on the command line  of the filtering can be defined to research a better Z-score elimation. By default (option) the script will first reset the validate boolean of the measurment.
+
+Use the help option to obtain a glance into all options of the script.
+
+The script may show a chart with all scatter graphs visualising the valid measurements, the spikes and the outliers.
+On UNIX machinery one is able to zoom and scroll through the chart interactively.
+
+De note that Z-score is defined on values sets larger as 15 values. Best is if the values have a Normal distribution.
+On dust measurements the script seems to work well enough. Note that the measurement values will not be altered by the script.
+To Do: use a better algorithm to enable automatic outlier filtering.
+
+The advise is to use `grubb.py` first before using the regression script.
+
+Currently the script uses the MySQL database configuration as defined by MySense.
+
+To Do: add best fit polynomial to the measurement graph in the chart.
+
+# Regression: Best fit Polynomial
 ## STATE
 operational: 11-04-2017
 ## DESCRIPTION
