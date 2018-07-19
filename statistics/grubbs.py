@@ -18,13 +18,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: grubbs.py,v 1.2 2018/07/17 20:03:58 teus Exp teus $
+# $Id: grubbs.py,v 2.2 2018/07/19 13:55:58 teus Exp teus $
 
-# from: http://codegist.net/snippet/python/grubbspy_leggitta_python
-# reminders:
-# https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list
 
-# To Do: show graphs
+# To Do: support CSV file by converting the data to MySense DB format
+#       table: columns: datum, names (temp, rv, pm10, pm25, etc.)
 
 """ Remove from a set of values the outliers.
     Set will come from MySQL database with air quality values.
@@ -36,7 +34,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: grubbs.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 2.2 $"[11:-2]
 
 try:
     import sys
@@ -54,8 +52,10 @@ except ImportError as e:
     sys.exit("One of the import modules not found: %s" % e)
  
 debug = False   # debug messages
-verbose = 1     # be more versatile
+verbose = True  # be more versatile
 reset = True    # revalidate cells on every start
+RESET = False   # revalidate all cells in the command line period
+lossy = True    # do not re-valid cells in first quarter of window
 showOutliers = False # show also outliers in chart
 
 # global variables can be overwritten from command line
@@ -102,8 +102,9 @@ tresholds = [False,
     ]
 
 # Grubbs Z-score tresholds
+test = 'max'    # either min, max or both (two-tailed)  outliers test
 alpha = 0.05    # Grubb significant level
-ddof  = 1       # Z-score treshold
+ddof  = 1       # Delta Degree of Freedom (stddev)
 # return default [min,max] for a particular sensor type
 # nan is not configured, no boundary set
 def getTresholds(name):
@@ -152,6 +153,7 @@ def db_query(query,answer,db=net):
 checked = {} # cache search requests
 # do some check if table and columns exists in DB, and count valids or all
 def Check(table,pollutant,period=None, valid=True,db=net):
+    global debug, verbose
     if not table in checked.keys():
         if not (table,) in db_query("SHOW TABLES", True,db=db):
             print("Table with name \"%s\" does not exists in DB." % table)
@@ -175,8 +177,8 @@ def Check(table,pollutant,period=None, valid=True,db=net):
     qry = "SELECT COUNT(%s) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s" % \
         (pollutant, table, period[0], period[1], valued)
     cnt = db_query(qry, True, db=db)
-    if not cnt[0][0]:
-        print("Table %s / column %s No values in the period." % (table, pollutant))
+    if not cnt[0][0] and debug:
+        print("Table %s / column %s No values in the (window) period." % (table, pollutant))
     return cnt[0][0]
 
 # invalidate cel value if value not in raw range
@@ -201,7 +203,7 @@ def rawInvalid(table,pollutant,period,minimal=float('nan'),maximal=float('nan'),
             total))
     if not total: return False
     if update:
-        if verbose:
+        if debug:
             qry = 'SELECT count(*) FROM %s WHERE (%s OR ISNULL(%s)) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s_valid' % \
                 (table, update, pollutant, period[0], period[1], pollutant)
             cnt = db_query(qry, True, db=db)
@@ -223,57 +225,31 @@ def Zscore(table,pollutant,period,db=net):
     qry = 'SELECT %s FROM %s WHERE UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s_valid' % \
         (pollutant, table, period[0], period[1], pollutant)
     data = db_query(qry, True,db=db)
-    if len(data) < 15:
-        print("Table %s, column %s, period %s upto %s, only %d values. Skipped period." % \
+    if len(data) < 15 and verbose:
+        print("Table %s, column %s, period %s upto %s, only %d values. Skipped this subperiod." % \
             (table, pollutant, \
             datetime.datetime.fromtimestamp(period[0]).strftime('%d %b %Y %H:%M'), \
             datetime.datetime.fromtimestamp(period[1]).strftime('%d %b %Y %H:%M'), \
             len(data)))
         return None
     data = np.array([float(data[i][0]) for i in range(0,len(data))])
-    update = ''
-    min_liers = grubbs(np.array(data),test='min')
-    if len(min_liers): update = '%s <= %f' % (pollutant,min_liers.max())
-    max_liers = grubbs(np.array(data),test='max')
-    if len(max_liers):
-        if update: update += ' OR '
-        update += '%s >= %f' % (pollutant,max_liers.min())
-    if not update: return False
-    if verbose:
-        print("Table %s, colums %s, period %s up to %s: invalidate with Z-score %d cells." % \
+    result = grubbs(np.array(data),test=test, alpha=alpha, ddof=ddof)
+    if result['liers']:
+        update = '%s < %f OR %s > %f' % \
+            (pollutant, result['min'], pollutant, result ['max'])
+    else: return False
+    if debug:
+        print("Table %s, colums %s, period %s up to %s: Grubbs Z-score invalidate %d cells from %d cells:\n\tmean %.2f stddev %.2f, min %.2f max %.2f." % \
             (table, pollutant, \
             datetime.datetime.fromtimestamp(period[0]).strftime('%d %b %Y %H:%M'), \
             datetime.datetime.fromtimestamp(period[1]).strftime('%d %b %Y %H:%M'), \
-            len(min_liers) + len(max_liers)))
+            result['liers'], len(data),
+            result['mean'], result['stddev'],
+            result['min'], result['max']
+            ))
     qry = 'UPDATE %s SET %s_valid = 0 WHERE (%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s_valid' % \
         (table, pollutant, update, period[0], period[1], pollutant)
     return db_query(qry, False, db=db)
-    X1 = np.array(GetValues())
-    X1 = X1[np.logical_and(X1>=0,X1<=float(argv[2]))]
-    # setup some test arrays
-    #X = np.arange(-5, 6)
-    #X1 = np.r_[X, 100]
-    #X2 = np.r_[X, -100]
- 
-    # test the two-tailed case
-    Y, out = grubbs(X1,alpha=float(argv[1]))
-    print(out)
-    print(Y.mean())
-    # assert out == 100
-    # Y, out = grubbs(X2)
-    # assert out == -100
- 
-    # test the max case
-    Y, out = grubbs(X1, test='max')
-    # assert out == 100
-    # Y, out = grubbs(X2, test='max')
-    # assert len(out) == 0
- 
-    # test the min case
-    Y, out = grubbs(X1, test='min')
-    # assert len(out) == 0
-    # Y, out = grubbs(X2, test='min')
-    # assert out == -100
 
 # convert date-time to secs
 def date2secs(string):
@@ -339,8 +315,39 @@ def get_arguments():
     """ Command line argument roll in """
     import argparse
     global progname, debug, verbose, net, period
-    global show, pngfile, showOutliers, alpha, ddof
-    parser = argparse.ArgumentParser(prog=progname, description='Get from a database with "pollutant" values the measured (raw) values over a period of time.\nInvalidate the measurements when not in a provided minimum-maximum range.\nAnd next invalidate outliers according to their Z-score (Grubbs).\nEach argument defines the table[/pollutant[/minimum:maximum]].\n\nCommand use with no arguments will, if possible, provide a list of MySQL table names (sensorkit names)\nWith one argument (sensor kit table name) and no pollutant name the script will list all sensor/pollutant names, sensor types for that sensor kit. If minimum or maximum is provided as \"nan\" this particular range is not taken into account. If no limit range is defined the script will use default values.\n\nUsage example:\n\"BdP_12345abcd/pm25/0:250\" or \"LoPy_1234567a/temp/-40:40\"\n\nCopyright (c) Behoud de Parel, 2017\nAnyone may use it freely under the GNU GPL V4 license. Any script change remains free."')
+    global show, pngfile, showOutliers, alpha, ddof, test, lossy
+    global reset, RESET
+    parser = argparse.ArgumentParser(prog=progname, description='''
+Get from a database with "pollutant" values the measured (raw) values
+over a period of time.
+Invalidate the measurements when not in a provided minimum-maximum range.
+And next invalidate outliers according to their Z-score (Grubbs).
+Each argument defines the table[/pollutant[/minimum:maximum]].
+
+Command with no arguments will, if possible, provide a list of
+MySQL table names (sensorkit names).
+With one argument (sensor kit table name) and no pollutant name
+the script will list all sensor/pollutant names, sensor types
+for that sensor kit.
+If minimum or maximum in the argument is provided as "nan",
+this particular range is not taken into account.
+If no limit range is defined the script will use default values.
+
+The sliding window will be moved by half the window size on
+every scan with a next start time. Default on every scan in
+the window the measurements after the first quarter will be
+re-validated first.
+Use the lossy option to indicate that first quarter of the window
+the measurements also need to be re-validated on start of the scan.
+Note: sliding window is experimental. And can be turned off by
+the reset option.
+
+Usage example:
+"BdP_12345abcd/pm25/0:250" or "LoPy_1234567a/temp/-40:40"
+
+Copyright (c) Behoud de Parel, 2018
+Anyone may use it freely under the GNU GPL V4 license.
+Any script change remains free. Feel free to indicate improvements.''')
     parser.add_argument("-H", "--hostname", help="Database host name, default: %s" % net['hostname'], default="%s" % net['hostname'])
     parser.add_argument("--port", help="Database port number, default: DB dfl port", default="3306")
     parser.add_argument("-U", "--user", help="Database user name, default: %s" % net['user'], default="%s" % net['user'])
@@ -350,15 +357,18 @@ def get_arguments():
     parser.add_argument("-e","--end",help="End of the period to search for outliers, default: now. Use date command strings as format.", default="%s" % period[1])
     parser.add_argument("-w","--window",help="Sliding window in period. Sliding will be overlapped by half of the window length. Default full period (window = 0). Default format is in hours. Other formats: nPERIOD, where n is count (may be empty for 1), and PERIOD is H[ours], D[ays], W[eeks], M[onths].")
     parser.add_argument("--alpha",help="Grubb's significant level, default: %f." % alpha, default=alpha, type=float)
-    parser.add_argument("--ddof",help="Grubb's Z-score treshold, default: %f." % ddof, default=ddof, type=float)
+    parser.add_argument("--ddof",help="use delta degree of Freedom (N*stddev), default: %f." % ddof, default=ddof, type=float)
+    parser.add_argument("--test",help="Grubb's test for min(minimal), max(imal) or two-tailed (both) outliers test, default: %s." % test, default=test, choices=['min','max','two-tailed'])
 
-    parser.add_argument("-r", "--reset", help="re-valid all cells in a period first, default: re-validate cells", default=reset, action='store_false')
+    parser.add_argument("-r", "--reset", help="do not re-valid all cells in sliding window first. See also the lossy option. Default: re-validate cells.", default=reset, action='store_false')
+    parser.add_argument("-R", "--RESET", help="re-valid all cells in the full period first, default: do not re-validate the measurements.", default=RESET, action='store_false')
+    parser.add_argument("-l", "--lossy", help="Turn lossy off. Re-valid all the cells in the sliding window period before starting the scan. Default: only re-validate all cells from second quarter of time in the sliding window.", default=lossy, action='store_false')
     parser.add_argument("-S", "--show", help="show graph, default: graph is not shown", default=show, action='store_true')
     parser.add_argument("-L", "--outliers", help="Do show in graph the outliers, default: outliers are shown", default=showOutliers, action='store_true')
     parser.add_argument("-f", "--file", help="generate png graph file, default: no png", default=pngfile)
     parser.add_argument('args', nargs=argparse.REMAINDER, help="<Database table name>/[<pollutant or column name>[/<minimal:maximal>]] ... An empty name: the name of the previous argument will be used. No argument will give overview of available sensor kit table names. <table_name> as argument will print avaialable sensor type names for a table.")
-    parser.add_argument("-d","--debug",help="Debugging on. Dflt %d" % debug, default="%d" % debug, action='store_true')
-    parser.add_argument("-q","--quiet",help="Be silent. Dflt %d" % verbose, default="%d" % verbose, action='store_false')
+    parser.add_argument("-d","--debug",help="Debugging on. Dflt %d" % debug, default=debug, action='store_true')
+    parser.add_argument("-q","--quiet",help="Be silent. Dflt %d" % verbose, default=verbose, action='store_false')
     # overwrite argument settings into configuration
     args = parser.parse_args()
     net['hostname'] = args.hostname
@@ -367,12 +377,17 @@ def get_arguments():
     net['database'] = args.database
     debug = args.debug
     verbose = args.quiet
+    if debug: verbose = True
     period[0] = date2secs(args.start)
     period[1] = date2secs(args.end)
-    show = bool(args.show)
-    showOutliers = bool(args.outliers)
+    show = args.show
+    showOutliers = args.outliers
     alpha = float(args.alpha)
     ddof = float(args.ddof)
+    test = args.test
+    reset = args.reset
+    RESET = args.RESET
+    lossy = args.lossy
     pngfile = args.file
     if pngfile != None: show = True
     if args.window:
@@ -423,10 +438,27 @@ def get_arguments():
             try: minmax[i] = float(minmax[i])
             except: minmax[i] = float('nan')
         pollutants[arg]['range'] = minmax[:2]
-        print("Find outliers in table %s with column %s, value range [%f - %f]" % (pollutants[arg]['table'],pollutants[arg]['pollutant'],pollutants[arg]['range'][0],pollutants[arg]['range'][1]))
+        if verbose:
+            print("Find outliers in table %s with column %s, value range [%f - %f]" % (pollutants[arg]['table'],pollutants[arg]['pollutant'],pollutants[arg]['range'][0],pollutants[arg]['range'][1]))
+
+# https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list
+# detect outliers with a modified Z-score
+def reject_outliers(X, m=2.0):
+    '''
+    performs the original modified Z-score test
+    X : ndarray
+    returns the outliers
+    
+    the simple algorithm uses mean-m*s < Xi < mean + m*s
+    '''
+    dist = np.abs(X-np.median(X))
+    mdev = np.median(dist)
+    S = dist/mdev if mdev else 0.0
+    return X[S >= m]
 
 # detect outliers in a numpy array
-def grubbs(X, test='two-tailed', alpha=alpha, ddoff=ddof):
+# from: http://codegist.net/snippet/python/grubbspy_leggitta_python
+def grubbs(X, test='two-tailed', alpha=0.05, ddof=1):
  
     '''
     Performs Grubbs' test for outliers recursively until the null hypothesis is
@@ -437,18 +469,18 @@ def grubbs(X, test='two-tailed', alpha=alpha, ddoff=ddof):
     X : ndarray
         A numpy array to be tested for outliers.
     test : str
-        Describes the types of outliers to look for. Can be 'min' (look for
-        small outliers), 'max' (look for large outliers), or 'two-tailed' (look
-        for both).
+        Describes the types of outliers to look for. Can be
+        'min' (look for small outliers),
+        'max' (look for large outliers), or
+        'two-tailed' (look for both).
     alpha : float
         The significance level.
  
     Returns
     -------
-    X : ndarray
-        The original array with outliers removed.
-    outliers : ndarray
-        An array of outliers.
+    (X : ndarray The original array with outliers removed.)
+    outliers : ndarray array of outliers.
+    floor: (minimal,maximal) value of array with outliers removed
     '''
  
     Z = zscore(X, ddof=ddof)  # Z-score
@@ -474,6 +506,7 @@ def grubbs(X, test='two-tailed', alpha=alpha, ddoff=ddof):
     # create array to store outliers
     outliers = np.array([])
  
+    # next may need a cheaper way to get a result
     # loop throught the array and remove any outliers
     while abs(Z[extreme_ix(Z)]) > thresh(N):
  
@@ -482,35 +515,75 @@ def grubbs(X, test='two-tailed', alpha=alpha, ddoff=ddof):
         # remove outlier from array
         X = np.delete(X, extreme_ix(Z))
         # repeat Z score
-        Z = zscore(X, ddof=1)
+        Z = zscore(X, ddof=ddof)
         N = len(X)
  
-    return outliers
+    return {
+        'valid': len(X),
+        'liers': len(outliers),
+        'min': np.min(X),
+        'max': np.max(X),
+        'mean': np.mean(X),
+        'stddev': np.std(X,ddof=1),
+        }
 
 # set for this pollutant in this period all values valid
-def resetValid(table,pollutant,period,db=net):
+def resetValid(table,pollutant,period,db=net, lossy=True):
     global debug, verbose, reset
     if not Check(table,pollutant, db=db):
         return None
     update = ''
     if not reset: return True
+    start = period[0]
+    if lossy: start = period[0]+int(period[1]-period[0]/4)
     if debug:
         qry = 'SELECT COUNT(*) FROM %s WHERE NOT %s_valid AND NOT ISNULL(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d' % \
-        (table, pollutant, pollutant, period[0], period[1])
+        (table, pollutant, pollutant, start, period[1])
         cnt = db_query(qry, True, db=db)
         print("Table %s, column %s, in previous period %s up to %s: revalidated %d cell(s)" % \
             (table, pollutant, \
-            datetime.datetime.fromtimestamp(period[0]).strftime('%d %b %Y %H:%M'), \
+            datetime.datetime.fromtimestamp(start).strftime('%d %b %Y %H:%M'), \
             datetime.datetime.fromtimestamp(period[1]).strftime('%d %b %Y %H:%M'), \
             cnt[0][0]))
     qry = 'UPDATE %s SET %s_valid = 1 WHERE NOT ISNULL(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d' % \
-        (table, pollutant, pollutant, period[0], period[1])
+        (table, pollutant, pollutant, start, period[1])
     return db_query(qry, False, db=db)
+
+def doStatistics(table,pollutant,period,db=net,string=''):
+    global verbose, debug
+    if not verbose: return
+    if not Check(table,pollutant,period=period,db=db):
+        raise ValueError("Database table %s has no measurements for pollutant %s in the provided period of time." % \
+            (pollutant['table'],pollutant['pollutant']))
+    qry = "SELECT count(%s) FROM %s WHERE not %s_valid AND NOT ISNULL(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d" % \
+        (pollutant, table, pollutant, pollutant, period[0],period[1])
+    invalids = db_query(qry, True, db=db)
+    qry = "SELECT count(%s), AVG(%s), STDDEV(%s), MIN(%s), MAX(%s) FROM %s WHERE %s_valid AND NOT ISNULL(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d" % \
+        (pollutant,pollutant,pollutant,pollutant,pollutant, \
+        table, pollutant, pollutant, period[0],period[1])
+    rslt = db_query(qry, True, db=db)
+    rslt = {
+        'invalids': invalids[0][0],
+        'count': rslt[0][0],
+        'avg': rslt[0][1], 'stddev': rslt[0][2],
+        'min': rslt[0][3], 'max': rslt[0][4],
+        }
+    if verbose and rslt['count']:
+        pol = pollutant
+        if pol == 'pm25': pol = 'pm2.5'
+        if pol == 'rv': pol = 'rh'
+        print("Statistical period overview %s\n    for %s from table %s:\n\tnr invalid cells %d, nr valid cells %d, average %.2f, std dev %.2f,\n\tminimum %.2f, maximum %.2f." % \
+            (string, pol.upper(), table, rslt['invalids'],
+            rslt['count'], rslt['avg'], rslt['stddev'],
+            rslt['min'], rslt['max']))
+    if string: return None
+    return rslt
 
 # remove outliers in a table for a pollutant within a period
 def FindOutliers(pollutant,db=net):
-    global verbose, debug, period
+    global verbose, debug, period, lossy, RESET
     if (not pollutant['table']) or (not pollutant['pollutant']): return
+    doStatistics(pollutant['table'],pollutant['pollutant'],period=period,db=db,string='(before outliers removal)')
     freq = int(period[1]-period[0])/(int(period[2]/2))
     period[0] += int(period[1]-period[0])%freq
     strt = period[0]; periods = []
@@ -522,17 +595,21 @@ def FindOutliers(pollutant,db=net):
             strt = period[1] - int((period[2]+1)/2)
     # avoid too much shaving of values
     # set all values as valid in the main period
-    resetValid(pollutant['table'], pollutant['pollutant'], period, db=db)
+    if RESET:
+        resetValid(pollutant['table'], pollutant['pollutant'], period, db=db, lossy=FALSE)
+    else:
+        resetValid(pollutant['table'], pollutant['pollutant'], period, db=db, lossy=lossy)
     for i in range(0,len(periods)):
         if i:
             # set pollutant_valid = 1 in this start+half period, end period
-            resetValid(pollutant['table'], pollutant['pollutant'], [periods[i][0],periods[i-1][1]], db=db)
+            resetValid(pollutant['table'], pollutant['pollutant'], [periods[i][0],periods[i-1][1]], db=db, lossy=lossy)
         if not rawInvalid(pollutant['table'],pollutant['pollutant'],periods[i],minimal=pollutant['range'][0],maximal=pollutant['range'][1],db=db):
-            if verbose or debug:
+            if debug:
                 print("Skip table %s column %s for this period." % \
                     (pollutant['table'],pollutant['pollutant']))
             continue
         Zscore(pollutant['table'],pollutant['pollutant'],periods[i],db=db)
+    doStatistics(pollutant['table'],pollutant['pollutant'],period=period,db=db,string='(after outliers removal)')
 
 def PlotConvert(data):
     dates = [data[i][0] for i in range(0,len(data))]
@@ -569,6 +646,103 @@ def getPlotdata(period, pollutant, db=net):
     return [values,spikes,outliers]
     
         
+# best line fit for array of dates and values
+# from: https://stackoverflow.com/questions/22239691/code-for-line-of-best-fit-of-a-scatter-plot-in-python
+def BestFit(data,order=1, grit=1):
+    dates = [data[i][0] for i in range(0,len(data))]
+    values = np.array([float(data[i][1]) for i in range(0,len(data))])
+    # determine best fit line
+    par = np.polyfit(dates, values, 1, full=True)
+
+    slope=par[0][0]
+    intercept=par[0][1]
+    xl = [dates[0], dates[-1]]
+    # loop in the grit
+    yl = [slope*xx + intercept  for xx in xl]
+    
+    # coefficient of determination
+    variance = np.var(values)
+    residuals = np.var([(slope*xx + intercept - yy)  for xx,yy in zip(dates,values)])
+    Rsqr = np.round(1-residuals/variance, decimals=2)
+    # plt.text(.9*max(dates)+.1*min(dates),.9*max(dates)+.1*min(dates),'$R^2 = %0.2f$'% Rsqr, fontsize=30)
+ 
+    # error bounds
+    yerr = [abs(slope*xx + intercept - yy)  for xx,yy in zip(dates,values)]
+    par = np.polyfit(dates, yerr, 2, full=True)
+     
+    yerrUpper = [(xx*slope+intercept)+(par[0][0]*xx**2 \
+        + par[0][1]*xx + par[0][2]) for xx,yy in zip(dates,values)]
+    yerrLower = [(xx*slope+intercept)-(par[0][0]*xx**2 \
+        + par[0][1]*xx + par[0][2]) for xx,yy in zip(dates,values)]
+    
+    # dateconv = np.vectorize(datetime.datetime.fromtimestamp)
+    # dates = dateconv(xl)
+    # plt.plot(dates, yl, '-'+c)
+    # plt.fill_between(dates, yerrLower, yerrUpper, facecolor=c, alpha=alpha)
+    ## plt.plot(dates, yerrLower, '--'+c)
+    ## plt.plot(dates, yerrUpper, '--'+c)
+    return { 
+        'Rsqr': Rsqr,
+        'x': xl, 'y': yl,
+        'eUp': yerrUpper, 'eLo': yerrLower, 
+    }
+
+def Trendline(data, order=1, grit=1):
+    """Make a line of best fit"""
+
+    dates = [data[i][0] for i in range(0,len(data))]
+    if len(dates) <= 1: return None
+    minxd = np.min(dates)
+    maxxd = np.max(dates)
+    if maxxd <= minxd: return None
+    values = np.array([float(data[i][1]) for i in range(0,len(data))])
+
+    #Calculate trendline
+    coeffs = np.polyfit(dates, values, order)
+
+    # intercept = coeffs[-1]
+    # slope = coeffs[-2]
+    # power = coeffs[0] if order == 2 else 0
+
+    xl = []; yl = []
+    for x in range(minxd,maxxd+1,int((maxxd-minxd)/(grit+1))):
+        xl.append(x); yl.append(np.polyval(coeffs,x))
+    #yl = power * xl ** 2 + slope * xl + intercept
+
+    #Calculate R Squared
+    p = np.poly1d(coeffs)
+    ybar = np.sum(values) / len(values)
+    ssreg = np.sum((p(dates) - ybar) ** 2)
+    sstot = np.sum((values - ybar) ** 2)
+    Rsqr = ssreg / sstot
+
+    return { 
+        'Rsqr': Rsqr,
+        'x': np.array(xl), 'y': np.array(yl),
+        'eUp': None, 'eLo': None, 
+    }
+
+def plotSpline(data,plt,color='b',grit=3600):
+    from scipy.interpolate import UnivariateSpline
+    dates = [data[i][0] for i in range(0,len(data))]
+    if len(dates) <= 5: return None
+    values = np.array([float(data[i][1]) for i in range(0,len(data))])
+    dateconv = np.vectorize(datetime.datetime.fromtimestamp)
+    for idx in range(0,len(dates)):
+        x = []; y = []; i = idx
+        # while (dates[i] <= dates[idx]+grit) and (i < len(dates)):
+        while (i+1 < len(dates)) and (dates[i+1]-dates[i] < grit):
+            x.append(dates[i]); y.append(values[i]); i += 1
+        idx = i
+        if len(x) < 10: continue
+        try:
+            spl = UnivariateSpline(x, y)
+        except:
+            continue
+        spl.set_smoothing_factor(0.5)
+        xs = np.linspace(x[0], x[-1], int(float(x[-1]-x[0])/(dates[-1]-dates[1])*1000.0))
+        plt.plot(dateconv(xs), spl(xs), c=color, lw=1)
+
 def CreateGraphs(period, pollutants):
     global debug, verbose, file, colors
     import matplotlib.pyplot as plt
@@ -650,7 +824,7 @@ def CreateGraphs(period, pollutants):
         # ax.tick_params(direction='out', length=6, width=2, colors='r')
         ax.xaxis.set_minor_locator(mdates.HourLocator(interval=6))
     elif (maxDate-minDate)/(24*60*60) < 15: # month modus
-        freq = 7
+        freq = 2
         ax.xaxis.set_major_locator(days)
         ax.xaxis.set_major_formatter(Fmt)
         ax.xaxis.set_minor_locator(hours)
