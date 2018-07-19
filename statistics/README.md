@@ -2,7 +2,7 @@
 ## STATE
 operational: 17-07-2018
 # DESCRIPTION
-The grubb.py script will walk throught the databse for a period op time *invalidating* the measurement value in de database as follows:
+The grubb.py script will walk throught the database for a period op time *invalidating* the measurement value in de database as follows:
 - outliers which are manually configured for each type of measurment
 - so called spikes: values which are filtered out with the Grubb Z-score.
 
@@ -10,7 +10,7 @@ A sliding window size on the command line  of the filtering can be defined to re
 
 Use the help option to obtain a glance into all options of the script.
 
-The script may show a chart with all scatter graphs visualising the valid measurements, the spikes and the outliers.
+The script may show <img src="PM25-PM10-June2618.png" align=right height=150> a chart with all scatter graphs visualising the valid measurements, the spikes and the outliers.
 On UNIX machinery one is able to zoom and scroll through the chart interactively.
 
 De note that Z-score is defined on values sets larger as 15 values. Best is if the values have a Normal distribution.
