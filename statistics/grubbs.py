@@ -18,11 +18,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: grubbs.py,v 2.2 2018/07/19 13:55:58 teus Exp teus $
+# $Id: grubbs.py,v 2.3 2018/07/19 15:25:18 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
-#       table: columns: datum, names (temp, rv, pm10, pm25, etc.)
+#       table: columns: datum, names (temp, rv, pm10, pm25, no2, o3 etc.)
 
 """ Remove from a set of values the outliers.
     Set will come from MySQL database with air quality values.
@@ -34,7 +34,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: grubbs.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.2 $"[11:-2]
+__version__ = "0." + "$Revision: 2.3 $"[11:-2]
 
 try:
     import sys
@@ -94,11 +94,13 @@ colors = [
 MaxPerGraph = 4 # max graphs per subplot
 pngfile = None  # show the scatter graph and regression polynomial best fit graph
 
-# raw limits for some pollutants, manually set, avoid rough spikes
+# raw (outliers) limits for some pollutants, manually set, avoid rough spikes
 tresholds = [False,
-    ['^[a-z]?temp$',-50,50,None], # temp type
-    ['^[a-z]?rv$',0,100,None],    # humidity type
-    ['^pm_?[12][05]?$',0,200,None],# dust type
+    ['^[a-su-z]?temp$',-50,50,None], # temp type
+    ['^[a-qs-z]?rv$',0,100,None],    # humidity type
+    ['^[a-oq-z]?pm_?[12][05]?$',0,200,None],# dust type
+    ['^[a-np-z]?[Oo]3',0,250,None],  # ozon type
+    ['^[a-mo-z]?[Nn][Oo]2?',0,100,None],    # ozon type
     ]
 
 # Grubbs Z-score tresholds
@@ -361,7 +363,7 @@ Any script change remains free. Feel free to indicate improvements.''')
     parser.add_argument("--test",help="Grubb's test for min(minimal), max(imal) or two-tailed (both) outliers test, default: %s." % test, default=test, choices=['min','max','two-tailed'])
 
     parser.add_argument("-r", "--reset", help="do not re-valid all cells in sliding window first. See also the lossy option. Default: re-validate cells.", default=reset, action='store_false')
-    parser.add_argument("-R", "--RESET", help="re-valid all cells in the full period first, default: do not re-validate the measurements.", default=RESET, action='store_false')
+    parser.add_argument("-R", "--RESET", help="re-valid all cells in the full period first, default: do not re-validate the measurements.", default=RESET, action='store_true')
     parser.add_argument("-l", "--lossy", help="Turn lossy off. Re-valid all the cells in the sliding window period before starting the scan. Default: only re-validate all cells from second quarter of time in the sliding window.", default=lossy, action='store_false')
     parser.add_argument("-S", "--show", help="show graph, default: graph is not shown", default=show, action='store_true')
     parser.add_argument("-L", "--outliers", help="Do show in graph the outliers, default: outliers are shown", default=showOutliers, action='store_true')
@@ -596,8 +598,8 @@ def FindOutliers(pollutant,db=net):
     # avoid too much shaving of values
     # set all values as valid in the main period
     if RESET:
-        resetValid(pollutant['table'], pollutant['pollutant'], period, db=db, lossy=FALSE)
-    else:
+        resetValid(pollutant['table'], pollutant['pollutant'], period, db=db, lossy=False)
+    elif lossy:
         resetValid(pollutant['table'], pollutant['pollutant'], period, db=db, lossy=lossy)
     for i in range(0,len(periods)):
         if i:
