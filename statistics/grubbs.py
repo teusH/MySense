@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: grubbs.py,v 2.3 2018/07/19 15:25:18 teus Exp teus $
+# $Id: grubbs.py,v 2.4 2018/07/21 19:49:13 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -34,7 +34,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: grubbs.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.3 $"[11:-2]
+__version__ = "0." + "$Revision: 2.4 $"[11:-2]
 
 try:
     import sys
@@ -57,6 +57,7 @@ reset = True    # revalidate cells on every start
 RESET = False   # revalidate all cells in the command line period
 lossy = True    # do not re-valid cells in first quarter of window
 showOutliers = False # show also outliers in chart
+sigma = 2.0     # graph variance band sigma/propability
 
 # global variables can be overwritten from command line
 # database access credentials
@@ -318,13 +319,20 @@ def get_arguments():
     import argparse
     global progname, debug, verbose, net, period
     global show, pngfile, showOutliers, alpha, ddof, test, lossy
-    global reset, RESET
+    global reset, RESET, sigma
     parser = argparse.ArgumentParser(prog=progname, description='''
 Get from a database with "pollutant" values the measured (raw) values
 over a period of time.
 Invalidate the measurements when not in a provided minimum-maximum range.
 And next invalidate outliers according to their Z-score (Grubbs).
 Each argument defines the table[/pollutant[/minimum:maximum]].
+
+Shorthand for filter argument definitions, e.g.:
+ThisProject_Serial1,Serial2/pm10,pm25/2:150,rv/:nan
+will filter on table ThisProject_Serial1 and ThisProject_Serial2
+for pollutants pm10 dflt outlier range,
+pm25 with outlier range 2 - 150, and
+rv with outlier range minimum dflt and no maximum.
 
 Command with no arguments will, if possible, provide a list of
 MySQL table names (sensorkit names).
@@ -366,6 +374,7 @@ Any script change remains free. Feel free to indicate improvements.''')
     parser.add_argument("-R", "--RESET", help="re-valid all cells in the full period first, default: do not re-validate the measurements.", default=RESET, action='store_true')
     parser.add_argument("-l", "--lossy", help="Turn lossy off. Re-valid all the cells in the sliding window period before starting the scan. Default: only re-validate all cells from second quarter of time in the sliding window.", default=lossy, action='store_false')
     parser.add_argument("-S", "--show", help="show graph, default: graph is not shown", default=show, action='store_true')
+    parser.add_argument("--sigma", help="show graph with variance sigma. Sigma=0 no variance band is plotted. Default: sigma=%.1f" % sigma, default=sigma, type=float)
     parser.add_argument("-L", "--outliers", help="Do show in graph the outliers, default: outliers are shown", default=showOutliers, action='store_true')
     parser.add_argument("-f", "--file", help="generate png graph file, default: no png", default=pngfile)
     parser.add_argument('args', nargs=argparse.REMAINDER, help="<Database table name>/[<pollutant or column name>[/<minimal:maximal>]] ... An empty name: the name of the previous argument will be used. No argument will give overview of available sensor kit table names. <table_name> as argument will print avaialable sensor type names for a table.")
@@ -390,6 +399,7 @@ Any script change remains free. Feel free to indicate improvements.''')
     reset = args.reset
     RESET = args.RESET
     lossy = args.lossy
+    sigma = args.sigma
     pngfile = args.file
     if pngfile != None: show = True
     if args.window:
@@ -418,30 +428,43 @@ Any script change remains free. Feel free to indicate improvements.''')
     # if empty use definition of previous argument
     for arg in range(0,len(args.args)):
         if not args.args[arg]: continue
-        pols = args.args[arg].split('/')
-        pollutants.append({ 'table': None, 'pollutant': None, 'range':[float('nan'),float('nan')]})
-        if arg and (not pols[0]):
-            pols[0] = pollutants[arg-1]['table']
-        pollutants[arg]['table'] = pols[0]
-        if arg and (len(pols) < 2): pols.append('')
-        if arg and not pols[1]:
-            pols[1] = pollutants[arg-1]['pollutant']
-            if (len(pols) < 3): pols.append('')
-        pollutants[arg]['pollutant'] = pols[1]
-        if len(pols) != 3: pols.append('')
-        if arg and not pols[2]:
-            pols[2] = '%f:%f' % (pollutants[arg-1]['range'][0],pollutants[arg-1]['range'][1])
-        if not pols[2]: pols[2] = ':'
-        if pols[2].find(':') < 0: pols[2] += ':'
-        minmax = pols[2].split(':')
-        for i in range(0,2):
-            if not minmax[i]:
-                minmax[i] = getTresholds(pollutants[arg]['pollutant'])[i]
-            try: minmax[i] = float(minmax[i])
-            except: minmax[i] = float('nan')
-        pollutants[arg]['range'] = minmax[:2]
-        if verbose:
-            print("Find outliers in table %s with column %s, value range [%f - %f]" % (pollutants[arg]['table'],pollutants[arg]['pollutant'],pollutants[arg]['range'][0],pollutants[arg]['range'][1]))
+        if arg and args.args[arg][0] == '/':
+            args.args[arg] = args.args[arg-1][0:args.args[arg-1].find('/')] + args.args[arg]
+        # build pollutant: <project>_<serial>[,<serial>...]/<poll>[/min:max][,<poll>[/min:max] ...]
+        
+        project = '';
+        serials = args.args[arg][0:args.args[arg].find('/')]
+        polArray = args.args[arg][args.args[arg].find('/')+1:]
+        if args.args[arg].find('_') >= 0:
+            project = args.args[arg][0:args.args[arg].find('_')+1]
+            serials = args.args[arg][args.args[arg].find('_')+1:]
+        try:
+            serials = serials[:serials.index('/')]
+        except:
+            pass
+        serials = serials.split(',')
+        polArray = polArray.split(',')
+        for serial in serials:
+            for pol in polArray:
+                pols = '%s%s/%s' % (project,serial,pol)
+                pols = pols.split('/')
+                if (not len(pols)) or (not pols[0]) or (not pols[1]):
+                    break
+                pollutants.append({ 'table': None, 'pollutant': None, 'range':[float('nan'),float('nan')]})
+                pollutants[-1]['table'] = pols[0]
+                pollutants[-1]['pollutant'] = pols[1]
+                if len(pols) < 3: pols.append(':')
+                if not pols[2]: pols[2] = ':'
+                if pols[2].find(':') < 0: pols[2] += ':'
+                minmax = pols[2].split(':')
+                for i in range(0,2):
+                    if not minmax[i]:
+                       minmax[i] = getTresholds(pollutants[-1]['pollutant'])[i]
+                    try: minmax[i] = float(minmax[i])
+                    except: minmax[i] = float('nan')
+                pollutants[-1]['range'] = minmax[:2]
+                if verbose:
+                    print("Find spikes and outliers in table %s for column %s,\n\toutliers value range [%f - %f]" % (pollutants[-1]['table'],pollutants[-1]['pollutant'],pollutants[-1]['range'][0],pollutants[-1]['range'][1]))
 
 # https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list
 # detect outliers with a modified Z-score
@@ -724,6 +747,66 @@ def Trendline(data, order=1, grit=1):
         'eUp': None, 'eLo': None, 
     }
 
+def makeSpline(dates,x,values,floor,ceil):
+    from scipy.interpolate import UnivariateSpline
+    try:
+        spl = UnivariateSpline(dates, values)
+    except:
+        return np.array(values) # ???
+    spl.set_smoothing_factor(0.5)
+    d = spl(x); p = []
+    for i in d: # slice to chart height
+        if i < floor: i = floor
+        if i > ceil: i = ceil
+        p.append(i)
+    return  np.array(p)
+
+def propability(sigma):
+    import scipy.stats
+    return round(100*scipy.stats.norm(0,1).cdf(sigma),1)
+
+# plot a spline and variation band
+# select ROUND((CEILING(UNIX_TIMESTAMP(datum) / 3600) * 3600)) AS timeslice, avg(pol) from table group by timeslice order by datum desc
+def plotAverage(pollutant,period,floor,ceil,plt,color='b',interval=3600,db=net, grit=1000, sigma=0):
+    dateconv = np.vectorize(datetime.datetime.fromtimestamp)
+    if sigma > 4: sigma = 4
+    if sigma < 0: sigma = 0
+    
+    table = pollutant['table'] ; pol = pollutant['pollutant']
+    qry = 'SELECT ROUND((CEILING(UNIX_TIMESTAMP(datum) / %d) * %d)) AS timeslice, AVG(%s), STDDEV(%s) FROM %s WHERE NOT ISNULL(%s) AND %s_valid AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d GROUP BY timeslice ORDER BY datum' % \
+        (interval,interval,pol, pol, table, pol, pol, period[0], period[1])
+    data = db_query(qry, True, db=db)
+    if len(data) < 15: return False
+    spg = (data[-1][0]-data[0][0]+int(grit/2))/grit     # secs per grit 
+    data.append((None,None,None))
+    x = []; m = []; su = []; sl = []
+    label = '%s %d hr average and variance sigma=+/-%.1f (%.1f%%)' % (pol,interval/3600,sigma,propability(sigma))
+    for idx in range(0,len(data)):
+        if data[idx][1] != None:
+            x.append(data[idx][0])
+            m.append(float(data[idx][1]))
+            if sigma:
+                Y  = float(data[idx][1])-sigma*float(data[idx][2])
+                if Y < floor: Y = floor
+                sl.append(Y)
+                Y = float(data[idx][1])+sigma*float(data[idx][2])
+                if Y > ceil: Y = ceil
+                su.append(Y)
+            continue
+        elif not len(x): continue
+        dc = dateconv(x)
+        dx = [d for d in range(x[0],x[-1],spg)] 
+        if sigma:
+            sl = makeSpline(x,dx,sl,floor,ceil)
+            su = makeSpline(x,dx,su,floor,ceil)
+            plt.fill_between(dateconv(dx), sl, su, where=su >= sl, color='w', facecolor=color, alpha=0.2, interpolate=True, label='')
+        m = makeSpline(x,dx,m,floor,ceil)
+        plt.plot(dateconv(dx), m, '-', c=color, lw=1, label=label)
+        # plot var band
+        x = []; m = []; su = []; sl = []; label = ''
+
+# plot a spline and variation band
+# select ROUND((CEILING(UNIX_TIMESTAMP(datum) / 3600) * 3600)) AS timeslice, avg(pol) from table group by timeslice order by datum desc
 def plotSpline(data,plt,color='b',grit=3600):
     from scipy.interpolate import UnivariateSpline
     dates = [data[i][0] for i in range(0,len(data))]
@@ -732,7 +815,6 @@ def plotSpline(data,plt,color='b',grit=3600):
     dateconv = np.vectorize(datetime.datetime.fromtimestamp)
     for idx in range(0,len(dates)):
         x = []; y = []; i = idx
-        # while (dates[i] <= dates[idx]+grit) and (i < len(dates)):
         while (i+1 < len(dates)) and (dates[i+1]-dates[i] < grit):
             x.append(dates[i]); y.append(values[i]); i += 1
         idx = i
@@ -745,8 +827,8 @@ def plotSpline(data,plt,color='b',grit=3600):
         xs = np.linspace(x[0], x[-1], int(float(x[-1]-x[0])/(dates[-1]-dates[1])*1000.0))
         plt.plot(dateconv(xs), spl(xs), c=color, lw=1)
 
-def CreateGraphs(period, pollutants):
-    global debug, verbose, file, colors
+def CreateGraphs(period, pollutants, db=net):
+    global debug, verbose, file, colors, sigma
     import matplotlib.pyplot as plt
     from matplotlib import gridspec
     import matplotlib.dates as mdates
@@ -755,8 +837,7 @@ def CreateGraphs(period, pollutants):
     periodStrt = datetime.datetime.fromtimestamp(period[0]).strftime('%d %b %Y %H:%M')
     periodEnd = datetime.datetime.fromtimestamp(period[1]).strftime('%d %b %Y %H:%M')
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-    Width = 7.5
-    Height = 5
+    #Width = 7.5; Height = 5
     # fig = plt.figure(tight_layout=True, figsize=(Width,Height))
     fig, ax = plt.subplots()
     months = mdates.MonthLocator()
@@ -788,6 +869,7 @@ def CreateGraphs(period, pollutants):
             if minDate > values[0][0]: minDate = values[0][0]
             (dates,Yvalues) = PlotConvert(values)
             ax.scatter(dates, Yvalues,marker='.', color=colors[idx][0], label=label)
+            plotAverage(pollutants[idx],period,np.min(Yvalues),np.max(Yvalues),plt,color=colors[idx][2],interval=3600, db=db, sigma=sigma)
             label=''; fnd = True
         if len(spikes) > 0:
             try: max = spikes[len(spikes)-1][0]
