@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: grubbs.py,v 2.4 2018/07/21 19:49:13 teus Exp teus $
+# $Id: grubbs.py,v 2.5 2018/07/21 21:39:00 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -34,7 +34,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: grubbs.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.4 $"[11:-2]
+__version__ = "0." + "$Revision: 2.5 $"[11:-2]
 
 try:
     import sys
@@ -56,6 +56,7 @@ verbose = True  # be more versatile
 reset = True    # revalidate cells on every start
 RESET = False   # revalidate all cells in the command line period
 lossy = True    # do not re-valid cells in first quarter of window
+onlyShow = False # only show chart, do not filter spikes and outliers
 showOutliers = False # show also outliers in chart
 sigma = 2.0     # graph variance band sigma/propability
 
@@ -319,7 +320,7 @@ def get_arguments():
     import argparse
     global progname, debug, verbose, net, period
     global show, pngfile, showOutliers, alpha, ddof, test, lossy
-    global reset, RESET, sigma
+    global reset, RESET, sigma, onlyShow
     parser = argparse.ArgumentParser(prog=progname, description='''
 Get from a database with "pollutant" values the measured (raw) values
 over a period of time.
@@ -374,6 +375,7 @@ Any script change remains free. Feel free to indicate improvements.''')
     parser.add_argument("-R", "--RESET", help="re-valid all cells in the full period first, default: do not re-validate the measurements.", default=RESET, action='store_true')
     parser.add_argument("-l", "--lossy", help="Turn lossy off. Re-valid all the cells in the sliding window period before starting the scan. Default: only re-validate all cells from second quarter of time in the sliding window.", default=lossy, action='store_false')
     parser.add_argument("-S", "--show", help="show graph, default: graph is not shown", default=show, action='store_true')
+    parser.add_argument("-S", "--onlyshow", help="show graph, do not filter spikes nor outliers, default: filter spikes and outliers in database", default=onlyShow, action='store_true')
     parser.add_argument("--sigma", help="show graph with variance sigma. Sigma=0 no variance band is plotted. Default: sigma=%.1f" % sigma, default=sigma, type=float)
     parser.add_argument("-L", "--outliers", help="Do show in graph the outliers, default: outliers are shown", default=showOutliers, action='store_true')
     parser.add_argument("-f", "--file", help="generate png graph file, default: no png", default=pngfile)
@@ -391,6 +393,7 @@ Any script change remains free. Feel free to indicate improvements.''')
     if debug: verbose = True
     period[0] = date2secs(args.start)
     period[1] = date2secs(args.end)
+    onlyShow = args.onlyshow
     show = args.show
     showOutliers = args.outliers
     alpha = float(args.alpha)
@@ -967,9 +970,10 @@ if __name__ == "__main__":
 
     from_env('DB')          # get DB credentials from command environment
     get_arguments()         # get command line arguments
-    for item in pollutants:
-        FindOutliers(item,db=net)
-    if show:
+    if not onlyShow:
+        for item in pollutants:
+            FindOutliers(item,db=net)
+    if show or onlyShow: 
         CreateGraphs(period, pollutants)
     exit(0)
 
