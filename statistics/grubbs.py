@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: grubbs.py,v 2.6 2018/07/22 15:51:32 teus Exp teus $
+# $Id: grubbs.py,v 2.7 2018/07/23 20:12:04 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -29,12 +29,17 @@
     Will try a sliding window of sets in a period of time.
     Will support to validate a new value.
     Script uses Python statistics lib and numpy.
-    Input from database, spreadsheet (XLSX) and CVS file formats.
+    Input from MySQL database
+    Use a simple CSV to MYSQL converter script to be able to
+    use this script for values collected in spreadsheet (XLSX)
+    or  CVS file formats:
+    Columns: datum, <pollutant name>, <name>_valid,...
+    Table name format <project>_<serial>.
     Database table/column (sensor name) over a period of time.
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: grubbs.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.6 $"[11:-2]
+__version__ = "0." + "$Revision: 2.7 $"[11:-2]
 
 try:
     import sys
@@ -87,28 +92,36 @@ pollutants = [
 
 show = False    # show a graph with outliers in different color
 colors = [
-        ['orange','orangered','red'],
-        ['lightgreen','green','darkgreen'],
-        ['azure','blue','darkblue'],
-        ['lavender','purple','magenta'],
-        ['lime','yellow','olive'],
-        ['silver','grey','black'],
+        ['orange','orangered','red','black'],
+        ['lightgreen','green','darkgreen','black'],
+        ['blue','azure','darkblue','black'],
+        ['purple','lavender','magenta','black'],
+        ['lime','yellow','olive','black'],
+        ['silver','grey','black','black'],
     ]
 MaxPerGraph = 4 # max graphs per subplot
 pngfile = None  # show the scatter graph and regression polynomial best fit graph
 
 # raw (outliers) limits for some pollutants, manually set, avoid rough spikes
-# To Do: add chart info to allow subplot2grid subchart discrimination
+# first: search pattern
+# 2nd+3rd: minimum and maximum for outliers detection
+# 5th: unit + class per pollutant for charts
+# 6th: database column names translated to something humans understand
+# 7th: EU norm daily average and WHO (to be completed)
+Norms = ['EU norm','WHO norm'] # norm type
+# To Do: complete with more values
 polAttrs = [False,
-    ['^[a-su-z]?temp$',-50,50,None,['oC','meteo']],    # temp type
-    ['^[a-qs-z]?rv$',0,100,None,['%','meteo']],        # humidity type
-    ['^[a-oq-z]?pm_?10$',0,200,None,['ug/m3','dust']], # dust type
-    ['^[a-oq-z]?pm_?25$',0,200,None,['ug/m3','dust']], # dust type
-    ['^[a-oq-z]?pm_?1$',0,200,None,['ug/m3','dust']],  # dust type
-    ['^[a-np-z]?[Oo]3',0,250,None,['ozon','gas']],     # ozon type
-    ['^[a-mo-z]?[Nn][Oo]2?',0,100,None,['stikstofoxides','gas']],# NOx type
-    ['^[a-mo-z]?[Nn][Hh]3',0,100,None,['NH3','gas']],  # NH3 type
-    ['.*',float('nan'),float('nan'),None,['','unknown']], # catch all
+    ['^[a-su-z]?temp$',-50,50,None,['$^oC$','meteo'],'temperature',[None,None]],    # temp type
+    ['^[a-qs-z]?rv$',0,100,None,['RH %','meteo'],'rel. humidity',[None,None]],        # humidity type
+    ['^[a-km-z]?(luchtdruk|pres(sure)?)$',800,1200,None,['Hpa','meteo'],'air pressure',[None,None]],        # air pressure type
+    ['^[a-oq-z]?pm_?10$',0,200,None,['PM $\mu g/m^3$','dust'],'PM$_1$$_0$',[32,20]], # dust type
+    ['^[a-oq-z]?pm_?25$',0,200,None,['PM $\mu g/m^3$','dust'],'PM$_2$.$_5$',[25,10]], # dust type
+    ['^[a-oq-z]?pm_?1$',0,200,None,['PM $\mu g/m^3$','dust'],'PM$_1$.$_0$',[None,None]],  # dust type
+    ['^[a-np-z]?[Oo]3',0,250,None,['ozon','gas'],'O$_3$',[None,None]],     # ozon type
+    ['^[a-mo-z]?[Nn][Oo]2?',0,100,None,['stikstofoxides','gas'],'NO$_x$',[100,None]],# NOx type
+    ['^[a-mo-z]?[Nn][Hh]3',0,100,None,['NH$_3$','gas'],'NH$_3$',[None,None]],  # NH3 type
+    # next must be last
+    ['.*',float('nan'),float('nan'),None,['','unknown'],'undefined',[None,None]], # catch all
     ]
 
 # Grubbs Z-score tresholds
@@ -118,7 +131,6 @@ ddof  = 1       # Delta Degree of Freedom (stddev)
 # return default [min,max] for a particular sensor type
 # nan is not configured, no boundary set
 def getTresholds(name):
-    import re
     global polAttrs
     if not polAttrs[0]:
         for i in range(1,len(polAttrs)):
@@ -134,7 +146,6 @@ def getTresholds(name):
 # used in chart labels
 subcharts = [] # collect nr of subcharts
 def getUnits(name):
-    import re
     global polAttrs, subcharts
     if not polAttrs[0]:
         for i in range(1,len(polAttrs)):
@@ -146,6 +157,48 @@ def getUnits(name):
                 subcharts.append(polAttrs[i][4])
             return polAttrs[i][4]
     return ['','unknown'] # may not happen
+
+def getName(name):
+    global polAttrs
+    if not polAttrs[0]:
+        for i in range(1,len(polAttrs)):
+            polAttrs[i][0] = re.compile(polAttrs[i][0])
+        polAttrs[0] = True
+    for i in range(1,len(polAttrs)-1):
+        if polAttrs[i][0].match(name):
+           return polAttrs[i][5]
+    return name
+
+def getNorm(name):
+    global polAttrs
+    if not polAttrs[0]:
+        for i in range(1,len(polAttrs)):
+            polAttrs[i][0] = re.compile(polAttrs[i][0])
+        polAttrs[0] = True
+    for i in range(1,len(polAttrs)-1):
+        if polAttrs[i][0].match(name):
+           return polAttrs[i][6]
+    return [None,None]
+
+# try to combine charts with same type (meteo, dust, ...)
+# and use left and right y-axis (max 2 in one chart)
+def chartCombine():
+    global subcharts
+    from operator import itemgetter # , attrgetter
+    subcharts = sorted(subcharts,key=itemgetter(1,0))
+    newCharts = []
+    for item in subcharts:
+        fndi = False
+        for i in range(0,len(newCharts)):
+            if item[1] != newCharts[i][0][1]: continue
+            for j in range(0,2):
+                if item == newCharts[i]:
+                    fndi = True; break
+                if len(newCharts[i]) < 2:
+                    newCharts[i].append(item)
+                    fndi = True; break
+        if not fndi: newCharts.append([item])
+    return newCharts
     
 def db_connect(db=net):
     if db['fd']: return
@@ -668,10 +721,12 @@ def FindOutliers(pollutant,db=net):
 
 def PlotConvert(data):
     dates = [data[i][0] for i in range(0,len(data))]
+    values = [float(data[i][1]) for i in range(0,len(data))]
+    for i in range(len(data)-1,-1,-1):  # filter out None values
+        if data[i][1] == None:
+            dates.pop(i); values.pop(i)
     dateconv = np.vectorize(datetime.datetime.fromtimestamp)
-    dates = dateconv(dates)
-    values = np.array([float(data[i][1]) for i in range(0,len(data))])
-    return (dates,values)
+    return (dateconv(dates),np.array(values))
 
 def getPlotdata(period, pollutant, db=net):
     global debug, verbose
@@ -680,8 +735,8 @@ def getPlotdata(period, pollutant, db=net):
     if not Check(table, pol, db=db):
         return None
     # validated values
-    qry = "SELECT UNIX_TIMESTAMP(datum), %s FROM %s WHERE %s_valid AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d" % \
-        (pol, table, pol, period[0], period[1])
+    qry = "SELECT UNIX_TIMESTAMP(datum), %s FROM %s WHERE %s_valid AND NOT ISNULL(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d" % \
+        (pol, table, pol, pol, period[0], period[1])
     values = db_query(qry, True, db=db)
     update = 'ISNULL(%s)' % pol; supdate = 'NOT ISNULL(%s)' % pol
     if pollutant['range'][0] != float('nan'):
@@ -690,20 +745,21 @@ def getPlotdata(period, pollutant, db=net):
     if pollutant['range'][1] != float('nan'):
         update += ' OR (%s > %f)' % (pol, pollutant['range'][1])
         supdate += ' AND (%s <= %f)' % (pol, pollutant['range'][1])
-    # values really out of defined range
+    # values really out of defined range: outliers
     qry = "SELECT UNIX_TIMESTAMP(datum), %s FROM %s WHERE (%s) AND NOT %s_valid AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d" % \
         (pol, table, update, pol, period[0], period[1])
     outliers = db_query(qry, True, db=db)
-    # outliers in Z-score
+    # outliers in Z-score: spikes
     qry = "SELECT UNIX_TIMESTAMP(datum), %s FROM %s WHERE %s AND NOT %s_valid AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d" % \
         (pol, table, supdate, pol, period[0], period[1])
     spikes = db_query(qry, True, db=db)
     return [values,spikes,outliers]
     
         
+# next routine is not used any longer
 # best line fit for array of dates and values
 # from: https://stackoverflow.com/questions/22239691/code-for-line-of-best-fit-of-a-scatter-plot-in-python
-def BestFit(data,order=1, grit=1):
+def BestFit(data,order=1, grid=1):
     dates = [data[i][0] for i in range(0,len(data))]
     values = np.array([float(data[i][1]) for i in range(0,len(data))])
     # determine best fit line
@@ -712,7 +768,7 @@ def BestFit(data,order=1, grit=1):
     slope=par[0][0]
     intercept=par[0][1]
     xl = [dates[0], dates[-1]]
-    # loop in the grit
+    # loop in the grid
     yl = [slope*xx + intercept  for xx in xl]
     
     # coefficient of determination
@@ -742,7 +798,9 @@ def BestFit(data,order=1, grit=1):
         'eUp': yerrUpper, 'eLo': yerrLower, 
     }
 
-def Trendline(data, order=1, grit=1):
+# next routine is not used
+# calculate linear regression line
+def Trendline(data, order=1, grid=1):
     """Make a line of best fit"""
 
     dates = [data[i][0] for i in range(0,len(data))]
@@ -760,7 +818,7 @@ def Trendline(data, order=1, grit=1):
     # power = coeffs[0] if order == 2 else 0
 
     xl = []; yl = []
-    for x in range(minxd,maxxd+1,int((maxxd-minxd)/(grit+1))):
+    for x in range(minxd,maxxd+1,int((maxxd-minxd)/(grid+1))):
         xl.append(x); yl.append(np.polyval(coeffs,x))
     #yl = power * xl ** 2 + slope * xl + intercept
 
@@ -777,6 +835,9 @@ def Trendline(data, order=1, grit=1):
         'eUp': None, 'eLo': None, 
     }
 
+# create a spline through a set of values
+# date original dates, x new dates on regular intervals,
+# values, max and minimum values, returns splined values on x
 def makeSpline(dates,x,values,floor,ceil):
     from scipy.interpolate import UnivariateSpline
     try:
@@ -795,9 +856,9 @@ def propability(sigma):
     import scipy.stats
     return round(100*scipy.stats.norm(0,1).cdf(sigma),1)
 
-# plot a spline and variation band
+# plot a spline and variation (sigma) band
 # select ROUND((CEILING(UNIX_TIMESTAMP(datum) / 3600) * 3600)) AS timeslice, avg(pol) from table group by timeslice order by datum desc
-def plotAverage(pollutant,period,floor,ceil,plt,color='b',interval=3600,db=net, grit=1000, sigma=0):
+def plotAverage(pollutant,period,floor,ceil,plt,color='b',interval=3600,db=net, grid=1000, sigma=0, label=''):
     dateconv = np.vectorize(datetime.datetime.fromtimestamp)
     if sigma > 4: sigma = 4
     if sigma < 0: sigma = 0
@@ -807,10 +868,9 @@ def plotAverage(pollutant,period,floor,ceil,plt,color='b',interval=3600,db=net, 
         (interval,interval,pol, pol, table, pol, pol, period[0], period[1])
     data = db_query(qry, True, db=db)
     if len(data) < 15: return False
-    spg = (data[-1][0]-data[0][0]+int(grit/2))/grit     # secs per grit 
+    spg = (data[-1][0]-data[0][0]+int(grid/2))/grid     # secs per grid 
     data.append((None,None,None))
     x = []; m = []; su = []; sl = []
-    label = '%s %d hr average and variance sigma=+/-%.1f (%.1f%%)' % (pol,interval/3600,sigma,propability(sigma))
     for idx in range(0,len(data)):
         if data[idx][1] != None:
             x.append(data[idx][0])
@@ -834,10 +894,11 @@ def plotAverage(pollutant,period,floor,ceil,plt,color='b',interval=3600,db=net, 
         plt.plot(dateconv(dx), m, '-', c=color, lw=1, label=label)
         # plot var band
         x = []; m = []; su = []; sl = []; label = ''
+    return
 
 # plot a spline and variation band
 # select ROUND((CEILING(UNIX_TIMESTAMP(datum) / 3600) * 3600)) AS timeslice, avg(pol) from table group by timeslice order by datum desc
-def plotSpline(data,plt,color='b',grit=3600):
+def plotSpline(data,plt,color='b',grid=3600):
     from scipy.interpolate import UnivariateSpline
     dates = [data[i][0] for i in range(0,len(data))]
     if len(dates) <= 5: return None
@@ -845,7 +906,7 @@ def plotSpline(data,plt,color='b',grit=3600):
     dateconv = np.vectorize(datetime.datetime.fromtimestamp)
     for idx in range(0,len(dates)):
         x = []; y = []; i = idx
-        while (i+1 < len(dates)) and (dates[i+1]-dates[i] < grit):
+        while (i+1 < len(dates)) and (dates[i+1]-dates[i] < grid):
             x.append(dates[i]); y.append(values[i]); i += 1
         idx = i
         if len(x) < 10: continue
@@ -863,7 +924,8 @@ def CreateGraphs(period, pollutants, db=net):
     from matplotlib import gridspec
     import matplotlib.dates as mdates
     from matplotlib.dates import MO, TU, WE, TH, FR, SA, SU
-    global subcharts
+    global subcharts, colors, Norms
+    interval = 60*60 # average calculation interval in secs
 
     periodStrt = datetime.datetime.fromtimestamp(period[0]).strftime('%d %b %Y %H:%M')
     periodEnd = datetime.datetime.fromtimestamp(period[1]).strftime('%d %b %Y %H:%M')
@@ -890,105 +952,125 @@ def CreateGraphs(period, pollutants, db=net):
     # combine gaphs per type of pollutants in one subchart
     # To Do: meteo: left yAxe temp, right yAxe other
     ax = []
+    # newcharts from subcharts
+    subcharts = chartCombine() # create subchart [[l1,r1],[l2,r2],...]
+    colId = len(colors)-1
     for subchrt in range(0,len(subcharts)):
-      if not subchrt:
-        ax.append(plt.subplot2grid((len(subcharts),1), (subchrt,0), rowspan=1, colspan=1))
-      else:
-        ax.append(plt.subplot2grid((len(subcharts),1), (subchrt,0), rowspan=1, colspan=1),sharex=ax[0])
-      plt.ylabel(subcharts[subchrt][1]+' '+subcharts[subchrt][0])
-      for idx in range(0,len(pollutants)):
-        if pollutants[idx]['units'][1] != subcharts[subchrt][1]: continue
-        if not pollutants[idx]['table'] in projects.keys():
+      ax.append([None,None])
+      handles = []; labels = [] # collect legend for this subchart
+      for Y in range(0,len(subcharts[subchrt])):
+        if (not Y) and (not subchrt):
+          ax[subchrt][Y] = plt.subplot2grid((len(subcharts),1), (subchrt,0), rowspan=1, colspan=1)
+        elif not Y:
+          ax[subchrt][Y] = plt.subplot2grid((len(subcharts),1), (subchrt,0), rowspan=1, colspan=1, sharex=ax[0][0])
+        else: ax[subchrt][Y] = ax[subchrt][0].twinx()
+        ax[subchrt][Y].set_ylabel(subcharts[subchrt][Y][1]+' '+subcharts[subchrt][Y][0])
+        ax[subchrt][Y].grid(False)
+        for idx in range(0,len(pollutants)):
+          if pollutants[idx]['units'] != subcharts[subchrt][Y]: continue
+          if not pollutants[idx]['table'] in projects.keys():
             projects[pollutants[idx]['table']] = []
-        if not pollutants[idx]['pollutant'] in projects[pollutants[idx]['table']]:
-            projects[pollutants[idx]['table']].append(pollutants[idx]['pollutant'])
-        (values,spikes,outliers) = getPlotdata(period, pollutants[idx], db=net)
-        label = '%s' % pollutants[idx]['pollutant']
-        if len(values) > 0:
-            try: max = values[len(values)-1][0]
+          if not getName(pollutants[idx]['pollutant']) in projects[pollutants[idx]['table']]:
+            projects[pollutants[idx]['table']].append(getName(pollutants[idx]['pollutant']))
+          (values,spikes,outliers) = getPlotdata(period, pollutants[idx], db=net)
+          colId += 1; colId %= len(colors)
+          label = '%s' % getName(pollutants[idx]['pollutant'])
+          label2 = '%s %d hr%s average and +/-%.1f sigma (%.1f%%)' % (getName(pollutants[idx]['pollutant']),interval/3600,'' if ((interval%3600)/60) == 0 else '%d min' % ((interval%3600)/60), sigma,propability(sigma))
+          if len(values) > 0:
+            try: max = values[-1][0]
             except: max = values[0][0]
             if maxDate < max: maxDate = max
             if minDate > values[0][0]: minDate = values[0][0]
             (dates,Yvalues) = PlotConvert(values)
-            ax[subchrt].scatter(dates, Yvalues,marker='.', color=colors[idx][0], label=label)
-            plotAverage(pollutants[idx],period,np.min(Yvalues),np.max(Yvalues),ax[subchrt],color=colors[idx][2],interval=3600, db=db, sigma=sigma)
+            ax[subchrt][Y].scatter(dates, Yvalues,marker='.', color=colors[colId][0], label=label)
+            plotAverage(pollutants[idx],period,np.min(Yvalues),np.max(Yvalues),ax[subchrt][Y],color=colors[colId][2],interval=interval, db=db, sigma=sigma, label=label2)
             label=''; fnd = True
-        if len(spikes) > 0:
-            try: max = spikes[len(spikes)-1][0]
+            norm = getNorm(pollutants[idx]['pollutant'])
+            for n in range(0,len(norm)):
+              try:
+                if norm[n] != None:
+                    ax[subchrt][Y].axhline(norm[n],c=colors[colId][n],lw=(n+1),ls='dotted',label=(getName(pollutants[idx]['pollutant'])+' '+Norms[n]))
+                    # ax[subchrt][Y].text(x, norm[n], horizontalalignment='center')
+              except: pass
+          if len(spikes) > 0:
+            try: max = spikes[-1][0]
             except: max = spikes[0][0]
             if maxDate < max: maxDate = max
             if minDate > spikes[0][0]: minDate = spikes[0][0]
             (dates,Yvalues) = PlotConvert(spikes)
-            ax[subchrt].scatter(dates, Yvalues,marker='o', color=colors[idx][1], label=label)
+            ax[subchrt][Y].scatter(dates, Yvalues,marker='o', color=colors[colId][1], label=label)
             label=''; fnd = True
-            ax[subchrt].scatter(dates, Yvalues,marker='.', color=colors[idx][0], label=label)
-        if showOutliers and (len(outliers) > 0):
+            ax[subchrt][Y].scatter(dates, Yvalues,marker='.', color=colors[colId][0], label=label)
+          if showOutliers and (len(outliers) > 0):
             try: max = outliers[len(outliers)-1][0]
             except: max = outliers[0][0]
             if maxDate < max: maxDate = max
             if minDate > outliers[0][0]: minDate = outliers[0][0]
             (dates,Yvalues) = PlotConvert(outliers)
-            ax[subchrt].scatter(dates, Yvalues,marker='s', color=colors[idx][2], label=label)
+            ax[subchrt][Y].scatter(dates, Yvalues,marker='s', color=colors[colId][2], label=label)
             label=''; fnd = True
-            ax[subchrt].scatter(dates, Yvalues,marker='.', color=colors[idx][0], label=label)
+            ax[subchrt][Y].scatter(dates, Yvalues,marker='.', color=colors[colId][0], label=label)
+        hands, labs = ax[subchrt][Y].get_legend_handles_labels()
+        handles += hands; labels += labs
       # finish this subchart
-      ax[subchrt].legend(loc=2,fontsize=7, shadow=True, framealpha=0.5, fancybox=True)
-    if not fnd:
+      ax[subchrt][0].legend(handles,labels,loc=2,fontsize=6, shadow=True, framealpha=0.9, labelspacing=0.3, fancybox=True)
+      if not fnd:
         print("Found no data to plot.")
         return False
     # format the ticks
-    if (maxDate-minDate)/(24*60*60) < 4: # month modus
+    for subchrt in range(0,len(subcharts)):
+      if (maxDate-minDate)/(24*60*60) < 4: # month modus
         freq = 1
-        ax[0].xaxis.set_major_locator(days)
-        ax[0].xaxis.set_major_formatter(Fmt)
-        ax[0].xaxis.set_minor_locator(mdates.HourLocator(interval=1))
+        ax[subchrt][0].xaxis.set_major_locator(days)
+        ax[subchrt][0].xaxis.set_major_formatter(Fmt)
+        ax[subchrt][0].xaxis.set_minor_locator(mdates.HourLocator(interval=1))
         # ax.tick_params(direction='out', length=6, width=2, colors='r')
-        ax[0].xaxis.set_minor_locator(mdates.HourLocator(interval=6))
-    elif (maxDate-minDate)/(24*60*60) < 10: # month modus
+        ax[subchrt][0].xaxis.set_minor_locator(mdates.HourLocator(interval=6))
+      elif (maxDate-minDate)/(24*60*60) < 10: # month modus
         freq = 1
-        ax[0].xaxis.set_major_locator(days)
-        ax[0].xaxis.set_major_formatter(Fmt)
-        ax[0].xaxis.set_minor_locator(mdates.HourLocator(interval=3))
+        ax[subchrt][0].xaxis.set_major_locator(days)
+        ax[subchrt][0].xaxis.set_major_formatter(Fmt)
+        ax[subchrt][0].xaxis.set_minor_locator(mdates.HourLocator(interval=3))
         # ax[0].tick_params(direction='out', length=6, width=2, colors='r')
-        ax[0].xaxis.set_minor_locator(mdates.HourLocator(interval=6))
-    elif (maxDate-minDate)/(24*60*60) < 15: # month modus
+        ax[subchrt][0].xaxis.set_minor_locator(mdates.HourLocator(interval=6))
+      elif (maxDate-minDate)/(24*60*60) < 15: # month modus
         freq = 2
-        ax[0].xaxis.set_major_locator(days)
-        ax[0].xaxis.set_major_formatter(Fmt)
-        ax[0].xaxis.set_minor_locator(hours)
-    elif (maxDate-minDate)/(24*60*60) < 40: # week modus
+        ax[subchrt][0].xaxis.set_major_locator(days)
+        ax[subchrt][0].xaxis.set_major_formatter(Fmt)
+        ax[subchrt][0].xaxis.set_minor_locator(hours)
+      elif (maxDate-minDate)/(24*60*60) < 40: # week modus
         freq = 1
-        ax[0].xaxis.set_major_locator(weeks)
-        ax[0].xaxis.set_major_formatter(Fmt)
-        ax[0].xaxis.set_minor_locator(days)
-    elif (maxDate-minDate)/(24*60*60) < 61: # week modus
+        ax[subchrt][0].xaxis.set_major_locator(weeks)
+        ax[subchrt][0].xaxis.set_major_formatter(Fmt)
+        ax[subchrt][0].xaxis.set_minor_locator(days)
+      elif (maxDate-minDate)/(24*60*60) < 61: # week modus
         freq = 1
-        ax[0].xaxis.set_major_locator(months)
-        ax[0].xaxis.set_major_formatter(Fmt)
-        ax[0].xaxis.set_minor_locator(weeks)
-    else:
+        ax[subchrt][0].xaxis.set_major_locator(months)
+        ax[subchrt][0].xaxis.set_major_formatter(Fmt)
+        ax[subchrt][0].xaxis.set_minor_locator(weeks)
+      else:
         freq = 2
-        ax[0].xaxis.set_major_locator(months)
-        ax[0].xaxis.set_major_formatter(Fmt)
-        ax[0].xaxis.set_minor_locator(weeks)
-    (dates, Yvalues) = PlotConvert([(minDate-30*60,0),(maxDate+30*60,0)])
-    ax[0].set_xlim(dates[0],dates[1])
+        ax[subchrt][0].xaxis.set_major_locator(months)
+        ax[subchrt][0].xaxis.set_major_formatter(Fmt)
+        ax[subchrt][0].xaxis.set_minor_locator(weeks)
+      [label.set_fontsize('x-small') for (i,label) in enumerate(ax[subchrt][0].xaxis.get_ticklabels())]
+      [label.set_fontsize('x-small') for (i,label) in enumerate(ax[subchrt][0].yaxis.get_ticklabels())]
+      [label.set_rotation(45) for (i,label) in enumerate(ax[subchrt][0].xaxis.get_ticklabels())]
+      if len(ax[subchrt][0].xaxis.get_ticklabels()) > 7:
+        [l.set_visible(False) for (i,l) in enumerate(ax[subchrt][0].xaxis.get_ticklabels()) if i % freq != 0]
+      dateconv = np.vectorize(datetime.datetime.fromtimestamp)
+      dates = dateconv([minDate-30*60,maxDate+30*60])
+      ax[subchrt][0].set_xlim(dates[0],dates[1])
     if showOutliers:
         plt.title("Measurements: values, spikes, outliers for %s: %s\nin the period %s up to %s" % \
-            (pollutants[idx]['table'], ', '.join(projects[pollutants[idx]['table']]), periodStrt, periodEnd), fontsize=10)
+            (pollutants[idx]['table'], ', '.join(projects[pollutants[idx]['table']]), periodStrt, periodEnd), fontsize=8)
     else:
         plt.title("Measurements: values, and spikes (no outliers) for %s: %s\nin the period %s up to %s" % \
-            (pollutants[idx]['table'], ', '.join(projects[pollutants[idx]['table']]), periodStrt, periodEnd), fontsize=10)
-    (dates, Yvalues) = PlotConvert([(minDate-10*60,0),(maxDate+10*60,0)])
-    [label.set_fontsize('x-small') for (i,label) in enumerate(ax[0].xaxis.get_ticklabels())]
-    [label.set_fontsize('x-small') for (i,label) in enumerate(ax[0].yaxis.get_ticklabels())]
-    [label.set_rotation(45) for (i,label) in enumerate(ax[0].xaxis.get_ticklabels())]
-    if len(ax[0].xaxis.get_ticklabels()) > 7:
-        [l.set_visible(False) for (i,l) in enumerate(ax[0].xaxis.get_ticklabels()) if i % freq != 0]
+            (pollutants[idx]['table'], ', '.join(projects[pollutants[idx]['table']]), periodStrt, periodEnd), fontsize=8)
     plt.grid(True)#, color='g', linestyle='-', linewidth=5)
     fig.text(0.98, 0.015, 'generated %s by pyplot/numpy for MySense' % datetime.datetime.fromtimestamp(time()).strftime('%d %b %Y %H:%M'),
         verticalalignment='bottom', horizontalalignment='right',
-        color='gray', fontsize=8)
+        color='gray', fontsize=6)
     plt.xlabel('date/time', fontsize=7)
     # rotates and right aligns the x labels, and moves the bottom of the
     # axes up to make room for them
