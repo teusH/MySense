@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: grubbs.py,v 2.7 2018/07/23 20:12:04 teus Exp teus $
+# $Id: grubbs.py,v 2.8 2018/07/24 15:20:29 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -39,7 +39,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: grubbs.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.7 $"[11:-2]
+__version__ = "0." + "$Revision: 2.8 $"[11:-2]
 
 try:
     import sys
@@ -377,7 +377,7 @@ def showPols(tbl,db=net):
             pols.append(col[0])
     print("\t%s" % ', '.join(pols))
 
-# show table in thye database with sensors
+# show table in the database with sensors
 def showTables(db=net):
     print("Database %s has following sensor kit  tables (<project>_<serial>):" % db['database'])
     for tbl in db_query("SHOW TABLES",True,db=db):
@@ -391,6 +391,15 @@ def showTables(db=net):
                 fnd = False; break
         if fnd:
             showPols(tbl[0],db=db)
+
+# check if there are measurements for a pollutant in the period
+def checkPollutant(pollutant,period, db=net):
+    qry = 'SELECT COUNT(%s) FROM %s WHERE NOT ISNULL(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d' % \
+        (pollutant['pollutant'], pollutant['table'], pollutant['pollutant'], period[0], period[1])
+    try:
+        cnt = db_query(qry, True, db=net)
+        return cnt[0][0]
+    except: return False
 
 # collect script configuration from command line
 def get_arguments():
@@ -485,16 +494,16 @@ Any script change remains free. Feel free to indicate improvements.''')
     pngfile = args.file
     if pngfile != None: show = True
     if args.window:
-        mult = 60*60
+        mult = 60*60  # default hours
         args.window = args.window.lower()
+        if not args.window[0].isdigit(): args.window = '1' + args.window
         for char in ['h','d','w','m']:
             idx = args.window.find(char)
-            if idx < 0: continue
-            if not idx: args.window = '1' + args.window
-            if char == 'h': mult = 3600
-            elif char == 'd': mult = 3600*24
-            elif char == 'w': mult = 3600*24*7
-            else: mult = 3600*24*30
+            if idx < 0: idx = len(args.window); continue
+            if char == 'h': mult = 3600; break
+            elif char == 'd': mult = 3600*24; break
+            elif char == 'w': mult = 3600*24*7; break
+            else: mult = 3600*24*30 # 4 weeks
         period[2] = int(args.window[:idx])*mult
     else:
         period[2] = period[1] - period[0]
@@ -546,8 +555,14 @@ Any script change remains free. Feel free to indicate improvements.''')
                     try: minmax[i] = float(minmax[i])
                     except: minmax[i] = float('nan')
                 pollutants[-1]['range'] = minmax[:2]
-                if verbose and not onlyShow:
+                if checkPollutant(pollutants[-1],period):
+                  if verbose and not onlyShow:
                     print("Find spikes and outliers in table %s for column %s,\n\toutliers value range [%f - %f]" % (pollutants[-1]['table'],pollutants[-1]['pollutant'],pollutants[-1]['range'][0],pollutants[-1]['range'][1]))
+                else:  # for some reason no data for this pollutant
+                  if verbose:
+                    print("No measurements in table %s for column %s. Skipped." % \
+                        (pollutants[-1]['table'],pollutants[-1]['pollutant']))
+                    pollutants.pop() 
 
 # https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list
 # detect outliers with a modified Z-score
@@ -661,8 +676,9 @@ def doStatistics(table,pollutant,period,db=net,string=''):
     global verbose, debug
     if not verbose: return
     if not Check(table,pollutant,period=period,db=db):
-        raise ValueError("Database table %s has no measurements for pollutant %s in the provided period of time." % \
-            (pollutant['table'],pollutant['pollutant']))
+        print("Database table %s has no measurements for pollutant %s in the provided period of time." % \
+            (table,pollutant))
+        return
     qry = "SELECT count(%s) FROM %s WHERE not %s_valid AND NOT ISNULL(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d" % \
         (pollutant, table, pollutant, pollutant, period[0],period[1])
     invalids = db_query(qry, True, db=db)
@@ -947,16 +963,16 @@ def CreateGraphs(period, pollutants, db=net):
     Fmt = mdates.DateFormatter('%-d %b')
 
     plt.suptitle("Chart with pollutants scatter graphs with spikes (Z-score) and outiers (min-max limit)", y=1.05, fontsize=8)
-    minDate = time(); maxDate = 0; fnd = False
+    minDate = time(); maxDate = 0
     projects = {};
     # combine gaphs per type of pollutants in one subchart
     # To Do: meteo: left yAxe temp, right yAxe other
     ax = []
     # newcharts from subcharts
     subcharts = chartCombine() # create subchart [[l1,r1],[l2,r2],...]
-    colId = len(colors)-1
+    colId = len(colors)-1; fndGraph = False
     for subchrt in range(0,len(subcharts)):
-      ax.append([None,None])
+      ax.append([None,None]); fnd = False
       handles = []; labels = [] # collect legend for this subchart
       for Y in range(0,len(subcharts[subchrt])):
         if (not Y) and (not subchrt):
@@ -984,7 +1000,7 @@ def CreateGraphs(period, pollutants, db=net):
             (dates,Yvalues) = PlotConvert(values)
             ax[subchrt][Y].scatter(dates, Yvalues,marker='.', color=colors[colId][0], label=label)
             plotAverage(pollutants[idx],period,np.min(Yvalues),np.max(Yvalues),ax[subchrt][Y],color=colors[colId][2],interval=interval, db=db, sigma=sigma, label=label2)
-            label=''; fnd = True
+            fnd = True
             norm = getNorm(pollutants[idx]['pollutant'])
             for n in range(0,len(norm)):
               try:
@@ -998,24 +1014,31 @@ def CreateGraphs(period, pollutants, db=net):
             if maxDate < max: maxDate = max
             if minDate > spikes[0][0]: minDate = spikes[0][0]
             (dates,Yvalues) = PlotConvert(spikes)
-            ax[subchrt][Y].scatter(dates, Yvalues,marker='o', color=colors[colId][1], label=label)
-            label=''; fnd = True
-            ax[subchrt][Y].scatter(dates, Yvalues,marker='.', color=colors[colId][0], label=label)
+            ax[subchrt][Y].scatter(dates, Yvalues,marker='o', color=colors[colId][1], label='')
+            fnd = True
+            ax[subchrt][Y].scatter(dates, Yvalues,marker='.', color=colors[colId][0], label='')
           if showOutliers and (len(outliers) > 0):
+            if fnd: label = ''
             try: max = outliers[len(outliers)-1][0]
             except: max = outliers[0][0]
             if maxDate < max: maxDate = max
             if minDate > outliers[0][0]: minDate = outliers[0][0]
             (dates,Yvalues) = PlotConvert(outliers)
             ax[subchrt][Y].scatter(dates, Yvalues,marker='s', color=colors[colId][2], label=label)
-            label=''; fnd = True
-            ax[subchrt][Y].scatter(dates, Yvalues,marker='.', color=colors[colId][0], label=label)
+            fnd = True
+            ax[subchrt][Y].scatter(dates, Yvalues,marker='.', color=colors[colId][0], label='')
         hands, labs = ax[subchrt][Y].get_legend_handles_labels()
-        handles += hands; labels += labs
+        if len(hands):
+            handles += hands; labels += labs
+        elif verbose and (len(subcharts[subchrt]) < 2): # only once
+            print("Found no data to plot for a subchart %s." % subcharts[subchrt][0][1])
       # finish this subchart
-      ax[subchrt][0].legend(handles,labels,loc=2,fontsize=6, shadow=True, framealpha=0.9, labelspacing=0.3, fancybox=True)
-      if not fnd:
-        print("Found no data to plot.")
+      if len(handles):
+        ax[subchrt][0].legend(handles,labels,loc=2,fontsize=6, shadow=True, framealpha=0.9, labelspacing=0.3, fancybox=True)
+        fndGraph = True
+    if not fndGraph:
+        print("Could not find measurements in this period. No show.")
+
         return False
     # format the ticks
     for subchrt in range(0,len(subcharts)):
