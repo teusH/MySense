@@ -1,6 +1,8 @@
 # Delete outiers and spikes from measurments
 ## STATE
-operational: 17-07-2018
+* scatter plotting and outliers removal operational: 17-07-2018.
+* average spline plotting in beta: 27-07-2018.
+* correction factor weighted curved fitting: in development.
 # DESCRIPTION
 The grubb.py script will walk throught the database for a period op time *invalidating* the measurement value in de database as follows:
 - outliers which are manually configured for each type of measurment
@@ -10,8 +12,11 @@ A sliding window size on the command line  of the filtering can be defined to re
 
 Use the help option to obtain a glance into all options of the script.
 
-The script may show <img src="PM25-PM10-June2618.png" align=right height=150> a chart with all scatter graphs visualising the valid measurements, the spikes and the outliers.
+The script may show <img src="reports/PM25-PM10-June2618.png" align=right height=150> a chart with all scatter graphs visualising the valid measurements, the spikes and the outliers.
 On UNIX machinery one is able to zoom and scroll through the chart interactively.
+
+The graphs can be: scatter plot of measurements, average spline plot (average per period of time, dft one hour), average spline plot of corrected values with instalable correction factor per pollutant.
+To Do: with ref. measurements collect a (weighted) correction factor via curved fitting technic.
 
 De note that Z-score is defined on values sets larger as 15 values. Best is if the values have a Normal distribution.
 On dust measurements the script seems to work well enough. Note that the measurement values will not be altered by the script.
