@@ -26,7 +26,11 @@ The advise is to use `grubb.py` first before using the regression script.
 
 Currently the script uses the MySQL database configuration as defined by MySense.
 
-To Do: add best fit polynomial to the measurement graph in the chart.
+The script knows a lot of options to enable or disable some graphs. Sa well adjust sigma of the variance settings.
+
+Experimental is the use of correction algorithms to some pollutants, especially the particle matter (dust) measurments with rel. humidity measurments (if available in the database).
+E.g. relative humidity may exponential increase the PM measurements and seems to be location dependent. More elements however may influence the dust particle count as well. Only for PM10 and PM2.5 correction factors have been made available from an external source  on an experimental base.
+This is just subject to more research so handle with care.
 
 # Regression: Best fit Polynomial
 ## STATE

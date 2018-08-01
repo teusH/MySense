@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: grubbs.py,v 2.8 2018/07/24 15:20:29 teus Exp teus $
+# $Id: grubbs.py,v 2.10 2018/08/01 12:19:13 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -37,9 +37,15 @@
     Table name format <project>_<serial>.
     Database table/column (sensor name) over a period of time.
     Database credentials can be provided from command environment.
+    Shows all graphs in a chart with subcharts per sensor class.
+    Graphs may have: scatter plot, average on a period (dft hourly),
+    with correction factor per pollutant type and dependent eg meteo 
+    values.
+    To Do: extract from ref. measurement a correction routine via
+    curved fitting technic.
 """
 progname='$RCSfile: grubbs.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.8 $"[11:-2]
+__version__ = "0." + "$Revision: 2.10 $"[11:-2]
 
 try:
     import sys
@@ -56,14 +62,18 @@ try:
 except ImportError as e:
     sys.exit("One of the import modules not found: %s" % e)
  
-debug = False   # debug messages
+Debug = False   # debug messages
 verbose = True  # be more versatile
 reset = True    # revalidate cells on every start
 RESET = False   # revalidate all cells in the command line period
 lossy = True    # do not re-valid cells in first quarter of window
 onlyShow = False # only show chart, do not filter spikes and outliers
 showOutliers = False # show also outliers in chart
+ShowCorrect = False  # show also the correction average graph if possible
+showScatter = True   # show scatter plots
+showNorm = False # show EU/WHO norm lines for pollutants
 sigma = 2.0     # graph variance band sigma/propability
+threshold = 15  # minimal amound of measurement to act on
 
 # global variables can be overwritten from command line
 # database access credentials
@@ -79,7 +89,7 @@ try: net['user'] = os.environ['USER']
 except: pass
 # start in secs, stop in sec, sliding window in secs (dflt end - stop)
 # sliding window will stop-window, step back with 1/2 window size, upto start
-# if window has less as 15 values the outlier removal is skipped
+# if window has less as "threshold" values the outlier removal is skipped
 # start/stop date-time will be converted to secs via Unix date command
 period = ['30 days ago','now',None] # last 30 days, window is full period
 pollutants = [
@@ -102,29 +112,102 @@ colors = [
 MaxPerGraph = 4 # max graphs per subplot
 pngfile = None  # show the scatter graph and regression polynomial best fit graph
 
+# NULL correction routine
+# use: getCor(name)[0](value,args=getCor(name)[1])
+def Null(value, args=None):
+    return value
+
+# Joost RH correction for dust count measurements
+# correction was done with SDS011 against nearby KNMI and RIVM Vredepeel
+# correction may be location dependent and PM sensor dependent!
+# WARNING: this is still EXPIRIMENTAL
+# crit point is on corr factor 1: math.e**(math.log(corr[0])/corr[1])
+JoostFactor = {
+    # 'pm10': [4.65,-0.65], # correction by 2018-03 PM10 crit pnt 10.6%
+    'pm25': [3.9,-0.409], # correction by 2018-05 PM2.5 crit pnt 27.9%
+    'pm10': [4.31,-0.47], # correction by 2018-05 PM10 crit pnt 22.4%
+    }
+JoostCache = None       # speed check up
+def Joost(data,args=None):
+    import math
+    global JoostFactor, JoostCache, Debug
+    if (args == None) or (len(args) < 2): return float('nan')
+    if (JoostCache == None) or (JoostCache[1:] != args): # speedup
+      # if (getUnits(args[0])[0][:2] != 'PM') or (getUnits(args[1])[0][:2] != 'RH'):
+      pol = getCor(args[0])[1][0]
+      if not (pol in JoostFactor.keys()) or (getUnits(args[1])[0][:2] != 'RH'):
+        raise ValueError("internal error Joost factoring")
+      JoostCache = [pol,args[0],args[1]]
+    try:
+        data[0] = float(data[0])
+        data[1] = float(data[1])
+    except: return float('nan')
+    if ((data[1] > 100) or (data[1] < 0)):
+      if debug:
+        print("Rel Humidity out of range 0-100: %.2f", data[1])
+      if data[1] > 100: data[1] = 100
+      if data[1] < 0: data[1] = 0
+    corFact = JoostFactor[JoostCache[0]][0] * math.pow(data[1],JoostFactor[JoostCache[0]][1])
+    if verbose and (corFact > 1.0):
+      print("ATTENTION: Rel humidity of %.2f below crit point (cor factor 5.2f > 1.0) of RH %.2%%" % \
+        (data[1], corFact, math.pow(math.e,math.log(JoostFactor[JoostCache[0]][0])/JoostFactor[JoostCache[0]][1])))
+    return data[0]*corFact
+
 # raw (outliers) limits for some pollutants, manually set, avoid rough spikes
-# first: search pattern
-# 2nd+3rd: minimum and maximum for outliers detection
-# 5th: unit + class per pollutant for charts
-# 6th: database column names translated to something humans understand
-# 7th: EU norm daily average and WHO (to be completed)
+# 1st: search pattern for DB column names for polAttrs
+# 2nd: minimum and maximum for outliers detection
+# 3th: unit + class per pollutant for charts
+# 4th: database column names translated to something humans understand
+# 5th: EU norm daily average and WHO (to be completed)
 Norms = ['EU norm','WHO norm'] # norm type
+# 6th: array with correction routine and routine arg or None
 # To Do: complete with more values
 polAttrs = [False,
-    ['^[a-su-z]?temp$',-50,50,None,['$^oC$','meteo'],'temperature',[None,None]],    # temp type
-    ['^[a-qs-z]?rv$',0,100,None,['RH %','meteo'],'rel. humidity',[None,None]],        # humidity type
-    ['^[a-km-z]?(luchtdruk|pres(sure)?)$',800,1200,None,['Hpa','meteo'],'air pressure',[None,None]],        # air pressure type
-    ['^[a-oq-z]?pm_?10$',0,200,None,['PM $\mu g/m^3$','dust'],'PM$_1$$_0$',[32,20]], # dust type
-    ['^[a-oq-z]?pm_?25$',0,200,None,['PM $\mu g/m^3$','dust'],'PM$_2$.$_5$',[25,10]], # dust type
-    ['^[a-oq-z]?pm_?1$',0,200,None,['PM $\mu g/m^3$','dust'],'PM$_1$.$_0$',[None,None]],  # dust type
-    ['^[a-np-z]?[Oo]3',0,250,None,['ozon','gas'],'O$_3$',[None,None]],     # ozon type
-    ['^[a-mo-z]?[Nn][Oo]2?',0,100,None,['stikstofoxides','gas'],'NO$_x$',[100,None]],# NOx type
-    ['^[a-mo-z]?[Nn][Hh]3',0,100,None,['NH$_3$','gas'],'NH$_3$',[None,None]],  # NH3 type
-    # next must be last
-    ['.*',float('nan'),float('nan'),None,['','unknown'],'undefined',[None,None]], # catch all
+    ['^[a-su-z]?temp$',                      # temp class
+        [-50,50,None],['$^oC$','meteo'],
+        'temperature',None,None],
+    ['^[a-qs-z]?rv$',                        # humidity class
+        [0,100,None],['RH %','meteo'],
+        'rel. humidity',None,None],
+    ['^[a-km-z]?(luchtdruk|pres(sure)?)$',   # air pressure class
+        [800,1200,None],['Hpa','meteo'],
+        'air pressure',None,None],
+    ['^[a-oq-z]?pm_?10$',                    # dust class PM10
+        [0,200,None],['PM $\mu g/m^3$','dust'],
+        'PM$_1$$_0$',[32,20],[Joost,['pm10','rv']]],
+    ['^[a-oq-z]?pm_?25$',                    # dust class PM2.5
+        [0,200,None],['PM $\mu g/m^3$','dust'],
+        'PM$_2$.$_5$',[25,10],[Joost,['pm25','rv']]],
+    ['^[a-oq-z]?pm_?1$',                     # dust class PM1
+        [0,200,None],['PM $\mu g/m^3$','dust'],
+        'PM$_1$.$_0$',[Joost,['pm1','rv']]],
+    ['^[a-np-z]?[Oo]3',                      # gas classes O3
+        [0,250,None],['ozon','gas'],
+        'O$_3$',None,None],
+    ['^[a-mo-z]?[Nn][Oo]2?',                 # gas classes NOx
+        [0,100,None],['stikstofoxides','gas'],
+        'NO$_x$',None,None],
+    ['^[a-mo-z]?[Nn][Hh]3',                  # gas classes NH3
+        [0,100,None],['NH$_3$','gas'],
+        'NH$_3$',None,None],
+    # next must be general class, catch all
+    ['.*',
+       None,None,
+       'undefined',None,None],
     ]
 
-# Grubbs Z-score tresholds
+def eCompile():
+    global polAttrs
+    if polAttrs[0]: return
+    for i in range(1,len(polAttrs)):
+        # if len(polAttrs[i]) < 7:
+        #     print("WARNING pollutant description incorrect in script \"%s\"" % polAttrs[i][0])
+        # while len(polAttrs[i]) < 7:
+        #     polAttrs[i].append(None)
+        polAttrs[i][0] = re.compile(polAttrs[i][0])
+    polAttrs[0] = True
+
+# Grubbs Z-score thresholds
 test = 'max'    # either min, max or both (two-tailed)  outliers test
 alpha = 0.05    # Grubb significant level
 ddof  = 1       # Delta Degree of Freedom (stddev)
@@ -132,53 +215,74 @@ ddof  = 1       # Delta Degree of Freedom (stddev)
 # nan is not configured, no boundary set
 def getTresholds(name):
     global polAttrs
-    if not polAttrs[0]:
-        for i in range(1,len(polAttrs)):
-            polAttrs[i][0] = re.compile(polAttrs[i][0])
-        polAttrs[0] = True
+    rts = [float('nan'),float('nan'),None]
+    eCompile()
     for i in range(1,len(polAttrs)):
         if polAttrs[i][0].match(name):
-           return polAttrs[i][1:3]
-    return [float('nan'),float('nan')]  # should not happen
+           if len(polAttrs[i]) < 2: return rts
+           if polAttrs[i][1] == None:
+              return rts
+           return polAttrs[i][1]
+    return rts  # should not happen
 
 # next needed in the show charts
 # To Do: units may differ: ug/m3, mV, KOhm, pcs/liter, pcs/m3, pcs/ft2, etc.
 # used in chart labels
 subcharts = [] # collect nr of subcharts
+# get on pol name array with units and class name
 def getUnits(name):
     global polAttrs, subcharts
-    if not polAttrs[0]:
-        for i in range(1,len(polAttrs)):
-            polAttrs[i][0] = re.compile(polAttrs[i][0])
-        polAttrs[0] = True
+    rts = None # default
+    eCompile()
     for i in range(1,len(polAttrs)):
         if polAttrs[i][0].match(name):
-            if not polAttrs[i][4] in subcharts:
-                subcharts.append(polAttrs[i][4])
-            return polAttrs[i][4]
-    return ['','unknown'] # may not happen
+            if len(polAttrs[i]) < 3: return rts
+            if polAttrs[i][2] != None:
+                rts = polAttrs[i][2]
+            if not rts in subcharts:
+                subcharts.append(rts)
+            break
+    return rts # may not happen
 
+# get on pol name a human understandable full name
 def getName(name):
     global polAttrs
-    if not polAttrs[0]:
-        for i in range(1,len(polAttrs)):
-            polAttrs[i][0] = re.compile(polAttrs[i][0])
-        polAttrs[0] = True
+    rts = name # the default
+    eCompile()
     for i in range(1,len(polAttrs)-1):
         if polAttrs[i][0].match(name):
-           return polAttrs[i][5]
-    return name
+            if len(polAttrs[i]) < 4: return rts
+            if polAttrs[i][3]:
+                rts = polAttrs[i][3]
+            break
+    return rts
 
+# get on pol name an array with EU, WHO pollutant norm
 def getNorm(name):
     global polAttrs
-    if not polAttrs[0]:
-        for i in range(1,len(polAttrs)):
-            polAttrs[i][0] = re.compile(polAttrs[i][0])
-        polAttrs[0] = True
+    rts = [None,None]
+    eCompile()
     for i in range(1,len(polAttrs)-1):
         if polAttrs[i][0].match(name):
-           return polAttrs[i][6]
-    return [None,None]
+            if len(polAttrs[i]) < 5: return rts
+            if polAttrs[i][4]:
+                rts = polAttrs[i][4]
+            break
+    return rts
+
+# get on pol name an array: correction routine and routine arguments
+# in script use: getCor(name)[0](value,args=getCor(name)[1])
+def getCor(name):
+    global polAttrs
+    rts = [None,[]]
+    eCompile()
+    for i in range(1,len(polAttrs)-1):
+        if polAttrs[i][0].match(name):
+            if len(polAttrs[i]) < 6: return rts
+            if polAttrs[i][5]:
+                rts = polAttrs[i][5]
+            break
+    return rts
 
 # try to combine charts with same type (meteo, dust, ...)
 # and use left and right y-axis (max 2 in one chart)
@@ -236,22 +340,22 @@ def db_query(query,answer,db=net):
 checked = {} # cache search requests
 # do some check if table and columns exists in DB, and count valids or all
 def Check(table,pollutant,period=None, valid=True,db=net):
-    global debug, verbose
+    global Debug, verbose, threshold
     if not table in checked.keys():
         if not (table,) in db_query("SHOW TABLES", True,db=db):
             print("Table with name \"%s\" does not exists in DB." % table)
             return None
         else:
-            checked['table'] = []
-    if not len(checked['table']):
+            checked[table] = []
+    if not len(checked[table]):
         for col in db_query("DESCRIBE %s" % table,True,db=db):
             fnd = False
             for item in ['_valid','id','datum']:
                 if col[0].find(item) >= 0:
                     fnd = True; break
             if fnd: continue
-            checked['table'].append(col[0])
-    if not pollutant in checked['table']:
+            checked[table].append(col[0])
+    if not pollutant in checked[table]:
         print("Pollutant (column) \"%s\" in table %s does not exists." % (pollutant,table))
         return None
     if not period: return True
@@ -260,13 +364,13 @@ def Check(table,pollutant,period=None, valid=True,db=net):
     qry = "SELECT COUNT(%s) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s" % \
         (pollutant, table, period[0], period[1], valued)
     cnt = db_query(qry, True, db=db)
-    if not cnt[0][0] and debug:
-        print("Table %s / column %s No values in the (window) period." % (table, pollutant))
+    if (cnt[0][0] < threshold) and Debug:
+        print("Table %s / column %s not minmail %d values in the (window) period." % (table, pollutant), threshold)
     return cnt[0][0]
 
 # invalidate cel value if value not in raw range
 def rawInvalid(table,pollutant,period,minimal=float('nan'),maximal=float('nan'),db=net):
-    global debug, verbose
+    global Debug, verbose
     if not Check(table,pollutant,period=period, db=db):
         return False
     update = ''
@@ -278,7 +382,7 @@ def rawInvalid(table,pollutant,period,minimal=float('nan'),maximal=float('nan'),
     qry = 'SELECT count(*) FROM %s WHERE UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s_valid' % \
         (table, period[0], period[1], pollutant)
     total = db_query(qry,True, db=db); total = total[0][0]
-    if debug:
+    if Debug:
         print("Table %s, column %s, period %s up to %s has %d values" % \
             (table, pollutant, \
             datetime.datetime.fromtimestamp(period[0]).strftime('%d %b %Y %H:%M'), \
@@ -286,7 +390,7 @@ def rawInvalid(table,pollutant,period,minimal=float('nan'),maximal=float('nan'),
             total))
     if not total: return False
     if update:
-        if debug:
+        if Debug:
             qry = 'SELECT count(*) FROM %s WHERE (%s OR ISNULL(%s)) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s_valid' % \
                 (table, update, pollutant, period[0], period[1], pollutant)
             cnt = db_query(qry, True, db=db)
@@ -302,13 +406,13 @@ def rawInvalid(table,pollutant,period,minimal=float('nan'),maximal=float('nan'),
 
 # collect an array with id's (dates-time) and values from DB
 def Zscore(table,pollutant,period,db=net):
-    global debug, verbose
+    global Debug, verbose, threshold
     if not Check(table,pollutant,period=period, db=db):
         return None
     qry = 'SELECT %s FROM %s WHERE UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s_valid' % \
         (pollutant, table, period[0], period[1], pollutant)
     data = db_query(qry, True,db=db)
-    if len(data) < 15 and verbose:
+    if len(data) < threshold and verbose:
         print("Table %s, column %s, period %s upto %s, only %d values. Skipped this subperiod." % \
             (table, pollutant, \
             datetime.datetime.fromtimestamp(period[0]).strftime('%d %b %Y %H:%M'), \
@@ -321,7 +425,7 @@ def Zscore(table,pollutant,period,db=net):
         update = '%s < %f OR %s > %f' % \
             (pollutant, result['min'], pollutant, result ['max'])
     else: return False
-    if debug:
+    if Debug:
         print("Table %s, colums %s, period %s up to %s: Grubbs Z-score invalidate %d cells from %d cells:\n\tmean %.2f stddev %.2f, min %.2f max %.2f." % \
             (table, pollutant, \
             datetime.datetime.fromtimestamp(period[0]).strftime('%d %b %Y %H:%M'), \
@@ -394,11 +498,12 @@ def showTables(db=net):
 
 # check if there are measurements for a pollutant in the period
 def checkPollutant(pollutant,period, db=net):
+    global threshold
     qry = 'SELECT COUNT(%s) FROM %s WHERE NOT ISNULL(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d' % \
         (pollutant['pollutant'], pollutant['table'], pollutant['pollutant'], period[0], period[1])
     try:
-        cnt = db_query(qry, True, db=net)
-        return cnt[0][0]
+        cnt = db_query(qry, True, db=db)
+        return cnt[0][0] >= threshold
     except: return False
 
 # collect script configuration from command line
@@ -406,9 +511,10 @@ def get_arguments():
     global pollutants
     """ Command line argument roll in """
     import argparse
-    global progname, debug, verbose, net, period
+    global progname, Debug, verbose, net, period
     global show, pngfile, showOutliers, alpha, ddof, test, lossy
-    global reset, RESET, sigma, onlyShow
+    global reset, RESET, sigma, onlyShow, threshold, ShowCorrect
+    global showNorm, showScatter
     parser = argparse.ArgumentParser(prog=progname, description='''
 Get from a database with "pollutant" values the measured (raw) values
 over a period of time.
@@ -455,6 +561,7 @@ Any script change remains free. Feel free to indicate improvements.''')
     parser.add_argument("-s","--start",help="Start of the period to search for outliers, default: 30 days ago. Use date command strings as format.", default="%s" % period[0])
     parser.add_argument("-e","--end",help="End of the period to search for outliers, default: now. Use date command strings as format.", default="%s" % period[1])
     parser.add_argument("-w","--window",help="Sliding window in period. Sliding will be overlapped by half of the window length. Default full period (window = 0). Default format is in hours. Other formats: nPERIOD, where n is count (may be empty for 1), and PERIOD is H[ours], D[ays], W[eeks], M[onths].")
+    parser.add_argument("--threshold",help="Minimum amount of measurements to do the statistics on, default: %d." % threshold, default=threshold, type=int)
     parser.add_argument("--alpha",help="Grubb's significant level, default: %f." % alpha, default=alpha, type=float)
     parser.add_argument("--ddof",help="use delta degree of Freedom (N*stddev), default: %f." % ddof, default=ddof, type=float)
     parser.add_argument("--test",help="Grubb's test for min(minimal), max(imal) or two-tailed (both) outliers test, default: %s." % test, default=test, choices=['min','max','two-tailed'])
@@ -462,13 +569,16 @@ Any script change remains free. Feel free to indicate improvements.''')
     parser.add_argument("-r", "--reset", help="do not re-valid all cells in sliding window first. See also the lossy option. Default: re-validate cells.", default=reset, action='store_false')
     parser.add_argument("-R", "--RESET", help="re-valid all cells in the full period first, default: do not re-validate the measurements.", default=RESET, action='store_true')
     parser.add_argument("-l", "--lossy", help="Turn lossy off. Re-valid all the cells in the sliding window period before starting the scan. Default: only re-validate all cells from second quarter of time in the sliding window.", default=lossy, action='store_false')
+    parser.add_argument("--norm", help="show EU/WHO pollutants norms in graphs, default: norm level is not shown", default=showNorm, action='store_true')
     parser.add_argument("-S", "--show", help="show graph, default: graph is not shown", default=show, action='store_true')
     parser.add_argument("--onlyshow", help="show graph, do not filter spikes nor outliers, default: filter spikes and outliers in database", default=onlyShow, action='store_true')
+    parser.add_argument("--correct", help="EXPERIMENTAL! Show on average also corrected average + variance graphs. Disable variance on average graph. Default: %s" % ShowCorrect, default=ShowCorrect, action='store_true')
     parser.add_argument("--sigma", help="show graph with variance sigma. Sigma=0 no variance band is plotted. Default: sigma=%.1f" % sigma, default=sigma, type=float)
+    parser.add_argument("--noScatter", help="do not show scatter plots. Default: plot scatter graphs", default=showScatter, action='store_false')
     parser.add_argument("-L", "--outliers", help="Do show in graph the outliers, default: outliers are shown", default=showOutliers, action='store_true')
     parser.add_argument("-f", "--file", help="generate png graph file, default: no png", default=pngfile)
     parser.add_argument('args', nargs=argparse.REMAINDER, help="<Database table name>/[<pollutant or column name>[/<minimal:maximal>]] ... An empty name: the name of the previous argument will be used. No argument will give overview of available sensor kit table names. <table_name> as argument will print avaialable sensor type names for a table.")
-    parser.add_argument("-d","--debug",help="Debugging on. Dflt %d" % debug, default=debug, action='store_true')
+    parser.add_argument("-d","--debug",help="Debugging on. Dflt %d" % Debug, default=Debug, action='store_true')
     parser.add_argument("-q","--quiet",help="Be silent. Dflt %d" % verbose, default=verbose, action='store_false')
     # overwrite argument settings into configuration
     args = parser.parse_args()
@@ -476,12 +586,13 @@ Any script change remains free. Feel free to indicate improvements.''')
     net['user'] = args.user
     net['password'] = args.password
     net['database'] = args.database
-    debug = args.debug
+    Debug = args.debug
     verbose = args.quiet
-    if debug: verbose = True
+    if Debug: verbose = True
     period[0] = date2secs(args.start)
     period[1] = date2secs(args.end)
     onlyShow = args.onlyshow
+    threshold = args.threshold
     show = args.show
     showOutliers = args.outliers
     alpha = float(args.alpha)
@@ -492,6 +603,10 @@ Any script change remains free. Feel free to indicate improvements.''')
     lossy = args.lossy
     sigma = args.sigma
     pngfile = args.file
+    ShowCorrect = args.correct
+    showScatter = args.noScatter
+    if not showScatter: showOutliers = False
+    showNorm = args.norm
     if pngfile != None: show = True
     if args.window:
         mult = 60*60  # default hours
@@ -514,6 +629,10 @@ Any script change remains free. Feel free to indicate improvements.''')
         showPols(arg.args[0])
         exit(0)
     
+    if verbose and not onlyShow:
+        print("Find spikes and outliers. Period: %s upto %s:" % \
+            (datetime.datetime.fromtimestamp(period[0]).strftime('%d %b %Y %H:%M'), \
+            datetime.datetime.fromtimestamp(period[1]).strftime('%d %b %Y %H:%M')))
     # parse arguments dbtable[/dbcolumn[/[[min]:[max]]]]
     # min/max may have default value 'nan'
     # if empty use definition of previous argument
@@ -535,6 +654,7 @@ Any script change remains free. Feel free to indicate improvements.''')
             pass
         serials = serials.split(',')
         polArray = polArray.split(',')
+        # collect work to do in pollutants array
         for serial in serials:
             for pol in polArray:
                 pols = '%s%s/%s' % (project,serial,pol)
@@ -557,12 +677,13 @@ Any script change remains free. Feel free to indicate improvements.''')
                 pollutants[-1]['range'] = minmax[:2]
                 if checkPollutant(pollutants[-1],period):
                   if verbose and not onlyShow:
-                    print("Find spikes and outliers in table %s for column %s,\n\toutliers value range [%f - %f]" % (pollutants[-1]['table'],pollutants[-1]['pollutant'],pollutants[-1]['range'][0],pollutants[-1]['range'][1]))
+                    print("\ttable %s %s\toutliers range [%f - %f]" % (pollutants[-1]['table'],pollutants[-1]['pollutant'],pollutants[-1]['range'][0],pollutants[-1]['range'][1]))
                 else:  # for some reason no data for this pollutant
                   if verbose:
-                    print("No measurements in table %s for column %s. Skipped." % \
-                        (pollutants[-1]['table'],pollutants[-1]['pollutant']))
+                    print("\tno measurements for this period. Skipped.")
                     pollutants.pop() 
+        # next argument
+    return
 
 # https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list
 # detect outliers with a modified Z-score
@@ -652,14 +773,14 @@ def grubbs(X, test='two-tailed', alpha=0.05, ddof=1):
 
 # set for this pollutant in this period all values valid
 def resetValid(table,pollutant,period,db=net, lossy=True):
-    global debug, verbose, reset
+    global Debug, verbose, reset
     if not Check(table,pollutant, db=db):
         return None
     update = ''
     if not reset: return True
     start = period[0]
     if lossy: start = period[0]+int(period[1]-period[0]/4)
-    if debug:
+    if Debug:
         qry = 'SELECT COUNT(*) FROM %s WHERE NOT %s_valid AND NOT ISNULL(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d' % \
         (table, pollutant, pollutant, start, period[1])
         cnt = db_query(qry, True, db=db)
@@ -673,7 +794,7 @@ def resetValid(table,pollutant,period,db=net, lossy=True):
     return db_query(qry, False, db=db)
 
 def doStatistics(table,pollutant,period,db=net,string=''):
-    global verbose, debug
+    global verbose, Debug
     if not verbose: return
     if not Check(table,pollutant,period=period,db=db):
         print("Database table %s has no measurements for pollutant %s in the provided period of time." % \
@@ -696,7 +817,13 @@ def doStatistics(table,pollutant,period,db=net,string=''):
         pol = pollutant
         if pol == 'pm25': pol = 'pm2.5'
         if pol == 'rv': pol = 'rh'
-        print("Statistical period overview %s\n    for %s from table %s:\n\tnr invalid cells %d, nr valid cells %d, average %.2f, std dev %.2f,\n\tminimum %.2f, maximum %.2f." % \
+        if verbose and (not Debug) and rslt['invalids']:
+          print("Statistics %s\n    for %s table %s:\n\tnr cells invalid %d, valid %d, mean %.2f, stddev %.2f, min %.2f, max %.2f." % \
+            (string, pol.upper(), table, rslt['invalids'],
+            rslt['count'], rslt['avg'], rslt['stddev'],
+            rslt['min'], rslt['max']))
+        elif Debug:
+          print("Statistics %s\n    for %s table %s:\n\tnr cells invalid %d, valid %d, mean %.2f, stddev %.2f, min %.2f, max %.2f." % \
             (string, pol.upper(), table, rslt['invalids'],
             rslt['count'], rslt['avg'], rslt['stddev'],
             rslt['min'], rslt['max']))
@@ -705,7 +832,7 @@ def doStatistics(table,pollutant,period,db=net,string=''):
 
 # remove outliers in a table for a pollutant within a period
 def FindOutliers(pollutant,db=net):
-    global verbose, debug, period, lossy, RESET
+    global verbose, Debug, period, lossy, RESET
     if (not pollutant['table']) or (not pollutant['pollutant']): return
     doStatistics(pollutant['table'],pollutant['pollutant'],period=period,db=db,string='(before outliers removal)')
     freq = int(period[1]-period[0])/(int(period[2]/2))
@@ -728,7 +855,7 @@ def FindOutliers(pollutant,db=net):
             # set pollutant_valid = 1 in this start+half period, end period
             resetValid(pollutant['table'], pollutant['pollutant'], [periods[i][0],periods[i-1][1]], db=db, lossy=lossy)
         if not rawInvalid(pollutant['table'],pollutant['pollutant'],periods[i],minimal=pollutant['range'][0],maximal=pollutant['range'][1],db=db):
-            if debug:
+            if Debug:
                 print("Skip table %s column %s for this period." % \
                     (pollutant['table'],pollutant['pollutant']))
             continue
@@ -745,7 +872,7 @@ def PlotConvert(data):
     return (dateconv(dates),np.array(values))
 
 def getPlotdata(period, pollutant, db=net):
-    global debug, verbose
+    global Debug, verbose
     table = pollutant['table']
     pol = pollutant['pollutant'] 
     if not Check(table, pol, db=db):
@@ -872,44 +999,123 @@ def propability(sigma):
     import scipy.stats
     return round(100*scipy.stats.norm(0,1).cdf(sigma),1)
 
+def whichPollutants(pollutant, period,db=net):
+    correction = getCor(pollutant['pollutant'])
+    if correction == None: correction = None, None
+    try:
+        if (correction[1] == None) or\
+             (correction[0] == None):
+          return correction[0], None
+        if getName(pollutant['pollutant']) != getName(correction[1][0]):
+          return None, None
+    except: return None, None
+    if not Check(pollutant['table'],pollutant['pollutant'],db=db):
+        return None, None
+    corPols = {}
+    if not type(correction[1]) is list: correction[1] = [correction[1]]
+    for req in correction[1][1:]:
+        if req == None: continue
+        for pol in checked[pollutant['table']]:
+            if getName(req) == getName(pol):
+              cnt = Check(pollutant['table'],pollutant['pollutant'],period=period, valid=True, db=db)
+              if not cnt: continue
+              if not getName(req) in corPols.keys():
+                # corPols[getName(req)] = [[pol,cnt]]
+                corPols[getName(req)] = [pol,cnt]
+              else: # select highest count
+                # corPols[getName(req)].append([pol,cnt])
+                if corPols[getName(req)][1] < cnt:
+                    corPols[getName(req)] = [pol,cnt]
+              break # may comment this out to collect more as one
+    # may need to sort the list on similar measurements
+    rts = None, None
+    if len(corPols): rts = []
+    # or return array of arrays
+    # for item in corPols.items():
+    #   rts.append([])
+    #   for i in item: rts[-1].append(i[1])
+    for item in corPols.items(): rts.append(item[1][0])
+    return correction[0], rts
+
 # plot a spline and variation (sigma) band
 # select ROUND((CEILING(UNIX_TIMESTAMP(datum) / 3600) * 3600)) AS timeslice, avg(pol) from table group by timeslice order by datum desc
-def plotAverage(pollutant,period,floor,ceil,plt,color='b',interval=3600,db=net, grid=1000, sigma=0, label=''):
+def plotAverage(pollutant,period,floor,ceil,plt,color='b',interval=3600,db=net, grid=1000, sigma=0, label='', lblVar=''):
     dateconv = np.vectorize(datetime.datetime.fromtimestamp)
     if sigma > 4: sigma = 4
     if sigma < 0: sigma = 0
     
     table = pollutant['table'] ; pol = pollutant['pollutant']
-    qry = 'SELECT ROUND((CEILING(UNIX_TIMESTAMP(datum) / %d) * %d)) AS timeslice, AVG(%s), STDDEV(%s) FROM %s WHERE NOT ISNULL(%s) AND %s_valid AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d GROUP BY timeslice ORDER BY datum' % \
-        (interval,interval,pol, pol, table, pol, pol, period[0], period[1])
+    correct = None; pols = []; correctWqry = ''; correctSqry = ''
+    if ShowCorrect: # apply correction factor and show it is enabled
+        correct, pols = whichPollutants(pollutant, period, db=db)
+        if correct and pols and len(pols):
+            for p in pols:
+                correctSqry += ', '; correctWqry += ' AND '
+                # may need sigma of this pol as well
+                correctSqry += 'AVG(%s)' % p  # need stddev as well ...
+                correctWqry += '%s_valid' % p
+    qry = '''
+    SELECT ROUND((CEILING(UNIX_TIMESTAMP(datum) / %d) * %d)) AS timeslice,
+    AVG(%s), STDDEV(%s)%s FROM %s
+    WHERE NOT ISNULL(%s) AND %s_valid%s AND
+    UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d
+    GROUP BY timeslice ORDER BY datum'''
+    qry = qry % \
+        (interval,interval,
+        pol, pol, correctSqry, table,
+        pol, pol, correctWqry,
+        period[0], period[1])
+    if correct: pols.insert(0,pol)
     data = db_query(qry, True, db=db)
-    if len(data) < 15: return False
+    if len(data) < threshold: return False
     spg = (data[-1][0]-data[0][0]+int(grid/2))/grid     # secs per grid 
-    data.append((None,None,None))
-    x = []; m = []; su = []; sl = []
+    data.append(len(data[0])*[None]) # make sure last row is all None
+    x = []; m = []; su = []; sl = []; c = []
+    prevDate = data[0][0]
     for idx in range(0,len(data)):
-        if data[idx][1] != None:
+        if (data[idx][0] != None) and (data[idx][0]-prevDate <= interval) and (data[idx][1] != None):
             x.append(data[idx][0])
             m.append(float(data[idx][1]))
             if sigma:
                 Y  = float(data[idx][1])-sigma*float(data[idx][2])
-                # if Y < floor: Y = floor
-                sl.append(Y)
+                if Y < floor: Y = floor
+                if correct: sl.append(correct([Y]+[float(i) for i in  data[idx][3:len(pols)+2]],args=pols))
+                else: sl.append(Y)
                 Y = float(data[idx][1])+sigma*float(data[idx][2])
-                # if Y > ceil: Y = ceil
-                su.append(Y)
+                if Y > ceil: Y = ceil
+                if correct: su.append(correct([Y]+[float(i) for i in  data[idx][3:len(pols)+2]],args=pols))
+                else: su.append(Y)
+            if correct:  # may need to extent with floor and ceil as well
+                try: # try to apply correction factor
+                  c.append(correct([float(data[idx][1])]+[float(i) for i in  data[idx][3:len(pols)+2]],args=pols))
+                except: c.append(float('nan'))
+            prevDate = data[idx][0]
             continue
-        elif not len(x): continue
+        elif not len(x):
+            prevDate = data[idx][0]
+            continue
+        else: prevDate = data[idx][0]
         dc = dateconv(x)
         dx = [d for d in range(x[0],x[-1],spg)] 
         if sigma:
             sl = makeSpline(x,dx,sl,floor,ceil)
             su = makeSpline(x,dx,su,floor,ceil)
-            plt.fill_between(dateconv(dx), sl, su, where=su >= sl, color='w', facecolor=color, alpha=0.2, interpolate=True, label='')
+            try:
+              plt.fill_between(dateconv(dx), sl, su, where=su >= sl, color='w', facecolor=color, alpha=0.2, interpolate=True, label='')
+            except:
+              pass
         m = makeSpline(x,dx,m,floor,ceil)
-        plt.plot(dateconv(dx), m, '-', c=color, lw=1, label=label)
+        if correct:
+            plt.plot(dateconv(dx), m, ':', c=color, lw=1, label=label)
+            c = makeSpline(x,dx,c,floor,ceil)
+            if label: label = 'corrected ' + label
+            plt.plot(dateconv(dx), c, '-', c=color, lw=1, label=(label + lblVar))
+        else:   
+            plt.plot(dateconv(dx), m, '-', c=color, lw=1, label=(label+lblVar))
         # plot var band
-        x = []; m = []; su = []; sl = []; label = ''
+        x = []; m = []; su = []; sl = []; label = ''; lblVar = ''
+        c = []
+        if data[idx][0] == None: break
     return
 
 # plot a spline and variation band
@@ -917,7 +1123,7 @@ def plotAverage(pollutant,period,floor,ceil,plt,color='b',interval=3600,db=net, 
 def plotSpline(data,plt,color='b',grid=3600):
     from scipy.interpolate import UnivariateSpline
     dates = [data[i][0] for i in range(0,len(data))]
-    if len(dates) <= 5: return None
+    if len(dates) <= 5: return False
     values = np.array([float(data[i][1]) for i in range(0,len(data))])
     dateconv = np.vectorize(datetime.datetime.fromtimestamp)
     for idx in range(0,len(dates)):
@@ -933,9 +1139,21 @@ def plotSpline(data,plt,color='b',grid=3600):
         spl.set_smoothing_factor(0.5)
         xs = np.linspace(x[0], x[-1], int(float(x[-1]-x[0])/(dates[-1]-dates[1])*1000.0))
         plt.plot(dateconv(xs), spl(xs), c=color, lw=1)
+    return True
 
+
+# plot a spline of corrected pollutant
+# correction = [name,routine] e.g. [['rv'],Cpow]
+def showCorrected(plt, data, pollutant, correction, color='b', grid=3600):
+    values = correction[1](pollutant['table'],data,correction[0])
+    if (values != None) and len(values):
+        return plotSpline(values,plt,color==color, grid=grid)
+    return False
+
+# show a chart with subcharts with graphs of all pollutants in
+# a period of time
 def CreateGraphs(period, pollutants, db=net):
-    global debug, verbose, file, colors, sigma
+    global Debug, verbose, file, colors, sigma
     import matplotlib.pyplot as plt
     from matplotlib import gridspec
     import matplotlib.dates as mdates
@@ -966,24 +1184,25 @@ def CreateGraphs(period, pollutants, db=net):
     minDate = time(); maxDate = 0
     projects = {};
     # combine gaphs per type of pollutants in one subchart
-    # To Do: meteo: left yAxe temp, right yAxe other
+    # To Do: e.g. if defined RH,
+    #        apply on dust measurement the Joost correction factor
     ax = []
     # newcharts from subcharts
-    subcharts = chartCombine() # create subchart [[l1,r1],[l2,r2],...]
+    mySubcharts = chartCombine() # create subchart [[l1,r1],[l2,r2],...]
     colId = len(colors)-1; fndGraph = False
-    for subchrt in range(0,len(subcharts)):
+    for subchrt in range(0,len(mySubcharts)):
       ax.append([None,None]); fnd = False
       handles = []; labels = [] # collect legend for this subchart
-      for Y in range(0,len(subcharts[subchrt])):
+      for Y in range(0,len(mySubcharts[subchrt])):
         if (not Y) and (not subchrt):
-          ax[subchrt][Y] = plt.subplot2grid((len(subcharts),1), (subchrt,0), rowspan=1, colspan=1)
+          ax[subchrt][Y] = plt.subplot2grid((len(mySubcharts),1), (subchrt,0), rowspan=1, colspan=1)
         elif not Y:
-          ax[subchrt][Y] = plt.subplot2grid((len(subcharts),1), (subchrt,0), rowspan=1, colspan=1, sharex=ax[0][0])
+          ax[subchrt][Y] = plt.subplot2grid((len(mySubcharts),1), (subchrt,0), rowspan=1, colspan=1, sharex=ax[0][0])
         else: ax[subchrt][Y] = ax[subchrt][0].twinx()
-        ax[subchrt][Y].set_ylabel(subcharts[subchrt][Y][1]+' '+subcharts[subchrt][Y][0])
+        ax[subchrt][Y].set_ylabel(mySubcharts[subchrt][Y][1]+' '+mySubcharts[subchrt][Y][0])
         ax[subchrt][Y].grid(False)
         for idx in range(0,len(pollutants)):
-          if pollutants[idx]['units'] != subcharts[subchrt][Y]: continue
+          if pollutants[idx]['units'] != mySubcharts[subchrt][Y]: continue
           if not pollutants[idx]['table'] in projects.keys():
             projects[pollutants[idx]['table']] = []
           if not getName(pollutants[idx]['pollutant']) in projects[pollutants[idx]['table']]:
@@ -991,24 +1210,27 @@ def CreateGraphs(period, pollutants, db=net):
           (values,spikes,outliers) = getPlotdata(period, pollutants[idx], db=net)
           colId += 1; colId %= len(colors)
           label = '%s' % getName(pollutants[idx]['pollutant'])
-          label2 = '%s %d hr%s average and +/-%.1f sigma (%.1f%%)' % (getName(pollutants[idx]['pollutant']),interval/3600,'' if ((interval%3600)/60) == 0 else '%d min' % ((interval%3600)/60), sigma,propability(sigma))
+          label2 = '%s %d hr%s average' % (getName(pollutants[idx]['pollutant']),interval/3600,'' if ((interval%3600)/60) == 0 else '%d min' % ((interval%3600)/60))
+          lblVar = ' and +/-%.1f sigma (%.1f%%)' % (sigma,propability(sigma))
           if len(values) > 0:
             try: max = values[-1][0]
             except: max = values[0][0]
             if maxDate < max: maxDate = max
             if minDate > values[0][0]: minDate = values[0][0]
             (dates,Yvalues) = PlotConvert(values)
-            ax[subchrt][Y].scatter(dates, Yvalues,marker='.', color=colors[colId][0], label=label)
-            plotAverage(pollutants[idx],period,np.min(Yvalues),np.max(Yvalues),ax[subchrt][Y],color=colors[colId][2],interval=interval, db=db, sigma=sigma, label=label2)
+            if showScatter:
+              ax[subchrt][Y].scatter(dates, Yvalues,marker='.', color=colors[colId][0], label=label)
+            plotAverage(pollutants[idx],period,np.min(Yvalues),np.max(Yvalues),ax[subchrt][Y],color=colors[colId][2],interval=interval, db=db, sigma=sigma, label=label2, lblVar=lblVar)
             fnd = True
-            norm = getNorm(pollutants[idx]['pollutant'])
-            for n in range(0,len(norm)):
-              try:
-                if norm[n] != None:
+            if showNorm:
+              norm = getNorm(pollutants[idx]['pollutant'])
+              for n in range(0,len(norm)):
+                try:
+                  if norm[n] != None:
                     ax[subchrt][Y].axhline(norm[n],c=colors[colId][n],lw=(n+1),ls='dotted',label=(getName(pollutants[idx]['pollutant'])+' '+Norms[n]))
                     # ax[subchrt][Y].text(x, norm[n], horizontalalignment='center')
-              except: pass
-          if len(spikes) > 0:
+                except: pass
+          if showScatter and (len(spikes) > 0):
             try: max = spikes[-1][0]
             except: max = spikes[0][0]
             if maxDate < max: maxDate = max
@@ -1030,8 +1252,8 @@ def CreateGraphs(period, pollutants, db=net):
         hands, labs = ax[subchrt][Y].get_legend_handles_labels()
         if len(hands):
             handles += hands; labels += labs
-        elif verbose and (len(subcharts[subchrt]) < 2): # only once
-            print("Found no data to plot for a subchart %s." % subcharts[subchrt][0][1])
+        elif verbose and (len(mySubcharts[subchrt]) < 2): # only once
+            print("Found no data to plot for a subchart %s." % mySubcharts[subchrt][0][1])
       # finish this subchart
       if len(handles):
         ax[subchrt][0].legend(handles,labels,loc=2,fontsize=6, shadow=True, framealpha=0.9, labelspacing=0.3, fancybox=True)
@@ -1041,7 +1263,7 @@ def CreateGraphs(period, pollutants, db=net):
 
         return False
     # format the ticks
-    for subchrt in range(0,len(subcharts)):
+    for subchrt in range(0,len(mySubcharts)):
       if (maxDate-minDate)/(24*60*60) < 4: # month modus
         freq = 1
         ax[subchrt][0].xaxis.set_major_locator(days)
@@ -1118,6 +1340,6 @@ if __name__ == "__main__":
         for item in pollutants:
             FindOutliers(item,db=net)
     if show or onlyShow: 
-        CreateGraphs(period, pollutants)
+        CreateGraphs(period, pollutants, db=net)
     exit(0)
 
