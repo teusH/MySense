@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: grubbs.py,v 2.10 2018/08/01 12:19:13 teus Exp teus $
+# $Id: grubbs.py,v 2.11 2018/08/01 21:50:04 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -45,7 +45,7 @@
     curved fitting technic.
 """
 progname='$RCSfile: grubbs.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.10 $"[11:-2]
+__version__ = "0." + "$Revision: 2.11 $"[11:-2]
 
 try:
     import sys
@@ -368,6 +368,38 @@ def Check(table,pollutant,period=None, valid=True,db=net):
         print("Table %s / column %s not minmail %d values in the (window) period." % (table, pollutant), threshold)
     return cnt[0][0]
 
+def getInfo(station,period,db=net):
+    try:
+      typeStation = 'Sensors'
+      if station.find('_') < 0: typeStation = 'stations'
+      if not (typeStation,) in db_query("SHOW TABLES", True,db=db):
+        return ''
+      if typeStation == 'Sensors':
+        serial = station[station.find('_')+1:]
+        qry = 'SELECT project,serial,street,village FROM Sensors WHERE serial = "%s" AND  UNIX_TIMESTAMP(id) <= %d ORDER BY datum DESC LIMIT 1' % \
+            (serial,period[1])
+        qry = db_query(qry,True,db=db)
+        if (not len(qry)) or (len(qry[0]) < 4): return ''
+        qry = [ i for i in qry[0] ]
+        for i in range(0,len(qry)):
+            if not len(qry[i]): qry[i] = '?'
+        while qry[2][-1].isdigit() or qry[2][-1].isspace():
+            qry[2] = qry[2][:-1]
+        return 'project %s, serial %s, location %s (%s)' % \
+            (qry[0],qry[1],qry[2],qry[3])
+      else:
+        qry = 'SELECT id, name, municipality, class, organisation FROM stations WHERE stations.table = "%s" LIMIT 1' % \
+            station
+        qry = db_query(qry, True, db=db)
+        if (not len(qry)) or (len(qry[0]) < 5): return ''
+        qry = [ i for i in qry[0] ]
+        for i in range(0,len(qry)):
+            if not len(qry[i]): qry[i] = '?'
+        return 'id %s, %s (%s), class %s, %s' % \
+            (qry[0],qry[1],qry[2],qry[3],qry[4])
+    except: pass
+    return ''
+
 # invalidate cel value if value not in raw range
 def rawInvalid(table,pollutant,period,minimal=float('nan'),maximal=float('nan'),db=net):
     global Debug, verbose
@@ -547,8 +579,10 @@ the measurements also need to be re-validated on start of the scan.
 Note: sliding window is experimental. And can be turned off by
 the reset option.
 
-Usage example:
-"BdP_12345abcd/pm25/0:250" or "LoPy_1234567a/temp/-40:40"
+Usage:
+* argument example: "BdP_12345abcd/pm25/0:250" or "LoPy_1234567a/temp/-40:40"
+* command example: "DBHOST=localhost DBUSER=me DBPASS=acacadabra python grubbs.py --onlyshow --correct -w 2h --noScatter --threshold 1  -s '49 days ago' -e '42 days ago' VW2017_f07df1c500/pm10,pm25,rv NL10131/pm_10,pm25"
+
 
 Copyright (c) Behoud de Parel, 2018
 Anyone may use it freely under the GNU GPL V4 license.
@@ -645,7 +679,7 @@ Any script change remains free. Feel free to indicate improvements.''')
         project = '';
         serials = args.args[arg][0:args.args[arg].find('/')]
         polArray = args.args[arg][args.args[arg].find('/')+1:]
-        if args.args[arg].find('_') >= 0:
+        if serials[arg].find('_') >= 0:
             project = args.args[arg][0:args.args[arg].find('_')+1]
             serials = args.args[arg][args.args[arg].find('_')+1:]
         try:
@@ -680,7 +714,7 @@ Any script change remains free. Feel free to indicate improvements.''')
                     print("\ttable %s %s\toutliers range [%f - %f]" % (pollutants[-1]['table'],pollutants[-1]['pollutant'],pollutants[-1]['range'][0],pollutants[-1]['range'][1]))
                 else:  # for some reason no data for this pollutant
                   if verbose:
-                    print("\tno measurements for this period. Skipped.")
+                    print("\tTable %s pollutant %s: no measurements for this period. Skipped." % (pollutants[-1]['table'], pollutants[-1]['pollutant']))
                     pollutants.pop() 
         # next argument
     return
@@ -999,7 +1033,10 @@ def propability(sigma):
     import scipy.stats
     return round(100*scipy.stats.norm(0,1).cdf(sigma),1)
 
+# get correction routine and involved sensor/pollutants
 def whichPollutants(pollutant, period,db=net):
+    # no correction on reference stations
+    if pollutant['table'].find('_'): return None, None
     correction = getCor(pollutant['pollutant'])
     if correction == None: correction = None, None
     try:
@@ -1028,8 +1065,8 @@ def whichPollutants(pollutant, period,db=net):
                     corPols[getName(req)] = [pol,cnt]
               break # may comment this out to collect more as one
     # may need to sort the list on similar measurements
-    rts = None, None
-    if len(corPols): rts = []
+    rts = []
+    # if len(corPols): rts = []
     # or return array of arrays
     # for item in corPols.items():
     #   rts.append([])
@@ -1096,7 +1133,8 @@ def plotAverage(pollutant,period,floor,ceil,plt,color='b',interval=3600,db=net, 
             continue
         else: prevDate = data[idx][0]
         dc = dateconv(x)
-        dx = [d for d in range(x[0],x[-1],spg)] 
+        if len(x) == 1: dx = x
+        else: dx = [d for d in range(x[0],x[-1],spg)] 
         if sigma:
             sl = makeSpline(x,dx,sl,floor,ceil)
             su = makeSpline(x,dx,su,floor,ceil)
@@ -1104,14 +1142,19 @@ def plotAverage(pollutant,period,floor,ceil,plt,color='b',interval=3600,db=net, 
               plt.fill_between(dateconv(dx), sl, su, where=su >= sl, color='w', facecolor=color, alpha=0.2, interpolate=True, label='')
             except:
               pass
-        m = makeSpline(x,dx,m,floor,ceil)
-        if correct:
-            plt.plot(dateconv(dx), m, ':', c=color, lw=1, label=label)
-            c = makeSpline(x,dx,c,floor,ceil)
-            if label: label = 'corrected ' + label
-            plt.plot(dateconv(dx), c, '-', c=color, lw=1, label=(label + lblVar))
-        else:   
-            plt.plot(dateconv(dx), m, '-', c=color, lw=1, label=(label+lblVar))
+        if len(m):
+          try:
+            m = makeSpline(x,dx,m,floor,ceil)
+            if correct:
+              plt.plot(dateconv(dx), m, ':', c=color, lw=1, label=label)
+              c = makeSpline(x,dx,c,floor,ceil)
+              if label: label = 'corrected ' + label
+              plt.plot(dateconv(dx), c, '-', c=color, lw=1, label=(label + lblVar))
+            else:
+              plt.plot(dateconv(dx), m, '-', c=color, lw=1, label=(label+lblVar))
+          except:
+            # plt.plot(dateconv(dx), m, '.', c=color, lw=1, label=(label+lblVar))
+            pass
         # plot var band
         x = []; m = []; su = []; sl = []; label = ''; lblVar = ''
         c = []
@@ -1209,8 +1252,11 @@ def CreateGraphs(period, pollutants, db=net):
             projects[pollutants[idx]['table']].append(getName(pollutants[idx]['pollutant']))
           (values,spikes,outliers) = getPlotdata(period, pollutants[idx], db=net)
           colId += 1; colId %= len(colors)
-          label = '%s' % getName(pollutants[idx]['pollutant'])
-          label2 = '%s %d hr%s average' % (getName(pollutants[idx]['pollutant']),interval/3600,'' if ((interval%3600)/60) == 0 else '%d min' % ((interval%3600)/60))
+          if pollutants[idx]['table'].find('_') > 0:
+              serial = pollutants[idx]['table'][pollutants[idx]['table'].find('_')+1:]
+          else: serial = pollutants[idx]['table']
+          label = '%s: %s' % (serial, getName(pollutants[idx]['pollutant']))
+          label2 = '%s: %s %d hr%s average' % (serial, getName(pollutants[idx]['pollutant']),interval/3600,'' if ((interval%3600)/60) == 0 else '%d min' % ((interval%3600)/60))
           lblVar = ' and +/-%.1f sigma (%.1f%%)' % (sigma,propability(sigma))
           if len(values) > 0:
             try: max = values[-1][0]
@@ -1306,13 +1352,18 @@ def CreateGraphs(period, pollutants, db=net):
       dateconv = np.vectorize(datetime.datetime.fromtimestamp)
       dates = dateconv([minDate-30*60,maxDate+30*60])
       ax[subchrt][0].set_xlim(dates[0],dates[1])
-    if showOutliers:
-        plt.title("Measurements: values, spikes, outliers for %s: %s\nin the period %s up to %s" % \
-            (pollutants[idx]['table'], ', '.join(projects[pollutants[idx]['table']]), periodStrt, periodEnd), fontsize=8)
-    else:
-        plt.title("Measurements: values, and spikes (no outliers) for %s: %s\nin the period %s up to %s" % \
-            (pollutants[idx]['table'], ', '.join(projects[pollutants[idx]['table']]), periodStrt, periodEnd), fontsize=8)
-    plt.grid(True)#, color='g', linestyle='-', linewidth=5)
+    tables = []; infos = []
+    for polut in pollutants:
+        if not polut['table'] in tables:
+            tables.append(polut['table'])
+            infos.append(getInfo(tables[-1],period, db=db))
+            if verbose:
+                print("Measurements: values, spikes, (outliers) for %s: %s\nin the period %s up to %s" % \
+            (pollutants[idx]['table'], ', '.join(projects[pollutants[idx]['table']]), periodStrt, periodEnd))
+
+    plt.title("Measurements in the period %s up to %s for:\n%s" % \
+            (periodStrt, periodEnd, '\n'.join(infos)), fontsize=8)
+    plt.grid(True)
     fig.text(0.98, 0.015, 'generated %s by pyplot/numpy for MySense' % datetime.datetime.fromtimestamp(time()).strftime('%d %b %Y %H:%M'),
         verticalalignment='bottom', horizontalalignment='right',
         color='gray', fontsize=6)
