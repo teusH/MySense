@@ -12,7 +12,7 @@ A sliding window size on the command line  of the filtering can be defined to re
 
 Use the help option to obtain a glance into all options of the script.
 
-The script may show <img src="reports/PM25-PM10-June2618.png" align=right height=150> a chart with all scatter graphs visualising the valid measurements, the spikes and the outliers.
+The script may show <img src="PM25-PM10-June2618.png" align=right height=150> a chart with all scatter graphs visualising the valid measurements, the spikes and the outliers.
 On UNIX machinery one is able to zoom and scroll through the chart interactively.
 
 The graphs can be: scatter plot of measurements, average spline plot (average per period of time, dft one hour), average spline plot of corrected values with instalable correction factor per pollutant.
@@ -26,7 +26,12 @@ The advise is to use `grubb.py` first before using the regression script.
 
 Currently the script uses the MySQL database configuration as defined by MySense.
 
-The script knows a lot of options to enable or disable some graphs. Sa well adjust sigma of the variance settings.
+Note: the table names are either reference stations (no underscore in the name) or measurement kits (<project><underscore><serial>).
+The MySQL table will have a column `datum` (date/time of measurement), and for every pollutant the name of the pollutant and `<name>_valid` (valid or not valid boolean).
+Two optional tables (`stations` and `Sensors`) have info of the station or measurement kits.
+On the use of CSV file format of the data one has to create a temporary MySQL database with the described table(s) and column names.
+
+The script knows a lot of options to enable or disable some graphs. As well adjust the sigma of the variance settings.
 
 Experimental is the use of correction algorithms to some pollutants, especially the particle matter (dust) measurments with rel. humidity measurments (if available in the database).
 E.g. relative humidity may exponential increase the PM measurements and seems to be location dependent. More elements however may influence the dust particle count as well. Only for PM10 and PM2.5 correction factors have been made available from an external source  on an experimental base.
