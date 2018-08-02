@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: grubbs.py,v 2.11 2018/08/01 21:50:04 teus Exp teus $
+# $Id: grubbs.py,v 2.12 2018/08/02 14:50:29 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -45,7 +45,7 @@
     curved fitting technic.
 """
 progname='$RCSfile: grubbs.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.11 $"[11:-2]
+__version__ = "0." + "$Revision: 2.12 $"[11:-2]
 
 try:
     import sys
@@ -117,6 +117,22 @@ pngfile = None  # show the scatter graph and regression polynomial best fit grap
 def Null(value, args=None):
     return value
 
+# TO DO: correction with dew point
+# calculate dew point from temp and rel humidity, precision 0.4 oC
+# based on Magnus formula: 
+# Sonntag D.: Important New Values of the Physical Constants of 1986,
+# Vapour Pressure Formulations based on the IST-90 and
+# Psychrometer Formulae; Z. Meteorol., 70 (5), pp. 340-344, 1990. 
+def dewPnt(Temp=None,RH=None):
+    import math
+    if (RH == None) or (Temp == None): return Temp
+    if not (0 < RH < 100): return None
+    H = (math.log(RH,10)-2)/0.4343 + (17.62*Temp)/(243.12+Temp);
+    return 243.12*H/(17.62-H)
+    # wikipedia:
+    # H = (17.27-Temp)/(237.7+Temp) + math.ln(RH/100.0)
+    # return (237.7*H)/(17.27-H)
+
 # Joost RH correction for dust count measurements
 # correction was done with SDS011 against nearby KNMI and RIVM Vredepeel
 # correction may be location dependent and PM sensor dependent!
@@ -148,9 +164,11 @@ def Joost(data,args=None):
       if data[1] > 100: data[1] = 100
       if data[1] < 0: data[1] = 0
     corFact = JoostFactor[JoostCache[0]][0] * math.pow(data[1],JoostFactor[JoostCache[0]][1])
-    if verbose and (corFact > 1.0):
-      print("ATTENTION: Rel humidity of %.2f below crit point (cor factor 5.2f > 1.0) of RH %.2%%" % \
+    if not( 0 <= corFact <= 1.0):
+      if verbose:
+        print("ATTENTION: Rel humidity of %.2f below crit point (cor factor 5.2f > 1.0) of RH %.2%%" % \
         (data[1], corFact, math.pow(math.e,math.log(JoostFactor[JoostCache[0]][0])/JoostFactor[JoostCache[0]][1])))
+      return float('nan')
     return data[0]*corFact
 
 # raw (outliers) limits for some pollutants, manually set, avoid rough spikes
@@ -1017,16 +1035,32 @@ def Trendline(data, order=1, grid=1):
 # values, max and minimum values, returns splined values on x
 def makeSpline(dates,x,values,floor,ceil):
     from scipy.interpolate import UnivariateSpline
+    # from: http://www.nehalemlabs.net/prototype/blog/2013/04/05/an-introduction-to-smoothing-time-series-in-python-part-i-filtering-theory/
+    def moving_average(series, sigma=3):
+        from scipy.signal import gaussian
+        from scipy.ndimage import filters
+        import numpy as np
+        b = gaussian(39, sigma)
+        average = filters.convolve1d(series, b/b.sum())
+        var = filters.convolve1d(np.power(series-average,2), b/b.sum())
+        return average, var
+ 
     try:
-        spl = UnivariateSpline(dates, values)
+        _, var = moving_average(values)
+        spl = UnivariateSpline(dates, values, w=1/np.sqrt(var))
+        #spl = UnivariateSpline(dates, values) # without weight
     except:
         return np.array(values) # ???
-    spl.set_smoothing_factor(0.5)
-    d = spl(x); p = []
-    for i in d: # slice to chart height
-        # if i < floor: i = floor
-        # if i > ceil: i = ceil
-        p.append(i)
+    # spl.set_smoothing_factor(0.5) # removed gives low value excesses
+    # prev = x[0]; nx = [] # removed gives crazy plot line
+    # for i in x:
+    #     if (i < floor) or (i > ceil): i = prev
+    #     nx.append(i); prev = i
+    # return np.array(spl(nx))
+    d = spl(x); p = []; prev = d[0]
+    for i in d: # slice to chart height without weight this give spikes
+        if (i < floor) or (i > ceil): i = prev  # remove spikes a bit
+        p.append(i); prev = i
     return  np.array(p)
 
 def propability(sigma):
@@ -1206,10 +1240,10 @@ def CreateGraphs(period, pollutants, db=net):
 
     periodStrt = datetime.datetime.fromtimestamp(period[0]).strftime('%d %b %Y %H:%M')
     periodEnd = datetime.datetime.fromtimestamp(period[1]).strftime('%d %b %Y %H:%M')
-    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-    #Width = 7.5; Height = 5
+    # props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    # Width = 7.5; Height = 5
     # fig = plt.figure(tight_layout=True, figsize=(Width,Height))
-    fig = plt.figure(tight_layout=True)
+    fig = plt.figure(num=('Pollutant measurements from %s up to %s' % (periodStrt,periodEnd)), tight_layout=True)
     # fig, ax = plt.subplots()
     # left=0.1, bottom=0.1, right=0.97, top=0.93, wspace=0.25, hspace=0.25
     # fig.subplots_adjust(top=0.93, bottom=0.5, left=0.2, right=0.2)
@@ -1223,7 +1257,7 @@ def CreateGraphs(period, pollutants, db=net):
     weeks = mdates.WeekdayLocator(byweekday=SU)  # every week
     Fmt = mdates.DateFormatter('%-d %b')
 
-    plt.suptitle("Chart with pollutants scatter graphs with spikes (Z-score) and outiers (min-max limit)", y=1.05, fontsize=8)
+    # plt.suptitle("Chart with pollutants scatter graphs with spikes (Z-score) and outiers (min-max limit)", y=1.05, fontsize=8)
     minDate = time(); maxDate = 0
     projects = {};
     # combine gaphs per type of pollutants in one subchart
@@ -1259,14 +1293,22 @@ def CreateGraphs(period, pollutants, db=net):
           label2 = '%s: %s %d hr%s average' % (serial, getName(pollutants[idx]['pollutant']),interval/3600,'' if ((interval%3600)/60) == 0 else '%d min' % ((interval%3600)/60))
           lblVar = ' and +/-%.1f sigma (%.1f%%)' % (sigma,propability(sigma))
           if len(values) > 0:
-            try: max = values[-1][0]
-            except: max = values[0][0]
-            if maxDate < max: maxDate = max
+            try: maxv = values[-1][0]
+            except: maxv = values[0][0]
+            if maxDate < maxv: maxDate = maxv
             if minDate > values[0][0]: minDate = values[0][0]
             (dates,Yvalues) = PlotConvert(values)
             if showScatter:
               ax[subchrt][Y].scatter(dates, Yvalues,marker='.', color=colors[colId][0], label=label)
-            plotAverage(pollutants[idx],period,np.min(Yvalues),np.max(Yvalues),ax[subchrt][Y],color=colors[colId][2],interval=interval, db=db, sigma=sigma, label=label2, lblVar=lblVar)
+            floor = np.min(Yvalues); temp = getTresholds(pollutants[idx]['pollutant'])[0]
+            floor = floor if floor > temp else temp
+            ceil = np.max(Yvalues); temp = getTresholds(pollutants[idx]['pollutant'])[1]
+            ceil = ceil if ceil < temp else temp
+            plotAverage(pollutants[idx],period, \
+                floor, ceil, \
+                ax[subchrt][Y],color=colors[colId][2], \
+                interval=interval, db=db, sigma=sigma, \
+                label=label2, lblVar=lblVar)
             fnd = True
             if showNorm:
               norm = getNorm(pollutants[idx]['pollutant'])
@@ -1302,7 +1344,10 @@ def CreateGraphs(period, pollutants, db=net):
             print("Found no data to plot for a subchart %s." % mySubcharts[subchrt][0][1])
       # finish this subchart
       if len(handles):
-        ax[subchrt][0].legend(handles,labels,loc=2,fontsize=6, shadow=True, framealpha=0.9, labelspacing=0.3, fancybox=True)
+        frame = ax[subchrt][0].legend(handles,labels,loc=2,fontsize=6, shadow=True, framealpha=0.5, labelspacing=0.3, fancybox=True)
+        frame = frame.get_frame()
+        frame.set_facecolor('white')
+        frame.set_edgecolor('lightblue')
         fndGraph = True
     if not fndGraph:
         print("Could not find measurements in this period. No show.")
@@ -1315,14 +1360,12 @@ def CreateGraphs(period, pollutants, db=net):
         ax[subchrt][0].xaxis.set_major_locator(days)
         ax[subchrt][0].xaxis.set_major_formatter(Fmt)
         ax[subchrt][0].xaxis.set_minor_locator(mdates.HourLocator(interval=1))
-        # ax.tick_params(direction='out', length=6, width=2, colors='r')
         ax[subchrt][0].xaxis.set_minor_locator(mdates.HourLocator(interval=6))
       elif (maxDate-minDate)/(24*60*60) < 10: # month modus
         freq = 1
         ax[subchrt][0].xaxis.set_major_locator(days)
         ax[subchrt][0].xaxis.set_major_formatter(Fmt)
         ax[subchrt][0].xaxis.set_minor_locator(mdates.HourLocator(interval=3))
-        # ax[0].tick_params(direction='out', length=6, width=2, colors='r')
         ax[subchrt][0].xaxis.set_minor_locator(mdates.HourLocator(interval=6))
       elif (maxDate-minDate)/(24*60*60) < 15: # month modus
         freq = 2
@@ -1361,9 +1404,13 @@ def CreateGraphs(period, pollutants, db=net):
                 print("Measurements: values, spikes, (outliers) for %s: %s\nin the period %s up to %s" % \
             (pollutants[idx]['table'], ', '.join(projects[pollutants[idx]['table']]), periodStrt, periodEnd))
 
-    plt.title("Measurements in the period %s up to %s for:\n%s" % \
-            (periodStrt, periodEnd, '\n'.join(infos)), fontsize=8)
+    plt.title(" \n%s\n " % \
+            ('\n'.join(infos)), fontsize=8)
     plt.grid(True)
+    fig.text(0.5, 0.965, 'Measurements in the period %s up to %s' % \
+        (periodStrt, periodEnd), weight='bold',
+        verticalalignment='bottom', horizontalalignment='center',
+        color='black', fontsize=8)
     fig.text(0.98, 0.015, 'generated %s by pyplot/numpy for MySense' % datetime.datetime.fromtimestamp(time()).strftime('%d %b %Y %H:%M'),
         verticalalignment='bottom', horizontalalignment='right',
         color='gray', fontsize=6)
