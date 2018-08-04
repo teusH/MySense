@@ -242,3 +242,6 @@ Note: The Plantower PMS7003 is much smaller and consumes less energy as the Nova
 
 ## Licensing
 If not noted the scripts and changes to external scripts are GPL V3.
+
+## some references
+* https://kapusta.cc/2017/12/02/home-made-air-quality-monitoring-using-wipy/
