@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: grubbs.py,v 2.13 2018/08/05 11:01:03 teus Exp teus $
+# $Id: grubbs.py,v 2.14 2018/08/05 11:17:48 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -45,7 +45,7 @@
     curved fitting technic.
 """
 progname='$RCSfile: grubbs.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.13 $"[11:-2]
+__version__ = "0." + "$Revision: 2.14 $"[11:-2]
 
 try:
     import sys
@@ -1151,6 +1151,7 @@ def plotAverage(pollutant,period,floor,ceil,plt,color='b',interval=3600,db=net, 
             x.append(data[idx][0])
             m.append(float(data[idx][1]))
             if sigma:
+                if lblVar and (float(data[idx][2]) <= 0.01): lblVar = ''
                 Y  = float(data[idx][1])-sigma*float(data[idx][2])
                 if Y < floor: Y = floor
                 if correct: sl.append(correct([Y]+[float(i) for i in  data[idx][3:len(pols)+2]],args=pols))
