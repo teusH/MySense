@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: grubbs.py,v 2.14 2018/08/05 11:17:48 teus Exp teus $
+# $Id: grubbs.py,v 2.15 2018/08/05 14:04:31 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -45,7 +45,7 @@
     curved fitting technic.
 """
 progname='$RCSfile: grubbs.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.14 $"[11:-2]
+__version__ = "0." + "$Revision: 2.15 $"[11:-2]
 
 try:
     import sys
@@ -74,6 +74,7 @@ showScatter = True   # show scatter plots
 showNorm = False # show EU/WHO norm lines for pollutants
 sigma = 2.0     # graph variance band sigma/propability
 threshold = 15  # minimal amound of measurement to act on
+weighted = False # use weighted spline fit
 
 # global variables can be overwritten from command line
 # database access credentials
@@ -564,7 +565,7 @@ def get_arguments():
     global progname, Debug, verbose, net, period
     global show, pngfile, showOutliers, alpha, ddof, test, lossy
     global reset, RESET, sigma, onlyShow, threshold, ShowCorrect
-    global showNorm, showScatter
+    global showNorm, showScatter, weighted
     parser = argparse.ArgumentParser(prog=progname, description='''
 Get from a database with "pollutant" values the measured (raw) values
 over a period of time.
@@ -614,6 +615,7 @@ Any script change remains free. Feel free to indicate improvements.''')
     parser.add_argument("-e","--end",help="End of the period to search for outliers, default: now. Use date command strings as format.", default="%s" % period[1])
     parser.add_argument("-w","--window",help="Sliding window in period. Sliding will be overlapped by half of the window length. Default full period (window = 0). Default format is in hours. Other formats: nPERIOD, where n is count (may be empty for 1), and PERIOD is H[ours], D[ays], W[eeks], M[onths].")
     parser.add_argument("--threshold",help="Minimum amount of measurements to do the statistics on, default: %d." % threshold, default=threshold, type=int)
+    parser.add_argument("--weighted",help="Use weighted spline fit for average curve, default: %s." % weighted, default=weighted, action='store_true')
     parser.add_argument("--alpha",help="Grubb's significant level, default: %f." % alpha, default=alpha, type=float)
     parser.add_argument("--ddof",help="use delta degree of Freedom (N*stddev), default: %f." % ddof, default=ddof, type=float)
     parser.add_argument("--test",help="Grubb's test for min(minimal), max(imal) or two-tailed (both) outliers test, default: %s." % test, default=test, choices=['min','max','two-tailed'])
@@ -654,6 +656,7 @@ Any script change remains free. Feel free to indicate improvements.''')
     RESET = args.RESET
     lossy = args.lossy
     sigma = args.sigma
+    weighted = args.weighted
     pngfile = args.file
     ShowCorrect = args.correct
     showScatter = args.noScatter
@@ -1035,6 +1038,7 @@ def Trendline(data, order=1, grid=1):
 # values, max and minimum values, returns splined values on x
 def makeSpline(dates,x,values,floor,ceil):
     from scipy.interpolate import UnivariateSpline
+    global weighted     # do weighted spline average curve fit
     # from: http://www.nehalemlabs.net/prototype/blog/2013/04/05/an-introduction-to-smoothing-time-series-in-python-part-i-filtering-theory/
     def moving_average(series, sigma=3):
         from scipy.signal import gaussian
@@ -1046,9 +1050,11 @@ def makeSpline(dates,x,values,floor,ceil):
         return average, var
  
     try:
-        _, var = moving_average(values)
-        spl = UnivariateSpline(dates, values, w=1/np.sqrt(var))
-        #spl = UnivariateSpline(dates, values) # without weight
+        if weighted:
+          _, var = moving_average(values)
+          spl = UnivariateSpline(dates, values, w=1/np.sqrt(var))
+        else:
+          spl = UnivariateSpline(dates, values) # without weight
     except:
         return np.array(values) # ???
     # spl.set_smoothing_factor(0.5) # removed gives low value excesses
