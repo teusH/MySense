@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: grubbs.py,v 2.12 2018/08/02 14:50:29 teus Exp teus $
+# $Id: grubbs.py,v 2.13 2018/08/05 11:01:03 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -45,7 +45,7 @@
     curved fitting technic.
 """
 progname='$RCSfile: grubbs.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.12 $"[11:-2]
+__version__ = "0." + "$Revision: 2.13 $"[11:-2]
 
 try:
     import sys
@@ -1115,6 +1115,9 @@ def plotAverage(pollutant,period,floor,ceil,plt,color='b',interval=3600,db=net, 
     if sigma > 4: sigma = 4
     if sigma < 0: sigma = 0
     
+    if not lblVar:
+      if sigma:
+        lblVar = ' and +/-%.1f sigma (%.1f%%)' % (sigma,propability(sigma))
     table = pollutant['table'] ; pol = pollutant['pollutant']
     correct = None; pols = []; correctWqry = ''; correctSqry = ''
     if ShowCorrect: # apply correction factor and show it is enabled
@@ -1308,7 +1311,7 @@ def CreateGraphs(period, pollutants, db=net):
                 floor, ceil, \
                 ax[subchrt][Y],color=colors[colId][2], \
                 interval=interval, db=db, sigma=sigma, \
-                label=label2, lblVar=lblVar)
+                label=label2)
             fnd = True
             if showNorm:
               norm = getNorm(pollutants[idx]['pollutant'])
