@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.33 2018/04/14 11:10:00 teus Exp teus $
+# $Id: MyDB.py,v 2.34 2018/08/16 12:09:15 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.33 $"[11:-2]
+__version__ = "0." + "$Revision: 2.34 $"[11:-2]
 
 try:
     import MyLogger
@@ -130,16 +130,17 @@ def db_registrate(ident):
         return False
     if not db_table(ident,'Sensors'):
         return False
-    def db_WhereAmI(ident):
+    def db_WhereAmI(ident,desc=True):
         query = []
         for fld in ("label","description","street","village","province","municipality"):
+            if (fld == "description") and (not desc): continue
             if (fld in ident.keys()) and (ident[fld] != None):
                 query.append("%s = '%s'" % (fld,ident[fld]))
         if not len(query): return
         db_query("UPDATE Sensors SET %s WHERE project = '%s' AND serial = '%s' AND active" % (','.join(query),ident['project'],ident['serial']),False)
         return
 
-    if not ('label',) in db_query("SELECT column_name FROM information_schema.columns WHERE  table_name = 'Sensors' AND table_schema = '%s'" % Conf['database'],True):
+    if not 'label' in [str(r[0]) for r in db_query("SELECT column_name FROM information_schema.columns WHERE  table_name = 'Sensors' AND table_schema = '%s'" % Conf['database'],True)]:
         if not db_query("""ALTER TABLE Sensors
             ADD COLUMN coordinates VARCHAR(25) DEFAULT NULL,
             ADD COLUMN label VARCHAR(50) DEFAULT NULL,
@@ -157,7 +158,7 @@ def db_registrate(ident):
             CHANGE datum datum datetime DEFAULT current_timestamp ON UPDATE current_timestamp
         """, False):
             return False
-    Rslt =  db_query("SELECT first,coordinates FROM Sensors WHERE project = '%s' AND serial = '%s' AND active" % (ident['project'],ident['serial']), True)
+    Rslt =  db_query("SELECT first,coordinates,datum,active FROM Sensors WHERE project = '%s' AND serial = '%s' ORDER BY datum DESC" % (ident['project'],ident['serial']), True)
     if not type(Rslt) is list:
         return False
     serials[ident['serial']] = ident       # remember we know this one
@@ -200,18 +201,21 @@ def db_registrate(ident):
         first = "'%s'" % Rslt[0][0]
         for item in Rslt:
             if item[1] == ident['geolocation']: # same location, update info
-                db_query("UPDATE Sensors SET last_check = now(), active = 1, sensors = %s, description = %s WHERE coordinates like '%s%%'  AND serial = '%s'" % (fld_units,fld_types,','.join(ident['geolocation'].split(',')[0:2]),ident['serial']) , False)
-                Conf["registrated"] = True
+                db_query("UPDATE Sensors SET last_check = now(), active = 1, sensors = %s, description = %s WHERE coordinates like '%s%%'  AND serial = '%s' AND datum = '%s'" % (fld_units,fld_types,','.join(ident['geolocation'].split(',')[0:2]),ident['serial'],item[2]) , False)
                 # MyLogger.log(modulename,'ATTENT',"Registrated (renew last access) %s  to database table Sensors." % ident['serial'])
-                db_WhereAmI(ident)
+                db_WhereAmI(ident,desc=False)
+                Conf["registrated"] = True
                 return True
+            elif item[3]:  # deactivate this one
+                db_query("UPDATE Sensors SET active = 0 WHERE serial = '%s' AND datum = '%s' and active" % (ident['serial'],item[2]) , False)
+    # new entry or sensor kit moved
     db_query("UPDATE Sensors SET active = 0 WHERE project = '%s' AND serial = '%s'" % (ident['project'],ident['serial']),False)
     try:
         db_query("INSERT INTO Sensors (project,serial,coordinates,sensors,description,last_check,first) VALUES ('%s','%s','%s',%s,%s,now(),%s)" % (ident['project'],ident['serial'],ident['geolocation'],fld_units,fld_types,first),False)
     except:
         pass
     MyLogger.log(modulename,'ATTENT',"New registration to database table Sensors.")
-    db_WhereAmI(ident)
+    db_WhereAmI(ident,True)
     return True
 
 # do a query
@@ -259,7 +263,7 @@ def db_table(ident,table):
     global Conf
     if (table) in Conf.keys():
         return True
-    if (table,) in db_query("SHOW TABLES",True):
+    if table in [str(r[0]) for r in db_query("SHOW TABLES",True)]:
         Conf[table] = True
         return True
     # create database: CREATE DATABASE  IF NOT EXISTS mydb; by super user
@@ -284,6 +288,11 @@ def db_table(ident,table):
     return Conf[table]
 
 ErrorCnt = 0
+# column names which are subjected to value validation with min, max value
+# To Do: use sample of database, using Z-score or Grubs test (not advised),
+# or using mean of variation
+tresholds = [False,('^[a-z]?temp$',-40,40,None),('^[a-z]?rv$',0,100,None),('^pm_?[12][05]?$',0,200,None)]
+
 def publish(**args):
     """ add records to the database,
         on the first update table Sensors with ident info """
@@ -309,6 +318,26 @@ def publish(**args):
         }
         if my_name in DBnames.keys(): return DBnames[my_name]
         return my_name
+
+    def regression(name,value,table,time,treshold=0):
+        if not treshold: return 1
+        return  1
+
+    # to do: https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list
+    # http://codegist.net/snippet/python/grubbspy_leggitta_python
+    def validate(name,value,table=None, time=None):
+        import re
+        if not tresholds[0]:
+            for i in range(1,len(tresholds)):
+                tresholds[i][0] = re.compile(tresholds[i][0])
+        if (not type(value) is int) and (not type(value) is float): return 1
+        if (value is None) or (value = float('nan')): return 0
+        for i in range(1,len(tresholds)):
+            if tresholds[i][0].match(name):
+                if tresholds[i][1] <= value <= tresholdis[i][2]:
+                    return regression(name,value,table,time,thresholds[i][3])
+                return 0
+        return 1
 
     # check if fields in table exists if not add them
     def db_fields(my_ident):
@@ -392,6 +421,7 @@ def publish(**args):
         Nm = db_name(Fld)
         if (not Fld in args['data'].keys()) or (args['data'][Fld] == None):
             cols.append(Nm); vals.append("NULL")
+            # cols.append(Nme + '_valid'); vals.append("NULL")
         elif type(args['data'][Fld]) is str:
             cols.append(Nm); vals.append("'%s'" % args['data'][Fld])
         elif type(args['data'][Fld]) is list:
@@ -400,16 +430,19 @@ def publish(**args):
             for i in range(0,len(args['data'][Fld])):
                 nwe = "%s_%d" % (Nm,i,args['data'][Fld][i])
                 if  not nwe in Fields:
-                    # to do add column in database!
+                    # To Do add column in database!
                     Fields.append(nwe)
                     Units.append('unit')
                 cols.append("%s_%d" % (Nm,i)); vals.append(args['data'][Fld][i])
+                # cols.append("%s_%d_valid" % (Nm,i)); vals.append(validate(Nm,args['data'][Fld][i],time=args['data']["time"],table=args['ident']['project']+'_'+args['ident']['serial']))
         else:
             cols.append(Nm)
+            # cols.append(Nm + '_valid')
             strg = "%6.2f" % args['data'][Fld]
             strg = strg.rstrip('0').rstrip('.') if '.' in strg else strg
             # strg = strg + '.0' if not '.' in strg else strg
             vals.append(strg)
+            # vals.append(validate(Nm,args['data'][Fld],time=args['data']["time"],table=args['ident']['project']+'_'+args['ident']['serial']))
     query += "(%s) " % ','.join(cols)
     query += "VALUES (%s)" % ','.join(vals)
     try:
