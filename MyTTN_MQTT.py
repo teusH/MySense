@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 2.8 2018/04/26 15:03:18 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 2.9 2018/08/16 10:00:09 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -33,7 +33,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.8 $"[11:-2]
+__version__ = "0." + "$Revision: 2.9 $"[11:-2]
 
 try:
     import MyLogger
@@ -548,7 +548,7 @@ def PubOrSub(topic,option):
             'payload': '{"app_id":"pmsensors","dev_id":"pmsensor10","hardware_serial":"EEABABABBAABABAB","port":1,"counter":73,"payload_raw":"ACgALAG0ASU=","payload__fields":{"PM10":4.4,"PM25":4,"hum":29.3,"temp":23.6,"type":"SDS011"},"metadata":{"time":"2017-12-15T19:32:04.220584016Z","frequency":868.3,"modulation":"LORA","data_rate":"SF12BW125","coding_rate":"4/5","gateways":[{"gtw_id":"eui-1dee14d549d1e063","timestamp":536700428,"time":"","channel":1,"rssi":-100,"snr":6,"rf_chain":1,"latitude":51.35284,"longitude":6.154711,"altitude":40,"location_source":"registry"}],"latitude":51.353,"longitude":6.1538496,"altitude":2,"location_source":"registry"}}'
             })
 
-    def on_connect(client, obj, rc):
+    def on_connect(client, obj, flags, rc):
         global waiting
         if rc != 0:
             MyLogger.log(modulename,'ERROR','Connection error nr: %s' % str(rc))
@@ -924,7 +924,10 @@ def convert2MySense( data, **sensor):
     ident['description'] += ';MQTT AppID=' + data['topic'][0] + ' MQTT DeviceID=' + data['topic'][2]
     try:
         if Conf['project'] == 'XYZ': raise ValueError
-        ident['project'] = Conf['project']
+        if (data['topic'][2] in Conf['nodes'].keys()) and ('project' in Conf['nodes'][data['topic'][2]].keys()):
+            ident['project'] = Conf['nodes'][data['topic'][2]]['project']
+        else:
+            ident['project'] = Conf['project']
     except: ident['project'] = data['topic'][0]
     if 'metadata' in data['payload'].keys():
         gtwID = Get_GtwID(data['payload']['metadata'])    # get signal strength of end node

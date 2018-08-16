@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyMQTTSUB.py,v 2.9 2018/05/28 11:49:02 teus Exp teus $
+# $Id: MyMQTTSUB.py,v 2.10 2018/08/16 10:00:09 teus Exp teus $
 
 # module mqtt: git clone https://github.com/eclipse/paho.mqtt.python.git
 # cd paho.mqtt.python ; python setup.py install
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyMQTTSUB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.9 $"[11:-2]
+__version__ = "0." + "$Revision: 2.10 $"[11:-2]
 
 try:
     import MyLogger
@@ -83,7 +83,7 @@ def PubOrSub(topic,option):
     waiting = False
     mid = None
     telegram = None
-    def on_connect(client, obj, rc):
+    def on_connect(client, obj, flags, rc):
         global waiting
         if rc != 0:
             MyLogger.log(modulename,'ERROR',"Connection error nr: %s" % str(rc))
