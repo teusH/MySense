@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 3.10 2017/12/17 17:19:25 teus Exp teus $
+# $Id: MyRegression.py,v 3.11 2018/08/27 19:25:06 teus Exp teus $
 
 """ Create and show best fit for at least two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -31,7 +31,7 @@
     Script uses: numpy package, SciPy and statPY and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.10 $"[11:-2]
+__version__ = "0." + "$Revision: 3.11 $"[11:-2]
 
 try:
     import sys
@@ -359,6 +359,7 @@ def getColumn(sensor,period, amin = 60, amax = 60*60):
         if (diff >= amin) and (diff <= amax):
             if diff < imin: imin = diff
             if diff > imax: imax = diff
+    if not len(values): return np.array([])
     ival = int(imin+abs(imax-imin)/2)           # half between min and max
     aval = getInterval(values,amin,amax)        # cover 95% of samples
     if (interval == None) or (ival > interval) or (aval > interval):
@@ -396,7 +397,10 @@ def getData(net,sensors,timing):
     global resource
     Data = []
     for I in range(0,len(sensors)):
-        Data.append(getColumn(sensors[I],timing,60,60*60))
+        cData = getColumn(sensors[I],timing,60,60*60)
+        if not len(cData):
+            MyPrint("Database table %s sensor (column) %s has no records for this period." % (sensors[I]['table'],sensors[I]['column']),B=True)
+        Data.append(cData)
     if (resource['type'] == 'mysql') and (resource['fd'] != None):
         resource['fd'].close()
     else: Pandas['fd'] = None
@@ -414,7 +418,8 @@ def getArrays(net,sensors,timing):
     X = []
     skipped = 0
     # build a matrix every row: [time, colVal0, colVal1, ...]
-    for tx in range(0,len(Data[0][:,0])):
+    try:
+      for tx in range(0,len(Data[0][:,0])):
         row = [] ; row.append(Data[0][tx][0]); row.append(Data[0][tx][1])
         try:
             for I in range(1,len(sensors)):
@@ -426,6 +431,7 @@ def getArrays(net,sensors,timing):
         except ValueError:
             continue
         X.append(row)
+    except: pass
     MyPrint("Collected %d values in sample time frame (%dm/%ds) for the graph." % (len(X),interval/60,interval%60),B=True)
     if skipped:
         MyPrint("Skipped %d db records, could not find any value(s) in same sample interval." % skipped)
@@ -466,7 +472,7 @@ def get_arguments():
     global progname
     global net, sensors, timing, interval, order, show, normMinMax, HTML
     global normAvgStd, pngfile, SHOW, MaxPerGraph, Pandas, resource, ml_mode
-    parser = argparse.ArgumentParser(prog=progname, description='Get from at least two sensors for a period of time and calculate the regression best fit polynomial.\nEach argument defines the [[table]/]sensor(column)/[date]/[type][/measurement] DB table use definition.\nFor non DB use the table is sheet1 and should be omitted.\nDefault definitions: the previous names or column numbers for table, sensor, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nThey are used for MySQL and for InFlux credentials.\n\nCommand use with no arguments will, if possible, provide a list of MySQL table names (sensorkit names), InFlux database names (sensor kit names), or in case of spreadsheet inmfo about column names.\nWith one argument (sensor kit name) script will list all sensor names, sensor types for that sensor kit.\n\nUsage example for two or more command arguments (the measurements selection):\nMySQL: \"BdP_12345abcd/pm_25/datum/SDS011\"\nXLSX/CSV (here column nr iso id in first row): \"/3/0/Dylos\"\nInFlux: \"BdP_654321daef/pm25/time/PPD42NS/raw\"\n\nCopyright (c) Behoud de Parel, 2017\nAnyone may use it freely under the 'GNU GPL V4' license. Any script change remains free.")
+    parser = argparse.ArgumentParser(prog=progname, description='Get from at least two sensors for a period of time and calculate the regression best fit polynomial.\nEach argument defines the [[table]/]sensor(column)/[date]/[type][/measurement] DB table use definition.\nFor non DB use the table is sheet1 and should be omitted.\nDefault definitions: the previous names or column numbers for table, sensor, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nThey are used for MySQL and for InFlux credentials.\n\nCommand use with no arguments will, if possible, provide a list of MySQL table names (sensorkit names), InFlux database names (sensor kit names), or in case of spreadsheet info about column names.\nWith one argument (sensor kit name) script will list all sensor names, sensor types for that sensor kit.\n\nUsage example for two or more command arguments (the measurements selection):\nMySQL: \"BdP_12345abcd/pm_25/datum/SDS011\"\nXLSX/CSV (here column nr iso id in first row): \"/3/0/Dylos\"\nInFlux: \"BdP_654321daef/pm25/time/PPD42NS/raw\"\n\nCopyright (c) Behoud de Parel, 2017\nAnyone may use it freely under the 'GNU GPL V4' license. Any script change remains free.")
     parser.add_argument("-I", "--input", help="XLSX or CSV input file (path/filename.{xlsx,csv}, default: None\nOptions as <option>=<value> as command arguments.\nOptions: sheetname=0 (xlsx), header=0 (row with header or None), skiprows=0 (nr of rows to skip at start, delimiter=',' (None: auto detect).", default=Pandas['input'])
     parser.add_argument("-H", "--hostname", help="Database host name, default: %s" % net['hostname'], default="%s" % net['hostname'])
     parser.add_argument("--port", help="Database port number, default: DB dfl port", default="3306")
@@ -479,11 +485,11 @@ def get_arguments():
     parser.add_argument("--last", help="End of date/time period. Format as with -t option. Default: use of -t option", default=None)
     parser.add_argument("-t", "--timing", help="Period of time UNIX start-end seconds or use date as understood by UNIX date command: 'date --date=SOME_DATE_string', default: %d/%d or \"1 day ago/%s\"" % (timing['start'],timing['end'],datetime.datetime.fromtimestamp(timing['start']).strftime('%Y-%m-%d %H:%M')), default="%d/%d" % (timing['start'],timing['end']))
     parser.add_argument("-o", "--order", help="best fit polynomium order, default: linear regression best fit line (order 2)", default=order)
-    parser.add_argument("-n", "--norm", help="best fit polynomium min-max normalized to [0,1] space, default: no normalisation", type=bool, choices=[False,True], default=normMinMax)
-    parser.add_argument("-N", "--NORM", help="best fit polynomium [avg-std,avg+std] normalized to [-1,1] space (overwrites norm option), default: no normalisation", type=bool, choices=[False,True], default=normMinMax)
-    parser.add_argument("-s", "--show", help="show graph, default: graph is not shown", default=show, type=bool, choices=[False,True])
-    parser.add_argument("-S", "--SHOW", help="show value and scatter graphs, default: graph is not shown", default=SHOW, type=bool, choices=[False,True])
-    parser.add_argument("-m", "--multi", help="multi linear regression mode: second argument has more dependences defined by 3rd, etc argument, default: %s polynomial regression calculation" % ml_mode, default=ml_mode, type=bool, choices=[False,True])
+    parser.add_argument("-n", "--norm", help="best fit polynomium min-max normalized to [0,1] space, default: no normalisation", action='store_true', default=normMinMax)
+    parser.add_argument("-N", "--NORM", help="best fit polynomium [avg-std,avg+std] normalized to [-1,1] space (overwrites norm option), default: no normalisation", action='store_true', default=normMinMax)
+    parser.add_argument("-s", "--show", help="show graph, default: graph is not shown", default=show, action='store_true')
+    parser.add_argument("-S", "--SHOW", help="show value and scatter graphs, default: graph is not shown", default=SHOW, action='store_true')
+    parser.add_argument("-m", "--multi", help="multi linear regression mode: second argument has more dependences defined by 3rd, etc argument, default: %s polynomial regression calculation" % ml_mode, default=ml_mode, action='store_true')
     parser.add_argument("-f", "--file", help="generate png graph file, default: no png", default=pngfile)
     parser.add_argument("--HTML", help="generate output in HTML format, default: no html", default=False, dest='HTML', action='store_true')
     parser.add_argument("-g", "--graphs", help="plot N graps in one scatter plot, default: %d" % MaxPerGraph, default=MaxPerGraph, type=int, choices=range(1,6))
@@ -797,10 +803,13 @@ else:
 Matrix = getArrays(net,sensors,timing)
 
 MyPrint('Samples period: %s up to %s, interval timing %dm:%ds.' % (datetime.datetime.fromtimestamp(timing['start']).strftime('%b %d %H:%M'),datetime.datetime.fromtimestamp(timing['end']).strftime('%b %d %Y %H:%M'),interval/60,interval%60),P=True)
+if len(Matrix) < 2:
+    sys.exit("\nNo records to correlate found for this period. Exiting.")
 Stat = { 'min': [], 'max': [], 'avg': [], 'std': [] }
 
 # some simple statistics
 for I in range(0,len(sensors)):
+  try:
     # roll in arrays for regression calculation
     Stat['min'].append(np.nanmin(Matrix[:,I+1]))
     Stat['max'].append(np.nanmax(Matrix[:,I+1]))
@@ -816,12 +825,13 @@ for I in range(0,len(sensors)):
         MyPrint('\t%s/%s [%6.2f,%6.2f] ->[-1,+1]' % (sensors[I]['table'],sensors[I]['column'],Stat['avg'][I]-Stat['std'][I],Stat['avg'][I]+Stat['std'][I]))
         Matrix[:,I+1] = Matrix[:,I+1] - Stat['avg'][I]
         if Stat['std'][I] > 1.0: Matrix[:,I+1] /= Stat['std'][I]
+  except: pass
 
 def getFit(fitMatrix):
     global sensors
     for sensor in range(0,len(sensors)): sensors[sensor]['Z0'] = None
-    if (fitMatrix == None) or (len(sensors) != len(fitMatrix[0])):
-        return
+    try: fitMatrix[0][len(sensors)-1] # a bit too simple check
+    except: return
     for sensor in range(0,len(sensors)):
         # sensors[sensor]['Z0'] = list(reversed(list(fitMatrix[:,sensor])))
         sensors[sensor]['Z0'] = fitMatrix[:,sensor]
@@ -851,8 +861,12 @@ if not ml_mode:
 
 
 yname = '%s/%s' % (sensors[0]['table'],sensors[0]['column'])
+SUB = ["₀","₁","₂","₃","₄","₅","₆","₇","₈","₉"] # can be done in python3 in an easier way
+SUP = ["⁰","¹","²","³","⁴","⁵","⁶","⁷","⁸","⁹"]
+ordermsg = 'linear'
+if order > 1: ordermsg = 'order %d' % order
 if not ml_mode:
-    sensors[0]['fit'] = [0.0,1.0]; sensors[0]['R2'] = 0.0
+    sensors[0]['fit'] = [0.0,1.0] + [0]*(order-1); sensors[0]['R2'] = 0.0
     for I in range(1,len(sensors)):
         MyPrint("Data from table/sheet %s, sensor (column) %s:" % (sensors[I]['table'],sensors[I]['column']),B=True,P=True)
         if (I == 1) and (pngfile != None) and HTML:
@@ -871,13 +885,17 @@ if not ml_mode:
         # print("\tBest fit polynomial regression curve (a0*X^0 + a1*X^1 + a2*X^2 + ...): ")
         # string = ', '.join(["%4.3e" % i for i in Z[0][:,I]])  # correct ???
         if HTML:
-            MyPrint("\tR-squared (R²) with %s: %6.4f" % (xname[0],sensors[I]['R2']),B=True,I=True)
-            MyPrint("Best fit linear single polynomial regression curve (A<sub>0</sub>*X<sup>0</sup> + A<sub>1</sub>*X<sup>1</sup>): ",B=True,I=True)
-        else:
             MyPrint("\tR-squared (R<sup>2</sup>) with %s: %6.4f" % (xname[0],sensors[I]['R2']),B=True,I=True)
-            MyPrint("Best fit linear single polynomial regression curve (A₀*X⁰ + A₁*X¹): ",B=True,I=True)
+            tailor = 'A<sub>0</sub>*X<sup>0</sup>'
+            for J in range(1,order+1): tailor += ' + A<sub>%d</sub>*X<sup>%d</sup>' %(J,J)
+            MyPrint("Best fit %s single polynomial regression curve (%s): " %(ordermsg,tailor),B=True,I=True)
+        else:
+            MyPrint("\tR-squared (R²) with %s: %6.4f" % (xname[0],sensors[I]['R2']),B=True,I=True)
+            tailor = 'A'+SUB[0]+'*X'+SUP[0]
+            for J in range(1,order+1): tailor += ' + A'+SUB[J]+'*X'+SUP[J]
+            MyPrint("Best fit linear %s polynomial regression curve (%s): " % (ordermsg,tailor),B=True,I=True)
         MyPrint("\t%s (%s)-> best fit coefficients:" % (yname,sensors[I]['type']),B=True,I=True)
-        MyPrint("\t%s" % ', '.join(["%4.3e" % i for i in sensors[I]['fit']]),B=True,I=True)
+        MyPrint("\t%s" % ', '.join(["%4.3e" % i for i in sensors[I]['Z0'][::-1]]),B=True,I=True)
 
         MyPrint("Statistical summary linear regression for %s with %s:" % (yname,xname),P=True)
         summary = results.summary(xname=xname,yname=yname)
@@ -892,7 +910,7 @@ if not ml_mode:
         # results.{params,tvalues,pvalues,fvalues,nobs,rsquared,rsquared_adj,scale,llf}
 else:
     MyPrint('',P=True)
-    MyPrint("Statistical multi linear regression for %s/%s with:" % (sensors[0]['table'],sensors[0]['column']))
+    MyPrint("Statistical multi %s regression for %s/%s with:" % (ordermsg,sensors[0]['table'],sensors[0]['column']))
     xname = []
     for I in range(1,len(sensors)):
         if (I == 1) and (pngfile != None) and HTML:
@@ -906,18 +924,22 @@ else:
         results = sm.OLS(Matrix[:,1],StatX).fit()
         # TO DO: next needs some more thought: calibration polynomial or average poly?
         # results.{params,tvalues,pvalues,fvalues,nobs,rsquared,rsquared_adj,scale,llf}
-        sensors[0]['fit'] = [0.0,1.0]     # is this correct to get polynomial coeffs???
+        sensors[0]['fit'] = [0.0,1.0] + [0]*(order-1) # is this correct to get polynomial coeffs???
         sensors[1]['fit'] = []
         for elm in results.params: sensors[1]['fit'].append(float(elm))
         sensors[0]['R2'] = sensors[1]['R2'] = results.rsquared
     except ValueError as err:
         sys.stderr.write("ERROR: %s" % err)
     if HTML:
-        MyPrint("\tR-squared (R²) with %s: %6.4f" % (xname[0],sensors[I]['R2']),B=True,I=True)
-        MyPrint("Best fit linear single polynomial regression curve (A<sub>0</sub>*X<sup>0</sup> + A<sub>1</sub>*X<sup>1</sup>): ",B=True,I=True)
-    else:
         MyPrint("\tR-squared (R<sup>2</sup>) with %s: %6.4f" % (xname[0],sensors[I]['R2']),B=True,I=True)
-        MyPrint("Best fit linear single polynomial regression curve (A₀*X⁰ + A₁*X¹): ",B=True,I=True)
+        tailor = 'A<sub>0</sub>*X<sup>0</sup>'
+        for I in range(1,order+1): tailor += ' + A<sub>%d</sub>*X<sup>%d</sup>' %(I,I)
+        MyPrint("Best fit %s single polynomial regression curve (%s): " %(ordermsg,tailor),B=True,I=True)
+    else:
+        MyPrint("\tR-squared (R²) with %s: %6.4f" % (xname[0],sensors[I]['R2']),B=True,I=True)
+        tailor = 'A'+SUB[0]+'*X'+SUP[0]
+        for I in range(1,order+1): tailor += ' + A'+SUB[I]+'*X'+SUP[I]
+        MyPrint("Best fit %s polynomial regression curve (%s): " % (ordermsg,tailor),B=True,I=True)
     MyPrint("\t%s (%s)-> best fit coefficients:" % (yname,sensors[I]['type']),B=True,I=True)
     string = '%4.3e' % sensors[1]['fit'][0]
     for I in range(1,len(sensors[1]['fit'])):
@@ -1062,7 +1084,7 @@ def ScatterPlot(figure,gs,base):
             strg1 += "\n%s/%s: %5.2f(avg), %5.2f(std dev), %5.2f(min), %5.2f(max)" % (sensors[0]['table'],sensors[0]['column'],
                 Stat['avg'][0],Stat['std'][0],Stat['min'][0],Stat['max'][0])
             strg2 = '\n\nBest fit ml polynomials (low order first):'
-            strg2 += "\n%s/%s: [%s]" % (sensors[0]['table'],sensors[0]['column'],'0, 1')
+            strg2 += "\n%s/%s: [%s]" % (sensors[0]['table'],sensors[0]['column'],', '.join([('%.4f'%i) for i in sensors[0]['Z0'][::-1]]))
         for J in range(I,I+MaxPerGraph):
             if ml_mode and (I > 2): break
             if J == len(sensors): break
@@ -1074,7 +1096,7 @@ def ScatterPlot(figure,gs,base):
         for J in range(I,I+MaxPerGraph):
             if ml_mode and (I > 2): break
             if J == len(sensors): break
-            strg2 += "\n%s/%s: [%s]" % (sensors[J]['table'],sensors[J]['column'],', '.join(["%4.3e" % i for i in sensors[J]['fit']]))
+            strg2 += "\n%s/%s: [%s]" % (sensors[J]['table'],sensors[J]['column'],', '.join(["%.4f" % i for i in sensors[J]['Z0'][::-1]]))
         if (I == (len(sensors)-1)) or ((MaxPerGraph-1) == (I%MaxPerGraph)):
             ax.text(0.03, 0.96, strg1+strg2, transform=ax.transAxes, fontsize=8,
                 verticalalignment='top', bbox=props)
