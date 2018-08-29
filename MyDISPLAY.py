@@ -18,13 +18,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDISPLAY.py,v 1.8 2018/05/31 19:48:04 teus Exp teus $
+# $Id: MyDISPLAY.py,v 1.9 2018/08/29 15:29:28 teus Exp teus $
 
 """ Publish measurements to display service
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDISPLAY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__version__ = "0." + "$Revision: 1.9 $"[11:-2]
 
 try:
     import MyLogger
@@ -216,17 +216,16 @@ def publish(**args):
             Unit, Type = findInfo(args['ident'],item)
             bar = ''
             if len(lines[0]): bar = '|'
-            if type(args['data'][item]) is float:
-                args['data'][item] = '%.1f' % (args['data'][item]+0.05)
+            thisValue = args['data'][item]
+            if thisValue is float:
+                thisValue = '%.1f' % thisValue
             elif Type[0:3] == 'gps': continue   # do not display geo location
-            string = format(args['data'][item]).replace('.0','')
+            string = format(thisValue).replace('.0','')
             if string[0] == '<': string = 'NaN'       # not a number of string
-            lines[3] += bar +  '%6.6s' % string
-            if type(args['data'][item]) is float:
-                lines[3] += bar +  '%6.1f' % (float(args['data'][item]+0.05))
             lines[0] += bar +  '%6.6s' % Type
             lines[1] += bar + ' %5.5s' % trans(item)
             lines[2] += bar + ' %5.5s' % trans(Unit)
+            lines[3] += bar +  '%6.6s' % string
     lines.insert(0,'<clear>' + datetime.datetime.fromtimestamp(time()).strftime('%d %b %Hh%M:%S'))
     if 'time' in args['data'].keys():
         try:
