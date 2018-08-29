@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 1.21 2018/05/30 19:55:36 teus Exp teus $
+# $Id: MySPEC.py,v 1.22 2018/08/29 12:18:30 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.21 $"[11:-2]
+__version__ = "0." + "$Revision: 1.22 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -94,7 +94,9 @@ def ReadEEprom(serial,cnt=0):
     cnt += 1
     # TO DO: add interval for average by sensor
     serial.write(bytes("e")) # require eeprom info
-    sleep(1); nr = 0; eeprom = { 'sn': '0' }
+    sleep(2);
+    serial.write(bytes("e")) # Spec advises 2 X e
+    nr = 0; eeprom = { 'sn': '0' }
     while serial.inWaiting():
         if nr > 25: break
         nr += 1
@@ -102,17 +104,20 @@ def ReadEEprom(serial,cnt=0):
           line = serial.readline()
           line = str(line.strip().decode('utf-8'))
           line = line.split('=')
-          if len(line) != 2:
+          if len(line) > 2:
             line = line[0].split(',')
             if len(line) == 11: # len(Conf['dataFlds']) measurement data
               try:
                 eeprom['gas'] = Conf['fields'][Conf['serials'].index(line[0])]
                 eeprom['sn'] = line[0]
+                eeprom['serial_number'] = line[0]
               except: pass
               continue
-          eeprom[line[0].lower()] = line[1].lower()
+	  elif len(line) == 2:
+              eeprom[line[0].lower()] = line[1].lower().strip()
         except:
           break
+    while serial.inWaiting(): serial.readline() # empty remaining input
     if (not len(eeprom)) or (not 'gas' in eeprom.keys()):
         return ReadEEprom(serial, cnt=cnt)
     if Conf['debug']:
@@ -180,7 +185,7 @@ def open_serial():
               continue
             except: pass
           Conf['mySerials'][one]['start'] = time() + Conf['is_stable']
-          MyLogger.log(modulename,'INFO',"Gas %s sensor S/N %s at serial USB: %s" % (Conf['mySerials'][one]['gas'].upper(),Conf['mySerials'][one]['eeprom']['sn'],Conf['mySerials'][one]['device']))
+          MyLogger.log(modulename,'INFO',"Gas %s sensor S/N %s at serial USB: %s" % (Conf['mySerials'][one]['gas'].upper(),Conf['mySerials'][one]['eeprom']['serial_number'],Conf['mySerials'][one]['device']))
           try:
             Conf['mySerials'][one]['index'] = Conf['fields'].index(Conf['mySerials'][one]['gas'])
           except:
@@ -451,7 +456,7 @@ Conf['getdata'] = getdata	# Add needs this global viariable
 if __name__ == '__main__':
     from time import sleep
     Conf['input'] = True
-    # Conf['sync'] = True
+    Conf['sync'] = True
     Conf['debug'] = True
     Conf['raw'] = None
     Conf['is_stable'] = 0
