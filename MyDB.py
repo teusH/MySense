@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.34 2018/08/16 12:09:15 teus Exp teus $
+# $Id: MyDB.py,v 2.35 2018/08/29 15:25:48 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.34 $"[11:-2]
+__version__ = "0." + "$Revision: 2.35 $"[11:-2]
 
 try:
     import MyLogger
@@ -438,7 +438,7 @@ def publish(**args):
         else:
             cols.append(Nm)
             # cols.append(Nm + '_valid')
-            strg = "%6.2f" % args['data'][Fld]
+            strg = "%6.5f" % args['data'][Fld]
             strg = strg.rstrip('0').rstrip('.') if '.' in strg else strg
             # strg = strg + '.0' if not '.' in strg else strg
             vals.append(strg)
