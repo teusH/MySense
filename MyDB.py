@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.35 2018/08/29 15:25:48 teus Exp teus $
+# $Id: MyDB.py,v 2.36 2018/09/01 13:33:15 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.35 $"[11:-2]
+__version__ = "0." + "$Revision: 2.36 $"[11:-2]
 
 try:
     import MyLogger
@@ -288,11 +288,6 @@ def db_table(ident,table):
     return Conf[table]
 
 ErrorCnt = 0
-# column names which are subjected to value validation with min, max value
-# To Do: use sample of database, using Z-score or Grubs test (not advised),
-# or using mean of variation
-tresholds = [False,('^[a-z]?temp$',-40,40,None),('^[a-z]?rv$',0,100,None),('^pm_?[12][05]?$',0,200,None)]
-
 def publish(**args):
     """ add records to the database,
         on the first update table Sensors with ident info """
@@ -318,26 +313,6 @@ def publish(**args):
         }
         if my_name in DBnames.keys(): return DBnames[my_name]
         return my_name
-
-    def regression(name,value,table,time,treshold=0):
-        if not treshold: return 1
-        return  1
-
-    # to do: https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list
-    # http://codegist.net/snippet/python/grubbspy_leggitta_python
-    def validate(name,value,table=None, time=None):
-        import re
-        if not tresholds[0]:
-            for i in range(1,len(tresholds)):
-                tresholds[i][0] = re.compile(tresholds[i][0])
-        if (not type(value) is int) and (not type(value) is float): return 1
-        if (value is None) or (value = float('nan')): return 0
-        for i in range(1,len(tresholds)):
-            if tresholds[i][0].match(name):
-                if tresholds[i][1] <= value <= tresholdis[i][2]:
-                    return regression(name,value,table,time,thresholds[i][3])
-                return 0
-        return 1
 
     # check if fields in table exists if not add them
     def db_fields(my_ident):
@@ -421,7 +396,6 @@ def publish(**args):
         Nm = db_name(Fld)
         if (not Fld in args['data'].keys()) or (args['data'][Fld] == None):
             cols.append(Nm); vals.append("NULL")
-            # cols.append(Nme + '_valid'); vals.append("NULL")
         elif type(args['data'][Fld]) is str:
             cols.append(Nm); vals.append("'%s'" % args['data'][Fld])
         elif type(args['data'][Fld]) is list:
@@ -430,19 +404,16 @@ def publish(**args):
             for i in range(0,len(args['data'][Fld])):
                 nwe = "%s_%d" % (Nm,i,args['data'][Fld][i])
                 if  not nwe in Fields:
-                    # To Do add column in database!
+                    # to do add column in database!
                     Fields.append(nwe)
                     Units.append('unit')
                 cols.append("%s_%d" % (Nm,i)); vals.append(args['data'][Fld][i])
-                # cols.append("%s_%d_valid" % (Nm,i)); vals.append(validate(Nm,args['data'][Fld][i],time=args['data']["time"],table=args['ident']['project']+'_'+args['ident']['serial']))
         else:
             cols.append(Nm)
-            # cols.append(Nm + '_valid')
             strg = "%6.5f" % args['data'][Fld]
             strg = strg.rstrip('0').rstrip('.') if '.' in strg else strg
             # strg = strg + '.0' if not '.' in strg else strg
             vals.append(strg)
-            # vals.append(validate(Nm,args['data'][Fld],time=args['data']["time"],table=args['ident']['project']+'_'+args['ident']['serial']))
     query += "(%s) " % ','.join(cols)
     query += "VALUES (%s)" % ','.join(vals)
     try:
