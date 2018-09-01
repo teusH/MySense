@@ -113,7 +113,7 @@ def ReadEEprom(serial,cnt=0):
                 eeprom['serial_number'] = line[0]
               except: pass
               continue
-	  elif len(line) == 2:
+          elif len(line) == 2:
               eeprom[line[0].lower()] = line[1].lower().strip()
         except:
           break
@@ -329,11 +329,15 @@ def Add(conf, cnt=0):
             while conf['fd'].inWaiting():       # skip to latest record
                 conf['fd'].flushInput()
                 sleep(1)
-            Serial_Errors = 0
+            Serial_Errors = 0 ; skipped = 0
             for i in range(3,-1,-1):
               if not i: return Add(conf,cnt)
               conf['fd'].write(bytes("\r"))   # request measurement
               line = conf['fd'].readline()
+              if line.find(',') < 0:            # skip if no values (EEprom readouts?)
+                  skipped += 1
+                  if skipped < 10: i += 1
+                  continue
               line = str(line.strip())
               if Conf['debug']:
                   print("Got %s sensor line: %s" % (conf['gas'].upper(),line))
@@ -342,7 +346,7 @@ def Add(conf, cnt=0):
                   bin_data = [int(x.strip()) for x in line.split(',')]
               except:
                   # Spec Error
-                  MyLogger('WARNING',"Spec Data: Error - Spec Bin data")
+                  MyLogger.log(modulename,'WARNING',"Spec Data: Error - Spec Bin data")
               if len(bin_data) != MAX:
                   MyLogger.log(modulename,'WARNING',"Data length error")
                   conf['Serial_Errors'] += 1
@@ -368,7 +372,7 @@ def Add(conf, cnt=0):
         try:
             rawData.append('%s=%.1f' % (conf['gas'].lower() if i == 0 else Conf['dataFlds'][i],bin_data[i]))
         except:
-            MyLogger('WARNING',"Error on index %d" % i)
+            MyLogger.log(modulename,'WARNING',"Error on index %d" % i)
             #print("dataFlds",Conf['dataFlds'])
             #print("bin_data",bin_data)
         if Conf['dataFlds'][i] == 'ppb':
@@ -380,7 +384,7 @@ def Add(conf, cnt=0):
                 continue
           except:
             #print("conf",conf)
-            MyLogger('WARNING',"index error on index %d" % i)
+            MyLogger.log(modulename,'WARNING',"index error on index %d" % i)
             #print("bin_data",bin_data)
           if Conf['units'][idx] == 'ug/m3':
             try:
@@ -388,7 +392,7 @@ def Add(conf, cnt=0):
             except:
                 tempVal = 25.0
             if not conf['gas'] in values.keys():
-                MyLogger('WARNING',"Error on index %d in values on %s" % (i,conf['gas']))
+                MyLogger.log(modulename,'WARNING',"Error on index %d in values on %s" % (i,conf['gas']))
                 # print(values)
             values[conf['gas']] = PPB2ugm3(conf['gas'],values[conf['gas']],tempVal)
         elif Conf['dataFlds'][i][-3:] == 'raw':
@@ -438,6 +442,7 @@ def getdata():
         return {}
     values = { 'time': [time()], }
     for i in range(0,len(MyThread)):
+        thisSensor = {}
         try:
             thisSensor = MyThread[i].getRecord()
         except IOError as er:
@@ -456,7 +461,7 @@ Conf['getdata'] = getdata	# Add needs this global viariable
 if __name__ == '__main__':
     from time import sleep
     Conf['input'] = True
-    Conf['sync'] = True
+    # Conf['sync'] = True
     Conf['debug'] = True
     Conf['raw'] = None
     Conf['is_stable'] = 0

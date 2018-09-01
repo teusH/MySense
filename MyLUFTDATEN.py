@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 1.6 2018/01/16 11:30:27 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 1.7 2018/09/01 13:30:26 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.6 $"[11:-2]
+__version__ = "0." + "$Revision: 1.7 $"[11:-2]
 
 try:
     import MyLogger
@@ -128,7 +128,7 @@ def sendLuftdaten(ident,values):
     for sensed in ['dust','meteo']:
         headers['X-Pin'] = None
         for sensorType in sense_table[sensed]['types']:
-            if sensorType.upper() in ident['types']:
+            if sensorType.lower() in [ x.lower() for x in ident['types']]:
                 headers['X-Pin'] = str(sense_table[sensed]['types'][sensorType])
                 break
         if not headers['X-Pin']: continue
@@ -176,6 +176,9 @@ def post2Luftdaten(headers,postdata,postTo):
         MyLogger.log(modulename,'DEBUG',"Post data   : %s" % str(postdata))
     rts = True
     for url in postTo:
+        # print("Luftdaten POST to %s" % url)
+        # print("Post headers: %s" % str(headers))
+        # print("Post data   : %s" % str(postdata))
         prev = watchOn(url)
         try:
             r = requests.post(url, json=postdata, headers=headers)
