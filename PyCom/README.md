@@ -109,7 +109,8 @@ Create a `boot.py` file with the following content:
 And load up via FTP the boot.py to the board.
 
 ### How to interact with the PyCom board?
-Install *atom* (atom-beta) and pymkr from e.g. http://PyCom.com website.
+Install *atom* from http:atom.io (PyCom): for Debian systems download the IDE application with extension .deb and install via `dpkg -i atom-XYZ.deb` and the pymakr plugin from the PyMakr github: `git clone https://github.com/pycom/Pymakr` (read the README.md!), optionally install *apm*, and run in the cloned directory `apm install`. Copy all contents to a new directory `~/.atom/packages/PyMakr`. This will install a PyCom board IDE (development tooling).
+
 Or use an alternative *rshell* (Python 3 tool)from: https://github.com/dhylands/rshell. Read the rshell README file how one can use this command line tool to upload, download and use REPL.
 
 The PyCom controller will run on power ON `/flash/boot.py' and `/flash/main.py`. If not you can interact via atom with the controller. In the directory `/flash` ('home' directory) your scripts should reside.
