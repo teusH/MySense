@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 1.22 2018/08/29 12:18:30 teus Exp teus $
+# $Id: MySPEC.py,v 1.23 2018/09/01 17:57:37 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.22 $"[11:-2]
+__version__ = "0." + "$Revision: 1.23 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -51,7 +51,7 @@ Conf = {
     'usbid': 'SPEC',     # name as defined by udev rules, e.g. /dev/SPEC1
     'serials': ['022717020254','110816020533','030817010154','111116010138','123456789'],# S/N number
     'fields': ['o3','no2','so2','co','eth'],   # types of pollutants
-    'units' : ['ug/m3','ug/m3','ug/m3','ug/m3','ug/m3'], # dflt type the measurement unit
+    'units' : ['ppb','ppb','ppb','ppb','ppb'], # dflt type the measurement unit
     'calibrations': [[0,1],[0,1],[0,1],[0,1],[0,1]], # per type calibration (Taylor polonium)
     'interval': 15,     # read interval in secs (dflt)
     'bufsize': 30,      # size of the window of values readings max
@@ -250,8 +250,11 @@ def registrate():
               DEBUG=Conf['debug']))
             # first call is interval secs delayed by definition
             try:
+              #print("Start sensor thread for gas %s" % Conf['mySerials'][thread]['gas'].upper())
               if MyThread[thread].start_thread(): # start multi threading
+                #print("and start next gas sensor")
                 continue
+              #else: print("start thread returned false")
             except:
               MyThread.pop()
               MyLogger.log(modulename,'ERROR','failed to start Spec thread %d' % thread)
@@ -330,6 +333,8 @@ def Add(conf, cnt=0):
                 conf['fd'].flushInput()
                 sleep(1)
             Serial_Errors = 0 ; skipped = 0
+            #print("Read sensor for gas %s out" % conf['gas'].upper())
+            sleep(0.5) # give other threads a chance to run
             for i in range(3,-1,-1):
               if not i: return Add(conf,cnt)
               conf['fd'].write(bytes("\r"))   # request measurement
