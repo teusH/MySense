@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.78 2018/07/10 10:59:51 teus Exp teus $
+# $Id: INSTALL.sh,v 1.79 2018/09/02 12:14:18 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -344,7 +344,7 @@ if /usr/bin/awk '
         if ( host && out ) { net = 1 ; }
         if ( net ) { exit(1) ; }
     }
-     ' $HOME/$WD/MySense.conf
+     ' \$HOME/\$WD/MySense.conf
 then
     CNT=60
 else
