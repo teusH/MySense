@@ -36,6 +36,10 @@ Version 3 has the capablity to save the location log data internally. See the Ad
 Alternative: HAB Supplies GPS for Pi (no need for pig-tail) + antenna (CR2032 battery)
 Costs 36 UK L. It is a hat for Pi, no soldering. (Attaches to ttyAMA0 or TTYS0)
 
+Advised is to use USB serial connection. Avoid with USB that the serial device path is surviving a reboot. E.g. use udev rules to accomplish this. If one uses the TTL pins of the Pi make sure no login is started on the pins and Bluetooth is separated. See also:
+* http://www.catb.org/gpsd/installation.html
+One frustration is that the TTL pins use GPIO and will probably cause read errors on some USB serial connector. One may disable `gpsd` in such cases.
+
 ## Hardware configuration
 If attached to UART (GPIO) pins of the PI the /dev/ttyAMA0 should be disabled to run login terminal:
 * From: https://github.com/mcauser/Raspberry-Pi-ITead-Studio-GPS-NEO-6M#disable-kernel-logging
@@ -160,9 +164,11 @@ and run: `sudo service gpsd restart`
 On success enable it: `systemctl enable gpsd`
 
 ### GSPD and USB serial lines WARNING
-We discovered that the GPSD daemon disrupted some USB serial interfaces e.g. the USB serial interfaces to Spec (gas) adapters. Initiating the GPS daemon with the `-b` flag did not solve the problem. The solution was to disable the GPS daemon: `update-rc.d gpsd disable`.
+We discovered that the GPSD daemon disrupted some USB serial interfaces e.g. the USB serial interfaces to Spec (gas) adapters.
+Initiating the GPS daemon with the `-b` flag and setting in `/etc/default/gpsd` automatic USB discovery on false, did not solve the problem. The temporary solution was to disable the GPS daemon: `update-rc.d gpsd disable`.
+The serial TTL used by gpsd is using GPIO with a high clock speed. This may disrupt USB serial data reads.
 
-To-Do: try to read gps data direct from the serial interface?
+To-Do: try to read gps data direct from the USB serial interface with fixed path name?
 
 ### USB TTL serial cable
 Use the command `lsusb` to see it the USB serial is detected by the kernel.

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 1.23 2018/09/01 17:57:37 teus Exp teus $
+# $Id: MySPEC.py,v 2.3 2018/09/06 12:41:08 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.23 $"[11:-2]
+__version__ = "0." + "$Revision: 2.3 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -50,17 +50,19 @@ Conf = {
     'type': "Spec ULPSM",# type of device
     'usbid': 'SPEC',     # name as defined by udev rules, e.g. /dev/SPEC1
     'serials': ['022717020254','110816020533','030817010154','111116010138','123456789'],# S/N number
-    'fields': ['o3','no2','so2','co','eth'],   # types of pollutants
-    'units' : ['ppb','ppb','ppb','ppb','ppb'], # dflt type the measurement unit
+    'fields': ['o3','no2','so2','co','eth','temp','rh'],   # types of pollutants
+    'units' : ['ppb','ppb','ppb','ppb','ppb','oC','%'], # dflt type the measurement unit
     'calibrations': [[0,1],[0,1],[0,1],[0,1],[0,1]], # per type calibration (Taylor polonium)
     'interval': 15,     # read interval in secs (dflt)
     'bufsize': 30,      # size of the window of values readings max
     'sync': False,      # use thread or not to collect data
+    #'sync': True,      # use thread or not to collect data
     'raw': False,       # dflt display raw measurements
     'debug': False,     # be more versatile on input data collection
     'is_stable': 3600,  # seconds after measuments are stable (dflt 1 hour)
     # 'mySerials': [],    # conf variables fpr threads measurement data
-    'omits': ['nh3','temp','rh','unkown'],   # sensors to be omitted
+    #'omits': ['nh3','temp','rh','unkown'],   # sensors to be omitted
+    'omits': ['nh3','unkown'],   # sensors to be omitted
     # list of show data: (data format of input)
     # 'sn','ppb','temp','rh','raw','traw','hraw','day','hour','min','sec'
     'dataFlds': [None,'ppb','temp','rh',None,None,None,None,None,None,None],
@@ -102,9 +104,11 @@ def ReadEEprom(serial,cnt=0):
         nr += 1
         try:
           line = serial.readline()
-          line = str(line.strip().decode('utf-8'))
-          line = line.split('=')
-          if len(line) > 2:
+          line = str(line.strip().decode('ascii'))
+          if '=' in line:
+              line = line.split('=')
+              eeprom[line[0].lower().strip()] = line[1].lower().strip()
+          elif ', ' in line:
             line = line[0].split(',')
             if len(line) == 11: # len(Conf['dataFlds']) measurement data
               try:
@@ -113,11 +117,13 @@ def ReadEEprom(serial,cnt=0):
                 eeprom['serial_number'] = line[0]
               except: pass
               continue
-          elif len(line) == 2:
-              eeprom[line[0].lower()] = line[1].lower().strip()
         except:
           break
-    while serial.inWaiting(): serial.readline() # empty remaining input
+        sleep(0.5)
+    sleep(0.5)
+    while serial.inWaiting():
+        serial.readline() # empty remaining input
+        sleep(0.5)
     if (not len(eeprom)) or (not 'gas' in eeprom.keys()):
         return ReadEEprom(serial, cnt=cnt)
     if Conf['debug']:
@@ -166,7 +172,7 @@ def open_serial():
             baudrate=9600,
             # parity=serial.PARITY_ODD,
             # stopbits=serial.STOPBITS_TWO,
-            # bytesize=serial.SEVENBITS,
+            #bytesize=serial.SEVENBITS,
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
             bytesize=serial.EIGHTBITS,
@@ -250,11 +256,11 @@ def registrate():
               DEBUG=Conf['debug']))
             # first call is interval secs delayed by definition
             try:
-              #print("Start sensor thread for gas %s" % Conf['mySerials'][thread]['gas'].upper())
+              # print("Start sensor thread for gas %s" % Conf['mySerials'][thread]['gas'].upper())
               if MyThread[thread].start_thread(): # start multi threading
-                #print("and start next gas sensor")
+                # print("and start next gas sensor")
                 continue
-              #else: print("start thread returned false")
+              # else: print("start thread returned false")
             except:
               MyThread.pop()
               MyLogger.log(modulename,'ERROR','failed to start Spec thread %d' % thread)
@@ -265,8 +271,9 @@ def registrate():
 
 # get a record from serial by thread
 # in stand alone mode the serial input is read well
-# within MySense there is on a second get record a serial problem, reason unknown
-# if so disable gps in MySense.conf
+# If one uses TTL Pi pins (eg GPS serial on /dev/ttyS0) one will see serial read faults
+# probably GPIO on high rates will disrupt USB serial reads.
+# If so disable gps in MySense.conf and disable GPSD!!!
 def Add(conf, cnt=0):
     global Conf
     # ref: aqicn.org/faq/2015-09-06/ozone-aqi-using-concentrations-in-milligrams-or-ppb/
@@ -286,37 +293,13 @@ def Add(conf, cnt=0):
         if ppb < 0: return 0
         return round(ppb*12.187*mol[gas]/(273.15+temp),2)
 
-    def Close(conf):
-        if conf['fd'] == None: return
-        conf['fd'].close()
-        conf['fd'] = None
-
-    def Open(conf):
-        if conf['fd'] != None: return True
-        try:
-            conf['fd'] = serial.Serial(
-                conf['device'],
-                baudrate=9600,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-                bytesize=serial.EIGHTBITS,
-                writeTimeout = 1,
-                timeout=15)
-        except:
-            MyLogger.log(modulename,'ERROR','failed to open %s for %s' %  (conf['device'],conf['gas']))
-            return False
-        sleep(1)
-        return True
-
     if cnt > 5:   # stop recursion
-        Close(conf)
         return {}
     cnt += 1
     # serial line data: SN,PPB,temp oC,RH%,ADCraw,Traw,RHraw,day,hour,min,sec
     MAX = 11  # len(Conf['dataFlds'])
     if not 'Serial_Errors' in conf.keys(): conf['Serial_Errors'] = 0
     if conf['Serial_Errors'] > 10:
-        Close(conf)
         MyLogger.log(modulename,'FATAL',"To many serial errors. Disabled.")
         sleep(0)   # to do: improve this!
         return {}
@@ -324,48 +307,54 @@ def Add(conf, cnt=0):
     try:
         now = time()
         if conf['start'] - now > 0:
-            Close(conf)
             sleep (conf['start'] - now)
         try:
-            if not Open(conf):
-                raise Exception
-            while conf['fd'].inWaiting():       # skip to latest record
-                conf['fd'].flushInput()
-                sleep(1)
+            if not conf['fd'].isOpen():
+                MyLogger.log(modulename,'FATAL',"Gas sensor %s try to write/read on closed serial." % conf['gas'].upper())
             Serial_Errors = 0 ; skipped = 0
-            #print("Read sensor for gas %s out" % conf['gas'].upper())
-            sleep(0.5) # give other threads a chance to run
-            for i in range(3,-1,-1):
+            sleep(0.5)
+            for i in range(10,-1,-1):
               if not i: return Add(conf,cnt)
-              conf['fd'].write(bytes("\r"))   # request measurement
-              line = conf['fd'].readline()
-              if line.find(',') < 0:            # skip if no values (EEprom readouts?)
+              while True:
+                if conf['fd'].inWaiting():
+                    conf['fd'].readline()
+                else: break
+              while True:
+                  conf['fd'].write(bytes("\r"))   # request measurement
+                  sleep(1)
+                  line = ''
+                  # Pi but maybe also Spec EEprom may produce non-ascii and may be slow
+                  try: # do some dance to avoid serial read errors
+                      line = conf['fd'].readline()
+                      line = line.decode('ascii')
+                      line = str(line.strip())
+                      if ', ' not in line: continue
+                  except Exception as e:
+                      continue  # wake it up
+                  if ', ' in line: break        # it is a data record
                   skipped += 1
-                  if skipped < 10: i += 1
-                  continue
-              line = str(line.strip())
-              if Conf['debug']:
-                  print("Got %s sensor line: %s" % (conf['gas'].upper(),line))
+                  if skipped < 15:
+                      continue
+              if not len(line): continue
               bin_data = []
               try:
+                  #  one (serial) number may be corrupted, here we just skip
                   bin_data = [int(x.strip()) for x in line.split(',')]
-              except:
+              except Exception as e:
                   # Spec Error
-                  MyLogger.log(modulename,'WARNING',"Spec Data: Error - Spec Bin data")
+                  MyLogger.log(modulename,'WARNING',"Spec Data: Error %s - Spec Bin data\nReceived: %s" % (e,line))
+                  continue
               if len(bin_data) != MAX:
-                  MyLogger.log(modulename,'WARNING',"Data length error")
+                  MyLogger.log(modulename,'WARNING',"Data length %d != max %d, error" % (len(bin_data),MAX))
+                  for val in bin_data:
+                     MyLogger.log(modulename,'WARNING',"Value: %s" % val)
                   conf['Serial_Errors'] += 1
                   continue
               break
-        # except SerialException:
-        #     conf['Serial_Errors'] += 1
-        #     MyLogger.log(modulename,'ATTENT',"Serial exception. Close/Open serial.")
-        #     return {}
         except (Exception) as error:
             MyLogger.log(modulename,'WARNING',"Serial read %s" % str(error))
             conf['Serial_Errors'] += 1
-            Close(conf)
-            sleep(10)
+            sleep(2)
             return Add(conf,cnt)
         conf['Serial_Errors'] = 0
     except (Exception) as error:
@@ -378,8 +367,6 @@ def Add(conf, cnt=0):
             rawData.append('%s=%.1f' % (conf['gas'].lower() if i == 0 else Conf['dataFlds'][i],bin_data[i]))
         except:
             MyLogger.log(modulename,'WARNING',"Error on index %d" % i)
-            #print("dataFlds",Conf['dataFlds'])
-            #print("bin_data",bin_data)
         if Conf['dataFlds'][i] == 'ppb':
           try:
             idx = Conf['fields'].index(conf['gas'])
@@ -387,10 +374,8 @@ def Add(conf, cnt=0):
             if values[conf['gas']] < 0:  # on negative Spec sensor has seen no gas
                 values[conf['gas']] = None
                 continue
-          except:
-            #print("conf",conf)
-            MyLogger.log(modulename,'WARNING',"index error on index %d" % i)
-            #print("bin_data",bin_data)
+          except Exception as e:
+            MyLogger.log(modulename,'WARNING',"index error %s on index %d" % (e,i))
           if Conf['units'][idx] == 'ug/m3':
             try:
                 tempVal = float(bin_data[Conf['dataFlds'].index('temp')])
@@ -398,7 +383,6 @@ def Add(conf, cnt=0):
                 tempVal = 25.0
             if not conf['gas'] in values.keys():
                 MyLogger.log(modulename,'WARNING',"Error on index %d in values on %s" % (i,conf['gas']))
-                # print(values)
             values[conf['gas']] = PPB2ugm3(conf['gas'],values[conf['gas']],tempVal)
         elif Conf['dataFlds'][i][-3:] == 'raw':
           values[conf['gas']+Conf['dataFlds'][i]] = int(bin_data[i])
@@ -411,8 +395,6 @@ def Add(conf, cnt=0):
         Conf['raw'].publish(
             tag='Spec%s' % conf['gas'].upper(),
             data=','.join(rawData))
-    # print("Got values: ", values)
-    # Close(conf)
     return values
 
 def avg(values):
@@ -451,7 +433,7 @@ def getdata():
         try:
             thisSensor = MyThread[i].getRecord()
         except IOError as er:
-            MyLogger.log(modulename,'WARNING',"thread %d: Sensor getRecord input failure: %s" % (i,str(er)))
+            MyLogger.log(modulename,'WARNING',"thread %d: Sensor %s getRecord input failure: %s" % (i,Conf['mySerials'][i]['gas'].upper(),str(er)))
         for key in thisSensor.keys():
             if key in Conf['omits']: continue  # e.g. temp value not published
             name = rename(key)
@@ -466,7 +448,8 @@ Conf['getdata'] = getdata	# Add needs this global viariable
 if __name__ == '__main__':
     from time import sleep
     Conf['input'] = True
-    # Conf['sync'] = True
+    Conf['sync'] = True
+    # Conf['sync'] = False
     Conf['debug'] = True
     Conf['raw'] = None
     Conf['is_stable'] = 0
