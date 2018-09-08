@@ -38,7 +38,7 @@ Costs 36 UK L. It is a hat for Pi, no soldering. (Attaches to ttyAMA0 or TTYS0)
 
 Advised is to use USB serial connection. Avoid with USB that the serial device path is surviving a reboot. E.g. use udev rules to accomplish this. If one uses the TTL pins of the Pi make sure no login is started on the pins and Bluetooth is separated. See also:
 * http://www.catb.org/gpsd/installation.html
-One frustration is that the TTL pins use GPIO and will probably cause read errors on some USB serial connector. One may disable `gpsd` in such cases.
+One frustration is that the TTL pins use GPIO and may cause read errors on some USB serial connector. In `/etc/default/gpsd` set USBAUTO to false and add option '-b' (read only use of serial by gpsd). If it does not help one may disable the gps module in MySense.conf or if needed disbale `gpsd` daemon in such cases.
 
 ## Hardware configuration
 If attached to UART (GPIO) pins of the PI the /dev/ttyAMA0 should be disabled to run login terminal:
