@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySPEC.py,v 2.3 2018/09/06 12:41:08 teus Exp teus $
+# $Id: MySPEC.py,v 2.5 2018/09/10 13:07:05 teus Exp teus $
 
 # specification of HW and serial communication:
 # http://www.spec-sensors.com/wp-content/uploads/2017/01/DG-SDK-968-045_9-6-17.pdf
@@ -28,7 +28,7 @@
     Output dict with gasses: NO2, CO, O3
 """
 modulename='$RCSfile: MySPEC.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.3 $"[11:-2]
+__version__ = "0." + "$Revision: 2.5 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -66,7 +66,8 @@ Conf = {
     # list of show data: (data format of input)
     # 'sn','ppb','temp','rh','raw','traw','hraw','day','hour','min','sec'
     'dataFlds': [None,'ppb','temp','rh',None,None,None,None,None,None,None],
-    # 'rename' : { 'temp': 'stemp', 'rh': 'srh' },  # rename a field name
+    'rename' : { 'temp': 'gtemp', 'rh': 'grh' },  # rename a field name
+    # 'rename': {},
     'prefix':  False,   # prefix field name with first 3 chars of type.lower()
 }
 #    from MySense import log

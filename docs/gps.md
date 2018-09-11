@@ -137,6 +137,7 @@ or use the code:
 ```shell
     sudo apt-get install gpsd python-gps
 ```
+Make sure `/etc/default/.gpsd` enables start of daemon, set USBAUTO to "false" and use as OPTIONS "-G -b" (read only).
 
 #### RUNNING GPSD
 On PI *Jessie* and running manual test (below) command stop/disable gpsd.socket with the command systemdctl stop gpsd.socket followed by disable.
@@ -165,7 +166,7 @@ On success enable it: `systemctl enable gpsd`
 
 ### GSPD and USB serial lines WARNING
 We discovered that the GPSD daemon disrupted some USB serial interfaces e.g. the USB serial interfaces to Spec (gas) adapters.
-Initiating the GPS daemon with the `-b` flag and setting in `/etc/default/gpsd` automatic USB discovery on false, did not solve the problem. The temporary solution was to disable the GPS daemon: `update-rc.d gpsd disable`.
+Initiating the GPS daemon with the `-b` flag and setting in `/etc/default/gpsd` automatic USB discovery on false, did not solve the problem. The temporary solution was to disable the GPS daemon: `systemctl disable gpsd`.
 The serial TTL used by gpsd is using GPIO with a high clock speed. This may disrupt USB serial data reads.
 
 To-Do: try to read gps data direct from the USB serial interface with fixed path name?
