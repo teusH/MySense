@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.79 2018/09/02 12:14:18 teus Exp teus $
+# $Id: INSTALL.sh,v 1.80 2018/09/12 20:10:32 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -440,30 +440,27 @@ function INFLUX(){
 }
 
 INSTALLS+=" GROVEPI"
-HELP[GROVEPI]="Installing GrovePi+ shield support, needed for several types of sensors."
+HELP[GROVEPI]="Installing GrovePi+ shield support, needed for several types of sensors. Install this as user pi!"
 # this will install the grovepi library
 function GROVEPI(){
     DEPENDS_ON pip grovepi
     if PIP_FORMAT=legacy /usr/bin/pip list 2>/dev/null | /bin/grep -q grovepi ; then return ; fi
-    if [ -d git/GrovePi ] ; then return ; fi
     echo "This will install Grove Pi shield dependencies. Can take 10 minutes."
-    mkdir -p git
-    cd git
-    git clone https://github.com/DexterInd/GrovePi
-    if [ ! -d GrovePi/Script ]
+    if [ "$USER" != pi ]
     then
-        echo "FAILED to install GrovePi dependencies. Abort."
-        exit 1
+        if [ ! -d /home/pi/Dexter ]
+        then
+            echo "Please install grovepi as user pi. And use the following command:"
+            echo "curl -kL dexterindustries.com/update_grovepi | bash"
+            echo "Please reboot and install the Grove shield"
+            echo "Run sudo i2cdetect -y To see is GrovePi (44) is detected."
+            echo "And proceed with INSTALL.sh"
+            exit 1
+        fi
+        # user ios needs user access to gpio and i2c
+        /usr/bin/sudo adduser $USER gpio
+        /usr/bin/sudo adduser $USER i2c
     fi
-    cd GrovePi/Script
-    chmod +x install.sh
-    /usr/bin/sudo ./install.sh
-    cd ..
-    # user needs user access to gpio and i2c
-    /usr/bin/sudo adduser $USER gpio
-    /usr/bin/sudo adduser $USER i2c
-    echo "Please reboot and install the Grove shield"
-    echo "Run sudo i2cdetect -y To see is GrovePi is detected."
     return
 }
 
