@@ -31,6 +31,18 @@ Some fixing materials:
 * piece of wood to be able to attach the outdoor cable box on a wall.
 * some material to fixate the components and allow airflow in the box
 
+### TTN gateway
+You may be unlucky and do not have a TTN infrastructure in the neighbourhood. However it is easy to build one your self (ca € 230) or buy one (ca € 350 (TTN) or higher € 450).
+See for how-to instructions: https://github.com/ttn-zh/ic880a-gateway/wiki
+
+The TTN ZH Pi based shopping list (we bought a ready to go gateway Pi2 based from IMST and changed the software to TTN for € 250):
+* Pi Zero or 3, poweradapter, minimal 4GB SDcard € 50
+* iC880A-SPI concentrator board (<a href="http://shop.imst.de/wireless-modules/lora-products/8/ic880a-spi-lorawan-concentrator-868-mhz" alt="IMST webshop">IMST websop CH</a>) € 150
+* 868 MHz anternna and pigtail € 15
+* some Du Pond wires € 1
+* enclosure e.g. OBO cable box € 15
+* optional outdoor antenna € 75
+
 ## DESCRIPTION
 The sensor kits are build with PyCom (loPy-4 and WiPy-3) ESP controllers and PyCom expansion board.
 <img src="images/PVC-luchtpijpcase.png" align=right height=150>
