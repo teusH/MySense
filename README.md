@@ -238,6 +238,12 @@ Sensors with USB serial are tested on Linux Debian platforms which run Python.
 
 The GrovePi+ shield is used to ease hardware installation by just using 4-wired connectors and avoid mistakes. No soldiering, nor DuPont wires which are easily get disconnected. The GrovePi+ shield has 3 I2C connectors.I2C connectors are all in parallel. Use eg a Grove I2C 4-port connector to extent the amount if needed.
 
+Install GrovePi+ Dexter libraries as user *pi* with the following command:
+```bash
+    curl -kL dexterindustries.com/update_grovepi | bash
+```
+and reboot/poweroff the pi. Install the shield and proceed.
+
 We use small USB cables with a 90 degrees connector and/or USB hub with 4 USB connectors with 10-15 cm wires to ease fixation of the wiring. As well use a Lego board and Lego stones to fixate all modules and sensors on the Lego board.
 
 ## Installation
