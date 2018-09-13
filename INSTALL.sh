@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.80 2018/09/12 20:10:32 teus Exp teus $
+# $Id: INSTALL.sh,v 1.82 2018/09/13 19:16:04 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -176,7 +176,17 @@ EOF
     do
         DEPENDS_ON apt $P
     done
-    DEPENDS_ON pip adafruit/Adafruit_Python_DHT Adafruit_Python_DHT Adafruit-DHT
+    if ! pip list | grep -q Adafruit-DHT
+    then
+        if ! wget -O Adafruit_Python_DHT-1.3.4.tar.gz https://github.com/adafruit/Adafruit_Python_DHT/archive/1.3.4.tar.gz
+        then
+            echo "Cannot find https://github.com/adafruit/Adafruit_Python_DHT/archive/1.3.4.tar.gz"
+            return 1
+        fi
+        tar xpzf Adafruit_Python_DHT-1.3.4.tar.gz
+        ( cd Adafruit_Python_DHT-1.3.4 ; sudo python setup.py install )
+        # DEPENDS_ON pip adafruit/Adafruit_Python_DHT Adafruit_Python_DHT Adafruit-DHT
+    fi
     return $?
 }
 
