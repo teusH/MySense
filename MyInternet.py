@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyInternet.py,v 2.5 2017/06/04 09:40:55 teus Exp teus $
+# $Id: MyInternet.py,v 2.6 2018/09/14 16:48:35 teus Exp teus $
 
 # TO DO:
 
 """ Maintain internet connection and info about the ip and rssi values
 """
 modulename='$RCSfile: MyInternet.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.5 $"[11:-2]
+__version__ = "0." + "$Revision: 2.6 $"[11:-2]
 
 # configurable options
 __options__ = []
@@ -65,7 +65,7 @@ def internet(ident):
         try:
             p=subprocess.Popen('/sbin/ifconfig',shell=True,stdout=subprocess.PIPE)
             stdout, stderr = p.communicate()
-            ips = re.findall('addr:\s*([0-9a-f]+([\.:][0-9a-f]+)+)', stdout)
+            ips = re.findall('inet6* (addr:)*\s*([0-9a-f]+([\.:][0-9a-f]+)+)', stdout)
             for item in ips:
                 # TO DO: may need to exclude wifi AP ip addresses
                 if (item[0][0:4] != '127.') and (item[0][0:5] != 'fe80:'):
