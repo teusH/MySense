@@ -141,7 +141,7 @@ def scroll(linenr,yPos):
 # display as much lines as possible
 DisplayError = 0
 def Display(lock):
-    global Lines, draw, image, disp, DisplayError, YB
+    global Lines, draw, image, disp, DisplayError, YB, height
     if Lines == None or not len(Lines): return (False,False)
     # ClearDisplay()
     # Clear image buffer by drawing a black filled box.
@@ -156,6 +156,9 @@ def Display(lock):
                 draw.rectangle((0,0,width,height), outline=0, fill=0)
             Ypos = 0; trimmedY = False
         if linenr >= nrLines: break
+        if YB and (linenr >= 5):
+           trimmedY = True
+           break
         if Ypos > height:
            trimmedY = True
            break
@@ -218,7 +221,7 @@ def Show(lock, conf):
 if __name__ == "__main__":
     BUS = 'I2C'
     SIZE = '128x64'
-    YB = False
+    YB = True
     InitDisplay(BUS,SIZE,yb=YB)
     addLine('First short line',  font=font, fill=255)
     addLine('Second short line')
