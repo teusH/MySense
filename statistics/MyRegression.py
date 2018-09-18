@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRegression.py,v 3.11 2018/08/27 19:25:06 teus Exp teus $
+# $Id: MyRegression.py,v 3.12 2018/09/18 18:39:12 teus Exp teus $
 
 """ Create and show best fit for at least two columns of values from database.
     Use guessed sample time (interval dflt: auto detect) for the sample.
@@ -31,7 +31,7 @@
     Script uses: numpy package, SciPy and statPY and matplotlib from pyplot.
 """
 progname='$RCSfile: MyRegression.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.11 $"[11:-2]
+__version__ = "0." + "$Revision: 3.12 $"[11:-2]
 
 try:
     import sys
@@ -79,7 +79,7 @@ timing = { 'start': time() - 24*60*60, 'end': time() }
 interval = None # auto detect interval from database time values
 order = 1       # best fit polynomial, order: default 1: linear regression graph
 show = True     # show the scatter graph and regression polynomial best fit graph
-SHOW = True     # show the value and scatter graphs
+SHOW = 'both'     # show the value graph and/or scatter regression graph(s)
 colors = ['y','b','g','darkblue','sienna','teal','purple','m','r']
 MaxPerGraph = 4 # max graphs per subplot
 pngfile = None  # show the scatter graph and regression polynomial best fit graph
@@ -88,6 +88,8 @@ normAvgStd = False    # transform regression polynomial best fit graph to [-1,1]
 ml_mode = False # multi linear regression mode (default False: regression polynomial)
 HTML = False    # output in HTML format (default text)
 PrevP = False   # current in paragraph output style?
+Graph = '-'     # use type 'line', 'scatter', ('spline') as graph
+Corrected = True # show corrected graph as well
 
 def MyPrint(strg, P=False, B=False, I=False):
     global HTML, PrevP
@@ -472,6 +474,7 @@ def get_arguments():
     global progname
     global net, sensors, timing, interval, order, show, normMinMax, HTML
     global normAvgStd, pngfile, SHOW, MaxPerGraph, Pandas, resource, ml_mode
+    global Graph, Corrected
     parser = argparse.ArgumentParser(prog=progname, description='Get from at least two sensors for a period of time and calculate the regression best fit polynomial.\nEach argument defines the [[table]/]sensor(column)/[date]/[type][/measurement] DB table use definition.\nFor non DB use the table is sheet1 and should be omitted.\nDefault definitions: the previous names or column numbers for table, sensor, date, type will be used.', epilog="Environment DB credentials as DBHOST=hostname, DBPASS=acacadabra, DBUSER=username are supported.\nThey are used for MySQL and for InFlux credentials.\n\nCommand use with no arguments will, if possible, provide a list of MySQL table names (sensorkit names), InFlux database names (sensor kit names), or in case of spreadsheet info about column names.\nWith one argument (sensor kit name) script will list all sensor names, sensor types for that sensor kit.\n\nUsage example for two or more command arguments (the measurements selection):\nMySQL: \"BdP_12345abcd/pm_25/datum/SDS011\"\nXLSX/CSV (here column nr iso id in first row): \"/3/0/Dylos\"\nInFlux: \"BdP_654321daef/pm25/time/PPD42NS/raw\"\n\nCopyright (c) Behoud de Parel, 2017\nAnyone may use it freely under the 'GNU GPL V4' license. Any script change remains free.")
     parser.add_argument("-I", "--input", help="XLSX or CSV input file (path/filename.{xlsx,csv}, default: None\nOptions as <option>=<value> as command arguments.\nOptions: sheetname=0 (xlsx), header=0 (row with header or None), skiprows=0 (nr of rows to skip at start, delimiter=',' (None: auto detect).", default=Pandas['input'])
     parser.add_argument("-H", "--hostname", help="Database host name, default: %s" % net['hostname'], default="%s" % net['hostname'])
@@ -488,7 +491,9 @@ def get_arguments():
     parser.add_argument("-n", "--norm", help="best fit polynomium min-max normalized to [0,1] space, default: no normalisation", action='store_true', default=normMinMax)
     parser.add_argument("-N", "--NORM", help="best fit polynomium [avg-std,avg+std] normalized to [-1,1] space (overwrites norm option), default: no normalisation", action='store_true', default=normMinMax)
     parser.add_argument("-s", "--show", help="show graph, default: graph is not shown", default=show, action='store_true')
-    parser.add_argument("-S", "--SHOW", help="show value and scatter graphs, default: graph is not shown", default=SHOW, action='store_true')
+    parser.add_argument("-S", "--SHOW", help="show value 'graph' and/or regression 'scatter' graph(s), default: 'both' graphs are shown", default='both', choices=['both', 'graph', 'scatter'])
+    parser.add_argument("--not_corrected", help="Do not show the corrected graph line", action='store_false')
+    parser.add_argument("--type", help='Graph line is "line" (dflt), "scatter"', default='line', choices=['line','scatter','spline']),
     parser.add_argument("-m", "--multi", help="multi linear regression mode: second argument has more dependences defined by 3rd, etc argument, default: %s polynomial regression calculation" % ml_mode, default=ml_mode, action='store_true')
     parser.add_argument("-f", "--file", help="generate png graph file, default: no png", default=pngfile)
     parser.add_argument("--HTML", help="generate output in HTML format, default: no html", default=False, dest='HTML', action='store_true')
@@ -605,8 +610,11 @@ def get_arguments():
     if args.interval != None: interval = int(args.interval)
     order = int(args.order)
     show = bool(args.show)
-    SHOW = bool(args.SHOW)
-    if SHOW: show=True
+    SHOW = args.SHOW # show both, only value graph, only regression scatter plot
+    Corrected = bool(args.not_corrected)
+    if 'scatter' in args.type: Graph = 'o' # just plot spots
+    if 'spline' in args.type: Graph = '~'  # plot a best fit spline
+    if not 'both' in SHOW: show=True
     ml_mode = bool(args.multi)
     pngfile = args.file
     if pngfile != None: show = True
@@ -967,7 +975,7 @@ def makeXgrid(mn,mx,nr):
 # maybe numpy can do this simpler
 # create a new matrix with values calculated using best fit polynomial
 def getFitMatrix():
-    global Matrix, sensors, Stat
+    global Matrix, sensors, Stat, Corrected, Graph
     from numpy.polynomial.polynomial import polyval
     new = []
     for I in range(0,len(Matrix)):      # best fit value for these measurements
@@ -995,8 +1003,22 @@ def mlArray():
         new.append(val)
     return np.array(new)
 
-# plot a spline of dates/measurements for each sensor
-def SplinePlot(figure,gs,base):
+# create a spline through a set of values
+# date original dates, x new dates on regular intervals,
+# values, max and minimum values, returns splined values on x
+def makeSpline(dates,x,values):
+    from scipy.interpolate import UnivariateSpline
+    try:
+        spl = UnivariateSpline(dates, values)
+    except:
+        return np.array(values) # ???
+    spl.set_smoothing_factor(0.5)
+    d = spl(x); p = []
+    for i in d: p.append(i)
+    return  np.array(p)
+
+# plot a graph (line,scatter, or spline) of dates/measurements for each sensor
+def LinePlot(figure,gs,base):
     global Stat, fitStat, sensors, Matrix, colors, results
     from matplotlib import dates
     ax = figure.add_subplot(gs[base,0])
@@ -1028,6 +1050,7 @@ def SplinePlot(figure,gs,base):
                 sensors[0]['type']), fontsize=8 , fontweight='bold')
 
     (fitMatrix,fitStat) = getFitMatrix()
+    gds = int((Matrix[-1][0]-Matrix[0][0]+100)/1800)
     for I in range(1,len(Matrix[0,:])): # leave gaps blank
         if ml_mode and (I > 2): break
         strt = -1; lbl = None
@@ -1048,9 +1071,22 @@ def SplinePlot(figure,gs,base):
                 if abs(Matrix[end,0]-Matrix[end-1,0]) > interval*2: break
             if lbl == None:
                 lbl = '%s/%s %s(%s)' % (sensors[I-1]['table'],sensors[I-1]['column'],scalemsg,sensors[I-1]['type'])
-            ax.plot(fds[strt:end],Matrix[strt:end,I]*scaled, '-', c=colors[I%len(colors)], label=lbl)
+            if Graph == '~':
+                if (end-strt) > 1:
+                  dateconv = np.vectorize(datetime.datetime.fromtimestamp)
+                  dx = [d for d in range(int(Matrix[strt][0]),int(Matrix[end-1][0]),gds)]
+                  mS = makeSpline(Matrix[strt:end,0],dx,Matrix[strt:end,I]*scaled)
+                  # print("length: dx = %d, mS = %d" % (len(dx),len(mS)))
+                  # if len(dx) != len(mS):
+                  #  print("elength differ")
+                  ax.plot(dateconv(dx[0:len(mS)]),mS, '-', c=colors[I%len(colors)], label=lbl)
+                else:
+                  print("length: dx = %d, mS = %d" % (len(fds[strt:end-1]),len(Matrix[strt:end-1])))
+                  ax.plot(fds[strt:end-1],Matrix[strt:end-1,I]*scaled, '-', c=colors[I%len(colors)], label=lbl)
+            else:
+                ax.plot(fds[strt:end],Matrix[strt:end,I]*scaled, Graph, c=colors[I%len(colors)], label=lbl)
             # TO DO: what is the fit polynomial?
-            if I > 1:       # add best fit correction graph
+            if Corrected and (I > 1):       # add best fit correction graph
                 if len(lbl): lbl += ' correction fit'
                 ax.plot(fds[strt:end],fitMatrix[strt:end,I-1] * fitscaled, ':', c=colors[I%len(colors)], linewidth=2, label=lbl)
             strt = end-1
@@ -1067,7 +1103,7 @@ def SplinePlot(figure,gs,base):
 
 # plot a scattered plot range of max MaxPerGraphs scatter plots in one subplot
 def ScatterPlot(figure,gs,base):
-    global Stat, sensors, Matrix, MaxPerGraph, colors, props, results, Z
+    global Stat, sensors, Matrix, MaxPerGraph, colors, props, results, Z, Graph
     ax = None; strg1 = strg2 = ''
     for I in range(1,len(sensors)):
         # the graphs
@@ -1146,7 +1182,7 @@ if show:
     import matplotlib.pyplot as plt
     from matplotlib import gridspec
     base = 0    # base for scatter graphs
-    if SHOW: base = 1
+    if 'both' in SHOW: base = 1
     if normMinMax:
         sortedX = makeXgrid(0,1,100)
     elif normAvgStd:
@@ -1160,7 +1196,7 @@ if show:
     # fig = plt.figure(tight_layout=True, figsize=(7.5,(base+(len(sensors)/MaxPerGraph)+1) *5.0))
     Width = 7.5
     Height = 5
-    if SHOW: Height *= 2
+    if 'both' in SHOW: Height *= 2
     fig = plt.figure(tight_layout=True, figsize=(Width,Height))
     # fig = plt.figure()
     # left=0.1, bottom=0.1, right=0.97, top=0.93, wspace=0.25, hspace=0.25
@@ -1174,8 +1210,8 @@ if show:
         verticalalignment='bottom', horizontalalignment='right',
         color='gray', fontsize=8)
 
-    if SHOW: SplinePlot(fig,gs,0)
-    ScatterPlot(fig,gs,base)
+    if not 'scatter' in SHOW: LinePlot(fig,gs,0)
+    if not 'graph' in SHOW: ScatterPlot(fig,gs,base)
 
     if pngfile != None:
         plt.savefig(pngfile, bbox_inches='tight')
