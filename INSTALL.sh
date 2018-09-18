@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.82 2018/09/13 19:16:04 teus Exp teus $
+# $Id: INSTALL.sh,v 1.83 2018/09/13 19:38:46 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -157,6 +157,7 @@ UNINSTALLS[DHT]+=' /usr/local/bin/set_gpio_perm.sh'
 HELP[DHT]="Installation of DHT sensor libraries and general purpose IO use.
 Please enable gpio via raspi-config command interfaces as root."
 function DHT(){
+    local DHT_VERSION=1.3.4
     if [ ! -x /usr/local/bin/set_gpio_perm.sh ]
     then
         echo "Created the file /usr/local/bin/set_gio_perm.sh"
@@ -178,13 +179,14 @@ EOF
     done
     if ! pip list | grep -q Adafruit-DHT
     then
-        if ! wget -O Adafruit_Python_DHT-1.3.4.tar.gz https://github.com/adafruit/Adafruit_Python_DHT/archive/1.3.4.tar.gz
+        if ! wget -O Adafruit_Python_DHT-${DHT_VERSION}.tar.gz https://github.com/adafruit/Adafruit_Python_DHT/archive/${DHT_VERSION}.tar.gz
         then
-            echo "Cannot find https://github.com/adafruit/Adafruit_Python_DHT/archive/1.3.4.tar.gz"
+            echo "Cannot find https://github.com/adafruit/Adafruit_Python_DHT/archive/${DHT_VERSION}.tar.gz"
             return 1
         fi
-        tar xpzf Adafruit_Python_DHT-1.3.4.tar.gz
-        ( cd Adafruit_Python_DHT-1.3.4 ; sudo python setup.py install )
+        tar xpzf Adafruit_Python_DHT-${DHT_VERSION}.tar.gz
+        ( cd Adafruit_Python_DHT-${DHT_VERSION} ; sudo python setup.py install )
+        sudo rm -rf Adafruit_Python_DHT-${DHT_VERSION} # cleanup
         # DEPENDS_ON pip adafruit/Adafruit_Python_DHT Adafruit_Python_DHT Adafruit-DHT
     fi
     return $?
