@@ -73,32 +73,11 @@ The complete update should take about 10 minutes (depending on your internet con
 ### serial connection
 If you need 2 serial basic (TTL UART) serial connections for modules it is possible with some tuning. See https://spellfoundry.com/2016/05/29/configuring-gpio-serial-port-raspbian-jessie-including-pi-3/ for some instructions. You may need to lower slightly the CPU speed for `/dev/ttyS0`. See *tips and tricks* below for more info on this.
 
-If you use USB serial cables from the same manufacturer one may have trouble to instruct MySense which USB port has which USB connected sensor module.
-
-### Bluetooth
-One may use Bluetooth as wireless terminal interface. This is not recommanded.
-If Bluetooth is present and not used suggested is to disable Blyetooth and related services. Add the following line to `/boot/config.txt`:
-```
-# Disable BlueTooth
-dtoverlay=pi3-disable-bt
-```
-And disable related services as follows:
-```shell
-sudo systemctl disable hciuart.service
-sudo systemctl disable bluealsa.service
-sudo systemctl disable bluetooth.service
-```
-And reboot.
-Bluetooth will be available when an external Bluetooth adapter is inserted. To completely disbale Bluetooth uninstall BlueZ and related packages:
-```shell
-sudo apt-get purge bluez -y
-sudo apt-get autoremove -y
-```
-
-### Pi energy and USB power consumption
-The Pi uses not much energy. Every USB port uses about 500 mA. So one may run out of power quickly with too many USB socket usage. A USB hup consumes by itself also about 500 mA. Be aware that quite some low cost power enabled hub do feed power to the Pi. Do not use these faulty hubs. There are good hubs with own power supply up to 3A.
-
 ### USB serial port number
+If you use USB serial cables from the same manufacturer one may have trouble to instruct MySense which USB port has which USB connected sensor module.
+The problem is that the serial USB port may not be linked to the same `/dev/ttyUSBn` number after a reboot.
+Advised is to use the USB serial adapter from different manufacturers for each sensor module.
+
 Any Linux OS will assign at boot time a `/dev/ttyUSBn`, where n is a number starting with 0, to the connected USB serial.
 'n' however is might change on a reboot.
 With `/dev/serial/by-id/` one *may* detect the USB port number (see the MySense conf part for the product id recognition).
@@ -130,6 +109,30 @@ lrwxrwxrwx 1 root root 7 May  9 16:31 /dev/SPEC2 -> ttyUSB2
 lrwxrwxrwx 1 root root 7 May  9 16:31 /dev/SPEC3 -> ttyUSB3
 ```
 MySense `MySPEC.py` will look for the available gas sensors in a similar way and will detect which gas sensor is attached via a look at the eeprom readout or serial number as is configured in MySense.conf.
+
+### Bluetooth
+One may use Bluetooth as wireless terminal interface. This is not recommended.
+If Bluetooth is present and not used it is suggested to disable Blyetooth and related services. Add the following line to `/boot/config.txt`:
+```
+# Disable BlueTooth
+dtoverlay=pi3-disable-bt
+```
+And disable related services as follows:
+```shell
+sudo systemctl disable hciuart.service
+sudo systemctl disable bluealsa.service
+sudo systemctl disable bluetooth.service
+```
+And reboot.
+Bluetooth will be available when an external Bluetooth adapter is inserted. To completely disbale Bluetooth uninstall BlueZ and related packages:
+```shell
+sudo apt-get purge bluez -y
+sudo apt-get autoremove -y
+```
+
+### Pi energy and USB power consumption
+The Pi uses not much energy. Every USB port uses about 500 mA. So one may run out of power quickly with too many USB socket usage. A USB hup consumes by itself also about 500 mA. Be aware that quite some low cost power enabled hub do feed power to the Pi. Do not use these faulty hubs. There are good hubs with own power supply up to 3A.
+
 
 ### FIRST UPGRADE
 You need for this to have an internet connection.
