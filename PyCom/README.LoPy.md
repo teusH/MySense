@@ -1,7 +1,9 @@
 ## Description
-The LoPy is a low cost (€ 35) ESP controller which support mi8cropython and has wifi, bluetooth and LoRaWan capabilities. MySense is using the PyCom expansion board (€ 16) for the wiring and programming.
+The LoPy is a low cost (€ 35) ESP controller which support micropython and has wifi, Bluetooth and LoRaWan or SigFox capabilities. MySense is using the PyCom expansion board (€ 16) for the wiring and programming.
 
-MySense operates with TTN as LoRa dataconcentrator. MySense will initialy try for a period of 5 seconds to join the LoRa network. On failuer it will skip to send measurements to TTN and will continue to show locally the measurements.
+MySense operates with TTN as LoRa dataconcentrator. MySense will check every 2.5 seconds (maximal 20 times) if a *join* with TTN LoRa network was succesfull.
+A red flash will denote there was not a join yet.
+On failure it will skip to send data measurements to TTN and will continue to show locally on the olded display the measurements.
 
 For installation, and firmware update see:
 * reference: https://docs.pycom.io
@@ -42,8 +44,18 @@ Grove GPS TTL Uart connection:
 * GPS Rx (green) -> LoPy P12 / Tx2 (on left side, 1st pin from bottom)
 * GPS Tx (yellow) -> LoPy P11 / Rx2 (on left side, 2nd pin from bottom)
 
-## To Do
-remote command handling
+## Remote command handling
+A simple ermote command via LoRa has been implemented: 
+* ?: send configuration and GPS location info 
+* O: switch oled display off
+* d: enable to send dust raw data
+* D: disable to send dust raw data
+* m: enable to send raw meteo data
+* M: disable to send raw meteo data
+* S: stop
+* i<unsigned int value>: value should be > 60 seconds, defines new sample interval time
+* more to do
+* 
 
 ## TTN how to
 You need to set up an account and password with The Things Network: https://thethingsnetwork.org/
