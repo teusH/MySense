@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.36 2018/09/01 13:33:15 teus Exp teus $
+# $Id: MyDB.py,v 2.38 2018/10/02 14:55:45 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.36 $"[11:-2]
+__version__ = "0." + "$Revision: 2.38 $"[11:-2]
 
 try:
     import MyLogger
@@ -51,7 +51,7 @@ Conf = {
     'database': None,    # MySQL database name
     'port': 3306,        # default mysql port number
     'fd': None,           # have sent to db: current fd descriptor, 0 on IO error
-    'omit' : ['time','geolocation','version','meteo','dust']        # fields not archived
+    'omit' : ['time','geolocation','version','meteo','dust','gwlocation']        # fields not archived
 }
 # ========================================================
 # write data directly to a database
@@ -347,7 +347,7 @@ def publish(**args):
         }
         fields = my_ident['fields']
         units = my_ident['units']
-        add = []
+        add = []; flds = []
         # we rely on the fact that fields in ident denote all fields in data dict
         table_flds = db_query("SELECT column_name FROM information_schema.columns WHERE  table_name = '%s_%s' AND table_schema = '%s'" % (args['ident']['project'],args['ident']['serial'],Conf['database']),True)
         gotIts = []     # avoid doubles
@@ -363,10 +363,11 @@ def publish(**args):
                     Col = Sensor_fields[fields[i]]
                 add.append("ADD COLUMN %s %s COMMENT 'type: %s; added on %s'" % (Nme, Col, units[i], datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M")))
                 add.append("ADD COLUMN %s_valid %s COMMENT 'value validated'" % (Nme,Sensor_fields['_valid']))
+                flds.append(Nme)
         if len(add):
             try:
                 db_query("ALTER TABLE %s_%s %s" % (args['ident']['project'],args['ident']['serial'],','.join(add)),False)
-                MyLogger.log(modulename,'ATTENT',"Added new field to table %s_%s" % (args['ident']['project'],args['ident']['serial']))
+                MyLogger.log(modulename,'ATTENT',"Added new fields (%s) to table %s_%s" % (', '.join(flds),args['ident']['project'],args['ident']['serial']))
             except IOError:
                 raise IOError
             except:
