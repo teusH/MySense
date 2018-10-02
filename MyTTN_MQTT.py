@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 2.9 2018/08/16 10:00:09 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 2.10 2018/10/02 14:33:33 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -31,9 +31,10 @@
     e.g.
     Publish measurements as client to luftdaten.info and MySQL
     One may need to change payload and TTN record format!
+    TTN port 2 is used for data, port 3 is used for meta data and remote control
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.9 $"[11:-2]
+__version__ = "0." + "$Revision: 2.10 $"[11:-2]
 
 try:
     import MyLogger
@@ -120,6 +121,11 @@ Conf = {
     # types need to be capitalized
     # group classification is not used yet
     "sensors": [
+            {  "type":"unknown",
+                "producer":"unknown","group":"dust",
+                "fields":["pm1","pm25","pm10"],
+                "units":["ug/m3","ug/m3","ug/m3"],
+                "calibrations": [[0,1.0],[0,1.0]]},
             {  "type":"SDS011",
                 "producer":"Nova","group":"dust",
                 "fields":["pm25","pm10"],
@@ -153,6 +159,10 @@ Conf = {
                 "producer":"Dylos","group":"dust",
                 "fields":["pm25","pm10"],
                 "units":["pcs/0.01qft","pcs/0.01qft"],
+                "calibrations": [[0,1.0],[0,1.0]]},
+            {  "type": "unknown",
+                "producer":"unknown","group":"meteo",
+                "fields":["temp","rv"],"units":["C","%"],
                 "calibrations": [[0,1.0],[0,1.0]]},
             {  "type": "DHT22",
                 "producer":"Adafruit","group":"meteo",
@@ -438,6 +448,61 @@ def GPSdistance(gps1,gps2):
   denom = (slat1 * slat2) + (clat1 * clat2 * cdlon)
   return int(round(6372795 * atan2(delta, denom)))
 
+# try to guess the sensor types and fields from the values present in the record
+# returns dict with record data and 'sensors' + 'fields'
+def checkFields(record):
+    global Conf
+    def getTypes(sFlds,fld):
+        for grp in sFlds.keys():
+            if fld in sFlds[grp].keys(): return sFlds[grp][fld]
+            if translate(fld) in sFlds[grp].keys(): return sFlds[grp][translate(fld)]
+        return []
+    SenseFlds = {}
+    for sensor in Conf['sensors']:
+        if (not 'fields' in sensor.keys()) or (not 'group' in sensor.keys()):
+            continue
+        group = sensor['group']; omits = []
+        for fld in sensor['fields']:
+            fnd = None
+            for one in record.keys():
+                if translate(one) == fld:
+                    fnd = one ; break
+            if not fnd: continue
+            if not sensor['group'] in SenseFlds.keys(): SenseFlds[group] = {}
+            if not fnd in SenseFlds[group].keys(): SenseFlds[group][fnd] = []
+            if not sensor['type'] in SenseFlds[group][fnd]:
+                SenseFlds[group][fnd].append(sensor['type'])
+    # we have a table with groups, and fields/values present, collect the sensor types
+    rts = { 'types': [], 'fields':[]}; data = {}
+    for group in SenseFlds.keys():
+        types = {}; max = None
+        for fld in record.keys():
+            if fld in data.keys(): continue
+            if not fld in SenseFlds[group].keys(): continue
+            if record[fld] or (fld in 'temperature'):
+                if not fld in rts['fields']:
+                    rts['fields'].append(fld)
+            else: continue
+            new = getTypes(SenseFlds, fld)
+            for one in new:
+                if not one in types.keys(): types[one] = []
+                types[one].append(fld)
+                if not max: max = one
+                if len(types[one]) > len(types[max]): max = one
+            data[fld] = record[fld]
+        for one in types.keys():
+            if len(types[one]) < len(types[max]): continue
+            if not one in rts['types']:
+                rts['types'] += [one]
+    for fld in record.keys():
+        if record[fld] or (fld in 'temperature'): continue
+        for tpe in getTypes(SenseFlds,fld):
+            try: rts['types'].remove(tpe)
+            except: pass
+    data['sensors'] = list(set(rts['types']))
+    data['fields'] = list(set(rts['fields']))
+    return data
+
 # unpack base64 TTN LoRa payload string into array of values NOT TESTED
 # architecture is changed!, To Do: unpack on length of received bytes!
 def payload2fields(payload, firmware, portNr):
@@ -445,39 +510,51 @@ def payload2fields(payload, firmware, portNr):
     packing = None; port = 'port%d' % portNr
     load = base64.decodestring(payload)
     import struct
+    declared = []
     try:
         loadID = firmware['id']
         packing = firmware['packing']
-        if type(packing) is tuple:
+        if (type(packing) is list) or (type(packing) is tuple):
             for pack in packing:
                 save = load
                 try:
                     load = struct.unpack(pack,load)
                     break
                 except: load = save; pass
-            if not type(load) is list: packing = None
+            if not type(load) is tuple: packing = None
         else: load = struct.unpack(packing,load)
     except: packing = None; pass
     if packing == None:
         MyLogger.log(modulename,'ERROR','Cannot find payload converter definition for id %s.' % firmware['id'])
         return {}
     rts = {}
+    if firmware['id'] == 'LoPyNode': declared += ['GPS','PYCOM']
     try:
         # I do not like special cases
         if (firmware['id'] == 'LoPyNode') and (portNr == 3):
             rts['sensors'] = []
             if (load[idx] & 017) > 0:
                 rts['sensors'].append(firmware['dust'][(load[idx] & 017)] )
+                declared.append(rts['sensors'][-1])
             if ((load[idx]>>4) & 07) > 0:
                 rts['sensors'].append(firmware['meteo'][((load[idx]>>4) & 017)] )
+                declared.append(rts['sensors'][-1])
             if ((load[idx]>>4) & 010) > 0:
                 rts['sensors'].append('GPS')
+                declared.append(rts['sensors'][-1])
             load.insert(2,None); load.insert(3,None)
         else:
             rts['sensors'] = firmware['sensors']
         for idx in range(0,len(load)):
             if firmware['adjust'][idx] != None:
                 rts[firmware['fields'][idx]] = calibrate(firmware['adjust'][idx],load[idx])
+        # try to improve guess for sensor type via existing field value
+        rts = checkFields(rts)
+        rts['sensors'] = list(set(rts['sensors'] + declared))
+        for sensor in Conf['sensors']:
+            if (sensor['type'] in declared) or (sensor['type'].lower() in declared):
+                rts['fields'] = list(set(rts['fields']+sensor['fields']))
+        rts['sensors'].sort(); rts['fields'].sort()
     except:
         MyLogger.log(modulename,'ERROR','Unpacking LoRa MQTT payload. Record skipped.')
         raise ValueError
@@ -627,8 +704,8 @@ def PubOrSub(topic,option):
             Conf['fd'].on_disconnect = on_disconnect
             if ('user' in Conf.keys()) and Conf['user'] and ('password' in Conf.keys()) and Conf['password']:
                 Conf['fd'].username_pw_set(username=Conf['user'],password=Conf['password'])
-            #Conf['fd'].connect(Conf['hostname'], port=Conf['port'], keepalive=60)
-            Conf['fd'].connect(Conf['hostname'], Conf['port'])
+            Conf['fd'].connect(Conf['hostname'], Conf['port'], keepalive=60)
+            #Conf['fd'].connect(Conf['hostname'], Conf['port'])
             Conf['fd'].on_subscribe = on_subscribe
             Conf['fd'].on_message = on_message
             Conf['fd'].loop_start()   # start thread
@@ -710,7 +787,7 @@ def SigUSR1handler(signum,frame):
 def Get_GtwID(msg):
     if (not 'gateways' in msg.keys()) or (not type(msg['gateways']) is list):
         return None
-    tfirst = 0 ; rssi = None ; eui = None
+    tfirst = 0 ; rssi = None ; eui = None ; location = []
     for one in msg['gateways']:
         if (not 'timestamp' in one.keys()) or (not 'gtw_id' in one.keys()) or (not 'rssi' in one.keys()):
             continue
@@ -719,7 +796,10 @@ def Get_GtwID(msg):
             tfirst = one['timestamp']
             rssi = one['rssi']
             gtw_id = one['gtw_id']
-    if tfirst: return (gtw_id,rssi)
+            for crd in ['latitude','longitude','altitude']:
+                try: location.append(one[crd])
+                except: location.append(None)
+    if tfirst: return (gtw_id,rssi,location)
     return None
 
 # ident cache
@@ -864,6 +944,7 @@ def convert2MySense( data, **sensor):
     gtwID = None  # gateway id
 
     # make sure pay_load_fields have: keys types (sensors) and fields
+    # this needs some rework! Too many fields and types!
     # collect sensor product names, cache them,
     # and check if (translated) fields are known 
     if ("payload_fields" in data['payload'].keys()) \
@@ -901,6 +982,7 @@ def convert2MySense( data, **sensor):
             elif sense != field:
                 data['payload']['payload_fields'][field] = data['payload']['payload_fields'][sense]
                 del data['payload']['payload_fields'][sense]
+            data['payload']['payload_fields'] =  checkFields(data['payload']['payload_fields'])
     elif ('payload_raw' in data['payload'].keys()) \
         and len(data['payload']['payload_raw']):
             if not 'firmware' in cached[myID]:  # try default
@@ -911,16 +993,21 @@ def convert2MySense( data, **sensor):
             else:
                 firmware = cached[myID]['firmware']
             data['payload']['payload_fields'] = payload2fields(data['payload']['payload_raw'],firmware,data['payload']['port'])
-            if not len(data['payload']['payload_fields']): # failure
-                return {}
-            # side effect payload2fields: key sensors
-            cached[myID]['sensors'] = data['payload']['payload_fields']['sensors']
-            del data['payload']['payload_fields']['sensors']
     else: return {}
+
+    # side effect payload2fields: key sensors
+    if 'sensors' in data['payload']['payload_fields']:
+        if (not 'sensors' in cached[myID].keys()) or (not len(cached[myID]['sensors'])) or (len(cached[myID]['sensors']) > len(data['payload']['payload_fields']['sensors'])):
+            cached[myID]['sensors'] = data['payload']['payload_fields']['sensors']
+        del data['payload']['payload_fields']['sensors']
+    if 'fields' in data['payload']['payload_fields']:
+        #if (not 'fields' in cached[myID].keys()) or (not len(cached[myID]['fields'])) or (len(cached[myID]['fields']) < len(data['payload']['payload_fields']['fields'])):
+        #    cached[myID]['fields'] = data['payload']['payload_fields']['fields']
+        del data['payload']['payload_fields']['fields']
     if not len(data['payload']['payload_fields']): return {}    # nothing to do
 
-    # we have now payload_fields with known fields of known sensors
-    ident = newIdent( cached[myID]['firmware']['sensors'] )
+    # we have now payload_fields with known/guessed fields of known/guessed sensors
+    ident = newIdent( cached[myID]['sensors'] if 'sensors' in cached[myID].keys() else cached[myID]['firmware']['sensors'] )
     ident['description'] += ';MQTT AppID=' + data['topic'][0] + ' MQTT DeviceID=' + data['topic'][2]
     try:
         if Conf['project'] == 'XYZ': raise ValueError
@@ -937,6 +1024,20 @@ def convert2MySense( data, **sensor):
         if (not 'eui' in cached[myID].keys()) or (cached[myID]['eui'] != gtwID[0]):
             cached[myID]['eui'] = gtwID[0]
         values['rssi'] = record['rssi'] = gtwID[1] # pickup signal strength node
+        if not 'rssi' in ident['fields']:
+            ident['fields'].append('rssi')
+            ident['units'].append('dB')
+            ident['calibrations'].append(None)
+            try: ident['types'].append(cached[myID]['firmware']['id'])
+            except: ident['types'].append('')
+        if gtwID[2][0]:   # location gateway for this node
+            values['gwlocation'] = record['gwlocation'] = ','.join([str(a) for a in gtwID[2]])
+            ident['fields'].append('gwlocation')
+            ident['units'].append('GPS')
+            ident['calibrations'].append(None)
+            try: ident['types'].append(cached[myID]['firmware']['id'])
+            except: ident['types'].append('')
+        #  to do: add nearby gateway location
 
     for item in data['payload']['payload_fields'].keys():
         values[item] = data['payload']['payload_fields'][item]
@@ -1179,7 +1280,7 @@ if __name__ == '__main__':
         },
         {   'name': 'MySQL DB', 'script': 'MyDB', 'module': None,
             'Conf': {
-                'output': True,
+                'output': False,
                 # use credentials from environment
                 'hostname': None, 'database': 'luchtmetingen',
                 'user': None, 'password': None,
@@ -1192,9 +1293,9 @@ if __name__ == '__main__':
                 'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
                 'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
                 # expression to identify serials to be subjected to be posted
-                'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from pmsensors
-                'projects': 'VW2017',  # expression to identify projects to be posted
-                'active': False,        # output to luftdaten is also activated
+                'serials': '(03eaa4055[89]88)', # pmsensor[1 .. 11] from pmsensors
+                'projects': '(HM|VW)',  # expression to identify projects to be posted
+                'active': True,        # output to luftdaten is also activated
                 # 'debug' : True,        # show what is sent and POST status
             }
         },
