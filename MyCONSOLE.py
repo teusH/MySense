@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyCONSOLE.py,v 2.10 2018/04/12 15:46:44 teus Exp teus $
+# $Id: MyCONSOLE.py,v 2.11 2018/10/02 13:47:58 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,7 +26,7 @@
     Relies on Conf setting biy main program
 """
 modulename='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.10 $"[11:-2]
+__version__ = "0." + "$Revision: 2.11 $"[11:-2]
 
 try:
     import MyLogger
@@ -82,10 +82,49 @@ def registrate(ident):
     print ''
     return
 
+translateTBL = {
+        "pm03": ["pm0.3","PM0.3"],
+        "pm1":  ["roet","soot"],
+        "pm25": ["pm2.5","PM2.5"],
+        "pm5":  ["pm5.0","PM5.0"],
+        "pm10": ["pm","PM"],
+        "O3":   ["ozon"],
+        "NH3":  ["ammoniak","ammonium"],
+        "NO2":  ["stikstof","stikstofdioxide","nitrogendioxide"],
+        "NO":   ["stikstof","stikstofoxide","nitrogenoxide"],
+        "CO2":  ["koolstofdioxide","carbondioxide"],
+        "CO":   ["koolstofmonoxide","carbonoxide"],
+        "temp": ["temperature"],
+        "luchtdruk": ["pressure","pres","pha","pHa"],
+        "rv":   ["humidity","hum","vochtigheid","vocht"],
+        "ws":   ["windspeed","windsnelheid"],
+        "wr":   ["windrichting","winddirection","direction"],
+        "altitude":  ["alt","hoogte","height"],
+        "longitude":  ["long","lon","lengte graad"],
+        "latitude":  ["lat","breedte graad"],
+        "geolocation": ["gps","GPS","coordinates","geo"],
+        "gas":  ["air"],
+        "aqi":  ["air quality","luchtkwaliteit","lki"],
+        "version": ["versie","release"],
+        "meteo": ["weer"],
+        "dust": ["fijnstof"],
+        "time": ["utime","timestamp"]
+    }
+# rename names into known field names
+def translate( sense ):
+    sense.replace('PM','pm')
+    for strg in ('O3','NH','NO','CO'):
+        sense.replace(strg.lower(),strg)
+    for strg in translateTBL.keys():
+        if sense.lower() == strg.lower(): return strg
+        for item in translateTBL[strg]:
+            if item == sense: return strg
+    return sense
+
 def findInfo(ident,field):
     UT = ['','']   # (unit,sensor type)
     try:
-        indx = ident['fields'].index(field)
+        indx = ident['fields'].index(translate(field))
         UT[0] = ('' if ident['units'][indx] == '%' else ' ') + ident['units'][indx] 
         UT[1] = ' ' + ident['types'][indx]
     except:
