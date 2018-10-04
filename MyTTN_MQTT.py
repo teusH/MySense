@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 2.10 2018/10/02 14:33:33 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 2.11 2018/10/04 13:54:23 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -31,10 +31,9 @@
     e.g.
     Publish measurements as client to luftdaten.info and MySQL
     One may need to change payload and TTN record format!
-    TTN port 2 is used for data, port 3 is used for meta data and remote control
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.10 $"[11:-2]
+__version__ = "0." + "$Revision: 2.11 $"[11:-2]
 
 try:
     import MyLogger
@@ -518,11 +517,11 @@ def payload2fields(payload, firmware, portNr):
             for pack in packing:
                 save = load
                 try:
-                    load = struct.unpack(pack,load)
+                    load = list(struct.unpack(pack,load))
                     break
                 except: load = save; pass
             if not type(load) is tuple: packing = None
-        else: load = struct.unpack(packing,load)
+        else: load = list(struct.unpack(packing,load))
     except: packing = None; pass
     if packing == None:
         MyLogger.log(modulename,'ERROR','Cannot find payload converter definition for id %s.' % firmware['id'])
@@ -533,13 +532,13 @@ def payload2fields(payload, firmware, portNr):
         # I do not like special cases
         if (firmware['id'] == 'LoPyNode') and (portNr == 3):
             rts['sensors'] = []
-            if (load[idx] & 017) > 0:
-                rts['sensors'].append(firmware['dust'][(load[idx] & 017)] )
+            if (load[1] & 017) > 0:
+                rts['sensors'].append(firmware['dust'][(load[1] & 017)] )
                 declared.append(rts['sensors'][-1])
-            if ((load[idx]>>4) & 07) > 0:
-                rts['sensors'].append(firmware['meteo'][((load[idx]>>4) & 017)] )
+            if ((load[1]>>4) & 07) > 0:
+                rts['sensors'].append(firmware['meteo'][((load[1]>>4) & 017)] )
                 declared.append(rts['sensors'][-1])
-            if ((load[idx]>>4) & 010) > 0:
+            if ((load[1]>>4) & 010) > 0:
                 rts['sensors'].append('GPS')
                 declared.append(rts['sensors'][-1])
             load.insert(2,None); load.insert(3,None)
@@ -1293,7 +1292,7 @@ if __name__ == '__main__':
                 'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
                 'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
                 # expression to identify serials to be subjected to be posted
-                'serials': '(03eaa4055[89]88)', # pmsensor[1 .. 11] from pmsensors
+                'serials': '(30aa4505[89]88)', # pmsensor[1 .. 11] from pmsensors
                 'projects': '(HM|VW)',  # expression to identify projects to be posted
                 'active': True,        # output to luftdaten is also activated
                 # 'debug' : True,        # show what is sent and POST status
