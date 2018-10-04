@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.83 2018/09/13 19:38:46 teus Exp teus $
+# $Id: INSTALL.sh,v 1.84 2018/10/04 12:44:53 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -157,7 +157,6 @@ UNINSTALLS[DHT]+=' /usr/local/bin/set_gpio_perm.sh'
 HELP[DHT]="Installation of DHT sensor libraries and general purpose IO use.
 Please enable gpio via raspi-config command interfaces as root."
 function DHT(){
-    local DHT_VERSION=1.3.4
     if [ ! -x /usr/local/bin/set_gpio_perm.sh ]
     then
         echo "Created the file /usr/local/bin/set_gio_perm.sh"
@@ -179,14 +178,13 @@ EOF
     done
     if ! pip list | grep -q Adafruit-DHT
     then
-        if ! wget -O Adafruit_Python_DHT-${DHT_VERSION}.tar.gz https://github.com/adafruit/Adafruit_Python_DHT/archive/${DHT_VERSION}.tar.gz
+        if ! wget -O Adafruit_Python_DHT-1.3.4.tar.gz https://github.com/adafruit/Adafruit_Python_DHT/archive/1.3.4.tar.gz
         then
-            echo "Cannot find https://github.com/adafruit/Adafruit_Python_DHT/archive/${DHT_VERSION}.tar.gz"
+            echo "Cannot find https://github.com/adafruit/Adafruit_Python_DHT/archive/1.3.4.tar.gz"
             return 1
         fi
-        tar xpzf Adafruit_Python_DHT-${DHT_VERSION}.tar.gz
-        ( cd Adafruit_Python_DHT-${DHT_VERSION} ; sudo python setup.py install )
-        sudo rm -rf Adafruit_Python_DHT-${DHT_VERSION} # cleanup
+        tar xpzf Adafruit_Python_DHT-1.3.4.tar.gz
+        ( cd Adafruit_Python_DHT-1.3.4 ; sudo python setup.py install )
         # DEPENDS_ON pip adafruit/Adafruit_Python_DHT Adafruit_Python_DHT Adafruit-DHT
     fi
     return $?
@@ -890,7 +888,8 @@ source-directory /etc/network/interfaces.d
 auto lo
 iface lo inet loopback
 
-iface $LAN inet manual
+auto $LAN
+iface $LAN inet dhcp
 
 auto $WIFI
 iface $WIFI inet dhcp
@@ -1004,7 +1003,7 @@ EOF
     /bin/rm -f /tmp/hostap$$
 }
 
-UNINSTALLS[VIRTUAL]+=' /usr/local/etc/start_wifi_AP'
+UNINSTALLS[VIRTUAL]+=' /usr/local/etc/start_wifi_AP /etc/udev/rules.d/90-wireless.rules'
 # this will start wifi Access Point if $LAN and $WIFI have no internet access
 # the virtual uap0 wifi will be combined with $WIFI (embedded in Pi3)
 # TO DO: if uap0 is up, $WIFI cannot be used in symultane (not yet tested fully)
@@ -1018,13 +1017,42 @@ function VIRTUAL(){
     else
         NAT=""
     fi
+    if [ ! -f /etc/udev/rules.d/90-wireless.rules ]
+    then
+        cat >/tmp/rules.$$ <<EOF
+action=="add", SUBSYSTEM=="ieee80211", KERNEL=="Phy0", RUN+="/bin/iw phy %k interface add uap0 type __ap"
+EOF
+        /usr/sbin/sudo /bin/mv /tmp/rules.$$ /etc/udev/rules.d/90-wireless.rules
+    fi
     /bin/cat >/tmp/hostap$$ <<EOF
 #!/bin/bash
 # this will check wired, wifi if there is a connectivity
-# if not it will initiate wifi AP to login locally
+# then try wifi client
+# if search for wifi connectivity or no internet led will blink
+# it will initiate wifi AP to login locally
+# if needed it will bring oled display server alive
 
-BUS=I2C
-D_ADDR=2017
+BUS=I2C		# bus type of oled display
+D_ADDR=2017	# port for oled display server
+YB=\${YB}        # yellow/blue oled type of display
+if [ -n "\$1" -a "\$1" = '-y' ]
+then
+    YB=-y
+    shift
+fi
+if [ -n "\$1" ]
+then
+    UAP=uap0	# bring up wifi AP, empty if disabled
+else
+    UAP=\${UAP}
+fi
+if [ -n "\$DEBUG" ]
+then
+    QUIET=/dev/stderr
+else
+    QUIET=/dev/null
+fi
+
 # led ON
 if [ -x /usr/local/bin/MyLed.py ]
 then
@@ -1032,41 +1060,25 @@ then
 fi
 if [ -x /usr/local/bin/MyDisplayServer.py ]
 then
-    /usr/bin/sudo -u ios /usr/local/bin/MyDisplayServer.py -b \$BUS start 2>/dev/null
-    /bin/sleep 2
+    if ! /bin/ps ax | grep MyDisplayServer | grep -q -v grep
+    then
+        /usr/bin/sudo -u ios /usr/local/bin/MyDisplayServer.py \${YB} -b \$BUS start 2>\$QUIET
+        /bin/sleep 2
+    fi
 fi
 
-WIFI=wlan0
-LAN=eth0
-# Debian has changed names for internet interfaces
-function GetInterfaces(){
-    if /sbin/ifconfig -a | /bin/grep -q '[ew][ln]x.*: flag'
-    then
-        WIFI=\$(/sbin/ifconfig -a | /bin/grep 'wlx..*: flag' | /bin/sed 's/: .*//')
-        LAN=\$(/sbin/ifconfig -a | /bin/grep 'enx..*: flag' | /bin/sed 's/: .*//')
-    else
-        WIFI=\$(/sbin/ifconfig -a | /bin/grep 'wlan.*: flag' | /bin/sed 's/: .*//')
-        LAN=\$(/sbin/ifconfig -a | /bin/grep 'eth..*: flag' | /bin/sed 's/: .*//')
-    fi
-    if [ -z "\$WIFI" ] || [ -z "\$LAN" ]
-    then
-        echo "WARNING: only \${WIFI:-no wifi} and \${LAN:-no lan} internet interface available. Correct it manualy e.g. in /etc/network/interfaces." >/dev/stderr
-    fi
-    WIFI=\${WIFI:-wlan0}
-    LAN=\${LAN:-eth0}
-}
-
 function INTERNET() {
-    GetInterfaces
-    local WLAN=\${1:-$WIFI}
+    local WLAN=\${1:-wlan0}
     local ADDR=''
-    sleep 30
-    if /sbin/ifconfig \$WLAN | grep -q 'inet addr'
+    sleep 15
+    if /sbin/ifconfig \$WLAN | grep -q 'inet.*cast'
     then
-        ADDR=\$(/sbin/ifconfig \$WLAN | /usr/bin/awk '/inet addr/{ split(\$2,a,":"); print a[2]; }')
+        ADDR=\$(/sbin/ifconfig \$WLAN | /bin/sed s/addr:// | /usr/bin/awk '/inet.*cast/{printf("%s",\$2); }')
+	/sbin/ifdown \$WLAN 2>\$QUIET
+	/sbin/ifup \$WLAN 2>\$QUIET ; sleep 5 # make sure routing has been done
         if /sbin/route -n | grep -q '^0.0.0.0.*'\${WLAN}
         then
-            if ! /bin/ping -q -W 2 -c 2 8.8.8.8 >/dev/null
+            if ! ping -q -W 2 -c 2 8.8.8.8 >\$QUIET
             then
                 # no outside connectivity
                 return 1
@@ -1077,82 +1089,133 @@ function INTERNET() {
                 /usr/local/bin/MyLed.py --led D6 --light OFF
             fi
             echo "\$WLAN \$ADDR" | /bin/nc -w 2 localhost \$D_ADDR
-            exit 0
+            return 0
         fi
     fi
     return 1
 }
 
-INTERNET $LAN	# try wired internet line
-INTERNET $WIFI  # try WiFi connectivity
-
-# no connectivity. Start wifi AP
-if /sbin/ifconfig | /bin/grep -q uap0
-then
-    /sbin/ip link set dev uap0 down
-    /sbin/ifdown $LAN
-    /sbin/ifup $WIFI
-fi
-
-SSIDS=(\$(/sbin/wpa_cli scan_results | /bin/grep WPS | /usr/bin/sort -r -k3 | /usr/bin/awk '{ print \$1;}'))
-# try WPS on all BSSID's
-echo "<clear>Try WiFi WPS on:" | /bin/nc -w 2 localhost \$D_ADDR
-if [ -x /usr/local/bin/MyLed.py ]
-then
-    /usr/local/bin/MyLed.py --led D6 --blink 1,1,15 &
-fi
-for BSSID in \${SSIDS[@]}
-do
-    # try associated: led OFF-ON-OFF-ON...
-    SSID=\$(/sbin/wpa_cli scan_results | /bin/grep \$BSSID | awk  -F '\t' '{ print \$5; exit(0); }')
-    echo "  \$SSID" | /bin/nc -w 2 localhost \$D_ADDR
-    if /sbin/wpa_cli wps_pbc "\$BSSID" | /bin/grep -q CTRL-EVENT-CONNECTED
+# install and enable WiFi Access Point as added device to wlan0
+# needs udev rule set for psy0 wireless device
+function WiFiAP() {
+    # try wifi AP
+    WLAN=\${1}
+    ADDR=\${2}
+    if [ -z "\$WLAN" ] ; then return 1 ; fi
+    if ! /sbin/ifconfig -a | /bin/grep -q wlan0 # no WiFi device
     then
-        echo "CONNECTED" | /bin/nc -w 2 localhost \$D_ADDR
-        if [ -x /usr/local/bin/MyLed.py ]
-        then
-            kill %1
-        fi
-	# on success this process will die on next call
-        INTERNET
+	return 1
     fi
-    # try next available SSID
+    # led ON-OFF-OFF-OFF-ON ...
     if [ -x /usr/local/bin/MyLed.py ]
     then
-        /usr/local/bin/MyLed.py --led D6 --light ON
+        kill %1 2>\$QUIET
+        /usr/local/bin/MyLed.py --led D6 --blink 1,5,30 &
     fi
-done
+    # echo 'setup WiFi AP' | /bin/nc -w 2 localhost \$D_ADDR
+    # echo "\$WLAN \$ADDR.1" | /bin/nc -w 2 localhost \$D_ADDR
+    /sbin/ifdown wlan0 2>\$QUIET
+    if ! /sbin/ifconfig -a | /bin/grep -q \${WLAN:-uap0}
+    then
+        if ! /sbin/iw phy phy0 interface add "\${WLAN:-uap0}" type __ap 2>\$QUIET
+        then
+            /sbin/ifup wlan0 2>\$QUIET
+	    kill %1 2>\$QUIET
+	    return 1
+        fi
+    fi
+    #/sbin/ip link set "\${WLAN}" address \$(ifconfig  | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:0f/')
+    /sbin/ifup \${WLAN:-uap0} 2>\$QUIET >\$QUIET   # ignore already exists error
+    /sbin/sysctl net.ipv4.ip_forward=1
+    if [ -n "\$ADDR" ]
+    then
+        /sbin/iptables -t nat -A POSTROUTING -s \$ADDR.0/24 ! -d \$ADDR.0/24 -j MASQUERADE
+        /bin/systemctl restart hostapd 2>\$QUIET
+    fi
+    /sbin/route del default dev uap0 2>\$QUIET
+    /sbin/ifup wlan0 2>\$QUIET
+    /bin/systemctl restart dnsmasq 2>\$QUIET
+    kill %1 2>\$QUIET
+    echo "WiFi AP enabled"  | /bin/nc -w 2 localhost \$D_ADDR
+    /bin/grep -e 'ssid=...' -e wpa_passphrase= /etc/hostapd/hostapd.conf | /bin/sed 's/.*phrase=/phrase /' | /bin/nc -w 2 localhost \$D_ADDR
+    if [ -x /usr/local/bin/MyLed.py ]
+    then
+        /usr/local/bin/MyLed.py --led D6 --light OFF
+    fi
+    sleep 5
+    return 0
+}
 
-# try wifi AP
-WLAN=\${1:-uap0}
-ADDR=\${2:-192.168.2}
-# led ON-OFF-OFF-OFF-ON ...
-echo "<clear>NO INTERNET via WiFi" | /bin/nc -w 2 localhost \$D_ADDR
-if [ -x /usr/local/bin/MyLed.py ]
+function WiFiClient() {
+    # no connectivity. Start wifi AP
+    if /sbin/ifconfig | /bin/grep -q uap0
+    then
+        /sbin/ip link set dev uap0 down
+        /sbin/ifdown eth0
+        /sbin/ifup wlan0
+    fi
+    SSIDS=(\$(/sbin/wpa_cli scan_results | /bin/grep WPS | /usr/bin/sort -r -k3 | /usr/bin/awk '{ print \$1;}'))
+    # try WPS on all BSSID's
+    echo "<clear>Try WiFi WPS on:" | /bin/nc -w 2 localhost \$D_ADDR
+    if [ -x /usr/local/bin/MyLed.py ]
+    then
+        /usr/local/bin/MyLed.py --led D6 --blink 1,1,15 &
+    fi
+    for BSSID in \${SSIDS[@]}
+    do
+        # try associated: led OFF-ON-OFF-ON...
+        SSID=\$(/sbin/wpa_cli scan_results | /bin/grep \$BSSID | awk  -F '\t' '{ print \$5; exit(0); }')
+        echo "  \$SSID" | /bin/nc -w 2 localhost \$D_ADDR
+        if /sbin/wpa_cli wps_pbc "\$BSSID" | /bin/grep -q CTRL-EVENT-CONNECTED
+        then
+            echo "CONNECTED" | /bin/nc -w 2 localhost \$D_ADDR
+            if [ -x /usr/local/bin/MyLed.py ]
+            then
+                kill %1
+            fi
+	    # on success this process will die on next call
+            if INTERNET
+	    then
+                return 0
+            fi
+        fi
+        # try next available SSID
+        if [ -x /usr/local/bin/MyLed.py ]
+        then
+            /usr/local/bin/MyLed.py --led D6 --light ON
+        fi
+    done
+    return 1
+}
+
+echo "<clear>network connect:" | /bin/nc -w 2 localhost \$D_ADDR
+if ! INTERNET eth0	# try wired internet line
 then
-    kill %1
-    /usr/local/bin/MyLed.py --led D6 --blink 1,5,30 &
+    if ! INTERNET wlan0  # try WiFi connectivity
+    then
+        if ! WiFiClient
+	then
+	    echo "No INTERNET"  | /bin/nc -w 2 localhost \$D_ADDR
+	fi
+    fi
 fi
-WIFI=$(/sbin/ifconfig -a | grep '^w.*: flag' | /usr/bin/head -1 | /bin/sed 's/:.*//') 
-/sbin/ifdown \${WIFI}
-/sbin/iw dev \${WIFI} interface add "\${WLAN}" type __ap
-/sbin/ip link set "\${WLAN}" address \$(ifconfig  | /bin/grep HWadd | /bin/sed -e 's/.*HWaddr //' -e 's/:[^:]*\$/:0f/')
-/sbin/ifup uap0 2>/dev/null >/dev/null   # ignore already exists error
-/sbin/sysctl net.ipv4.ip_forward=1
-/sbin/iptables -t nat -A POSTROUTING -s 192.168.2.0/24 ! -d 192.168.2.0/24 -j MASQUERADE
-/usr/sbin/service hostapd restart
-/sbin/route del default dev uap0
-/usr/sbin/service dnsmasq restart
-/sbin/ifup \${WIFI} # this will enable wifi internet access, as well wifi access point
-sleep 5
-echo "WiFi AP please login" | /bin/nc -w 2 localhost \$D_ADDR
-/bin/grep -e 'ssid=...' -e wpa_passphrase= /etc/hostapd/hostapd.conf | /bin/sed 's/.*phrase/phrase/' | /bin/nc -w 2 localhost \$D_ADDR
+if ! WiFiAP uap0 10.3.144
+then
+    echo "Start WiFi AP failed" | /bin/nc -w 2 localhost \$D_ADDR
+fi
 EOF
     sudo cp /tmp/hostap$$ /usr/local/etc/start_wifi_AP
     sudo chmod +x /usr/local/etc/start_wifi_AP
     /bin/rm -f /tmp/hostap$$
     sudo sh -c /usr/local/etc/start_wifi_AP
-    AddCrontab /usr/local/etc/start_wifi_AP root
+    # may need to add YB oled display, or read uap OK
+    local YB
+    read -t 15 -p "The Oled display is a yellow/blue display (dflt=No)? [Ny]: " YB
+    YB=${YB/[Nn]*/}
+    local UAP
+    read -t 15 -p "WiFi AP to be installed (dflt=No)? [Ny]: " UAP
+    UAP=${UAP/[nN]*/}
+    AddCrontab "/usr/local/etc/start_wifi_AP ${YB/[yY]*/-y} ${UAP/[yY]*/uap0}" root
 }
 
 INSTALLS+=" GPRS"
@@ -1397,12 +1460,12 @@ function WIFI_HOSTAP(){
     # then /usr/bin/sudo /usr/bin/apt-get remove --purge hostapd -y
     # fi
     DEPENDS_ON APT hostapd
-    /usr/bin/sudo /usr/sbin/service hostapd stop
+    /usr/bin/sudo /bin/systemctl stop hostapd
     # /usr/bin/sudo /bin/systemctl enable hostapd
     echo "wifi Access Point needs SSID (dflt ${SSID}) and" 1>&2
-    echo "WPA password (dflt ${PASS}):" 1>&2
-    read -t 15 -p "wifi AP SSID (dflt ${SSID}): " SSID
-    read -t 15 -p "wifi AP WPA (dflt ${PASS}): " PASS
+    echo "WPA password (dflt ${PASS:-acacadabra}):" 1>&2
+    read -t 15 -p "wifi AP SSID (dflt ${SSID:-MySenseIOS}): " SSID
+    read -t 15 -p "wifi AP WPA (dflt ${PASS:-acacadabra}): " PASS
     read -t 15 -p "Need to hide the SSID? [Y|n]: " HIDE
     if [ -n "${HIDE/[Yy]/}" ] ; then HIDE=0 ; else HIDE=1 ; fi
     KeepOriginal /etc/systemd/system/hostapd.service
@@ -1419,11 +1482,14 @@ ExecStart=/usr/sbin/hostapd -B /etc/hostapd/hostapd.conf -P /var/run/hostapd.pid
 [Install]
 WantedBy=multi-user.target
 EOF
-    /usr/bin/sudo /bin/cp /tmp/hostap$$ /etc/systemd/system/hostapd.service
+    /usr/bin/sudo /bin/mv /tmp/hostap$$ /etc/systemd/system/hostapd.service
     /bin/cat >/tmp/hostap$$ <<EOF
-interface=${WLAN}
+interface=${WLAN:-uap0}
+ctrl_interface=/var/run/hostapd
+ctrl_interface_group=0
+beacon_int=100
 hw_mode=g
-channel=10
+channel=11
 auth_algs=1
 wpa=2
 wpa_key_mgmt=WPA-PSK
@@ -1431,11 +1497,11 @@ wpa_pairwise=CCMP
 rsn_pairwise=CCMP
 macaddr_acl=0
 ssid=${SSID:-MySense}
-wpa_passphrase=${PASS:-BehoudDeParel}
+wpa_passphrase=${PASS:-acacadabra}
 ignore_broadcast_ssid=${HIDE:-0}
+country_code=NL
 EOF
-    /usr/bin/sudo /bin/cp /tmp/hostap$$ /etc/hostapd/hostapd.conf
-    /bin/rm -f /tmp/hostap$$
+    /usr/bin/sudo /bin/mv /tmp/hostap$$ /etc/hostapd/hostapd.conf
 }
 
 INSTALLS+=" NEW_SSID"
