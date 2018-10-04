@@ -22,6 +22,8 @@ If the poweroff switch is installed the command `/usr/local/etc/poweroff` starte
 * less as 10-20 seconds pressed MySense will reboot
 * more as 20 seconds pressed MySense will poweroff the Pi.
 
+If the on board WiFi supports WiFi Access Point this will be optionaly enabled (dflt: enabled). This will allow to access the Pi via wifi SSID *MySense* and passphrase *acacadabra*. The `INSTALL.sh` may optionaly install *RaspAP* package using *lighttp* web service, an web gui for network configuration as well on the WiFi Access Point via web credits user *admin* and password *secret* (CHANGE THIS immediatly).
+
 Note that the main python program MySense.py may need to operate fully a config or init file.
 The file is looked up as program name extended with .conf: eg MySense.conf
 The initfile may also be defined by the environment variable captial program name. Eg. MYSENSE=/etc/ios/MySense.ini
