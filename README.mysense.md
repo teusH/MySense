@@ -22,14 +22,17 @@ If the poweroff switch is installed the command `/usr/local/etc/poweroff` starte
 * less as 10-20 seconds pressed MySense will reboot
 * more as 20 seconds pressed MySense will poweroff the Pi.
 
-If the on board WiFi supports WiFi Access Point this will be optionaly enabled (dflt: enabled). This will allow to access the Pi via wifi SSID *MySense* and passphrase *acacadabra*. The `INSTALL.sh` may optionaly install *RaspAP* package using *lighttp* web service, an web gui for network configuration as well on the WiFi Access Point via web credits user *admin* and password *secret* (CHANGE THIS immediatly).
+`INSTALL.sh` may also be used to install LoRa gateway software on the Pi, e.g. `INSTALL.sh USER DISPLAY GPS WATCHDOG INTERNET WIFI WEBMIN TTN_GATEWAY`. Optionally add *GPRS, SMS, BUTTON*, and/or *BLUETOOTH*.
 
-Note that the main python program MySense.py may need to operate fully a config or init file.
-The file is looked up as program name extended with .conf: eg MySense.conf
-The initfile may also be defined by the environment variable captial program name. Eg. MYSENSE=/etc/ios/MySense.ini
+If the on board WiFi supports WiFi Access Point this will be optionaly enabled (dflt: enabled). This will allow to access the Pi via wifi SSID *MySense* and passphrase *acacadabra* (CHANGE THIS e.g. via RaspAP webmin interface or via `/etc/hostapd/hostapd.conf`!).
+The `INSTALL.sh` may install by defaults the *RaspAP* package (`INSTALL.sh WEBMIN`) using the *lighttpd* web service, an web gui for network configuration as well on the WiFi Access Point via web credits user *admin* and the default password *secret* (CHANGE THIS immediately).
+
+Note that the main python program *MySense.py* may need to operate fully a config or init file.
+The file is looked up as program name extended with .conf: eg `MySense.conf`
+The init file may also be defined by the environment variable (name in capitals) program *name*. Eg. `MYSENSE=/etc/ios/MySense.ini`.
 See the config file example for all plugin sections and plugin options.
 
-A *note about USB serial cables*
+A *note about USB serial cables or better adapters*
 <br />
 USB (mainly serial TTL) devices are discriminated via the product ID in order to detect the ttyUSBn port. In the `MySense.conf` configuration file with the option `usbid` one can de fine a search pattern to find the correct USB connector. However this will only work if one uses different manufacture id's for each USB serial connector.
 ## PLUGINS
@@ -40,7 +43,7 @@ Use it to see how to overwrite (disable or enable) the input and output plugins.
 And how to get more logging output: eg "-l debug"
 Not all plugins have been tested deeply (e.g. broker, gspread, gas, dht).
 Operational plugins:
-* input: dylos, Shinyei (via Arduino controller) and SDS011 dust, meteo (DHT22 and BME280
+* input: Dylos, Shinyei (connected via Arduino controller) and SDS011 dust sensors, meteo (SHT31, DHT11/22 and BME280/680 sensors, Spec or AlphaSense gas sensors.
 * output: MQTT: mqttsub (subscribe) and mqttpub, InFlux (publicise), db (mysql), CSV and console.
 
 ## Adding a NEW PLUGIN

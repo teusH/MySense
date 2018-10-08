@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.84 2018/10/04 12:44:53 teus Exp teus $
+# $Id: INSTALL.sh,v 1.86 2018/10/08 08:56:42 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -750,11 +750,93 @@ EOF
     /bin/rm -f /tmp/EW$$
 }
 
-# installs  system admin web interface on port 10000
+# installs  network system admin web interface
+INSTALLS+=" WEBMIN"
+UNINSTALLS[WEBMIN]=" /etc/sudoers.d/webadmin /var/www/html /etc/raspap"
+HELP[WEBMIN]="Installation of network system administration via web interface."
+DFLT[WEBMIN]=Y
+function WEBMIN() {
+    DEPENDS_ON APT git
+    DEPENDS_ON APT lighttpd
+    if /bin/grep -q -P '(essie|heesy)' /etc/os-release
+    then
+        DEPENDS_ON APT php5-cgi
+    else
+        DEPENDS_ON APT php7.0-cgi
+    fi
+    DEPENDS_ON APT hostapd
+    DEPENDS_ON APT dnsmasq
+    DEPENDS_ON APT vnstat
+    /usr/bin/sudo lighttpd-enable-mod fastcgi-php
+    /usr/bin/sudo systemctl restart lighttpd
+
+    cat >/tmp/web$$ <<EOF
+www-data ALL=(ALL) NOPASSWD:/sbin/ifdown wlan0
+www-data ALL=(ALL) NOPASSWD:/sbin/ifup wlan0
+www-data ALL=(ALL) NOPASSWD:/bin/cat /etc/wpa_supplicant/wpa_supplicant.conf
+www-data ALL=(ALL) NOPASSWD:/bin/cp /tmp/wifidata /etc/wpa_supplicant/wpa_supplicant.conf
+www-data ALL=(ALL) NOPASSWD:/sbin/wpa_cli scan_results
+www-data ALL=(ALL) NOPASSWD:/sbin/wpa_cli scan
+www-data ALL=(ALL) NOPASSWD:/sbin/wpa_cli reconfigure
+www-data ALL=(ALL) NOPASSWD:/bin/cp /tmp/hostapddata /etc/hostapd/hostapd.conf
+www-data ALL=(ALL) NOPASSWD:/etc/init.d/hostapd start
+www-data ALL=(ALL) NOPASSWD:/etc/init.d/hostapd stop
+www-data ALL=(ALL) NOPASSWD:/etc/init.d/dnsmasq start
+www-data ALL=(ALL) NOPASSWD:/etc/init.d/dnsmasq stop
+www-data ALL=(ALL) NOPASSWD:/bin/cp /tmp/dhcpddata /etc/dnsmasq.conf
+www-data ALL=(ALL) NOPASSWD:/sbin/shutdown -h now
+www-data ALL=(ALL) NOPASSWD:/sbin/reboot
+www-data ALL=(ALL) NOPASSWD:/sbin/ip link set wlan0 down
+www-data ALL=(ALL) NOPASSWD:/sbin/ip link set wlan0 up
+www-data ALL=(ALL) NOPASSWD:/sbin/ip -s a f label wlan0
+www-data ALL=(ALL) NOPASSWD:/bin/cp /etc/raspap/networking/dhcpcd.conf /etc/dhcpcd.conf
+www-data ALL=(ALL) NOPASSWD:/etc/raspap/hostapd/enablelog.sh
+www-data ALL=(ALL) NOPASSWD:/etc/raspap/hostapd/disablelog.sh
+EOF
+
+    /usr/bin/sudo /bin/chown root.root /tmp/web$$
+    /usr/bin/sudo /bin/chmod 440 /tmp/web$$
+    /usr/bin/sudo /bin/mv /tmp/web$$ /etc/sudoers.d/webadmin
+    if ! /usr/bin/sudo /bin/grep -q '#includedir' /etc/sudoers
+    then
+        /usr/bin/sudo /bin/cat /etc/sudoers >/tmp/web$$
+        echo "#includedir /etc/sudoers.d" >>/tmp/web$$
+	/usr/bin/sudo /bin/chmod +w /etc/sudoers
+        /usr/bin/sudo /bin/mv /tmp/web$$ /etc/sudoers
+        /usr/bin/sudo /bin/chmod 440 /etc/sudoers
+    fi
+    local WWW
+    if [ -d /var/www/html ]
+    then
+        WWW=/var/www/html
+    else
+        WWW=/var/www
+    fi
+    if [ ! -d $WWW.orig ]
+    then
+	/usr/bin/sudo /bin/mv $WWW $WWW.orig
+	/usr/bin/sudo /bin/mkdir $WWW
+    else
+	/usr/bin/sudo /bin/rm -rf $WWW/*
+    fi
+    /usr/bin/sudo git clone https://github.com/billz/raspap-webgui $WWW
+    if [ "$WWW" = /var/www ]
+    then
+	/usr/bin/sudo /bin/ln -s . html
+    fi
+    /usr/bin/sudo /bin/chgrp -R www-data $WWW
+    /usr/bin/sudo /bin/mkdir /etc/raspap
+    /usr/bin/sudo /bin/mv $WWW/raspap.php /etc/raspap/
+    /usr/bin/sudo /bin/chown -R www-data:www-data /etc/raspap
+    /usr/bin/sudo /bin/sed -i 's/RaspAP/MySense/g' $WWW/index.php
+    return 0
+}
+
+# installs full system admin web interface on port 10000
 # remote system admin (default via ssh)
-EXTRA+=' WEBMIN'
-HELP[WEBMIN]="Installation of system administration via web interface (port 10000). Usually not needed."
-DFLT[WEBMIN]=N
+EXTRA+=' WEBMIN2'
+HELP[WEBMIN2]="Installation of full system administration via web interface (port 10000). Usually not needed."
+DFLT[WEBMIN2]=N
 function WEBMIN(){
     local ANS
     # DEPENDS_ON APT perl
@@ -1199,7 +1281,7 @@ then
 	fi
     fi
 fi
-if ! WiFiAP uap0 10.3.144
+if ! WiFiAP uap0 192.168.2
 then
     echo "Start WiFi AP failed" | /bin/nc -w 2 localhost \$D_ADDR
 fi
@@ -1385,7 +1467,7 @@ EOF
     AddCrontab /usr/local/bin/poweroff.sh root
 }
 
-HELP[BLUETOOTH]+="Installation of termeinal access via BlueTooth."
+HELP[BLUETOOTH]+="Installation of terminal access via BlueTooth."
 UNINSTALLS[BLUETOOTH]+=" /usr/local/bin/BlueToothTerminal.sh"
 # installs remote access via BlueTooth terminal service
 function BLUETOOTH(){
