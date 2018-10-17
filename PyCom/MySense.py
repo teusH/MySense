@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 2.8 2018/05/04 14:55:41 teus Exp teus $
+# $Id: MySense.py,v 2.9 2018/10/17 15:34:35 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 2.8 $"[11:-2]
+__version__ = "0." + "$Revision: 2.9 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -575,7 +575,7 @@ def DoPack(dData,mData,gps=None):
 def SendInfo(port=3):
   global  lora, meteo, dust, useGPS, thisGPS, lastGPS
   if lora == None: return True
-  sense = ((meteo&07)<<4) | (dust&017)
+  sense = ((meteo&07)<<4) | (dust&0xf)
   if (not meteo) and (not dust) and (useGPS == None): return True
   gps = 0
   if useGPS:
