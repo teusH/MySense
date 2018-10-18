@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 2.9 2018/10/17 15:34:35 teus Exp teus $
+# $Id: MySense.py,v 2.10 2018/10/18 10:24:43 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 2.9 $"[11:-2]
+__version__ = "0." + "$Revision: 2.10 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -55,13 +55,13 @@ except:
 # #led.toggle()
 # STOP = False
 # myID = None
-# 
+#
 # def pressed(what):
 #   global STOP, LED
 #   STOP = True
 #   print("Pressed %s" % what)
 #   LED.blink(5,0.1,0xff0000,False)
-# 
+#
 #
 # button.callback(Pin.IRQ_FALLING|Pin.IRQ_HIGH_LEVEL,handler=pressed,arg='STOP')
 
@@ -74,7 +74,7 @@ def display(txt,xy=(0,None),clear=False, prt=True):
   if oled != None:
     offset = 0
     if xy[1] == None: y = nl
-    elif xy[1] < 0: 
+    elif xy[1] < 0:
       if -xy[1] < LF:
         offset = xy[1]
         y = nl - LF
@@ -278,7 +278,7 @@ if useMeteo:
     if meteo == 3: # BME280
       import BME280 as BME
     elif meteo == 4: # BME680
-      import BME_I2C as BME
+      import BME680 as BME
       try:
         from Config import M_gBase
       except:
@@ -371,7 +371,7 @@ if Network: display('Network: %s' % Network)
 
 HALT = False
 # called via TTN response
-def CallBack(port,what): 
+def CallBack(port,what):
   global sleep_time, HALT, oled, useDust, useMeteo
   if not len(what): return True
   if len(what) < 2:
@@ -505,64 +505,40 @@ def DoMeteo():
   global useMeteo, nl, LF
   global Meteo, meteo
   global M_SDA, M_SCL
-  mData = [0,0,0,0,0]; sData = ""
+  mData = [0,0,0,0,0]
   if not useMeteo or not meteo: return mData
 
   # Measure temp oC, rel hum %, pres pHa, gas Ohm, aqi %
   LED.blink(3,0.1,0x002200,False)
-  error = None
-  try: 
+  try:
     nr = indexBus(i2cPINs,i2c,(M_SDA,M_SCL))
     if (meteo == 4) and (not useMeteo.gas_base): # BME680
       display("AQI base: wait"); nl -= LF
     i2c[nr].init(nr, pins=i2cPINs[nr]) # SPI oled causes bus errors
     sleep(1)
-    try:
-      mData[TEMP] = float(useMeteo.temperature) # string '20.12'
-      sData += "%4.1f " % round(mData[TEMP],1)
-    except:
-      mData[TEMP] = 0; error = TEMP
-      sData += "  ?  "
-    try:
-      mData[HUM] = float(useMeteo.humidity)     # string '25'
-      sData += "%2d " % round(mData[HUM])
-    except:
-      mData[HUM] = 0; error = HUM
-      sData += " ? "
-    try:
-      mData[PRES] = float(useMeteo.pressure)    # string '1021.60'
-      sData += "%4d " % round(mData[PRES])
-    except:
-      mData[PRES] = 0; error = PRES
-      sData += "   ? "
+    mData[TEMP] = float(useMeteo.temperature) # string '20.12'
+    mData[HUM] = float(useMeteo.humidity)     # string '25'
+    mData[PRES] = float(useMeteo.pressure)    # string '1021.60'
     if meteo == 4: # BME680
-      try:
-        mData[GAS] = float(useMeteo.gas)        # Ohm 29123
-        # sData += "%4.1f " % round(mData[GAS]/1000.0,1)
-      except:
-        mData[GAS] = 0; error = GAS
-        #sData += "  ?  "
-      try:
-        mData[AQI] = round(float(useMeteo.AQI),1) # 0-100% ok
-        sData += "%2d" % round(mData[AQI])
-      except:
-        mData[AQI] = 0; error = AQI
-        sData += " ?"
+      mData[GAS] = float(useMeteo.gas)        # Ohm 29123
+      mData[AQI] = round(float(useMeteo.AQI),1) # 0-100% ok
       rectangle(0,nl,128,LF,0)
   except Exception as e:
     display("%s ERROR" % Meteo[meteo])
     print(e)
     LED.blink(5,0.1,0xff00ff,True)
     return [0,0,0,0,0]
-  if error != None:
-    print("no value for %s" % ['oC','RH','hPa','gas','AQI'][error])
-    LED.blink(5,0.1,0xff0099,True)
 
   LED.off()
   nl += 6  # oled spacing
-  display("  C hum%% pHa%s" % (' AQI' if mData[GAS] > 0 else ''))
-  display("o",(8,-5),prt=False)
-  display(sData)
+  if mData[GAS] > 0:
+    display("  C hum% pHa AQI")
+    display("o",(12,-5),prt=False)
+    display("% 2.1f %2d %4d %2d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES]),round(mData[AQI])))
+  else:
+    display("    C hum%  pHa")
+    display("o",(21,-5),prt=False)
+    display("% 3.1f  % 3d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES])))
   return mData # temp, hum, pres, gas, aqia
 
 def DoPack(dData,mData,gps=None):
@@ -575,7 +551,7 @@ def DoPack(dData,mData,gps=None):
 def SendInfo(port=3):
   global  lora, meteo, dust, useGPS, thisGPS, lastGPS
   if lora == None: return True
-  sense = ((meteo&07)<<4) | (dust&0xf)
+  sense = ((meteo&0xf)<<4) | (dust&0x7)
   if (not meteo) and (not dust) and (useGPS == None): return True
   gps = 0
   if useGPS:
@@ -584,7 +560,7 @@ def SendInfo(port=3):
     thisGPS[LON] = round(float(useGPS.longitude),5)
     thisGPS[ALT] = round(float(useGPS.altitude),1)
     lastGPS = thisGPS
-    sense |=0200
+    sense |= 0x8
   version = int(__version__[0])*10+int(__version__[2])
   data = struct.pack('>BBlll',version,sense, int(thisGPS[LAT]*100000),int(thisGPS[LON]*100000),int(thisGPS[ALT]*10))
   return lora.send(data,port=port)
