@@ -7,21 +7,21 @@ Status: *beta* 2018/04/02
 Simple low cost (€120) satellites sensor kits.
 
 ## Shopping list
-* LoPy-4 controller  PYCLOPY4 (Tinytronics  € 42.-)
-* LoPy Expansie board 2.0 PYCEXPBOARD2.0 (Tinytronics € 19.-)
+* PyCom LoPy-4 controller  PYCLOPY4 (Tinytronics  € 42.-)
+* LoPy Expansie board 2.0 PYCEXPBOARD2.0 (Tinytronics € 19.-) (optional development boad)
 * LoPy-Sigfox antenne kit 868 Mhz PYCLOSIAN868KIT (Tinytronics € 10.50)
 * SSD1306 I2C Yellow/Blue 128X64 oled display (AliExpress € 2.23, Tinytronics € 9.50)
 * Plantower PMS7003 laser PM sensor with G7 cable!) (AliExpress € 15.17)
-Alternative is Nova SDS011 (bigger, less PM types, but air inlet tube connection)
+Alternative is Nova SDS011 (bigger, less PM types, but has air inlet tube connection)
 * GY-NE06MV2 NEO-6M GPS module TTL connection (AliExpress € 5.15)
-* BME280 or better BME680 I2C meteo sensor (AliExpress € 3.50)
+* BME280 (AliExpress € 3.50) or better BME680 I2C (has gas sensor, AliExpress € 10.50) meteo sensor
 * longer USB adapter cable 2-3 meter (Action € 1.50)
 * USB V220 AC-5V= adapter (Action € 2.10)
-* wiring: per module 4 wires: femail/mail for 4 modules:
+* wiring: per module 4 wires: female/male for 4 modules:
 2 packs DuPont jumpercables 20cm 10 per package (2 X € 1.50 Tinytronics)
-Remark: better to create a shield/header with Grove sockets and connectors.
+Remark: better to create a shield/header with Grove sockets and connectors. Board design is available.
 * assortiment thrink tubes (2.5 mm and bigger) (€ 3.45 Ben's Electronics)
-* V220 outdoor cablebox 10X12.5 cm, larger is better. (Praxis € 5.39)
+* V220 outdoor cablebox 10X12.5 cm, larger is better eg OBO T100 or T160. (electroshop.nl € 5.39)
 
 Some fixing materials:
 * small piece of plexiglas for cover oled display
@@ -32,16 +32,16 @@ Some fixing materials:
 * some material to fixate the components and allow airflow in the box
 
 ### TTN gateway
-You may be unlucky and do not have a TTN infrastructure in the neighbourhood. However it is easy to build one your self (ca € 230) or buy one (ca € 350 (TTN) or higher € 450).
+You may be unlucky and do not have a TTN infrastructure in the neighbourhood. However it is easy to build one your self (Pi3 + IC880-SPI + pigtail and antenna + case, ca € 230) or buy one (ca € 350 (TTN gateway) or higher € 450).
 See for how-to instructions: https://github.com/ttn-zh/ic880a-gateway/wiki
 
 The TTN ZH Pi based shopping list (we bought a ready to go gateway Pi2 based from IMST and changed the software to TTN for € 250):
-* Pi Zero or 3, poweradapter, minimal 4GB SDcard € 50
-* iC880A-SPI concentrator board (<a href="http://shop.imst.de/wireless-modules/lora-products/8/ic880a-spi-lorawan-concentrator-868-mhz" alt="IMST webshop">IMST websop CH</a>) € 150
-* 868 MHz anternna and pigtail € 15
-* some Du Pond wires € 1
-* enclosure e.g. OBO cable box € 15
-* optional outdoor antenna € 75
+* Pi Zero or 3, poweradapter, minimal 4GB SDcard € 42 Tinytronics.nl 
+* iC880A-SPI concentrator board (<a href="http://shop.imst.de/wireless-modules/lora-products/8/ic880a-spi-lorawan-concentrator-868-mhz" alt="IMST webshop">IMST websop CH</a>) € 120 (ideetron.nl).
+* 868 MHz anternna and pigtail € 10
+* 7 Dupont wires (female/female) € 1
+* enclosure e.g. OBO T160 V220 cable box € 10
+* optional outdoor antenna with fuse(!) € 75 (ideetron.nl)
 
 ## DESCRIPTION
 The sensor kits are build with PyCom (loPy-4 and WiPy-3) ESP controllers and PyCom expansion board.
@@ -49,7 +49,7 @@ The sensor kits are build with PyCom (loPy-4 and WiPy-3) ESP controllers and PyC
 <img src="images/SDS011-BME280-SSD1306.png" align=right height=150>
 The controller has on board WiFi, BlueTooth and for LoPy LoRa. Use an external LoRa Wan 868/915 LoRa antenna on the LoPy.
 The PyCom controller can be programmed via embedded micropython.
-To access the board use the Atom (atom-beta) with the makr plugin.
+To access the board use the Atom with the Pymakr plugin.
 Atom is interfacing either via WiFi (192.168.4.1) or serial (USB) connection to the controller.
 
 The goal is to use the PyCom ESP as controller for MySense sensor satallite kits. Measuring dust, rel. humidity and GPS to forward this to Mosquitto database (WiFi) or LoRa data concentrator. From which the MySense configured as proxy can pick up sensor data to the MySense databases.
@@ -153,7 +153,7 @@ The PyCom scripts have the following structure:
 Choose one meteo and one dust sensor: MySense modules in development are:
 * BME280 meteo: temp, humidity and pressure on I2C bus
 * BME680 meteo: temp, humidity, pressure and air quality on I2C bus
-* PMS7003 dust: PM1, PM2.5 and PM10 on UART TTL (no USB)
+* PMS7003 and PMSA003 dust: PM1, PM2.5 and PM10 on UART TTL (no USB)
 * SDS011 dust: PM2.5 and PM10 on UART TTL (no USB)
 * GPS location: UART TTL (no USB)
 * SSD1306 tiny oled display: 128X64 pixels on GPIO bus or I2C bus.
@@ -163,7 +163,18 @@ Choose one meteo and one dust sensor: MySense modules in development are:
 Comment: do not use eg UART Rx on pin 12. Pin 12 high on reset will cause to omit executing boot.py and main.py.
 Maximum of UART modules is 2 (e.g. dust and GPS modules).
 
-BME280 or BME680 meteo sensors are tuned for indoor applications. Lifetime of sensors differ much because of this. The DHT11 or DHT22 are worse for outdoor application usage.
+To test I2C wiring use the follwoing EXP commands:
+```
+    SDA='P23'
+    SCL='P22'
+    from machine import I2C
+    i2c = I2C(0,I2C.MASTER,pins=(SDA,SCL))
+    i2c.scan()
+```
+This should return the I2C regsiters as e.g. `[60]` (decimal!) for the I2C address of a BME280. If `[]` there is no I2C module attached to the pins. Or if it hangs wiring is wrong.
+
+BME280 or BME680 meteo sensors are tuned for indoor applications. Lifetime of sensors differ much because of this. The DHT11 or DHT22 are worse for outdoor application usage and should not be applied.
+An alterrnative is to use the Sensirion SHT21 or SHT31 I2C module (only temp and RH).
 
 The dust sensors have a fan and laser. Both have a limited time of life. Hence the fan and laser are powered off in idle state. It is unclear if this method will help to improve the lifetime.
 
@@ -261,8 +272,8 @@ The console will print status as will the flashing led on the LoPy will flash di
 See for examples of wiring the `README.LopY.md` (LoRaWan TTN, BME280, SDS011 and SSD1306) or `README.WiPy.md` (wifi MQTT, BME680, PMS7003, SSD1306) readme's.
 
 ## To Do
-Add more sensor modules. The Shiney PPD42NS (unreliable and too much errors), DHT22 and DHT11 (too much peaks and outdoor time to live too short) meteo sensor are depricated.
-Note: The Plantower PMS7003 is much smaller and consumes less energy as the Nova SDS011 (has a nice air inlet).
+Add more sensor modules. The Shiney PPD42NS (unreliable and too much errors), DHT22 and DHT11 (too much peaks and outdoor time to live too short) meteo sensor are depricated. Sensirion SHT31 (only temperature and RH, not very precise).
+Note: The Plantower PMS7003 is much smaller and consumes less energy as the Nova SDS011 (has a nice air inlet). The Plantower PMSA003 (black one) has detachable fan, air tube inlet, cleanable inlet, and is more robust.
 
 ## Licensing
 If not noted the scripts and changes to external scripts are GPL V3.
