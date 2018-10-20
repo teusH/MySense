@@ -10,7 +10,15 @@ if useSSD:
       from machine import I2C
       print('Oled I2C 0: SDA ~> %s, SCL ~> %s' % (S_SDA,S_SCL))
       i2c = I2C(0,I2C.MASTER,pins=(S_SDA,S_SCL))
-      oled = SSD1306.SSD1306_I2C(width,height,i2c)
+      oled = SSD1306.SSD1306_I2C(width,height,i2c, addr=0x3c)
+      addr = None
+      print("Search for I2C addr 0x3c may hang on wrong wiring.")
+      for addr in i2c.scan():
+          if addr == 0x3c: break
+          addr = None
+      if not addr:
+          print('Did not find oled display on I2C 0x3c address')
+      oled = SSD1306.SSD1306_I2C(width,height,i2c, addr=0x3c)
     elif useSSD == 'SPI': # for fast display
       try:
         from Config import S_CLKI, S_MOSI, S_MISO  # SPI pins config
