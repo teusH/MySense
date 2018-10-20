@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 2.10 2018/10/18 10:24:43 teus Exp teus $
+# $Id: MySense.py,v 2.11 2018/10/20 19:11:20 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 2.10 $"[11:-2]
+__version__ = "0." + "$Revision: 2.11 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -257,7 +257,7 @@ except:
 #  display('BME280 -> OFF', (0,0),True)
 # Connect Sensors
 
-Meteo = ['None','DHT11','DHT22','BME280','BME680']
+Meteo = ['None','DHT11','DHT22','BME280','BME680','SHT31']
 try:
   from Config import useMeteo
 except:
@@ -278,7 +278,7 @@ if useMeteo:
     if meteo == 3: # BME280
       import BME280 as BME
     elif meteo == 4: # BME680
-      import BME680 as BME
+      import BME_I2C as BME
       try:
         from Config import M_gBase
       except:

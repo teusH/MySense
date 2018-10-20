@@ -1,6 +1,6 @@
 from time import sleep
 from machine import I2C
-Meteo = ['','DHT11','DHT22','BME280','BME680']
+Meteo = ['','DHT11','DHT22','BME280','BME680','SHT31']
 try:
   from Config import useMeteo, meteo, M_SDA, M_SCL
 except:
@@ -11,7 +11,7 @@ except:
   useMeteo = True
 try:
   if meteo == 4:
-    import BME680 as BME
+    import BME_I2C as BME
   elif meteo == 3:
     import BME280 as BME
   else: useMeteo = False
@@ -27,6 +27,13 @@ print("Using %s config I2C %d SDA on pin %s, SCL on pin %s" % (Meteo[meteo],0,M_
 
 # Create library object using our Bus I2C port
 i2c = I2C(0, pins=(M_SDA,M_SCL)) # master
+print("Wrong wiring may hang I2C address scan test...")
+addr = None
+for addr in i2c.scan():
+    if addr == 0x76: break
+    addr = None
+if not addr:
+    print("No BME on address 0x76")
 useMeteo = BME.BME_I2C(i2c, address=0x76, debug=False, calibrate=calibrate)
 
 # change this to match the location's pressure (hPa) at sea level
