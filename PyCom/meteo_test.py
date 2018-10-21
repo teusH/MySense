@@ -37,29 +37,38 @@ if not addr:
 useMeteo = BME.BME_I2C(i2c, address=0x76, debug=False, calibrate=calibrate)
 
 # change this to match the location's pressure (hPa) at sea level
-useMeteo.sea_level_pressure = 1014.25 # 1013.25
-
+useMeteo.sea_level_pressure = 1024.25 # 1013.25
 for cnt in range(15):
-  print("\nTemperature: %0.1f C" % useMeteo.temperature)
-  hum = useMeteo.humidity
-  print("Humidity: %0.1f %%" % hum)
-  useMeteo.sea_level_pressure -= 0.5
-  print("Pressure: %0.3f hPa" % useMeteo.pressure)
-  print("Altitude = %0.2f meters with sea level pressure: %.2f hPa" % (useMeteo.altitude,useMeteo.sea_level_pressure))
-  if meteo == 4:
-    if not cnt:
-      useMeteo.gas_base = None # force recalculation gas base line
-    if useMeteo.gas_base == None:
-      gBase = False
-      print("%salculating stable gas base level. Can take max 5 minutes to calculate gas base." % ('Rec' if cnt else 'C'))
-    else: gBase = True
-    AQI = useMeteo.AQI # first time can take a while
-    if useMeteo.gas_base != None and not gBase:
-      print("Gas base line calculated: %.1f" % useMeteo.gas_base)
-      gBase = True
-    if useMeteo.gas_base != None:
-      print("AQI: %0.1f %%" % AQI)
-    else: print("Was unable to calculate AQI. Will try again.")
-    gas = useMeteo.gas
-    print("Gas: %.3f Kohm" % round(gas/1000.0,2))
+  try:
+    print("\nTemperature: %0.1f C" % useMeteo.temperature)
+    hum = useMeteo.humidity
+    print("Humidity: %0.1f %%" % hum)
+    useMeteo.sea_level_pressure -= 0.5
+    print("Pressure: %0.3f hPa" % useMeteo.pressure)
+    print("Altitude = %0.2f meters with sea level pressure: %.2f hPa" % (useMeteo.altitude,useMeteo.sea_level_pressure))
+    if meteo == 4:
+      if not cnt:
+        try:
+          from Config import M_gBase  # if present do not recalculate
+          useMeteo.gas_base = M_gBase
+          gBase = True
+        except: useMeteo.gas_base = None # force recalculation gas base line
+      if useMeteo.gas_base == None:
+        gBase = False
+        print("%salculating stable gas base level. Can take max 5 minutes to calculate gas base." % ('Rec' if cnt else 'C'))
+      else: gBase = True
+      AQI = useMeteo.AQI # first time can take a while
+      if useMeteo.gas_base != None and not gBase:
+        print("Gas base line calculated: %.1f" % useMeteo.gas_base)
+        gBase = True
+      if (useMeteo.gas_base != None) and (AQI != None):
+        print("AQI: %0.1f %%" % AQI)
+      else: print("Was unable to calculate AQI. Will try again.")
+      gas = useMeteo.gas
+      print("Gas: %.3f Kohm" % round(gas/1000.0,2))
+  except OSError as e:
+    print("Got OS error: %s. Will try again." % e)
+    i2c.init(I2C.MASTER,pins=(M_SDA,M_SCL))
+    sleep(1)
+    continue
   sleep(30)
