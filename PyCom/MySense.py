@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 2.11 2018/10/20 19:11:20 teus Exp teus $
+# $Id: MySense.py,v 2.12 2018/10/22 12:11:38 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 2.11 $"[11:-2]
+__version__ = "0." + "$Revision: 2.12 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -66,6 +66,24 @@ except:
 # button.callback(Pin.IRQ_FALLING|Pin.IRQ_HIGH_LEVEL,handler=pressed,arg='STOP')
 
 # oled display handling routines
+# work around due to newer LoPy firmware
+def oledShow():
+  global i2c, i2cPINs, S_SDA, S_SCL, useSSD
+  global oled
+  if useSSD == 'I2C':
+    nr = indexBus(i2cPINs,i2c,(S_SDA,S_SCL))
+    for cnt in range(0,2):
+      try:
+        oled.show()
+        break
+      except OSError:
+        print("BusError: Init I2C bus")
+        i2c[nr].init(nr, pins=i2cPINs[nr])
+        sleep(0.5)
+    i2c[nr].init(nr, pins=i2cPINs[nr])
+    sleep(0.5)
+  else: oled.show()
+
 nl = 16
 LF = const(13)
 def display(txt,xy=(0,None),clear=False, prt=True):
@@ -87,7 +105,7 @@ def display(txt,xy=(0,None),clear=False, prt=True):
     if (not offset) and (not clear):
       rectangle(x,y,128,LF,0)
     oled.text(txt,x,y+offset)
-    oled.show()
+    oledShow()
     if y == 0: nl = 16
     elif not offset: nl = y + LF
   if prt:
@@ -124,7 +142,7 @@ def ProgressBar(x,y,width,height,secs,blink=0,slp=1):
     sleep(myslp)
     if x > xe: continue
     rectangle(x,y,step,height)
-    oled.show()
+    oledShow()
     x += step
   return True
 
@@ -139,7 +157,7 @@ def showSleep(secs=60,text=None,inThread=False):
     ProgressBar(0,ye-1,128,LF-3,secs,0x004400)
     nl = y
     rectangle(0,y,128,ye-y+LF,0)
-    oled.show()
+    oledShow()
   else: sleep(secs)
   if inThread:
     STOP = False
@@ -240,7 +258,7 @@ if use_oled:
       oled = None
       print("Incorrect display bus %s" % useSSD)
     if oled:
-      oled.fill(1) ; oled.show(); sleep(1)
+      oled.fill(1) ; oledShow(); sleep(1)
   except Exception as e:
     oled = None
     print('Oled display failure: %s' % e)
@@ -283,6 +301,9 @@ if useMeteo:
         from Config import M_gBase
       except:
         M_gBase = None
+    else:
+      LED.blink(5,0.3,0xff0000,True)
+      raise ValueError("Unknown meteo type")
     useMeteo = BME.BME_I2C(i2c[nr], address=0x76, debug=False, calibrate=calibrate)
     if meteo == 4:
       display('AQI wakeup')
@@ -315,7 +336,9 @@ if useDust:
       from SDS011 import SDS011 as senseDust
     elif dust == 3:
       from PMSx003 import PMSx003 as senseDust
-    else: raise OSError("unknown PM sensor")
+    else:
+      LED.blink(5,0.3,0xff0000,True)
+      raise ValueError("Unknown dust sensor")
     useDust = senseDust(port=len(uart), debug=False, sample=sample_time, interval=0, pins=(D_Tx,D_Rx), calibrate=calibrate)
     uart.append(len(uart))
     print("%s UART %d: Rx ~> Tx %s, Tx ~> Rx %s" % (Dust[dust],len(uart),D_Tx, D_Rx))
@@ -497,32 +520,47 @@ def DoDust():
   return dData
 
 TEMP = const(0)
-HUM = const(1)
+HUM  = const(1)
 PRES = const(2)
-GAS = const(3)
-AQI = const(4)
+GAS  = const(3)
+AQI  = const(4)
 def DoMeteo():
   global useMeteo, nl, LF
   global Meteo, meteo
-  global M_SDA, M_SCL
+  global i2cPINs, i2c, M_SDA, M_SCL
   mData = [0,0,0,0,0]
   if not useMeteo or not meteo: return mData
 
-  # Measure temp oC, rel hum %, pres pHa, gas Ohm, aqi %
+  # Measure BME280/680: temp oC, rel hum %, pres pHa, gas Ohm, aqi %
   LED.blink(3,0.1,0x002200,False)
   try:
     nr = indexBus(i2cPINs,i2c,(M_SDA,M_SCL))
     if (meteo == 4) and (not useMeteo.gas_base): # BME680
       display("AQI base: wait"); nl -= LF
-    i2c[nr].init(nr, pins=i2cPINs[nr]) # SPI oled causes bus errors
-    sleep(1)
-    mData[TEMP] = float(useMeteo.temperature) # string '20.12'
-    mData[HUM] = float(useMeteo.humidity)     # string '25'
-    mData[PRES] = float(useMeteo.pressure)    # string '1021.60'
-    if meteo == 4: # BME680
-      mData[GAS] = float(useMeteo.gas)        # Ohm 29123
-      mData[AQI] = round(float(useMeteo.AQI),1) # 0-100% ok
-      rectangle(0,nl,128,LF,0)
+    #i2c[nr].init(nr, pins=i2cPINs[nr]) # SPI oled causes bus errors
+    #sleep(1)
+    mData = []
+    for item in range(0,5):
+        mData.append(0)
+        for cnt in range(0,5):
+            try:
+                if item == TEMP: # string '20.12'
+                    mData[TEMP] = float(useMeteo.temperature)
+                elif item == HUM: # string '25'
+                    mData[HUM] = float(useMeteo.humidity)
+                elif item == PRES: # string '1021'
+                    mData[PRES] = float(useMeteo.pressure)
+                elif meteo == 4:
+                    if item == GAS: mData[GAS] = float(useMeteo.gas)
+                    elif item == AQI: mData[AQI] = round(float(useMeteo.AQI),1)
+                break
+            except OSError as e: # I2C bus error, try to recover
+                print("OSerror %s on data nr %d" % (e,item))
+                i2c[nr].init(nr, pins=i2cPINs[nr])
+                LED.blink(1,0.1,0xff6c00,False)
+    i2c[nr].init(nr, pins=i2cPINs[nr]) # work around for newer LoPy firmware bug
+    sleep(0.5)
+    rectangle(0,nl,128,LF,0)
   except Exception as e:
     display("%s ERROR" % Meteo[meteo])
     print(e)
@@ -530,6 +568,7 @@ def DoMeteo():
     return [0,0,0,0,0]
 
   LED.off()
+  # display results
   nl += 6  # oled spacing
   if mData[GAS] > 0:
     display("  C hum% pHa AQI")
@@ -539,7 +578,7 @@ def DoMeteo():
     display("    C hum%  pHa")
     display("o",(21,-5),prt=False)
     display("% 3.1f  % 3d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES])))
-  return mData # temp, hum, pres, gas, aqia
+  return mData # temp, hum, pres, gas, aqi
 
 def DoPack(dData,mData,gps=None):
   global meteo, dust
