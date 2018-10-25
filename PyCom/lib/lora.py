@@ -2,7 +2,7 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 1.1 2018/02/24 11:44:44 teus Exp teus $
+# $Id: lora.py,v 1.3 2018/10/25 18:57:19 teus Exp teus $
 
 import socket
 from binascii import unhexlify
@@ -16,15 +16,13 @@ class LORA(object):
   lora = None
   s = None
 
-  def connect(self, dev_eui, app_eui, app_key, ports=1, callback=None):
+  #def connect(self, dev_eui, app_eui, app_key, ports=1, callback=None):
+  def connect(self, method, ports=1, callback=None):
     """
     Connect device to LoRa.
     Set the socket and lora instances.
     """
 
-    dev_eui = unhexlify(dev_eui)
-    app_eui = unhexlify(app_eui)
-    app_key = unhexlify(app_key)
     self.callback = callback # call back routine on LoRa reply callback(port,response)
     # Disable blue blinking and turn LED off
     LED.heartbeat(False)
@@ -33,17 +31,37 @@ class LORA(object):
     # Initialize LoRa in LORAWAN mode
     self.lora = LoRa(mode = LoRa.LORAWAN)
 
-    # Join a network using OTAA (Over the Air Activation)
-    self.lora.join(activation = LoRa.OTAA, auth = (dev_eui, app_eui, app_key), timeout = 0)
-
-    # Wait until the module has joined the network
-    count = 0
-    while not self.lora.has_joined():
-      LED.blink(1, 2.5, 0xff0000)
-      if count > 20:
+    if (not 'OTAA' in method.keys()) or (not 'ABP' in method.keys()):
+        print("No activation method defined.")
         return False
-      print("Trying to join: " ,  count)
-      count += 1
+    count = 0
+    if 'OTAA' in method.keys():
+        # Join a network using OTAA (Over the Air Activation)
+        dev_eui = unhexlify(method['OTAA'][0])
+        app_eui = unhexlify(method['OTAA'][1])
+        app_key = unhexlify(method['OTAA'][2])
+        self.lora.join(activation = LoRa.OTAA, auth = (dev_eui, app_eui, app_key), timeout = 0)
+        # Wait until the module has joined the network
+        while not self.lora.has_joined():
+          LED.blink(1, 2.5, 0xff0000)
+          if count > 5:
+            count = 0
+            break
+          print("Wait for OTAA join: " ,  count)
+          sleep(12) # auto retry is 15 secs
+          count += 1
+        if self.lora.has_joined():
+          count += 1
+          print("LoRa OTAA joined.")
+
+    if not count:
+        if not 'ABP' in method.keys(): return False
+        import struct
+        dev_addr = struct.unpack('>l', unhexlify(method['ABP'][0]))[0]
+        nwk_swkey = unhexlify(method['ABP'][1])
+        app_swkey = unhexlify(method['ABP'][2])
+        self.lora.join(activation = LoRa.ABP, auth = (dev_addr, nwk_swkey, app_swkey))
+        print("LoRa method ABP.")
 
     # Create a LoRa socket
     LED.blink(2, 0.1, 0x009900)
@@ -56,7 +74,6 @@ class LORA(object):
     # Make the socket non-blocking
     self.s[0].setblocking(False)
 
-    print ("Success after %d tries" % count)
     # print("Create LoRaWAN socket")
 
     # Create a raw LoRa socket

@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 2.12 2018/10/22 12:11:38 teus Exp teus $
+# $Id: MySense.py,v 2.14 2018/10/25 18:58:10 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 2.12 $"[11:-2]
+__version__ = "0." + "$Revision: 2.14 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -27,7 +27,15 @@ if not Network: raise OSError("No network config found")
 if Network == 'TTN':
   PyCom = 'LoPy'
   try:
-    from Config import dev_eui, app_eui, app_key
+    LoRaMethod = {}
+    try:
+       from Config import dev_eui, app_eui, app_key
+       LoRaMethod['OTAA'] = (dev_eui, app_eui, app_key)
+    except: pass
+    try:
+       from Config import dev_addr, nwk_swkey, app_swkey
+       LoRaMethod['ABP'] = (dev_addr, nwk_swkey, app_swkey)
+    except: pass
     from lora import LORA
     lora = None
   except:
@@ -86,6 +94,7 @@ def oledShow():
 
 nl = 16
 LF = const(13)
+# width = 128; height = 64  # display sizes
 def display(txt,xy=(0,None),clear=False, prt=True):
   ''' Display Text on OLED '''
   global use_oled, oled, nl
@@ -108,6 +117,7 @@ def display(txt,xy=(0,None),clear=False, prt=True):
     oledShow()
     if y == 0: nl = 16
     elif not offset: nl = y + LF
+    if nl >= (64-13): nl = 16
   if prt:
     print(txt)
 
@@ -115,6 +125,8 @@ def rectangle(x,y,w,h,col=1):
   global oled
   if not oled: return
   ex = int(x+w); ey = int(y+h)
+  if ex > 128: ex = 128
+  if ey > 64: ey = 64
   for xi in range(int(x),ex):
     for yi in range(int(y),ey):
       oled.pixel(xi,yi,col)
@@ -154,7 +166,7 @@ def showSleep(secs=60,text=None,inThread=False):
     display(text)
     ye += LF
   if oled:
-    ProgressBar(0,ye-1,128,LF-3,secs,0x004400)
+    ProgressBar(0,ye-3,128,LF-3,secs,0x004400)
     nl = y
     rectangle(0,y,128,ye-y+LF,0)
     oledShow()
@@ -439,14 +451,12 @@ def setup():
   if Network == 'TTN':
     # Connect to LoRaWAN
     display("Try  LoRaWan", (0,0), clear=True)
-    display("LoRa App EUI:")
-    display(str(app_eui))
     lora = LORA()
-    if lora.connect(dev_eui,app_eui,app_key, ports=2, callback=CallBack):
-       display("Joined LoRaWan")
+    if lora.connect(LoRaMethod, ports=2, callback=CallBack):
+       display("Using LoRaWan")
        SendInfo()
     else:
-       display("NOT joined LoRa!")
+       display("NO LoRaWan")
        lora = None
        Network = 'None'
     sleep(10)
@@ -642,7 +652,7 @@ def runMe():
         toSleep -= 15
         useDust.Standby()   # switch off laser and fan
       elif toSleep < 15: toSleep = 15
-    if not ProgressBar(0,63,128,2,toSleep,0xebcf5b,10):
+    if not ProgressBar(0,62,128,1,toSleep,0xebcf5b,10):
       display('stopped SENSING', (0,0), clear=True)
       LED.blink(5,0.3,0xff0000,True)
     if STOP:

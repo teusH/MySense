@@ -163,7 +163,7 @@ Choose one meteo and one dust sensor: MySense modules in development are:
 Comment: do not use eg UART Rx on pin 12. Pin 12 high on reset will cause to omit executing boot.py and main.py.
 Maximum of UART modules is 2 (e.g. dust and GPS modules).
 
-To test I2C wiring use the follwoing EXP commands:
+To test I2C wiring use the following EXP commands:
 ```
     SDA='P23'
     SCL='P22'
@@ -171,10 +171,12 @@ To test I2C wiring use the follwoing EXP commands:
     i2c = I2C(0,I2C.MASTER,pins=(SDA,SCL))
     i2c.scan()
 ```
-This should return the I2C regsiters as e.g. `[60]` (decimal!) for the I2C address of a BME280. If `[]` there is no I2C module attached to the pins. Or if it hangs wiring is wrong.
+This should return the I2C registers as e.g. `[60]` (decimal!) for the I2C address of a BME280. If `[]` there is no I2C module attached to the pins. Or if it hangs wiring is wrong.
 
 BME280 or BME680 meteo sensors are tuned for indoor applications. Lifetime of sensors differ much because of this. The DHT11 or DHT22 are worse for outdoor application usage and should not be applied.
 An alterrnative is to use the Sensirion SHT21 or SHT31 I2C module (only temp and RH).
+
+Note: the newer LoPy-4 firmware show I2B bus errors. This maybe a bug in the firmware. A work around is provided.
 
 The dust sensors have a fan and laser. Both have a limited time of life. Hence the fan and laser are powered off in idle state. It is unclear if this method will help to improve the lifetime.
 
@@ -182,8 +184,11 @@ The dust sensors have a fan and laser. Both have a limited time of life. Hence t
 MySense will use GPS to initilyse the Real Time Clock module. Every time the GPS location is looked up the RTC clock will be updated automatically.
 This will allow MySense to timestamp measurements more precise.
 
-### MySense satellite kit configuration
+### MySense satellite LoRa kit configuration
 Use the file `Config.py` to define which sensors are configured for the kit. Have a good look at the *pin*s definitions and bus used for the sensor. The `Config.py` file should reside in the *firmware* directory in order to upload it to the controller.
+
+If `dev_eui, app_eui and app_key` is defined in `Config.py` the LoRaWan On The Air Authentication (OTAA) method will be tried first to join with 4 X 15 secs a wait for authorisation.
+If not defined or the join did not complete the ABP method will be used with the configured `dev_addr, nwk_swkey and app_swkey` in `Config.py`. With method ABP MySense will not wait for authorisation.
 
 Do not change the order in the `Meteo` and `Dust` array definition!
 
