@@ -153,7 +153,8 @@ The PyCom scripts have the following structure:
 Choose one meteo and one dust sensor: MySense modules in development are:
 * BME280 meteo: temp, humidity and pressure on I2C bus
 * BME680 meteo: temp, humidity, pressure and air quality on I2C bus
-* PMS7003 and PMSA003 dust: PM1, PM2.5 and PM10 on UART TTL (no USB)
+  One serie of BME680 I2C/TTL modules are causing I2C bus errors.
+* PMS7003 and PMSx003 (black one) dust: PM1, PM2.5 and PM10 on UART TTL (no USB)
 * SDS011 dust: PM2.5 and PM10 on UART TTL (no USB)
 * GPS location: UART TTL (no USB)
 * SSD1306 tiny oled display: 128X64 pixels on GPIO bus or I2C bus.
@@ -172,6 +173,7 @@ To test I2C wiring use the following EXP commands:
     i2c.scan()
 ```
 This should return the I2C registers as e.g. `[60]` (decimal!) for the I2C address of a BME280. If `[]` there is no I2C module attached to the pins. Or if it hangs wiring is wrong.
+If the scan produces unexpected extra register address values please check your I2C modules to avoid I2C bus errors.
 
 BME280 or BME680 meteo sensors are tuned for indoor applications. Lifetime of sensors differ much because of this. The DHT11 or DHT22 are worse for outdoor application usage and should not be applied.
 An alterrnative is to use the Sensirion SHT21 or SHT31 I2C module (only temp and RH).
