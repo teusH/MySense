@@ -8,26 +8,28 @@ Simple low cost (€120) satellites sensor kits.
 
 ## Shopping list
 * PyCom LoPy-4 controller  PYCLOPY4 (Tinytronics  € 42.-)
-* LoPy Expansie board 2.0 PYCEXPBOARD2.0 (Tinytronics € 19.-) (optional development boad)
+* optional LoPy Expansie board 2.0 PYCEXPBOARD2.0 (Tinytronics € 19.-) (development board)
 * LoPy-Sigfox antenne kit 868 Mhz PYCLOSIAN868KIT (Tinytronics € 10.50)
-* SSD1306 I2C Yellow/Blue 128X64 oled display (AliExpress € 2.23, Tinytronics € 9.50)
-* Plantower PMS7003 laser PM sensor with G7 cable!) (AliExpress € 15.17)
+* optional SSD1306 I2C Yellow/Blue 128X64 oled display (AliExpress € 2.23, Tinytronics € 9.50)
+* optional Plantower PMSx003 laser PM sensor with G7 cable!) (AliExpress € 15.17)
+Plantower has a new PMSA003 (black) which has cleaning support and tube inlet (€ 80).
 Alternative is Nova SDS011 (bigger, less PM types, but has air inlet tube connection)
-* GY-NE06MV2 NEO-6M GPS module TTL connection (AliExpress € 5.15)
-* BME280 (AliExpress € 3.50) or better BME680 I2C (has gas sensor, AliExpress € 10.50) meteo sensor
+* optional GY-NE06MV2 NEO-6M GPS module TTL connection (AliExpress € 5.15)
+* optional Sensirion SHT31 (AliExpress € 2), BME280 (AliExpress € 3.50), or better BME680 I2C (has gas sensor, AliExpress € 10.50) meteo sensor (do not use I2C/TTL BME680, I2C bus errors)
 * longer USB adapter cable 2-3 meter (Action € 1.50)
 * USB V220 AC-5V= adapter (Action € 2.10)
 * wiring: per module 4 wires: female/male for 4 modules:
-2 packs DuPont jumpercables 20cm 10 per package (2 X € 1.50 Tinytronics)
-Remark: better to create a shield/header with Grove sockets and connectors. Board design is available.
+2 packs Dupont jumpercables 20cm 10 per package (2 X € 1.50 Tinytronics)
+Remark: better to create a shield/header with Grove sockets and connectors. Board design with Grove sockets is available.
 * assortiment thrink tubes (2.5 mm and bigger) (€ 3.45 Ben's Electronics)
 * V220 outdoor cablebox 10X12.5 cm, larger is better eg OBO T100 or T160. (electroshop.nl € 5.39)
+Or use PVC pipes and roof air outlet exhaust. Advised is to paint it white and use double pipes for heat isolation.
 
 Some fixing materials:
 * small piece of plexiglas for cover oled display
 * 2 component glue
 * some fixing tool to stabalize the antenna
-* 4 cm tube for air inlet of PM module
+* 4 cm tube for air inlet of PM module (SDS011 or black PMSA003)
 * piece of wood to be able to attach the outdoor cable box on a wall.
 * some material to fixate the components and allow airflow in the box
 
@@ -151,6 +153,7 @@ The PyCom scripts have the following structure:
 
 ### tested MySense sensor modules
 Choose one meteo and one dust sensor: MySense modules in development are:
+* SHT31 meteo: temp and humidity on I2C bus
 * BME280 meteo: temp, humidity and pressure on I2C bus
 * BME680 meteo: temp, humidity, pressure and air quality on I2C bus
   One serie of BME680 I2C/TTL modules are causing I2C bus errors.
@@ -175,12 +178,14 @@ To test I2C wiring use the following EXP commands:
 This should return the I2C registers as e.g. `[60]` (decimal!) for the I2C address of a BME280. If `[]` there is no I2C module attached to the pins. Or if it hangs wiring is wrong.
 If the scan produces unexpected extra register address values please check your I2C modules to avoid I2C bus errors.
 
+From release version 3 MySense will auto detect I2C devices on maximal 3 I2C busses.
+
 BME280 or BME680 meteo sensors are tuned for indoor applications. Lifetime of sensors differ much because of this. The DHT11 or DHT22 are worse for outdoor application usage and should not be applied.
 An alterrnative is to use the Sensirion SHT21 or SHT31 I2C module (only temp and RH).
 
-Note: the newer LoPy-4 firmware show I2B bus errors. This maybe a bug in the firmware. A work around is provided.
-
 The dust sensors have a fan and laser. Both have a limited time of life. Hence the fan and laser are powered off in idle state. It is unclear if this method will help to improve the lifetime.
+
+To Do: auto detect UART devices.
 
 ### RTC clock
 MySense will use GPS to initilyse the Real Time Clock module. Every time the GPS location is looked up the RTC clock will be updated automatically.
