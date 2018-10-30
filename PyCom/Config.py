@@ -1,14 +1,20 @@
 # Replace with your own OTAA keys,
 # obtainable through the "files" widget in Managed IoT Cloud.
+
 # TTN register:
 #          app id  ???, dev id ???
 Network = 'TTN' # or 'WiFi'
+# OTAA keys
 dev_eui = "xxxxxxxxxxxxxxxx"
-app_eui = "yyyyyyyyyyyyyyyy"
-app_key = "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+app_eui = "xxxxxxxxxxxxxxxx"
+app_key = "5FxxxxxxxxxxxxxxxxxxxxxxxxxxEFA0"
+# ABP keys
+dev_addr  = "26xxxxF1"
+nwk_swkey = "E8xxxxxxxxxxxxxxxxxxxxxxxxxF489C"
+app_swkey = "03xxxxxxxxxxxxxxxxxxxxxxxxxx1402"
 
 # wifi AP or Node
-W_SSID = 'MySense-PyCom'
+W_SSID = 'MySense-IOSx'
 W_PASS = 'acacadabra'
 
 # define 0 if not used (GPS may overwrite this)
@@ -27,11 +33,18 @@ thisGPS = [0.0,0.0,0.0] # (LAT,LON,ALT)
 #     "pm10": [0,1],
 #}
 
-useSSD = 'I2C'
-# I2C pins
-S_SDA = 'P23'  # white shared
-S_SCL = 'P22'  # gray shared
+# auto detect I2C address if module is wired/connected
+# Meteo: BME280, BME680, SHT31
+# meteo module is auto detected
+useMeteo = 'I2C'# I2C bus, None: disabled
+# uncomment if connected
+# BME=680 # to discriminate BME280 from BME680
+BME=280
+if BME == 680:
+    M_gBase = 430940.4 # BME680 gas base line (dflt None: recalculate)
 
+# use oled display None: disabled
+useSSD = 'I2C'
 #useSSD = 'SPI'
 # SPI pins
 #S_CLKI = 'P19'  # brown D0
@@ -42,6 +55,14 @@ S_SCL = 'P22'  # gray shared
 #S_RES  = 'P21'  # gray   RES
 #S_CS   = 'P17'  # blew   CS
 
+# SDA wire is white, SCL wire is yellow or gray
+I2Cpins = [('P23','P22')] # I2C pins [(SDA,SCL), ...]
+I2Cdevices = [
+        ('BME280',0x76),('BME280',0x77), # BME serie Bosch
+        ('SHT31',0x44),('SHT31',0x45),   # Sensirion serie
+        ('SSD1306',0x3c)                 # oled display
+    ]
+
 useGPS = 'UART'      # uart
 G_Tx = 'P11'    # white GPS Rx
 G_Rx = 'P12'    # gray GPS Tx
@@ -51,16 +72,9 @@ G_Rx = 'P12'    # gray GPS Tx
 # calibration Taylor factors
 #calibrate = None # or e.g. { 'temperature': [-6.2,1], 'pm1': [-20.0,0.5], ...}
 
-Dust = ['','PPD42NS','SDS011','PMS7003']
 useDust = 'UART'     # UART
-dust = Dust.index('PMS7003')        # define 0 if not
+dust = 'PMS7003'     # define 0 if not
 D_Tx = 'P3'     # white Rx module
 D_Rx = 'P4'     # yellow Tx module
 #sampling = 60  # secs, default dust sampling timing
-
-Meteo = ['','DHT11','DHT22','BME280','BME680']
-useMeteo = 'I2C'# I2C bus
-meteo = Meteo.index('BME680')       # define 0 if not
-M_SDA = 'P23'    # gray SDA shared with I2C SSD1306
-M_SCL = 'P22'    # white SCL shared with I2C SSD1306
-M_gBase = 231865.4 # BME680 gas base line (dflt None: recalculate)
+# Dext = '' # only PMS: '_cnt' for pcs/0.1 dm3 (dflt: ug/m3)
