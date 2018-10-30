@@ -227,6 +227,8 @@ Available input plugins:
 * RSSI (strength of wifi signal): via the platform
 * Location: GPS (GPS Ultimate from Adafruit/Grove) via TTL serial interface
 
+To Do: SHT31 and others one can heat the chip up e.g. on high humidity. Or use temp alert.
+
 ## Remote management
 The Pi allows to install a wifi connectivity with internet as well a virtual wifi Access Point. A backdoor configuration is provided via direct access to `webmin` and `ssh` (Putty), as well via a proxy as *ssh tunneling* and/or using the proxy service of Weaved (`https://www.remot3.it/web/index.html`).
 

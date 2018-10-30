@@ -21,6 +21,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+#
+# module has been changed to make it run on PyCom micro python by teus 2018
+
 #import logging
 import time
 # from Device import *
@@ -72,7 +75,8 @@ class SHT31(object):
             self.calibrate[k] = calibrate[k]
         # self._device = i2c.get_i2c_device(address, **kwargs)
         self._address = address
-        self._device = Device(address,i2c)
+        # self._device = Device(address,i2c)
+        self._i2c = i2c
         time.sleep(0.05)  # Wait the required time
 
     # calibrate by length calibration factor (Taylor) array
@@ -148,31 +152,33 @@ class SHT31(object):
             return (float("nan"), float("nan"))
 
         rawTemperature = buffer[0] << 8 | buffer[1]
-        temperature = 175.0 * rawTemperature / 0xFFFF - 45.0
+        temp = 175.0 * rawTemperature / 0xFFFF - 45.0
 
         if buffer[5] != self._crc8(buffer[3:5]):
             return (float("nan"), float("nan"))
 
         rawHumidity = buffer[3] << 8 | buffer[4]
-        humidity = 100.0 * rawHumidity / 0xFFFF
+        hum = 100.0 * rawHumidity / 0xFFFF
 
-        return (temperature, humidity)
+        return (temp, hum)
 
-    def temperature(self):
+    @property
+    def temperature(self, raw=False):
+        (temp, hum) = self.read_temperature_humidity()
+        return self._calibrate(self.calibrate['temperature'],temp,raw=raw)
+
+    @property
+    def humidity(self, raw=False):
+        (temp, hum) = self.read_temperature_humidity()
+        return self._calibrate(self.calibrate['humidity'],hum,raw=raw)
+
+    def read_temperature(self):
         (temp, hum) = self.read_temperature_humidity()
         return temp
 
-    def humidity(self):
+    def read_humidity(self):
         (temp, hum) = self.read_temperature_humidity()
         return hum
-
-    def read_temperature(self):
-        (temperature, humidity) = self.read_temperature_humidity()
-        return temperature
-
-    def read_humidity(self):
-        (temperature, humidity) = self.read_temperature_humidity()
-        return humidity
 
     def _crc8(self, buffer):
         """ Polynomial 0x31 (x8 + x5 +x4 +1) """
