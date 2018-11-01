@@ -182,27 +182,29 @@ From release version 3 MySense will auto detect I2C devices on maximal 3 I2C bus
 
 ### wiring PyCom <-> devices
 Advised is to use strict colors: *red* for 5V, *orange* for 3V3 and *black* for Ground.
-Use *white* and *yellow* for data wires.
+Use *white* (SCL or controller Rx) and *yellow* (SDA or controller Tx) for data wires.
 We use Grove connectors with female Dupont connectors. Our connector board has Grove sockets which lead to the right pins of the PyCom controller: TTL (5V or 3V3) and I2C devices (3V3).
 #### Uart or TTL devices
 E.g. GPS (3V3) and dust sensors (5V). 
 Examples:
 ```
-    GPS 3V3, Rx white wire  - PyCom Tx Pin P11 (unused)
-             Tx yellow wire - PyCom Rx Pin P10
-    Dust 5V, Rx white wire  - PyCom Tx Pin P3
-             Tx yellow wire - PyCom Rx Pin P4
+    GPS 3V3, Tx yellow wire - PyCom Rx Pin P10 (unused)
+             Rx white wire  - PyCom Tx Pin P11
+    Dust 5V, Tx yellow wire - PyCom Rx Pin P3
+             Rx white wire  - PyCom Tx Pin P4
 '''
+The PyCom has P0 Tx pin and P1 Rx pin (expansion board USB connected) for a 3rd TTL e.g. Spec TTL NO2 sensor. To Do: add Spec gas sensor driver.
+
 #### I2C for sensors and oled display
 All I2C are parallel in this example. SDA is I2C data wire, SCL is I2C clock wire.
 ```
-    device 3V3, SDA white wire PyCom SDA Pin P23
+    device 3V3, SDA white wire  PyCom SDA Pin P23
                 SCL yellow wire PyCom SCL Pin P22
 ```
 
 ## remarks
 BME280 or BME680 meteo sensors are tuned for indoor applications. Lifetime of sensors differ much because of this. The DHT11 or DHT22 are worse for outdoor application usage and should not be applied.
-An alterrnative is to use the Sensirion SHT21 or SHT31 I2C module (only temp and RH).
+An alterrnative is to use the Sensirion SHT21 or SHT31 I2C module (only temp and RH). The SHT sensor seems to cause I2C bus errors regularly.
 
 The dust sensors have a fan and laser. Both have a limited time of life. Hence the fan and laser are powered off in idle state. It is unclear if this method will help to improve the lifetime.
 
