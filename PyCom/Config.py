@@ -7,14 +7,14 @@ Network = 'TTN' # or 'WiFi'
 # OTAA keys
 dev_eui = "xxxxxxxxxxxxxxxx"
 app_eui = "xxxxxxxxxxxxxxxx"
-app_key = "5FxxxxxxxxxxxxxxxxxxxxxxxxxxEFA0"
+app_key = "5FD5FxxxxxxxxxxxxxxxxxxxxxxxxFA0"
 # ABP keys
 dev_addr  = "26xxxxF1"
-nwk_swkey = "E8xxxxxxxxxxxxxxxxxxxxxxxxxF489C"
-app_swkey = "03xxxxxxxxxxxxxxxxxxxxxxxxxx1402"
+nwk_swkey = "E8BxxxxxxxxxxxxxxxxxxxxxxxxF489C"
+app_swkey = "032xxxxxxxxxxxxxxxxxxxxxxxx01402"
 
 # wifi AP or Node
-W_SSID = 'MySense-IOSx'
+W_SSID = 'MySense-PyCom'
 W_PASS = 'acacadabra'
 
 # define 0 if not used (GPS may overwrite this)
@@ -63,18 +63,19 @@ I2Cdevices = [
         ('SSD1306',0x3c)                 # oled display
     ]
 
-useGPS = 'UART'      # uart
-G_Tx = 'P11'    # white GPS Rx
-G_Rx = 'P12'    # gray GPS Tx
+useGPS = 'UART'      # uart TTL 1
+G_Rx = 'P10'    # white  -> GPS Tx
+G_Tx = 'P11'    # yellow   -> GPS Rx
 
 #sampling = 60   # sample time for dust
 #sleep_time = 5  # interval time between samples
 # calibration Taylor factors
 #calibrate = None # or e.g. { 'temperature': [-6.2,1], 'pm1': [-20.0,0.5], ...}
 
-useDust = 'UART'     # UART
+useDust = 'UART'     # UART TTL 2
 dust = 'PMS7003'     # define 0 if not
-D_Tx = 'P3'     # white Rx module
-D_Rx = 'P4'     # yellow Tx module
+D_Rx = 'P3'     # white  -> device Tx
+D_Tx = 'P4'     # yellow -> device Rx
 #sampling = 60  # secs, default dust sampling timing
-# Dext = '' # only PMS: '_cnt' for pcs/0.1 dm3 (dflt: ug/m3)
+# Dext = '' # default, only PMS: '_cnt' for pcs/0.1 dm3 (dflt: ug/m3)
+Dext = '_cnt'

@@ -1,5 +1,5 @@
 # simple test script for dust sensors
-# $Id: dust_test.py,v 1.4 2018/04/06 19:42:41 teus Exp teus $
+# $Id: dust_test.py,v 1.5 2018/11/01 12:47:16 teus Exp teus $
 # standalone test loop
 from time import time, sleep
 Dust = ['','PPD42NS','SDS011','PMS7003']
@@ -18,7 +18,7 @@ try:
     from PMSx003 import PMSx003 as senseDust
   else: raise OSError("unknow dust sensor index %d" % dust)
 except:
-  raise OSError("No dust sensor lib %s found", Dust[dust])
+  raise OSError("No dust sensor lib %s found" % dust)
 sampling = 60    # each sampling time take average of values
 interval = 5*60  # take very 5 minutes a sample over 60 seconds
 
@@ -45,7 +45,7 @@ for cnt in range(15):
       sensor.ser.readall()
       continue
     errors = 0
-    print("%s record:" % Dust[dust])
+    print("%s record:" % dust)
     print(data)
     timings = interval -(time()-timings)
     if timings > 0:

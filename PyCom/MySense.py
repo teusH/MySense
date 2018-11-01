@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 3.1 2018/10/30 13:00:25 teus Exp teus $
+# $Id: MySense.py,v 3.2 2018/11/01 12:47:16 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 3.1 $"[11:-2]
+__version__ = "0." + "$Revision: 3.2 $"[11:-2]
 __license__ = 'GPLV4'
 
 # To Do: add calibration
@@ -359,7 +359,7 @@ if useDust:
 if useDust:
   Dext = ''     #  count or weight display
   try:
-    if dust == 'SDS011':
+    if dust[:3] == 'SDS':
       from SDS011 import SDS011 as senseDust
     elif dust[:3] == 'PMS':
       try: from Config import Dext
