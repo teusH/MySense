@@ -1,24 +1,30 @@
 # simple test script for dust sensors
-# $Id: dust_test.py,v 1.5 2018/11/01 12:47:16 teus Exp teus $
+# $Id: dust_test.py,v 1.6 2018/11/04 12:52:37 teus Exp teus $
 # standalone test loop
 from time import time, sleep
-Dust = ['','PPD42NS','SDS011','PMS7003']
+uart = [-1]
+try:
+    from Config import uart
+except: pass
 try:
     from Config import useDust, dust, D_Tx, D_Rx
 except:
-    print("No dust module configured. Taking defaults")
-    dust = 2
-    useDust = 1
-    D_Tx = 'P3'
-    D_Rx = 'P4'
+    import whichUART
+    which = whichUART.identifyUART(uart=uart, debug=True)
+    try:
+        D_Tx = which.D_TX; D_Rx = which.D_Rx
+        dust = which.DUST; useDust = True
+    except: useDust = False
+if not useDust: raise ValueError("Dust sensor is disabled")
 try:
-  if dust == 2:
+  if dust[:3] == 'SDS':
     from SDS011 import SDS011 as senseDust
-  elif dust == 3:
+  elif dust[:3] == 'PMS':
     from PMSx003 import PMSx003 as senseDust
   else: raise OSError("unknow dust sensor index %d" % dust)
 except:
   raise OSError("No dust sensor lib %s found" % dust)
+
 sampling = 60    # each sampling time take average of values
 interval = 5*60  # take very 5 minutes a sample over 60 seconds
 
@@ -27,10 +33,10 @@ try:
 except:
   calibrate = None
 
-print("Using dust sensor %s, UART Rx on pin %s, Tx on pin %s" % (Dust[dust],D_Tx, D_Rx))
+print("Dust: using sensor %s, UART %d Rx on pin %s, Tx on pin %s" % (dust,len(uart),D_Tx, D_Rx))
 print("Dust module sampling %d secs, interval of measurement %d minutes" % (sampling, interval/60))
 
-sensor = senseDust(port=1, debug=True, sample=sampling, interval=0, pins=(D_Tx,D_Rx), calibrate=calibrate)
+sensor = senseDust(port=len(uart), debug=True, sample=sampling, interval=0, pins=(D_Tx,D_Rx), calibrate=calibrate)
 errors = 0
 for cnt in range(15):
     timings = time()
@@ -38,7 +44,7 @@ for cnt in range(15):
       # sensor.GoActive() # fan on wait 60 secs
       data = sensor.getData()
     except Exception as e:
-      print("%s read error raised as: %s" % (Dust[dust],e))
+      print("%s read error raised as: %s" % (dust,e))
       if errors > 20: break
       errors += 1
       sleep(30)

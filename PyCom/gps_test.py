@@ -9,15 +9,25 @@ try:
 except:
   useGPS = False
 
+uart = [-1]
+try:
+  from Config import uart
+except: pass
+
 try:
   from Config import G_Tx, G_Rx
 except:
-  useGPS = False
+  import whichUART
+  which = whichUART.identifyUART(uart=uart,debug=True)
+  try:
+    G_Tx = which.G_TX; G_Rx = which.G_RX
+    useGPS = which.GPS
+  except:
+    useGPS = False
 
-if not useGPS:
-  raise OSError("GPS not configured")
+if not useGPS: raise OSError("GPS not configured")
 
-print('Using UART %d: GPS Rx -> pin %s, Tx -> pin %s' % (1,G_Tx,G_Rx))
+print('GPS: using %s nr %d: Rx->pin %s, Tx->pin %s' % (useGPS,len(uart),G_Tx,G_Rx))
 
 last_read = 0
 def readCR(serial):

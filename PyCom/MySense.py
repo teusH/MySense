@@ -1,11 +1,9 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 3.2 2018/11/01 12:47:16 teus Exp teus $
+# $Id: MySense.py,v 3.3 2018/11/04 12:51:08 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 3.2 $"[11:-2]
+__version__ = "0." + "$Revision: 3.3 $"[11:-2]
 __license__ = 'GPLV4'
-
-# To Do: add calibration
 
 from time import sleep, time
 from time import localtime, timezone
@@ -226,14 +224,17 @@ def GPSdistance(gps1,gps2):
   denom = (slat1 * slat2) + (clat1 * clat2 * cdlon)
   return int(round(6372795 * atan2(delta, denom)))
 
-# configure the MySense satellite sensor kit
+# configure the MySense devices where is which device
 i2c = [ # {'pins': (SDA,SCL), 'fd': None}
     ]
 spi = [ # {'pins': (SCKI,MOSI,MISO)}
     ]
-uart = [-1]
+uart = [-1]  # default number from 1
+try:
+    from Config import uart # allow P0,P1 pins?
+except: pass
 
-# search all devices on I2C busses
+# search for I2C devices
 def searchDev(names=['BME','SHT','SSD']):
     global useMeteo, useSSD
     try: from Config import BME
@@ -255,7 +256,6 @@ def searchDev(names=['BME','SHT','SSD']):
                 if (item[0][:3] in ['SSD']) and (not type(useSSD) is dict) and useSSD:
                     useSSD = { 'i2c': i2c[index], 'name': item[0], 'addr': item[1] }
     return len(i2c) > 0
-if not searchDev(names=['BME','SHT','SSD']): print("No I2C devices found")
 
 def indexBus(pins,lookup): # SPI only
   global spi
@@ -264,7 +264,9 @@ def indexBus(pins,lookup): # SPI only
     spi.append(None)
   return pins.index(lookup)
 
-# tiny display Adafruit 128 X 64 oled
+# connect I2C devices
+if not searchDev(names=['BME','SHT','SSD']): print("No I2C devices found")
+# tiny display Adafruit 128 X 64 oled driver
 oled = None
 if useSSD:
   try:
@@ -308,11 +310,11 @@ except:
 
 # oled on SPI creates I2C bus errors
 #  display('BME280 -> OFF', (0,0),True)
-# Connect Sensors
 
+# start meteo sensor
 meteo = ''
 if not type(useMeteo) is dict:
-  useMeteo = None # DHT serie not yet supported
+  useMeteo = None
 else:
   meteo = useMeteo['name']
   try:
@@ -326,13 +328,12 @@ else:
         M_gBase = None
     elif meteo == 'SHT31':
       import Adafruit_SHT31 as SHT
-    else:
+      useMeteo = SHT.SHT31(address=useMeteo['addr'], i2c=useMeteo['i2c']['fd'], calibrate=calibrate)
+    else: # DHT serie not yet supported
       LED.blink(5,0.3,0xff0000,True)
       raise ValueError("Unknown meteo %s type" % meteo)
     if meteo[:3] == 'BME':
       useMeteo = BME.BME_I2C(useMeteo['i2c']['fd'], address=useMeteo['addr'], debug=False, calibrate=calibrate)
-    elif meteo[:3] == 'SHT':
-      useMeteo = SHT.SHT31(address=useMeteo['addr'], i2c=useMeteo['i2c']['fd'], calibrate=calibrate)
     if meteo == 'BME680':
       display('AQI wakeup')
       useMeteo.gas_base = M_gBase
@@ -346,16 +347,35 @@ else:
     print(e)
 if not useMeteo: display("No meteo")
 
+# which UARTs are used for what
+auto = False
+try: from Config import useDust
+except: useDust = True
 try:
-  from Config import useDust, dust
+  if useDust: from Config import dust, D_Tx, D_Rx
 except:
-  print("Dust not configured")
-  useDust = None,; dust = ''
-if useDust:
+  print("Dust auto configured")
+  auto = True
+try: from Config import useGPS
+except: useGPS = True
+try:
+  if useGPS: from Config import G_Tx, G_Rx
+except:
+  print("GPS auto configured")
+  auto = True
+if auto:
+  import whichUART
+  which = whichUART.identifyUART(uart=uart, debug=True)
   try:
-    from Config import dust, D_Tx, D_Rx
-  except:
-    useDust = None
+    D_Tx = which.D_TX; D_Rx = which.D_Rx
+    dust = which.DUST; useDust = True
+  except: useDust = False
+  try:
+    G_Tx = which.G_Tx; G_Rx = which.G_Rx
+    useGPS = which.GPS
+  except: pass
+  del auto; del which; del whichUART
+
 if useDust:
   Dext = ''     #  count or weight display
   try:
@@ -386,12 +406,12 @@ try:
 except:
   thisGPS = [0.0,0.0,0.0]
 try:
+  from Config import useGPS, G_Tx, G_Rx
+except: pass
+if not useGPS: display('No GPS')
+else:
   try:
-    from Config import useGPS, G_Tx, G_Rx
     import GPS_dexter as GPS
-  except:
-    useGPS = None
-  if useGPS:
     useGPS = GPS.GROVEGPS(port=len(uart),baud=9600,debug=False,pins=(G_Tx,G_Rx))
     uart.append(len(uart))
     print("GPS UART %d: Rx ~> Tx %s, Tx ~> Rx %s" % (len(uart),G_Tx, G_Rx))
@@ -411,12 +431,11 @@ try:
         display('GPS bad QA %d' % useGPS.quality)
         useGPS.ser.deinit()
         useGPS = None
-  else:
-    display('No GPS')
-except Exception as e:
-  display('GPS failure', (0,0), clear=True)
-  print(e)
-  useGPS = None
+  except Exception as e:
+    display('GPS failure', (0,0), clear=True)
+    print(e)
+    useGPS = None
+
 lastGPS = thisGPS
 
 if Network: display('Network: %s' % Network)
@@ -424,7 +443,7 @@ if Network: display('Network: %s' % Network)
 HALT = False
 # called via TTN response
 def CallBack(port,what):
-  global sleep_time, HALT, oled, useDust, useMeteo
+  global sleep_time, HALT, oled, useDust, useMeteo, dust, Dext
   if not len(what): return True
   if len(what) < 2:
     if what == b'?': return SendInfo(port)
@@ -440,6 +459,10 @@ def CallBack(port,what):
     elif what == b'M':
         if Meteo: Meteo.raw = False
     elif what == b'S': HALT = True
+    elif what == b'#':  # send partical cnt
+        if dust[:3] == 'PMS': Dext = '_cnt'
+    elif what == b'w': # send partical weight
+        Dext = ''
     else: return False
     return True
   cmd = None; value = None
@@ -622,7 +645,7 @@ def DoPack(dData,mData,gps=None):
 def SendInfo(port=3):
   global  lora, meteo, dust, useGPS, thisGPS, lastGPS
   Meteo = ['','DHT11','DHT22','BME280','BME680','SHT31']
-  Dust = ['None','PPD42NS','SDS011','PMS7003']
+  Dust = ['None','PPD42NS','SDS011','PMSx003']
   if lora == None: return True
   if (not meteo) and (not dust) and (useGPS == None): return True
   sense = ((Meteo.index(meteo)&0xf)<<4) | (Dust.index(dust)&0x7)
