@@ -72,6 +72,8 @@ The LoRa MySense part is supporting remote control via TTN. The following remote
 * 'i'-value : change the sample interval time to value seconds (dflt: 5 minutes)
 * 'd' or 'D': turn dust sensor calibration OFF or ON
 * 'm' or 'M': turn meteo sensor calibration OFF or ON
+* 'w' or 'W': turn dust sensor to weight modus
+* '#': turn dust sensor to partical count modus (if dust sensor supports it)
 * to be extended e.g. meta updateMin and updateMax information frequencies.
 
 ### Meta information
@@ -157,7 +159,7 @@ Choose one meteo and one dust sensor: MySense modules in development are:
 * BME280 meteo: temp, humidity and pressure on I2C bus
 * BME680 meteo: temp, humidity, pressure and air quality on I2C bus
   One serie of BME680 I2C/TTL modules are causing I2C bus errors.
-* PMS7003 and PMSx003 (black one) dust: PM1, PM2.5 and PM10 on UART TTL (no USB)
+* PMSx003 (black one) dust: PM1, PM2.5 and PM10 on UART TTL (no USB)
 * SDS011 dust: PM2.5 and PM10 on UART TTL (no USB)
 * GPS location: UART TTL (no USB)
 * SSD1306 tiny oled display: 128X64 pixels on GPIO bus or I2C bus.
@@ -195,12 +197,16 @@ Examples:
 '''
 The PyCom has P0 Tx pin and P1 Rx pin (expansion board USB connected) for a 3rd TTL e.g. Spec TTL NO2 sensor. To Do: add Spec gas sensor driver.
 
+MySense support auto UART device recognition for GPS and dust sensors (SDS011, PMSx007 serie). See the `Config.py` file for details how to enable/disable ato configuration.
+The UART pins may be defined (tuples: (white wire Tx,yellow wire Rx) -> device (Rx,Tx)) if not default pins (P4,P3),(P11,P10) are used.
+
 #### I2C for sensors and oled display
 All I2C are parallel in this example. SDA is I2C data wire, SCL is I2C clock wire.
 ```
     device 3V3, SDA white wire  PyCom SDA Pin P23
                 SCL yellow wire PyCom SCL Pin P22
 ```
+MySense will scan the I2C bus(ses) for auto configuration of known I2C devices (oled display and various meteo sensors). I2C pins are defined as tuples (white wire SDA, yellow wire SCL), default: (P23,P22).
 
 ## remarks
 BME280 or BME680 meteo sensors are tuned for indoor applications. Lifetime of sensors differ much because of this. The DHT11 or DHT22 are worse for outdoor application usage and should not be applied.
