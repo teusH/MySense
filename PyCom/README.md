@@ -20,7 +20,7 @@ Alternative is Nova SDS011 (bigger, less PM types, but has air inlet tube connec
 * USB V220 AC-5V= adapter (Action € 2.10)
 * wiring: per module 4 wires: female/male for 4 modules:
 2 packs Dupont jumpercables 20cm 10 per package (2 X € 1.50 Tinytronics)
-Remark: better to create a shield/header with Grove sockets and connectors. Board design with Grove sockets is available.
+Remark: better to create a UART/I2C connector shield with Grove sockets and connectors. See the picture. Board design with Grove sockets is available.
 * assortiment thrink tubes (2.5 mm and bigger) (€ 3.45 Ben's Electronics)
 * V220 outdoor cablebox 10X12.5 cm, larger is better eg OBO T100 or T160. (electroshop.nl € 5.39)
 Or use PVC pipes and roof air outlet exhaust. Advised is to paint it white and use double pipes for heat isolation.
@@ -32,6 +32,8 @@ Some fixing materials:
 * 4 cm tube for air inlet of PM module (SDS011 or black PMSA003)
 * piece of wood to be able to attach the outdoor cable box on a wall.
 * some material to fixate the components and allow airflow in the box
+
+<img src="images/LoPy-MySense-modules.png" align=center width=350>
 
 ### TTN gateway
 You may be unlucky and do not have a TTN infrastructure in the neighbourhood. However it is easy to build one your self (Pi3 + IC880-SPI + pigtail and antenna + case, ca € 230) or buy one (ca € 350 (TTN gateway) or higher € 450).
