@@ -1,6 +1,10 @@
 # simple test script for dust sensors
-# $Id: dust_test.py,v 1.6 2018/11/04 12:52:37 teus Exp teus $
+# $Id: dust_test.py,v 1.7 2018/11/05 11:33:26 teus Exp teus $
 # standalone test loop
+
+__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__license__ = 'GPLV4'
+
 from time import time, sleep
 uart = [-1]
 try:

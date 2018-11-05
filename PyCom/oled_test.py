@@ -1,6 +1,9 @@
 from time import sleep_ms
 from machine import I2C
 
+__version__ = "0." + "$Revision: 3.2 $"[11:-2]
+__license__ = 'GPLV4'
+
 def searchDev(names=['BME','SHT','SSD']):
     try:
         from Config import I2Cpins, I2Cdevices

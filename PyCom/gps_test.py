@@ -1,6 +1,9 @@
 from machine import UART
 from time import sleep_ms, ticks_ms
 
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__license__ = 'GPLV4'
+
 # dflt pins=(Tx-pin,Rx-pin): wiring Tx-pin -> Rx GPS module
 # default UART(port=1,baudrate=9600,timeout_chars=2,pins=('P3','P4'))
 

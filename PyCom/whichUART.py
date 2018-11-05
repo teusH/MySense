@@ -1,6 +1,9 @@
 from machine import UART
 from time import sleep
 
+__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__license__ = 'GPLV4'
+
 # Config.py definitions preceed
 # if UARTpins array of (Tx,Rx) tuples is defined try to identify UART device
 # if UARTpins is defined dust or useGPS + pins maybe overwritten
@@ -51,7 +54,7 @@ class identifyUART:
                 continue
             if (line == None) or (not len(line)):   # try to wake up
                 if not 'dust' in found:
-                  if self.debug: print("Try to weake up device")
+                  if self.debug: print("Try to wake up device")
                   if not i: ser.write(b'BM\xe1\x00\x01\x01q') # try activate PMS
                   elif i < 2: ser.write(b'\xAA\xB4\x06\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\x06\xAB') # second try activate SDS
                 continue
