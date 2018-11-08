@@ -1,11 +1,24 @@
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__license__ = 'GPLV4'
+
+Network = ''
+method = {}
 try:
-  from Config import Network
-  from Config import dev_eui, app_eui, app_key
-  if Network != 'TTN' and not (app_key or app_eui or dev_eui):
-     raise OSError('No LoRa defined')
   from lora import LORA
-except:
-  raise OSError('No LoRa config or libs defined')
+  from Config import Network
+  # OTAA keys
+  from Config import dev_eui, app_eui, app_key
+except: pass
+if Network != 'TTN': raise ValueError("No LoRa network defined")
+if not app_key or not app_eui or not dev_eui: print('No LoRa OTAA keys defined')
+else: method['OTAA'] = (dev_eui, app_eui, app_key)
+try:
+  # ABP keys
+  from Config import dev_addr, nwk_swkey, app_swkey
+except: pass
+if not dev_addr or not nwk_swkey or not app_swkey: print('No LoRa ABP keys defined')
+else: method['ABP'] = (nwk_swkey, nwk_swkey, app_swkey)
+if not len(method): raise ValueError("No LoRa keys configured or LoRa config error")
 
 import sys
 import struct
@@ -26,7 +39,7 @@ def SendInfo(port,data):
   n.send(info,port=3)
 
 n = LORA()
-if not n.connect(dev_eui, app_eui, app_key,ports=2):
+if not n.connect(method, ports=2):
   print("Failed to connect to LoRaWan TTN")
   sys.exit(0)
 
@@ -36,30 +49,29 @@ if not n.connect(dev_eui, app_eui, app_key,ports=2):
 # GPS (longitude,latitude, altitude) float
 # send 17 bytes
 
+useGPS = False
+thisGPS = [50.12345,6.12345,12.34]
+try: from Config import useGPS, thisGPS
+except: pass
+
 Dust = ['unknown','PPD42NS','SDS011','PMS7003']
 Meteo = ['unknown','DHT11','DHT22','BME280','BME680']
 try:
   from Config import meteo
 except:
-  meteo = 0
+  meteo = 'unknown'
 try:
   from Config import dust
 except:
-  dust = 0
+  dust = 'unknown'
 
-try:
-  from Config import useGPS, thisGPS
-except:
-  thisGPS = [0,0,0]
-
-if useGPS:
-  thisGPS = [50.12345,6.12345,12.34]
-
-info = struct.pack('>BBlll',0,dust|(meteo<<4),int(thisGPS[0]*100000),int(thisGPS[1]*100000), int(thisGPS[2]*10))
-print("Sending version 0, meteo %s index %d, dust %s index %d, GPS: " % (Meteo[meteo], meteo,Dust[dust],dust), thisGPS)
+sense = ((Meteo.index(meteo)&0xf)<<4) | (Dust.index(dust)&0x7)
+if useGPS: sense |= 0x8
+info = struct.pack('>BBlll',0,sense,int(thisGPS[0]*100000),int(thisGPS[1]*100000), int(thisGPS[2]*10))
+print("Sending version 0, meteo %s, dust %s, configured GPS: " % (meteo,dust), thisGPS)
 
 if not n.send(info,port=3): print("send error")
-else: print('Sent info')
+else: print('Info is sent')
 
 for cnt in range(5):
   data = struct.pack('>HHHHHHHHl', 10+cnt, 15+cnt, 20+cnt, 25+cnt, 30+cnt, 35+cnt, 40+cnt, 45+cnt, time())
@@ -67,6 +79,6 @@ for cnt in range(5):
   # Send packet
   if not n.send(data):  # send to LoRa port 2
     print("send error")
-  else: print('Sent data')
+  else: print('Data is sent')
   sleep(60)
 print('Done')

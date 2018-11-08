@@ -2,10 +2,10 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 1.3 2018/10/25 18:57:19 teus Exp teus $
+# $Id: lora.py,v 1.4 2018/11/08 17:04:53 teus Exp teus $
 
 import socket
-from binascii import unhexlify
+from ubinascii import unhexlify
 from network import LoRa
 from led import LED
 
@@ -31,37 +31,38 @@ class LORA(object):
     # Initialize LoRa in LORAWAN mode
     self.lora = LoRa(mode = LoRa.LORAWAN)
 
-    if (not 'OTAA' in method.keys()) or (not 'ABP' in method.keys()):
-        print("No activation method defined.")
-        return False
+    if (not type(method) is dict):
+        raise ValueError("No activation method defined.")
     count = 0
     if 'OTAA' in method.keys():
-        # Join a network using OTAA (Over the Air Activation)
-        dev_eui = unhexlify(method['OTAA'][0])
-        app_eui = unhexlify(method['OTAA'][1])
-        app_key = unhexlify(method['OTAA'][2])
+        # Join a network using OTAA (Over the Air Activation) next code looks strange
+        dev_eui = method['OTAA'][0]; dev_eui = unhexlify(dev_eui)
+        app_eui = method['OTAA'][1]; app_eui = unhexlify(app_eui)
+        app_key = method['OTAA'][2]; app_key = unhexlify(app_key)
         self.lora.join(activation = LoRa.OTAA, auth = (dev_eui, app_eui, app_key), timeout = 0)
         # Wait until the module has joined the network
         while not self.lora.has_joined():
           LED.blink(1, 2.5, 0xff0000)
-          if count > 5:
-            count = 0
-            break
+          if count > 20: break
           print("Wait for OTAA join: " ,  count)
-          sleep(12) # auto retry is 15 secs
           count += 1
         if self.lora.has_joined():
-          count += 1
-          print("LoRa OTAA joined.")
+          count = 1
+          print("LoRa OTAA join.")
+        else: count = 0
 
     if not count:
-        if not 'ABP' in method.keys(): return False
+        if not 'ABP' in method.keys():
+            print("No ABP TTN keys defined.")
+            return False
         import struct
-        dev_addr = struct.unpack('>l', unhexlify(method['ABP'][0]))[0]
-        nwk_swkey = unhexlify(method['ABP'][1])
-        app_swkey = unhexlify(method['ABP'][2])
+        # next code is strange. ABP method is not yet operational
+        dev_addr = method['ABP'][0]; dev_addr = unhexlify(dev_addr)
+        dev_addr = struct.unpack('>l', dev_addr)[0]
+        nwk_swkey = method['ABP'][1]; nwk_swkey = unhexlify(nwk_swkey)
+        app_swkey = method['ABP'][2]; app_swkey = unhexlify(app_swkey)
+        print("LoRa ABP join.")
         self.lora.join(activation = LoRa.ABP, auth = (dev_addr, nwk_swkey, app_swkey))
-        print("LoRa method ABP.")
 
     # Create a LoRa socket
     LED.blink(2, 0.1, 0x009900)

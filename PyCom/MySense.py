@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 3.3 2018/11/04 12:51:08 teus Exp teus $
+# $Id: MySense.py,v 3.4 2018/11/08 17:04:14 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 3.3 $"[11:-2]
+__version__ = "0." + "$Revision: 3.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -392,7 +392,7 @@ if useDust:
     uart.append(len(uart))
     print("%s UART %d: Rx ~> Tx %s, Tx ~> Rx %s" % (dust,len(uart),D_Tx, D_Rx))
   except Exception as e:
-    display("%s failure" % Dust[dust], (0,0), clear=True)
+    display("%s failure" % dust, (0,0), clear=True)
     print(e)
     useDust = None; dust = ''
   display('dust: %s' % dust)
@@ -476,7 +476,7 @@ def CallBack(port,what):
 # LoRa setup
 lora = None
 def setup():
-  global Network, lora
+  global Network, lora, LoRaMethod
   global sleep_time, STOP, myId
   global dust, meteo, thisGPS, useGPS, Dext
 
