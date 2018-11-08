@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: PMSx003.py,v 1.8 2018/04/19 14:39:04 teus Exp teus $
+# $Id: PMSx003.py,v 1.10 2018/11/08 20:37:42 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -197,11 +197,11 @@ class PMSx003:
       self.Normal()
       if self.debug: print("wait 30 secs")
       sleep_ms(30000)
-    self.mode = self.ACTIVE
-    self.SendMode(0xE1,1)
     if self.interval - self.sample >= self.IDLE:
-      self.GoPassive()
-    return True
+      return self.GoPassive()
+    else:
+      self.mode = self.ACTIVE
+      return self.SendMode(0xE1,1)
 
   # from active mode go into passive mode (passive normal state ?)
   def GoPassive(self):
@@ -245,10 +245,12 @@ class PMSx003:
           wait = ticks_ms()-LastTime
           if (wait < 1000) and wait:
             sleep_ms(wait)
-        self.PassiveRead()   # passive?:if fan off switch it on, initiate read
+        # passive?:if fan off switch it on, initiate read
+        if not self.PassiveRead():
+          return {}
       while True:       # search header (0x42 0x4D) of data telegram
         if ErrorCnt >= 20:
-            raise OSError("too many read errors")
+            return {}
         waitcnt = 0
         while waitcnt < 10 and self.ser.any() < 2:
             sleep_ms(1000)

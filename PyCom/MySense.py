@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 3.4 2018/11/08 17:04:14 teus Exp teus $
+# $Id: MySense.py,v 3.5 2018/11/08 20:37:15 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 3.4 $"[11:-2]
+__version__ = "0." + "$Revision: 3.5 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -562,7 +562,7 @@ def DoDust():
         dData['pm1'+Dext] = 0
     except:
       dData = {}
-  if not dData:
+  if (not dData) or (not len(dData)):
     display("No PM values")
     LED.blink(5,0.1,0xff0000,True)
     dData = [0,0,0]
