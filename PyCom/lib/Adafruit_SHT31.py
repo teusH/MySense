@@ -21,9 +21,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-#
-# module has been changed to make it run on PyCom micro python by teus 2018
-
 #import logging
 import time
 # from Device import *
@@ -67,7 +64,7 @@ class SHT31(object):
 
         # added calibration
         self.raw = raw
-        self.calibrate = { 'temperature': None, 'pressure': None, 'humidity': None, 'altitude': None}
+        self.calibrate = { 'temperature': None, 'humidity': None}
         if (not raw) and (type(calibrate) is dict):
           for k in calibrate.keys():
             if (not k in self.calibrate.keys()) or (not type(calibrate[k]) is list):
