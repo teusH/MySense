@@ -1,4 +1,4 @@
-__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__version__ = "0." + "$Revision: 1.9 $"[11:-2]
 __license__ = 'GPLV4'
 
 Network = ''
@@ -8,15 +8,13 @@ try:
   from Config import Network
   # OTAA keys
   from Config import dev_eui, app_eui, app_key
-except: pass
+except: print('No network or LoRa OTAA keys defined')
 if Network != 'TTN': raise ValueError("No LoRa network defined")
-if not app_key or not app_eui or not dev_eui: print('No LoRa OTAA keys defined')
 else: method['OTAA'] = (dev_eui, app_eui, app_key)
 try:
   # ABP keys
   from Config import dev_addr, nwk_swkey, app_swkey
-except: pass
-if not dev_addr or not nwk_swkey or not app_swkey: print('No LoRa ABP keys defined')
+except: print('No LoRa ABP keys defined')
 else: method['ABP'] = (nwk_swkey, nwk_swkey, app_swkey)
 if not len(method): raise ValueError("No LoRa keys configured or LoRa config error")
 
