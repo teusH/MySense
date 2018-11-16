@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: PMSx003.py,v 1.10 2018/11/08 20:37:42 teus Exp teus $
+# $Id: PMSx003.py,v 1.11 2018/11/16 12:45:10 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -66,7 +66,7 @@ class PMSx003:
     self.debug = debug
     self.interval = interval * 1000 # if interval == 0 no auto fan switching
     self.sample =  sample *1000
-    self.mode = self.STANDBY
+    self.mode = self.ACTIVE
     self.raw = raw
 
     # list of name, units, index in measurments, calibration factoring
@@ -142,7 +142,7 @@ class PMSx003:
     except:
       print('Unable to send mode/state change.')
       raise OSError("mode/state")
-    if (cmd == 0xE2) or ((cmd == 0xE4) and ON):
+    if (cmd == 0xE2) or (cmd == 0xE4):
       return True
     # check the answer
     ChckSum += 4
@@ -176,6 +176,7 @@ class PMSx003:
 
     # passive mode, go into standby state / sleep: fan OFF
   def Standby(self):
+    #print("Go standby from 0X%X" % self.mode)
     if self.mode != self.STANDBY:
       if self.mode == self.ACTIVE: self.GoPassive()
       self.mode = self.STANDBY
@@ -184,6 +185,7 @@ class PMSx003:
 
   # passive mode, go into normal state: fan ON, allow data telegrams reading
   def Normal(self):
+    #print("Go normal from 0x%X" % self.mode)
     if self.mode != self.NORMAL:
       if self.mode == self.ACTIVE: self.GoPassive()
       if self.mode != self.NORMAL:
@@ -193,6 +195,7 @@ class PMSx003:
 
   # from passive mode go in active mode (same as with power on)
   def GoActive(self):
+    #print("Go active from 0X%X" % self.mode)
     if self.mode == self.STANDBY:
       self.Normal()
       if self.debug: print("wait 30 secs")
@@ -201,13 +204,15 @@ class PMSx003:
       return self.GoPassive()
     else:
       self.mode = self.ACTIVE
+      #print("Active")
       return self.SendMode(0xE1,1)
 
   # from active mode go into passive mode (passive normal state ?)
   def GoPassive(self):
-    self.mode = self.PASSIVE    # state NORMAL?
-    if self.mode == self.ACTIVE:
+    #print("Go Passive from 0X%X" % self.mode)
+    if self.mode != self.PASSIVE:
       return self.SendMode(0xE1,0)
+    self.mode = self.PASSIVE
     return True
 
   # in passive mode do one data telegram reading
