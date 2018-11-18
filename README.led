@@ -1,8 +1,0 @@
-led/button/fan control
-----------------------
-Python script to allow following functionalities:
-1. allow the led (Dflt socket Grove shield D3) to blink
-2. react with led blink (I2C socket 1)  timeback to start a shell script e.g. poweroff or wifi reconfigure.
-3. control a relay (Dflt Grove shield D2) to control e.g. a fan (On/Off).
-
-Use this in a shell script. Try `python MyLed.py --help` for command line usage.
