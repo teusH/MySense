@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 1.1 2018/11/21 15:40:34 teus Exp teus $
+# $Id: MyDB.py,v 1.2 2018/11/21 16:00:34 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.1 $"[11:-2]
+__version__ = "0." + "$Revision: 1.2 $"[11:-2]
 
 try:
     import MyLogger
@@ -250,7 +250,7 @@ def db_query(query,answer):
             return False
         Retry = True
         MyLogger.log(modulename,'INFO',"Retry the query")
-        if dp_query(query,answer):
+        if db_query(query,answer):
             Retry = False
             return True
         MyLogger.log(modulename,'ERROR','Failed to redo query.')
