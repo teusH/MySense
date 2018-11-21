@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 2.38 2018/10/02 14:55:45 teus Exp teus $
+# $Id: MyDB.py,v 1.1 2018/11/21 15:40:34 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.38 $"[11:-2]
+__version__ = "0." + "$Revision: 1.1 $"[11:-2]
 
 try:
     import MyLogger
@@ -222,7 +222,7 @@ def db_registrate(ident):
 Retry = False
 def db_query(query,answer):
     """ communicate in sql to database """
-    global Conf
+    global Conf, Retry
     # testCnt = 0 # just for testing connectivity failures
     # if testCnt > 0: raise IOError
     MyLogger.log(modulename,'DEBUG',"Query: %s" % query)
