@@ -1,7 +1,7 @@
 from time import sleep
 from machine import I2C
 
-__version__ = "0." + "$Revision: 3.2 $"[11:-2]
+__version__ = "0." + "$Revision: 3.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 def searchDev(names=['BME','SHT','SSD']):
@@ -42,7 +42,7 @@ try:
     import Adafruit_SHT31 as SHT
   else: useMeteo = False
 except:
-  raise OSError("Missing library %s" % Meteo[meteo])
+  raise OSError("Missing library %s" % meteo)
 
 if not i2c: raise ValueError("No meteo module found")
 try:
@@ -68,7 +68,7 @@ for cnt in range(15):
         useMeteo.sea_level_pressure -= 0.5
         print("Pressure: %0.3f hPa" % useMeteo.pressure)
         print("Altitude = %0.2f meters with sea level pressure: %.2f hPa" % (useMeteo.altitude,useMeteo.sea_level_pressure))
-    if meteo is 'BME60':
+    if meteo is 'BME680':
         if not cnt:
             try:
               from Config import M_gBase  # if present do not recalculate

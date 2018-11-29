@@ -1,4 +1,4 @@
-__version__ = "0." + "$Revision: 1.9 $"[11:-2]
+__version__ = "0." + "$Revision: 1.10 $"[11:-2]
 __license__ = 'GPLV4'
 
 Network = ''
@@ -72,8 +72,13 @@ if not n.send(info,port=3): print("send error")
 else: print('Info is sent')
 
 for cnt in range(5):
-  data = struct.pack('>HHHHHHHHl', 10+cnt, 15+cnt, 20+cnt, 25+cnt, 30+cnt, 35+cnt, 40+cnt, 45+cnt, time())
-  #data = base64.encodestring(data)
+  # old style
+  # data = struct.pack('>HHHHHHHHl', 10+cnt, 15+cnt, 20+cnt, 25+cnt, 30+cnt, 35+cnt, 40+cnt, 45+cnt, time())
+  # packaged as: type, PM25*10, PM10*10, temp*10+300, hum*10
+  if cnt%2:
+    data = struct.pack('>BHHHHHlll', 0x88, int(250+cnt), int(100+cnt), 300+cnt, cnt, 1000+cnt, int(thisGPS[0]*100000),int(thisGPS[1]*100000), int(thisGPS[2]*10))
+  else:
+    data = struct.pack('>BHHHHH', 0x80, int(250+cnt), int(10+cnt), 300+cnt, cnt,0)
   # Send packet
   if not n.send(data):  # send to LoRa port 2
     print("send error")

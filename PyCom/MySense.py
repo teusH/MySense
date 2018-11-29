@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 3.5 2018/11/08 20:37:15 teus Exp teus $
+# $Id: MySense.py,v 3.6 2018/11/29 13:18:32 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 3.5 $"[11:-2]
+__version__ = "0." + "$Revision: 3.6 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -248,13 +248,17 @@ def searchDev(names=['BME','SHT','SSD']):
         regs = i2c[-1]['fd'].scan()
         for item in I2Cdevices:
             if item[1] in regs:
-                print('%s I2C[%d]:' % (item[0],index), ' SDA ~> %s, SCL ~> %s' % I2Cpins[index], 'address 0x%2X' % item[1])
-                if not item[0][:3] in names: continue
-                if (item[0] == 'BME280') and (BME == 680): item[0] = 'BME680'
-                if (item[0][:3] in ['BME','SHT']) and (not type(useMeteo) is dict) and useMeteo:
-                    useMeteo = { 'i2c': i2c[index], 'name': item[0], 'addr': item[1] }
-                if (item[0][:3] in ['SSD']) and (not type(useSSD) is dict) and useSSD:
-                    useSSD = { 'i2c': i2c[index], 'name': item[0], 'addr': item[1] }
+                if not item[0][:3] in names:
+                    print('sensor %s not in I2C names: ' % item[0][:3], names)
+                    continue
+                name = item[0]
+                # next needs to be improved
+                if (item[0] == 'BME280') and (BME == 680): name = 'BME680'
+                print('%s I2C[%d]:' % (name,index), ' SDA ~> %s, SCL ~> %s' % I2Cpins[index], 'address 0x%2X' % item[1])
+                if (name[:3] in ['BME','SHT']) and (not type(useMeteo) is dict) and useMeteo:
+                    useMeteo = { 'i2c': i2c[index], 'name': name, 'addr': item[1] }
+                if (name[:3] in ['SSD']) and (not type(useSSD) is dict) and useSSD:
+                    useSSD = { 'i2c': i2c[index], 'name': name, 'addr': item[1] }
     return len(i2c) > 0
 
 def indexBus(pins,lookup): # SPI only
@@ -442,6 +446,7 @@ if Network: display('Network: %s' % Network)
 
 HALT = False
 # called via TTN response
+# To Do: make the remote control survive a reboot
 def CallBack(port,what):
   global sleep_time, HALT, oled, useDust, useMeteo, dust, Dext
   if not len(what): return True
@@ -493,6 +498,7 @@ def setup():
     # Connect to LoRaWAN
     display("Try  LoRaWan", (0,0), clear=True)
     lora = LORA()
+    # need 2 ports: data on 2, info/ident on 3
     if lora.connect(LoRaMethod, ports=2, callback=CallBack):
        display("Using LoRaWan")
        SendInfo()
@@ -507,9 +513,20 @@ def setup():
     # raise OSError("No connectivity")
   display("Setup done")
 
+def convertFloat(val):
+  return (0 if val is None else float(val))
+
+# PM weights
 PM1 = const(0)
 PM25 = const(1)
 PM10 = const(2)
+# PM count >= size
+PM03c = const(3)
+PM05c = const(3)
+PM1c = const(3)
+PM25c = const(3)
+PM5c = const(3)
+PM10c = const(3)
 def DoDust():
   global useDust, dust, nl, STOP, STOPPED, useGPS, lastGPS, Dext
   dData = {}
@@ -519,7 +536,7 @@ def DoDust():
     if not showSleep(secs=15,text='starting up fan'):
       display('stopped SENSING', (0,0), clear=True)
       LED.blink(5,0.3,0xff0000,True)
-      return [0,0,0]
+      return [None,None,None]
     else:
       if useGPS != None:
         display("G:%.4f/%.4f" % (lastGPS[LAT],lastGPS[LON]))
@@ -562,14 +579,19 @@ def DoDust():
         dData['pm1'+Dext] = 0
     except:
       dData = {}
+  rData = []
   if (not dData) or (not len(dData)):
     display("No PM values")
     LED.blink(5,0.1,0xff0000,True)
-    dData = [0,0,0]
   else:
-    dData = [round(dData['pm1'+Dext],1),round(dData['pm25'+Dext],1),round(dData['pm10'+Dext],1)]
+    for k in ['pm1','pm25','pm10']:
+      rData.append(round(dData[k],1) if k in dData.keys() else 0.0)
+    if Dext:
+      for k in ['03','05','1','25','5','10']:
+        if 'pm'+k+Dext in dData.keys(): rData.append(round(dData['pm'+k+Dext],1))
+        else: rData.append(0.0)
     LED.off()
-  return dData
+  return rData
 
 TEMP = const(0)
 HUM  = const(1)
@@ -579,7 +601,7 @@ AQI  = const(4)
 def DoMeteo():
   global useMeteo, nl, LF
   global meteo,i2c
-  mData = [0,0,0,0,0]
+  mData = [None,None,None,None,None]
   if not useMeteo or not meteo: return mData
 
   # Measure BME280/680: temp oC, rel hum %, pres pHa, gas Ohm, aqi %
@@ -595,15 +617,15 @@ def DoMeteo():
         for cnt in range(0,5): # try 5 times to avoid null reads
             try:
                 if item == TEMP: # string '20.12'
-                    mData[TEMP] = float(useMeteo.temperature)
+                    mData[TEMP] = convertFloat(useMeteo.temperature)
                 elif item == HUM: # string '25'
-                    mData[HUM] = float(useMeteo.humidity)
+                    mData[HUM] = convertFloat(useMeteo.humidity)
                 elif meteo[:3] != 'BME': break
                 elif item == PRES: # string '1021'
-                    mData[PRES] = float(useMeteo.pressure)
+                    mData[PRES] = convertFloat(useMeteo.pressure)
                 elif meteo == 'BME680':
-                    if item == GAS: mData[GAS] = float(useMeteo.gas)
-                    elif item == AQI: mData[AQI] = round(float(useMeteo.AQI),1)
+                    if item == GAS: mData[GAS] = convertFloat(useMeteo.gas)
+                    elif item == AQI: mData[AQI] = round(convertFloat(useMeteo.AQI),1)
                 break
             except OSError as e: # I2C bus error, try to recover
                 print("OSerror %s on data nr %d" % (e,item))
@@ -617,7 +639,7 @@ def DoMeteo():
     display("%s ERROR" % meteo)
     print(e)
     LED.blink(5,0.1,0xff00ff,True)
-    return [0,0,0,0,0]
+    return [None,None,None,None,None]
 
   LED.off()
   # display results
@@ -636,11 +658,29 @@ def DoMeteo():
   display(values)
   return mData # temp, hum, pres, gas, aqi
 
+# denote a null value with all ones
+# denote which sensor values present in data package
 def DoPack(dData,mData,gps=None):
-  if (type(gps) is list) and (gps[LAT] > 0.01):
-    return struct.pack('>HHHHHHHHHlll',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+300),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10),int(round(gps[LAT]*100000)),int(round(gps[LON]*100000)),int(round(gps[ALT]*10)))
+  global dust
+  t = 0
+  if dust[:3] == 'PMS':
+    d = struct.pack('>HHH',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10))
+    t += 1
   else:
-    return struct.pack('>HHHHHHHHH',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10),int(mData[TEMP]*10+300),int(mData[HUM]*10),int(mData[PRES]),int(round(mData[GAS]/100.0)),int(mData[AQI]*10))
+    d = struct.pack('>HH',int(dData[PM25]*10),int(dData[PM10]*10))
+  if Dext: # add counts
+    d += struct.pack('>HHHBBB',0 if dData[PM03c] is None else int(dData[PM03c]),0 if dData[PM05c] is None else int(dData[PM05c]),0 if dData[PM1c] is None else int(dData[PM1c]),0 if dData[PM25c] is None else int(dData[PM25c]*10),0 if dData[PM5c] is None else int(dData[PM5c]*10),0 if dData[PM10c] is None else int(dData[PM10c]*10))
+    t += 2
+  m = struct.pack('>HHH',0 if mData[TEMP] is None else int(mData[TEMP]*10+300),0 if mData[HUM] is None else int(mData[HUM]*10),0 if mData[PRES] is None else int(mData[PRES]))
+  if len(mData) > 3:
+    m += struct.pack('>HH',0 if mData[GAS] is None else int(round(mData[GAS]/100.0)),0 if mData[AQI] is None else int(mData[AQI]*10))
+    t += 4
+  if (type(gps) is list) and (gps[LAT] > 0.01):
+    l = struct.pack('>lll', int(round(gps[LAT]*100000)),int(round(gps[LON]*100000)),int(round(gps[ALT]*10)))
+    t += 8
+  else: l = ''
+  # return d+m+l
+  return struct.pack('>B', t | 0x80)+d+m+l # flag the package
 
 def SendInfo(port=3):
   global  lora, meteo, dust, useGPS, thisGPS, lastGPS
@@ -685,9 +725,9 @@ def runMe():
     dData = DoDust()
     mData = DoMeteo()
 
-    # Send packet
+    # Send packet, data port = 2, info port = 3
     if lora != None:
-      if  lora.send(DoPack(dData,mData,LocUpdate())):
+      if  lora.send(DoPack(dData,mData,LocUpdate()),port=2):
         LED.off()
       else:
         display(" LoRa send ERROR")
