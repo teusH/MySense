@@ -8,7 +8,9 @@ On failure it will skip to send data measurements to TTN and will continue to sh
 For installation, and firmware update see:
 * reference: https://docs.pycom.io
 
-## LoPy-4 BME/SDS wiring
+## LoPy-4 BME/SHT/GPS/SDS/PMS wiring
+
+With the PCB connector board one may easily connect the sensor modules. There are 3 TTL and 3 I2C Grove connectors on this board. With a female Dupont socket one can easily connect to the sensor module. The MySense softwaree will automicaly detect which sensor modle is connected to the TTL ports and I2C ports.
 
 Orientate the LoPy with the flash light up (if you use the recommanded development shield the small USB connecter will be on top). The name `pycom lopy` will face to the left side. The left side pins are numbererd top down as RST, P0, P1 ,...,P12.
 The right side pins top down are numbered as: Vin V3.3/V5, Gnd, 3V3, P23, P22, ..., P13.
@@ -177,6 +179,8 @@ The json string from the server, something like:
             "latitude":15.40283,"longitude":2.15341,"altitude":230}
     ]}}
 ```
+
+Use the Java Script `payloadformat.js` to decode the payloads.
 
 ### LoRa port usage
 The LoRa connect routine supports to open more ports as the default LoRa port 2. Use the argument: `ports=3` to open 3 ports. The LoRa send routine supports an argument to discriminate to which port to send the payload.
