@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 2.11 2018/10/04 13:54:23 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.1 2018/11/29 20:03:34 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -33,7 +33,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.11 $"[11:-2]
+__version__ = "0." + "$Revision: 1.1 $"[11:-2]
 
 try:
     import MyLogger
@@ -268,6 +268,7 @@ Conf = {
     # To Do: put this in a DB
     "translate": {
         "pm03": ["pm0.3","PM0.3"],
+        "pm05": ["pm0.5","PM0.5"],
         "pm1":  ["roet","soot"],
         "pm25": ["pm2.5","PM2.5"],
         "pm5":  ["pm5.0","PM5.0"],
@@ -301,11 +302,13 @@ Conf = {
 # prepend with field_ if not known
 def translate( sense ):
     sense.replace('PM','pm')
+    sense.replace('_pcs','_cnt')
     for strg in ('O3','NH','NO','CO'):
         sense.replace(strg.lower(),strg)
     if not 'translate' in Conf.keys(): return 'field_' + sense
     for strg in Conf['translate'].keys():
         if sense.lower() == strg.lower(): return strg
+        if (strg[:2] == 'pm') and (strg == sense[:-4]): return sense.lower()
         for item in Conf['translate'][strg]:
             if item == sense: return strg
     return 'field_' + sense
@@ -1129,8 +1132,9 @@ def convert2MySense( data, **sensor):
                     # time is time() minus 3600 secs with python V2 !! ?
                     timing = int(dp.parse(data['payload']['metadata']['time']).strftime("%s"))
                     if sys.version_info[0] < 3: # ?!???
-                        if localtime().tm_isdst: timing += 3600
-                        else: timing -= 3600
+                        timing += 3600
+                        # if localtime().tm_isdst: timing += 3600
+                        # else: timing -= 3600
                 else:
                     values[item] = data['payload']['metadata'][item]
     if (len(geolocation) <= 10):
@@ -1279,7 +1283,7 @@ if __name__ == '__main__':
         },
         {   'name': 'MySQL DB', 'script': 'MyDB', 'module': None,
             'Conf': {
-                'output': False,
+                'output': True,
                 # use credentials from environment
                 'hostname': None, 'database': 'luchtmetingen',
                 'user': None, 'password': None,
@@ -1287,13 +1291,13 @@ if __name__ == '__main__':
         },
         {   'name': 'Luftdaten data push', 'script': 'MyLUFTDATEN', 'module': None,
             'Conf': {
-                'output': False,
+                'output': True,
                 'id_prefix': "TTNMySense-", # prefix ID prepended to serial number of module
                 'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
                 'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
                 # expression to identify serials to be subjected to be posted
-                'serials': '(30aa4505[89]88)', # pmsensor[1 .. 11] from pmsensors
-                'projects': '(HM|VW)',  # expression to identify projects to be posted
+                'serials': '(30aea4505[89]88)', # pmsensor[1 .. 11] from pmsensors
+                'projects': '(HadM|VW2017|SAN)',  # expression to identify projects to be posted
                 'active': True,        # output to luftdaten is also activated
                 # 'debug' : True,        # show what is sent and POST status
             }
