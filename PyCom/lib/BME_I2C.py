@@ -65,17 +65,23 @@ class BME_I2C:
   @property
   def temperature(self):
     if not self.get_data(): return None
-    return self._calibrate(self.calibrate['temperature'],self.sensor.data.temperature)
+    val = self._calibrate(self.calibrate['temperature'],self.sensor.data.temperature)
+    if (val < -50) or (val > 80): return None
+    return val
 
   @property
   def pressure(self):
     if not self.get_data(): return None
-    return self._calibrate(self.calibrate['pressure'],self.sensor.data.pressure)
+    val = self._calibrate(self.calibrate['pressure'],self.sensor.data.pressure)
+    if (val < 200) or (val > 2000): return None
+    return val
 
   @property
   def humidity(self):
     if not self.get_data(): return None
-    return self._calibrate(self.calibrate['humidity'],self.sensor.data.humidity)
+    val = self._calibrate(self.calibrate['humidity'],self.sensor.data.humidity)
+    if (val < 0) or (val > 100): return None
+    return val
 
   @property
   def altitude(self):
@@ -139,4 +145,6 @@ class BME_I2C:
     else:
       gas_score = 100 - (self.hum_weight * 100)
     # Calculate air_quality_score.
-    return hum_score + gas_score
+    val = hum_score + gas_score
+    if (val < 0) or (val > 100): return None
+    return val
