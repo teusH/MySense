@@ -1,8 +1,8 @@
 # simple test script for dust sensors
-# $Id: dust_test.py,v 1.7 2018/11/05 11:33:26 teus Exp teus $
+# $Id: dust_test.py,v 1.8 2018/12/02 15:45:12 teus Exp teus $
 # standalone test loop
 
-__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import time, sleep
@@ -41,6 +41,7 @@ print("Dust: using sensor %s, UART %d Rx on pin %s, Tx on pin %s" % (dust,len(ua
 print("Dust module sampling %d secs, interval of measurement %d minutes" % (sampling, interval/60))
 
 sensor = senseDust(port=len(uart), debug=True, sample=sampling, interval=0, pins=(D_Tx,D_Rx), calibrate=calibrate)
+if sensor and (sensor.mode != sensor.NORMAL): sensor.Normal()
 errors = 0
 for cnt in range(15):
     timings = time()
