@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.1 2018/12/04 14:27:56 teus Exp teus $
+# $Id: INSTALL.sh,v 1.2 2018/12/12 20:08:11 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -764,6 +764,10 @@ function WEBMIN() {
     else
         DEPENDS_ON APT php7.0-cgi
     fi
+    if [ ! -x /usr/bin/php-cgi ]
+    then # try again
+        DEPENDS_ON APT php-cgi
+    fi
     DEPENDS_ON APT hostapd
     DEPENDS_ON APT dnsmasq
     DEPENDS_ON APT vnstat
@@ -829,15 +833,16 @@ EOF
     /usr/bin/sudo /bin/mv $WWW/raspap.php /etc/raspap/
     /usr/bin/sudo /bin/chown -R www-data:www-data /etc/raspap
     /usr/bin/sudo /bin/sed -i 's/RaspAP/MySense/g' $WWW/index.php
+    echo 'Default user/passwd for raspap WEBMIN: admin/secret" >/dev/stderr
     return 0
 }
 
 # installs full system admin web interface on port 10000
 # remote system admin (default via ssh)
-EXTRA+=' WEBMIN2'
-HELP[WEBMIN2]="Installation of full system administration via web interface (port 10000). Usually not needed."
-DFLT[WEBMIN2]=N
-function WEBMIN(){
+#EXTRA+=' WEBMIN2'
+#HELP[WEBMIN2]="Installation of full system administration via web interface (port 10000). Usually not needed."
+#DFLT[WEBMIN2]=N
+function WEBMIN2(){
     local ANS
     # DEPENDS_ON APT perl
     DEPENDS_ON APT libnet-ssleay-perl
