@@ -36,8 +36,12 @@ Some fixing materials:
 <img src="images/LoPy-MySense-modules.png" align=center width=350>
 
 ### TTN gateway
-You may be unlucky and do not have a TTN infrastructure in the neighbourhood. However it is easy to build one your self (Pi3 + IC880-SPI + pigtail and antenna + case, ca € 230) or buy one (ca € 350 (TTN gateway) or higher € 450).
-See for how-to instructions: https://github.com/ttn-zh/ic880a-gateway/wiki
+
+DIY or buy one.
+
+You may be unlucky and do not have a TTN infrastructure in the neighbourhood. However it is easy to build one your self with Pi controller, an IC880-SPI or RAK831 concentrator, pigtail and antenna in some  casing, ca € 2000-230, Ideetron.nl or AliExpress) or buy one (ca € 350 (TTN gateway via Ideetron.nl) or higher € 450-1.200).
+See for how-to instructions: https://github.com/ttn-zh/ic880a-gateway/wiki or https://github.com/Lora-net/lora_gateway#readme . 
+For MySense we changed the `/opt/ttn-gateway/bin/start.sh`, added WiFi access point for WEBMIN (use `INSTALL.sh WEBMIN` and Raspberry Pi OS configuratio (see `INSTALL.sh help`), and to log concentraor log messages to the oled display via the filter `GatewayLogDisplay.py`. The scripts can be found in the map LoRa.
 
 The TTN ZH Pi based shopping list (we bought a ready to go gateway Pi2 based from IMST and changed the software to TTN for € 250):
 * Pi Zero or 3, poweradapter, minimal 4GB SDcard € 42 Tinytronics.nl 

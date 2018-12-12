@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.86 2018/10/08 08:56:42 teus Exp teus $
+# $Id: INSTALL.sh,v 1.1 2018/12/04 14:27:56 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -1088,8 +1088,6 @@ EOF
 UNINSTALLS[VIRTUAL]+=' /usr/local/etc/start_wifi_AP /etc/udev/rules.d/90-wireless.rules'
 # this will start wifi Access Point if $LAN and $WIFI have no internet access
 # the virtual uap0 wifi will be combined with $WIFI (embedded in Pi3)
-# TO DO: if uap0 is up, $WIFI cannot be used in symultane (not yet tested fully)
-# TO DO: if wlan has internet access, bring uap0 down after 30 minutes
 function VIRTUAL(){
     local WLAN=${1:-uap0} ADDR=${2:-192.168.2} NAT=${3:-YES}
     if [ $NAT = YES ]
@@ -1669,6 +1667,8 @@ For the OS changes are available: $INSTALLS
 For plugins are available: $PLUGINS
 For extra\'s: $EXTRA
 Calling INSTALL.sh without arguments will install all.
+Calling INSTALL.sh USER DISPLAY WATCHDOG INTERNET WEBMIN WIFI VIRTUAL FIREWALL
+will install all OS modules to operate Pi via LAN, WLAN and remote webmin access.
 "
     exit 0
 fi
