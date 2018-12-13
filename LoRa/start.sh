@@ -174,7 +174,6 @@ fi
 display '<clear>LoRa gateway'
 sleep 30
 Wait4Internet
-GW_reset
 for INT in eth0 wlan0
 do
     ADDR=$(/sbin/ifconfig $INT | /bin/sed s/addr:// | /usr/bin/awk '/inet.*cast/{printf("%s",$2); }')
@@ -185,10 +184,17 @@ do
     fi
 done
 # Fire up the forwarder.
-display 'TTN forwarder start'
-if [ -x /usr/local/bin/GatewayLogDisplay.py ]
-then
+for NR in first second third fourth fifth
+do
+    display "LoRa FWDR startup\nstarted $NR time"
+    GW_reset
+    if [ -x /usr/local/bin/GatewayLogDisplay.py ]
+    then
 	${INSTALL_DIR:-/opt/ttn-gateway}/bin/poly_pkt_fwd | /usr/local/bin/GatewayLogDisplay.py
-else
+    else
 	${INSTALL_DIR:-/opt/ttn-gateway}/bin/poly_pkt_fwd
-fi
+    fi
+    if [ $? -le 0 ] ; then break ; fi
+    # seems concentrator board sometimes does not start but can be restarted
+done
+display "LoRa Forwarder stopped"
