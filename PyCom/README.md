@@ -40,7 +40,11 @@ Some fixing materials:
 DIY or buy one.
 
 You may be unlucky and do not have a TTN infrastructure in the neighbourhood. However it is easy to build one your self with Pi controller, an IC880-SPI or RAK831 concentrator, pigtail and antenna in some  casing, ca € 2000-230, Ideetron.nl or AliExpress) or buy one (ca € 350 (TTN gateway via Ideetron.nl) or higher € 450-1.200).
-See for how-to instructions: https://github.com/ttn-zh/ic880a-gateway/wiki or https://github.com/Lora-net/lora_gateway#readme . 
+See for how-to instructions:
+* IC880a-SPI concentrator: https://github.com/ttn-zh/ic880a-gateway/wiki
+* https://github.com/Lora-net/lora_gateway#readme
+* RAK831 concentrator: https://www.thethingsnetwork.org/labs/story/rak831-lora-gateway-from-package-to-online
+
 For MySense we changed the `/opt/ttn-gateway/bin/start.sh`, added WiFi access point for WEBMIN (use `INSTALL.sh WEBMIN` and Raspberry Pi OS configuratio (see `INSTALL.sh help`), and to log concentraor log messages to the oled display via the filter `GatewayLogDisplay.py`. The scripts can be found in the map LoRa.
 
 The TTN ZH Pi based shopping list (we bought a ready to go gateway Pi2 based from IMST and changed the software to TTN for € 250):
@@ -50,6 +54,17 @@ The TTN ZH Pi based shopping list (we bought a ready to go gateway Pi2 based fro
 * 7 Dupont wires (female/female) € 1
 * enclosure e.g. OBO T160 V220 cable box € 10
 * optional outdoor antenna with fuse(!) € 75 (ideetron.nl)
+
+or:
+* RAK831 in case via AliExpress, which has GPS antenna and a too small LoRa antenna: € 178.
+The alluminium case does not allow WiFi signal of the on board chip to reach outside of the case. For WiFi you may need a USB WiFi dongle. If so make sure the dongle is able to be used as WiFi access point as well as WiFi client.
+* 6 dB glasfiber antenna via AliExpress: € 29
+For Europe make sure you have a 868MHz version (use with AliExpress the color option).
+
+For both types of boards install the ttn-gateway software from `apt install git; git clone https://github.com/ttn-zh/ic880a.git/ ~/ic880a-gateway`.
+Make always sure antenna is placed before you start to use the gateway! A start without the antenna connected will distroy the concentrator board.
+Configuration hint for software: make sure the right reset pin number of GPIO Pi is used (see start.sh shell command file, and do not use initialy the remote concentrator configuration.
+The concentrator board needs always to be reset before starting up the forwarding software.
 
 ## DESCRIPTION
 The sensor kits are build with PyCom (loPy-4 and WiPy-3) ESP controllers and PyCom expansion board.
