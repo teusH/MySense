@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: GatewayLogDisplay.py,v 1.11 2018/12/13 10:14:29 teus Exp teus $
+# $Id: GatewayLogDisplay.py,v 1.13 2018/12/15 15:15:46 teus Exp teus $
 
 # script to rerad gw-forward LoRa logging on stdin
 # use oled display to visualize some statistics
@@ -37,9 +37,6 @@ verbose = False         # be more verbose
 transparent = False     # output the input lines
 
 threads = []
-# rotate current to previous
-HOUR = 3600
-DAY = 24*3600
 ERRORS = 0
 
 def GetInput(stream):
@@ -104,20 +101,23 @@ thisHour = [[0,0],[0,0,0]]
 prevHour =  [[0,0],[0,0,0]]
 thisDay = [[0,0],[0,0,0]]
 prevDay = [[0,0],[0,0,0]]
+curHour = -1
+curDay = -1
 
 DisplayLock = threading.Condition()  # semaphore for display message log
 #DisplayLock = threading.Lock()  # semaphore for display message log
 NextHour = 0
 # combine logging per time hour and per calendar day
 def Cleanup(atime):
-    global NextHour, HOUR, DAY
+    global NextHour
     global thisHour, prevHour, thisDay, prevDay
     if not NextHour: NextHour = int(atime)
-    if int(atime) < NextHour: return False
+    if datetime.fromtimestamp(atime).hour == curHour: return False
     prevHour = thisHour; thisHour = [[0,0],[0,0,0]]
-    if not (NextHour%(DAY)): # day has elapsed
+    if curDay != datetime.fromtimestamp(atime).day: # day has elapsed
         prevDay = thisDay; thisDay = [[0,0],[0,0,0]]
-    NextHour += HOUR
+        curDay = datetime.fromtimestamp(atime).day
+    curHour = datetime.fromtimestamp(atime).hour
     return True
 
 Srvr = '---'
