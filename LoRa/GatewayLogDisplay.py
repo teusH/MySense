@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: GatewayLogDisplay.py,v 1.13 2018/12/15 15:15:46 teus Exp teus $
+# $Id: GatewayLogDisplay.py,v 1.15 2018/12/16 16:30:01 teus Exp teus $
 
 # script to rerad gw-forward LoRa logging on stdin
 # use oled display to visualize some statistics
@@ -35,6 +35,7 @@ import socket           # needed for oled display server
 debug = False
 verbose = False         # be more verbose
 transparent = False     # output the input lines
+log = True              # log to stdout statistics
 
 threads = []
 ERRORS = 0
@@ -42,7 +43,9 @@ ERRORS = 0
 def GetInput(stream):
     global transparent
     line = stream.readline()
-    if transparent and line: print(line[:-1])
+    if transparent and line:
+        print(line[:-1])
+        sys.stdout.flush()
     return line
 
 # send text to SSD1306 display server
@@ -76,6 +79,7 @@ def displayMsg(msg):
     except:
         #raise IOError("Unable to talk to display service")
         print( msg )
+        sys.stdout.flush()
         return False
 
 PolYFwdVersion = ''
@@ -109,9 +113,8 @@ DisplayLock = threading.Condition()  # semaphore for display message log
 NextHour = 0
 # combine logging per time hour and per calendar day
 def Cleanup(atime):
-    global NextHour
+    global curHour, curDay
     global thisHour, prevHour, thisDay, prevDay
-    if not NextHour: NextHour = int(atime)
     if datetime.fromtimestamp(atime).hour == curHour: return False
     prevHour = thisHour; thisHour = [[0,0],[0,0,0]]
     if curDay != datetime.fromtimestamp(atime).day: # day has elapsed
@@ -145,8 +148,6 @@ def Update():
     thisHour[1][0] += Stat['DownstreamPackages']; thisDay[1][0] += Stat['DownstreamPackages']
     thisHour[1][1] += Stat['DownstreamBytes']; thisDay[1][1] += Stat['DownstreamBytes']
     thisHour[1][2] += Stat['TxErrors']; thisDay[1][1] += Stat['TxErrors']
-    if Alive: Srvr = 'TTN'
-    else: Srvr = '---'
     NewRecord = True
     # print("Update happened")
     try:
@@ -213,13 +214,16 @@ def start_thread(callback,name='display'):
         return False
     return True
 
+# this runs in a thread
 def Log():
     global DisplayLock, NewRecord, STOP
-    global thisHour, thisDay, prevHour, prevDay, Srvr
-    while True:
+    global thisHour, thisDay, prevHour, prevDay, Srvr, log, Alive
+    try:
+      while True:
         try:    # catch if caslling thread died
             if STOP: return True
         except: return False
+        msg = []
         DisplayLock.acquire()
         with DisplayLock:
             # print("Thread Log wait")
@@ -233,29 +237,43 @@ def Log():
             continue
         except: return False
         # print("new record")
-        msg = "<clear>%s" % time.strftime("%d %b %H:%M",time.localtime())
-        msg.replace(' 0','0')
-        # msg += ' %s' % Srvr # need max speed
-        msg += "\nUp   Hour %d prev %d" % (thisHour[0][0],prevHour[0][0])
-        msg += "\nUp   Day  %d prev %d" % (thisDay[0][0],prevDay[0][0])
-        msg += "\nDown Hour %d prev %d" % (thisHour[1][0],prevHour[1][0])
+        timing = "<clear>%s" % time.strftime("%d %b %H:%M",time.localtime())
+        timing.replace(' 0','0')
+        timing += '+' if Alive else ' '
+        timing += '%s' % Srvr
+        msg.append("Up   Hour %d prev %d" % (thisHour[0][0],prevHour[0][0]))
+        msg.append("Up   Day  %d prev %d" % (thisDay[0][0],prevDay[0][0]))
+        msg.append("Down Hour %d prev %d" % (thisHour[1][0],prevHour[1][0]))
         if thisHour[1][2] or prevHour[1][2]:
-            msg += "|Tx Errors %d prev %d" % (thisHour[1][2],prevHour[1][2])
-        msg += "\nDown Day  %d prev %d" % (thisDay[1][0],prevDay[1][0])
+            msg[-1] += "|Tx Errors %d prev %d" % (thisHour[1][2],prevHour[1][2])
+        msg.append("Down Day  %d prev %d" % (thisDay[1][0],prevDay[1][0]))
         if thisDay[1][2] or prevDay[1][2]:
-            msg += "|Tx Errors %d prev %d" % (thisDay[1][2],prevDay[1][2])
+            msg[-1] += "|Tx Errors %d prev %d" % (thisDay[1][2],prevDay[1][2])
         NewRecord = False
         DisplayLock.release()
-        displayMsg(msg)
+        displayMsg(timing + "\n" + "\n".join(msg))
+        if log:
+            print('; '.join(msg))
+            sys.stdout.flush()
         if debug: return True
+    except:
+      print("Thread Log() error")
+      sys.exit(1)
 
 def Info(aline):
-    global ContactSrvr, Alive
+    global ContactSrvr, Alive, Srvr, NewRecord, DisplayLock
     if (not ContactSrvr) and (aline.find('Successfully contacted server') >= 0):
         ContactSrvr = aline[aline.find('server')+7:].replace('router.eu.thethings.','TTN ')
         displayMsg("Router %s" % ContactSrvr)
+        if ContactSrvr.find('TTN') >= 0: Srvr = 'TTN'
+        else: Srvr = ContactSrvr[:3]
     if aline.find('PUSH_ACK received') > 0:
         Alive = True
+    if aline.find('tarting the concentr') >= 0:
+        DisplayLock.acquire()
+	NewRecord = True
+        DisplayLock.notify()
+        DisplayLock.release()
     return
 
 UpstreamPattern = re.compile('.*RF\s+pack.*forwarded:\s+(?P<nr>[0-9]+)\s+.(?P<bytes>[0-9]+).*')
@@ -344,6 +362,7 @@ Arguments:
   -v be more verbose
   -d debug messages
   -t be also tranparent: input lines are transferred to output as well
+  -q do not log hourly and dayly package statistics to std out (dflt log)
   -h this help message
 """)
     sys.exit(0)
@@ -355,8 +374,10 @@ for i in range(len(sys.argv)-1,0,-1):
     if sys.argv[i][1] == 'v': verbose = True
     if sys.argv[i][1] == 'd': debug = True
     if sys.argv[i][1] == 't': transparent = True
+    if sys.argv[i][1] == 'q': log = False
     if sys.argv[i][1] == 'h': help()
     del sys.argv[i]
+if debug or verbose: log = True
 
 line = ''
 if not debug: start_thread(Log)
@@ -373,8 +394,8 @@ while True:
         continue
     if line.find('ERROR: ') >= 0:
         if line.find('failed to start') >= 0:
-            msg = "FATAL FORWARDER\nconcentrator start failed"
-            sys.exit(2)
+            displayMsg("FATAL FORWARDER\nconcentrator start failed")
+            sys.exit(1)
         else:
             msg = line
         if not ERRORS: msg = '<clear>' + msg

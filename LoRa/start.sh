@@ -3,6 +3,7 @@
 
 INSTALL_DIR=/opt/ttn-gateway
 LOCAL_CONFIG_FILE=$INSTALL_DIR/bin/local_conf.json
+OPTIONS=${OPTIONS}
 
 # messages on oled display or just print it
 function display() {
@@ -53,12 +54,20 @@ function item() {
     echo "$1" | grep -e "$2" | sed -e 's/".*://' -e 's/[^0-9\.]//g'
 }
 
+function getGPS() {
+    local GPS=''
+    GPS=$(/usr/bin/gpspipe -w -n 100 | /bin/grep -v 1970-01 | /bin/grep -m 1 lat | /bin/sed -e 's/lon"/long"/' -e 's/,/,\n/g' )
+    echo "$GPS"
+}
+
+export -f getGPS
+
 # adjust GPS location if GPS module is installed
 function location() {
     local coord
     display "Get GW GPS updated"
     if [ ! -x /usr/bin/gpspipe ] ; then return 1 ; fi # GPS daemon not installed
-    if ! /bin/netstat -pln | /bin/grep -q gpsd ; then return 1 ; fi # no daemon running
+    if ! /bin/systemctl status gpsd | grep -q '(running)' ; then return 1 ; fi # no daemon running
     source /etc/default/gpsd
     local FND=""
     for DEV in $DEVICES
@@ -66,18 +75,14 @@ function location() {
        if [ -c $DEV ]; then FND=1; break ; fi
     done
     if [  -z "$FND" ] ; then return 1 ; fi # gps is waiting on device
-    local GPS=$(/usr/bin/gpspipe -w -n 100 | /bin/grep -v 1970-01 | /bin/grep -m 1 lat | /bin/sed -e 's/lon"/long"/' -e 's/,/,\n/g' )
+    #local GPS=$(/usr/bin/gpspipe -w -n 100 | /bin/grep -v 1970-01 | /bin/grep -m 1 lat | /bin/sed -e 's/lon"/long"/' -e 's/,/,\n/g' )
+    local GPS=$(timeout 90 bash -c getGPS)
     if [ -z "$GPS" ]
     then
-        display 'No GPS present'
-        return 1
-    fi
-    # echo "$GPS" | /bin/grep -e 'long"' -e 'alt"' -e 'lat"' | /bin/sed -e 's/"/\t\t"ref_/' -e 's/":/itude":/'
-    if [ -z "$GPS" ]
-    then
-        display 'GPS no fix'
+        display 'GPS no fixate'
         return 1
     else
+      # echo "$GPS" | /bin/grep -e 'long"' -e 'alt"' -e 'lat"' | /bin/sed -e 's/"/\t\t"ref_/' -e 's/":/itude":/'
       for co in lat long alt
       do
         coord=$(item "$GPS" "$co")
@@ -190,11 +195,16 @@ do
     GW_reset
     if [ -x /usr/local/bin/GatewayLogDisplay.py ]
     then
-	${INSTALL_DIR:-/opt/ttn-gateway}/bin/poly_pkt_fwd | /usr/local/bin/GatewayLogDisplay.py
+	${INSTALL_DIR:-/opt/ttn-gateway}/bin/poly_pkt_fwd | /usr/local/bin/GatewayLogDisplay.py $OPTIONS
     else
 	${INSTALL_DIR:-/opt/ttn-gateway}/bin/poly_pkt_fwd
     fi
     if [ $? -le 0 ] ; then break ; fi
+    if /bin/systemctl status gpsd | grep -q '(running)'
+    then # gpsd may block gpsd serial, a ctl restart did fail
+	/bin/systemctl stop gpsd ; sleep 5
+	/bin/systemctl start gpsd ; sleep 5
+    fi
     # seems concentrator board sometimes does not start but can be restarted
 done
 display "LoRa Forwarder stopped"
