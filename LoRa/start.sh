@@ -3,7 +3,18 @@
 
 INSTALL_DIR=/opt/ttn-gateway
 LOCAL_CONFIG_FILE=$INSTALL_DIR/bin/local_conf.json
-OPTIONS=${OPTIONS}
+OPTIONS=
+NODISPLAY=
+for ARG
+do
+    case "$ARG" in
+    -t|-q|-v)
+	OPTIONS+=" $ARG"
+    ;;
+    -n|nodisplay)
+	NODISPLAY=True
+    esac
+done
 
 # messages on oled display or just print it
 function display() {
@@ -57,6 +68,7 @@ function item() {
 function getGPS() {
     local GPS=''
     GPS=$(/usr/bin/gpspipe -w -n 100 | /bin/grep -v 1970-01 | /bin/grep -m 1 lat | /bin/sed -e 's/lon"/long"/' -e 's/,/,\n/g' )
+    if [ -z "$GPS" ] ; then GPS=0 ; fi
     echo "$GPS"
 }
 
@@ -65,6 +77,12 @@ export -f getGPS
 # adjust GPS location if GPS module is installed
 function location() {
     local coord
+    local CONF="${1:-/opt/ttn-gateway/bin/local_conf.json}"
+    if grep -q "gps_tty_path.*dev/tty" "$CONF" && grep -q "fake_gps.*false"
+    then
+        display 'using FRWDR GPS'
+        return 0 # no GPS config needed
+    fi
     display "Get GW GPS updated"
     if [ ! -x /usr/bin/gpspipe ] ; then return 1 ; fi # GPS daemon not installed
     if ! /bin/systemctl status gpsd | grep -q '(running)' ; then return 1 ; fi # no daemon running
@@ -79,8 +97,11 @@ function location() {
     local GPS=$(timeout 90 bash -c getGPS)
     if [ -z "$GPS" ]
     then
-        display 'GPS no fixate'
+        display 'GPS is blocked'
         return 1
+    elif [ "$GPS" = 0 ]
+    then
+        return 2
     else
       # echo "$GPS" | /bin/grep -e 'long"' -e 'alt"' -e 'lat"' | /bin/sed -e 's/"/\t\t"ref_/' -e 's/":/itude":/'
       for co in lat long alt
@@ -160,6 +181,13 @@ else
     for (( I=0; I < 5; I++))
     do
       if location $LOCAL_CONFIG_FILE ; then break ; fi
+      location $LOCAL_CONFIG_FILE
+      case $? in
+      0) break  # success conf updated
+      ;;
+      1) break  # tty GPS locked
+      ;;
+      esac
       display 'Wait for fixate'
       sleep 120
       display 'GPS try again'
@@ -193,9 +221,12 @@ for NR in first second third fourth fifth
 do
     display "LoRa FWDR startup\nstarted $NR time"
     GW_reset
-    if [ -x /usr/local/bin/GatewayLogDisplay.py ]
+    if [ -x /usr/local/bin/GatewayLogDisplay.py ] && [ -z "$NODISPLAY" ]
     then
 	${INSTALL_DIR:-/opt/ttn-gateway}/bin/poly_pkt_fwd | /usr/local/bin/GatewayLogDisplay.py $OPTIONS
+    elif [ -n "$NODISPLAY" ]
+    then
+	${INSTALL_DIR:-/opt/ttn-gateway}/bin/poly_pkt_fwd | grep -e ERROR -e main
     else
 	${INSTALL_DIR:-/opt/ttn-gateway}/bin/poly_pkt_fwd
     fi
@@ -204,6 +235,10 @@ do
     then # gpsd may block gpsd serial, a ctl restart did fail
 	/bin/systemctl stop gpsd ; sleep 5
 	/bin/systemctl start gpsd ; sleep 5
+	if [ -x /usr/bin/gpspipe ]
+	then # and get it run serial
+	    /usr/bin/gpspipe -w -n 2 >/dev/null
+	fi
     fi
     # seems concentrator board sometimes does not start but can be restarted
 done
