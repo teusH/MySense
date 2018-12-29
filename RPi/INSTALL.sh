@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.2 2018/12/12 20:08:11 teus Exp teus $
+# $Id: INSTALL.sh,v 1.3 2018/12/21 13:10:05 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -572,7 +572,7 @@ function GetInterfaces(){
     LAN=${LAN:-eth0}
 }
 
-#EXTRA+=' WATCHDOG'
+EXTRA+=' WATCHDOG'
 # setup a watchdog using the buildin hardware monitor
 # the Pi may crash so use a watchdog
 function WATCHDOG() {
@@ -833,7 +833,7 @@ EOF
     /usr/bin/sudo /bin/mv $WWW/raspap.php /etc/raspap/
     /usr/bin/sudo /bin/chown -R www-data:www-data /etc/raspap
     /usr/bin/sudo /bin/sed -i 's/RaspAP/MySense/g' $WWW/index.php
-    echo 'Default user/passwd for raspap WEBMIN: admin/secret" >/dev/stderr
+    echo 'Default user/passwd for raspap WEBMIN: admin/secret' >/dev/stderr
     return 0
 }
 
@@ -1306,6 +1306,7 @@ EOF
 INSTALLS+=" GPRS"
 HELP[GPRS]="Installation of internet access via 3G/GPRS mobile network. Use of Huawei E3531 HPSA + USB dongle"
 function GPRSppp() {
+    DEPENDS_ON apt ppp
     if [ ! -f /etc/ppp/peers/gprs ]
     then
         sudo cat <<EOF | sudo tee /etc/ppp/peers/gprs
@@ -1341,14 +1342,21 @@ EOF
         sudo cat <<EOF | sudo tee /usr/local/bin/gprs
 #!/bin/bash
 # up GPRS internet connectivity only when no internet is available
+
 if ! /bin/ping -q -w 2 -c 2 8.8.8.8
 then
+    if [ ! -f /dev/gsmmodem ]
+    then
+        echo "Unable to find gsm,modem"
+        exit 1
+    fi
     /sbin/ifup gprs
     # maybe add chek if ppp is really successful
 fi
 EOF
         sudo chmod +x /usr/local/bin/gprs
     fi
+    AddChckInternet
     AddCrontab /usr/local/bin/gprs root
     echo "GPRS will be initiated on no WiFi or Lan. Make sure SIM code is disabled. See gprs.md documentation." >/dev/stderr
 }
@@ -1412,6 +1420,8 @@ MessageContent="55534243123456780000000000000011062000000100000000000000000000"
 NoDriverLoading=1
 EOF
     fi
+    echo "Reboot with dongle attached and check if 'dmesg | grep USB.*GSM' shows modem activated"
+    sleep 2
     GPRSppp
 }
 
@@ -1672,7 +1682,7 @@ For the OS changes are available: $INSTALLS
 For plugins are available: $PLUGINS
 For extra\'s: $EXTRA
 Calling INSTALL.sh without arguments will install all.
-Calling INSTALL.sh USER DISPLAY WATCHDOG INTERNET WEBMIN WIFI VIRTUAL FIREWALL
+Calling INSTALL.sh USER DISPLAY WATCHDOG INTERNET WIFI WEBMIN
 will install all OS modules to operate Pi via LAN, WLAN and remote webmin access.
 "
     exit 0
