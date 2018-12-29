@@ -11,9 +11,11 @@ Software Infrastructure or framework for managing environmental sensors and data
 <img src="images/MySenseCase-Pi.png" align=right height=100>
 MySense is able to act as *air quality measurement kit* or *node broker*. As measurement kit MySense will collect measurements from dust, gas and/or gas sensors and location sensor and forward the data to external data concentrators (databases as well data broker as eg mosquitto and influx), files eg spreadsheets, and display (Adafruit tiny display or console). As dataconcentrator MySense will connect to other data concentrator in stead of collecting the data from sensors.
 
-The controller is based on Raspberry Pi for functionality and easy block building reasons.
+Two different controllers are used:
+1. Raspberry Pi for multiple functionality and easy block building reasons using lan/wifi/G4 and
+2. PyCom LoPy controller for only a very few sensors using LoRaWan as communication infrastructure.
 The bus used for sensors are: USB (serial and I2C), GPIO (SPI) and I2C.
-The scripts are written in Python 2.
+The scripts are written in Python 2/3.
 
 Visual feedback is provided with led/button (power On/Off) and optionally a tiny Oled display from Adafruit.
 
@@ -28,6 +30,8 @@ The bus used for sensors are: UART (serial), I2C and GPIO.
 The scripts are written in (embedded) micro Python. Micro python has more functionality as the language C used with Arduino boards.
 
 Visual feedback is provided with RGB led and optional a tiny Oled display from Adafruit.
+
+The LoRa directory will give information to build a DIY TTN LoRa gateway. The `INSTALL.sh` configuration script will support to install GPS, oled display, RGB led, WiFi remote access, G4 access and other standard functionality to a Rspberry Pi based gateway e.g. RAK831 or IC880a-PSI and Pi based gateway for a small budget TTN gateway. As such providing you with more functionality as commercial offered gateways.
 
 ## Goal
 Provide a generalised dynamic Open Source based infrastructure to allow:
