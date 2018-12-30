@@ -45,7 +45,7 @@ If attached to UART (GPIO) pins of the PI the /dev/ttyAMA0 should be disabled to
 * From: https://github.com/mcauser/Raspberry-Pi-ITead-Studio-GPS-NEO-6M#disable-kernel-logging
 Use raspi-config to turn shell/kernel messages via serial off: Advanced/Serial menu tabs. 
 * On Pi3 with Jessie:
-use sudo raspi-config to disable login (getty) and kernal use of serial line.
+use sudo raspi-config to disable login (getty) and kernel use of serial line.
 Reboot and ls /dev/ will show you serial0 and serial 1 linked to `ttyS0` and `ttyAMA0`.
 `ttyAMA0` is used for bluetooth so use ttyS0 for your GPS configuration.
 
@@ -54,6 +54,7 @@ On Jessie OS version, prevent speed changes on serial port and add next line to 
 enable_uart=1
 ```
 In other circumtances for Pi3:
+0. The most simple route we used was to use the `sudo raspi-config` script and use the menu `interfaces` -> serial -> disable console and enable serial hardware, and reboot. You should be able to `ls /dev/ttyS0`. If not try step step 1 etc. If so install `apt install gpsd`, set in `/etc/defaults/gpsd` DEVICES to `DEVICES=/dev/ttyS0`, enable `START=true`, connect gps module (3V3!!, Grnd, Tx->Rx, Rx -> Tx) and start the deamon `sudo systemctl restart gpsd`. Install `gpsd-clients` and see if `gpspipe -w -n 15` shows gps data.
 
 1. make sure UART is not used by kernel:
 Check first if at boot /dev/ttyAMA0 or ttyUSB0 is used somehow:
@@ -147,6 +148,8 @@ Start the deamon: `sudo gpsd /dev/ttyS0 -F /var/run/gpsd.sock`
 Run some manual tests to see if GPS is working:
 _XXX=AMA0_ or _S0_ or USB serial like _USB1_
 
+One may need to install telnet (`apt install telnet`) first.
+
 Stop the gpsd daemon: `sudo service gpsd stop`
 startup gpsd: `sudo gpsd -n -N -D 5 /dev/ttyXXX`
 and in another window, so you can see what is going on:
@@ -166,7 +169,7 @@ On success enable it: `systemctl enable gpsd`
 
 ### GSPD and USB serial lines WARNING
 We discovered that the GPSD daemon disrupted some USB serial interfaces e.g. the USB serial interfaces to Spec (gas) adapters.
-Initiating the GPS daemon with the `-b` flag and setting in `/etc/default/gpsd` automatic USB discovery on false, did not solve the problem. The temporary solution was to disable the GPS daemon: `systemctl disable gpsd`.
+Initiating the GPS daemon with the `-b` flag and setting in `/etc/default/gpsd` automatic USB discovery on false, did solve the problem. If not disable the daemon.
 The serial TTL used by gpsd is using GPIO with a high clock speed. This may disrupt USB serial data reads.
 
 To-Do: try to read gps data direct from the USB serial interface with fixed path name?
