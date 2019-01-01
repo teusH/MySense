@@ -41,20 +41,20 @@ Advised is to use USB serial connection. Avoid with USB that the serial device p
 One frustration is that the TTL pins use GPIO and may cause read errors on some USB serial connector. In `/etc/default/gpsd` set USBAUTO to false and add option '-b' (read only use of serial by gpsd). If it does not help one may disable the gps module in MySense.conf or if needed disbale `gpsd` daemon in such cases.
 
 ## Hardware configuration
-If attached to UART (GPIO) pins of the PI the /dev/ttyAMA0 should be disabled to run login terminal:
+If attached to UART (GPIO) pins of the PI the /dev/ttyAMA0 (Pi 1/2) or /dev/ttyS0 (Pi 3) should be disabled to run login terminal:
 * From: https://github.com/mcauser/Raspberry-Pi-ITead-Studio-GPS-NEO-6M#disable-kernel-logging
 Use raspi-config to turn shell/kernel messages via serial off: Advanced/Serial menu tabs. 
-* On Pi3 with Jessie:
-use sudo raspi-config to disable login (getty) and kernel use of serial line.
+* On Pi3 with Jessie and later:
+use sudo raspi-config to disable login (getty: disable) and kernel use of serial line (enable).
 Reboot and ls /dev/ will show you serial0 and serial 1 linked to `ttyS0` and `ttyAMA0`.
-`ttyAMA0` is used for bluetooth so use ttyS0 for your GPS configuration.
+Pi3: `ttyAMA0` is used for bluetooth so use ttyS0 for your GPS configuration.
 
 On Jessie OS version, prevent speed changes on serial port and add next line to `/boot/config.txt`
 ```
 enable_uart=1
 ```
-In other circumtances for Pi3:
-0. The most simple route we used was to use the `sudo raspi-config` script and use the menu `interfaces` -> serial -> disable console and enable serial hardware, and reboot. You should be able to `ls /dev/ttyS0`. If not try step step 1 etc. If so install `apt install gpsd`, set in `/etc/defaults/gpsd` DEVICES to `DEVICES=/dev/ttyS0`, enable `START=true`, connect gps module (3V3!!, Grnd, Tx->Rx, Rx -> Tx) and start the deamon `sudo systemctl restart gpsd`. Install `gpsd-clients` and see if `gpspipe -w -n 15` shows gps data.
+Inother words: for Pi3:
+0. The most simple route we used was to use the `sudo raspi-config` script and use the menu `interfaces` -> serial -> disable console and enable serial hardware, and reboot. You should be able to `ls /dev/ttyS0`. If not try step step 1 etc. If so install `apt install gpsd`, set in `/etc/defaults/gpsd` DEVICES to `DEVICES=/dev/ttyS0`, enable `START=true`, connect GPS module (3V3!!, Gnd, GPS Tx->Rx Pi pin 10, GPS Rx -> Tx Pi pin 8) and start the deamon `sudo systemctl restart gpsd`. Install `gpsd-clients` and see if `gpspipe -w -n 15` shows gps data.
 
 1. make sure UART is not used by kernel:
 Check first if at boot /dev/ttyAMA0 or ttyUSB0 is used somehow:
