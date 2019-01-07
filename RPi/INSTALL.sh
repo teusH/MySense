@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.3 2018/12/21 13:10:05 teus Exp teus $
+# $Id: INSTALL.sh,v 1.4 2019/01/07 10:18:01 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -1306,13 +1306,20 @@ EOF
 INSTALLS+=" GPRS"
 HELP[GPRS]="Installation of internet access via 3G/GPRS mobile network. Use of Huawei E3531 HPSA + USB dongle"
 function GPRSppp() {
+    local GSMMODEM=/dev/serial/by-path/usb-HUAWEI_HUAWEI_Mobile-if00-port0
     DEPENDS_ON apt ppp
     if [ ! -f /etc/ppp/peers/gprs ]
     then
+        if ! grep -q HUAWEI /var/log/syslog
+        then
+            echo "Make sure Huawei dongle is installed as modem! See documentation." >/dev/stderr
+        fi
+        echo "Make sure Huawei uses SIM card with code disabled." >/dev/stderr
+        echo "Using Huawei gsmmodem as: $SGMMODEM" >/dev/stderr
         sudo cat <<EOF | sudo tee /etc/ppp/peers/gprs
 user "ios"
 connect "/usr/sbin/chat -v -f /etc/chatscripts/gprs -T em"
-/dev/gsmmodem
+$GSMMODEM
 noipdefault
 defaultroute
 replacedefaultroute
@@ -1321,11 +1328,6 @@ noauth
 persist
 usepeerdns
 EOF
-        if [ ! -f /dev/gsmmodem ]
-        then
-            echo "Make sure Huawei dongle is installed as modem! See documentation." >/dev/stderr
-        fi
-        echo "Make sure Huawei uses SIM card with code disabled." >/dev/stderr
     fi
     AddChckInternet
     if [ ! -f /etc/network/interfaces.d/gprs ]
@@ -1345,9 +1347,9 @@ EOF
 
 if ! /bin/ping -q -w 2 -c 2 8.8.8.8
 then
-    if [ ! -f /dev/gsmmodem ]
+    if [ ! -f $GSMMODEM ]
     then
-        echo "Unable to find gsm,modem"
+        echo "Unable to find gsmmodem as $GSMMODEM"
         exit 1
     fi
     /sbin/ifup gprs
@@ -1366,12 +1368,14 @@ INSTALLS+=" SMS"
 HELP[SMS]="Installation of SMS mobile messages support. Need eg Huawei GPRS modem."
 function SMS() {
     DEPENDS_ON APT gammu
+    local GSMMODEM=/dev/serial/by-path/usb-HUAWEI_HUAWEI_Mobile-if00-port0
     if [ ! -f ~/.gammurc ]
     then
        # may also use command gammu-config
+       echo "Using ~root/.gammurc GSM modem path: $GSMMODEM" >/dev/stderrr
        cat <<EOF >~/.gammurc
 [gammu]
-port = /dev/gsmmodem
+port = $GSMMODEM
 connection = at19200
 model =
 synchronizetime = yes
