@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.4 2019/01/07 10:18:01 teus Exp teus $
+# $Id: INSTALL.sh,v 1.5 2019/01/10 11:31:11 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -1306,7 +1306,7 @@ EOF
 INSTALLS+=" GPRS"
 HELP[GPRS]="Installation of internet access via 3G/GPRS mobile network. Use of Huawei E3531 HPSA + USB dongle"
 function GPRSppp() {
-    local GSMMODEM=/dev/serial/by-path/usb-HUAWEI_HUAWEI_Mobile-if00-port0
+    local GSMMODEM=${1:-/dev/serial/by-path/usb-HUAWEI_HUAWEI_Mobile-if00-port0}
     DEPENDS_ON apt ppp
     if [ ! -f /etc/ppp/peers/gprs ]
     then
@@ -1338,6 +1338,10 @@ iface gprs inet ppp
     pre-up /etc/network/if-pre-up.d/Check-internet "(eth|wlan)" ppp
     provider gprs
 EOF
+        if ! grep -q gprs /etc/network/interfaces
+        then
+            /usr/bin/sudo /bin/sh -c "echo 'source interfaces.d/gprs' >>/etc/network/interfaces"
+        fi
     fi
     if [ ! -f /usr/local/bin/gprs ]
     then
@@ -1368,7 +1372,7 @@ INSTALLS+=" SMS"
 HELP[SMS]="Installation of SMS mobile messages support. Need eg Huawei GPRS modem."
 function SMS() {
     DEPENDS_ON APT gammu
-    local GSMMODEM=/dev/serial/by-path/usb-HUAWEI_HUAWEI_Mobile-if00-port0
+    local GSMMODEM=${1:-/dev/serial/by-path/usb-HUAWEI_HUAWEI_Mobile-if00-port0}
     if [ ! -f ~/.gammurc ]
     then
        # may also use command gammu-config
@@ -1399,8 +1403,7 @@ function GPRS() {
     DEPENDS_ON APT ppp
     DEPENDS_ON APT usb-modeswitch
     DEPENDS_ON APT usb-modeswitch-data
-    DEPENDS_ON APT wvdial
-    echo "PLEASE INSERT Huawei GPRS dongle!" >/dev/stderr
+    echo "PLEASE make sure to INSERT Huawei GPRS dongle!" >/dev/stderr
     sleep 20
     local MP
     MP=$(/usr/bin/lsusb | /bin/grep "Huawei.*HSDPA" | /bin/sed -e 's/.*ID //' -e 's/ .*//')
@@ -1426,7 +1429,13 @@ EOF
     fi
     echo "Reboot with dongle attached and check if 'dmesg | grep USB.*GSM' shows modem activated"
     sleep 2
-    GPRSppp
+    local GSMMODEM=${1:-/dev/serial/by-path/usb-HUAWEI_HUAWEI_Mobile-if00-port0}
+    GPRSppp "$GSMMODEM"
+    DEPENDS_ON APT wvdial
+    if [ -f /etc/wvdial.conf ] && grep -q 'modem.*ttyUSB' /etc/wvdial.conf
+    then
+        sudo sed -i "s#/dev/ttyUSB.*#$GSMMODEM#" /etc/wvdial.conf
+    fi
 }
 
 INSTALLS+=" BUTTON"

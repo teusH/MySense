@@ -78,7 +78,7 @@ export -f getGPS
 function location() {
     local coord
     local CONF="${1:-/opt/ttn-gateway/bin/local_conf.json}"
-    if grep -q "gps_tty_path.*dev/tty" "$CONF" && grep -q "fake_gps.*false"
+    if grep -q "gps_tty_path.*dev/tty" "$CONF" && grep -q "fake_gps.*false" "$CONF"
     then
         display 'using FRWDR GPS'
         return 0 # no GPS config needed
