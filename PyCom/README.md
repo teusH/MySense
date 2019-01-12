@@ -6,24 +6,46 @@ Status: *beta* 2018/04/02
 
 Simple low cost (€120) satellites sensor kits.
 
-## Shopping list
+## Shopping lis (ca € 100-150):
 * PyCom LoPy-4 controller  PYCLOPY4 (Tinytronics  € 42.-)
 * optional LoPy Expansie board 2.0 PYCEXPBOARD2.0 (Tinytronics € 19.-) (development board)
+* alternative is a DIY PCB conneceor board with 6 Grove connectors (3 TTL and 3 I2C) ca € 10
+(send email for drawing)
 * LoPy-Sigfox antenne kit 868 Mhz PYCLOSIAN868KIT (Tinytronics € 10.50)
 * optional SSD1306 I2C Yellow/Blue 128X64 oled display (AliExpress € 2.23, Tinytronics € 9.50)
-* optional Plantower PMSx003 laser PM sensor with G7 cable!) (AliExpress € 15.17)
-Plantower has a new PMSA003 (black) which has cleaning support and tube inlet (€ 80).
-Alternative is Nova SDS011 (bigger, less PM types, but has air inlet tube connection)
-* optional GY-NE06MV2 NEO-6M GPS module TTL connection (AliExpress € 5.15)
-* optional Sensirion SHT31 (AliExpress € 2), BME280 (AliExpress € 3.50), or better BME680 I2C (has gas sensor, AliExpress € 10.50) meteo sensor (do not use I2C/TTL BME680, I2C bus errors)
-* longer USB adapter cable 2-3 meter (Action € 1.50)
-* USB V220 AC-5V= adapter (Action € 2.10)
+* optional Plantower PMSx003 laser PM sensor with G7 cable!) (AliExpress indoor: € 15.17)
+Advised because the unit displays raw PM counts values and can be used outdoor.
+Plantower has a new PMSx003 (black) which has cleaning support and tube inlet (€ 80).
+E.g. <a href="https://wholesaler.alibaba.com/product-detail/PMSX003-PM1-0-PM2-5-PM10_60805148973.html
+* Alternative is Nova SDS011 (bigger, less PM types, but has air inlet tube connection)
+* optional GY-NE06MV2 NEO-6M GPS module TTL connection (AliExpress € 3.15)
+E.g. <a href="https://nl.aliexpress.com/item/Free-Shipping-1PC-Ublox-NEO6MV2-GPS-Module-Aircraft-Flight-Controller-For-Arduino-New/1765564932.html?spm=a2g0z.10010108.1000014.1.6bbe5745MX6VBm&pvid=8a1a37bb-4e68-40af-8a6b-66145261e6b5&gps-id=pcDetailBottomMoreOtherSeller&scm=1007.13338.80878.000000000000000&scm-url=1007.13338.80878.000000000000000&scm_id=1007.13338.80878.000000000000000
+* optional Sensirion SHT31 (AliExpress € 2), BME280 (AliExpress € 3),
+E.g. <a href="https://nl.aliexpress.com/item/Free-Shipping-1PC-Ublox-NEO6MV2-GPS-Module-Aircraft-Flight-Controller-For-Arduino-New/1765564932.html?spm=a2g0z.10010108.1000014.1.6bbe5745MX6VBm&pvid=8a1a37bb-4e68-40af-8a6b-66145261e6b5&gps-id=pcDetailBottomMoreOtherSeller&scm=1007.13338.80878.000000000000000&scm-url=1007.13338.80878.000000000000000&scm_id=1007.13338.80878.000000000000000
+* or better BME680 I2C (has interesting gas sensor, AliExpress € 10.50) meteo sensor (do not use I2C/TTL BME680, I2C bus errors)
+E.g. <a href="https://nl.aliexpress.com/item/1-stks-Ultra-kleine-Druk-CJMCU-680-BME680-Temperatuur-Vochtigheid-Druk-Sensor-voor-Drone-Accessoires-Hoge/32847670390.html?spm=a2g0s.9042311.0.0.2b344c4dRa5gbW
 * wiring: per module 4 wires: female/male for 4 modules:
 2 packs Dupont jumpercables 20cm 10 per package (2 X € 1.50 Tinytronics)
 Remark: better to create a UART/I2C connector shield with Grove sockets and connectors. See the picture. Board design with Grove sockets is available.
 * assortiment thrink tubes (2.5 mm and bigger) (€ 3.45 Ben's Electronics)
 * V220 outdoor cablebox 10X12.5 cm, larger is better eg OBO T100 or T160. (electroshop.nl € 5.39)
 Or use PVC pipes and roof air outlet exhaust. Advised is to paint it white and use double pipes for heat isolation.
+
+Energy V230 supplyi (ca € 4):
+* long USB adapter cable 2-3 meter (Action € 1.50)
+* USB V220 AC-5V= adapter (Action € 2.10)
+ 
+or use solarpower if no V230 is available (ca € 100):
+* 12V to 5V step down (ca € 1): e.g. <a href="https://nl.aliexpress.com/item/9V-12V-24V-to-5V-3A-USB-step-down-voltage-regulator-module-DC-DC-Converter-Phone/32815945754.html?spm=a2g0z.search0104.3.58.518b4ea1g4V7Iq&ws_ab_test=searchweb0_0,searchweb201602_3_10065_10068_319_317_10696_10084_453_454_10083_10618_431_10304_10307_10820_10821_10301_537_536_10843_10059_10884_10887_100031_321_322_10103,searchweb201603_2,ppcSwitch_0&algo_expid=ee417a9f-b67e-4414-8df8-60f29a8a5a9e-8&algo_pvid=ee417a9f-b67e-4414-8df8-60f29a8a5a9e&transAbTest=ae803_4">5V USB</a>
+* solar power regulator (ca € 10)  e.g. <a href="https://www.banggood.com/nl/MPPT-5A-Solar-Panel-Regulator-Controller-Battery-Charging-9V-12V-24V-Automatic-Switch-p-1307801.html?gmcCountry=NL&currency=EUR&createTmp=1&utm_source=googleshopping&utm_medium=cpc_bgs&utm_content=frank&utm_campaign=pla-nl-ele-diy-mob-pc&gclid=EAIaIQobChMIubWf7fLj3wIVkoKyCh0okQPrEAQYBCABEgIYaPD_BwE&cur_warehouse=CN">Solar PR</a>
+* or battery load (ca € 10)  e.g. <a href="https://www.banggood.com/nl/MPPT-5A-Solar-Panel-Regulator-Controller-Battery-Charging-9V-12V-24V-Automatic-Switch-p-1307801.html?gmcCountry=NL&currency=EUR&createTmp=1&utm_source=googleshopping&utm_medium=cpc_bgs&utm_content=frank&utm_campaign=pla-nl-ele-diy-mob-pc&gclid=EAIaIQobChMIubWf7fLj3wIVkoKyCh0okQPrEAQYBCABEgIYaPD_BwE&cur_warehouse=CN">Solar power regulator</a>
+* battery pack (ca € 60)  e.g. <a href="https://www.conrad.nl/p/gnb-sonnenschein-dryfit-s1266-s-071-98-43200-solar-accu-12-v-66-ah-loodgel-b-x-h-x-d-152-x-99-x-66-mm-kabelschoen-4-110752">battery 12V</a> (needs 12V->5V).
+* solar panel (ca 16)  e.g. <a href="https://nl.aliexpress.com/item/LEORY-5-w-18-VSolar-Panel-Outdoor-Polykristallijne-Zonnecellen-Module-Oplader-Voor-12-v-Batterij-Toegepast/32950222836.html?spm=a2g0z.search0104.3.31.428b4308R8hYQd&ws_ab_test=searchweb0_0%2Csearchweb201602_4_10065_10068_10890_319_10546_317_10548_10696_453_10084_454_10083_10618_431_10304_10307_10820_537_536_10843_10059_10884_10887_100031_321_322_10103%2Csearchweb201603_51%2CppcSwitch_0&algo_pvid=76244851-1e26-4f2d-9e9e-23f152f6603a&algo_expid=76244851-1e26-4f2d-9e9e-23f152f6603a-4">Solar Panel</a>
+* housing/case for the power
+
+ToDo:
+* software to put LoPy in sleep mode between samples
+* software to use WiFi for internet access connectivity if LoRa is not available
 
 Some fixing materials:
 * small piece of plexiglas for cover oled display
@@ -46,6 +68,7 @@ See for how-to instructions:
 * RAK831 concentrator: https://www.thethingsnetwork.org/labs/story/rak831-lora-gateway-from-package-to-online
 
 For MySense we changed the `/opt/ttn-gateway/bin/start.sh`, added WiFi access point for WEBMIN (use `INSTALL.sh WEBMIN` and Raspberry Pi OS configuratio (see `INSTALL.sh help`), and to log concentraor log messages to the oled display via the filter `GatewayLogDisplay.py`. The scripts can be found in the map LoRa.
+See the map LoRa (or Google to The Things Network) for more details and functionality add-on's to build a DIY TTN gateway.
 
 The TTN ZH Pi based shopping list (we bought a ready to go gateway Pi2 based from IMST and changed the software to TTN for € 250):
 * Pi Zero or 3, poweradapter, minimal 4GB SDcard € 42 Tinytronics.nl 
