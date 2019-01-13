@@ -6,6 +6,14 @@ Status: *beta* 2018/04/02
 
 Simple low cost (€120) satellites sensor kits.
 
+## description
+
+Overview of wiring and modules using a PCB boiard with Grove connectors to avoid soldiering.
+
+<img src="images/LoPy-MySense-modules.png" align=center width=400>
+
+Comment: here we used the indoor dust sensor PMS7003. Use for outdoor the PMSx003 dust sensor.
+
 ## Shopping lis (ca € 100-150):
 * PyCom LoPy-4 controller  PYCLOPY4 (Tinytronics  € 42.-)
 * optional LoPy Expansie board 2.0 PYCEXPBOARD2.0 (Tinytronics € 19.-) (development board)
