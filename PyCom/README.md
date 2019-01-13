@@ -21,17 +21,19 @@ Comment: here we used the indoor dust sensor PMS7003. Use for outdoor the PMSx00
 (send email for drawing)
 * LoPy-Sigfox antenne kit 868 Mhz PYCLOSIAN868KIT (Tinytronics € 10.50)
 * optional SSD1306 I2C Yellow/Blue 128X64 oled display (AliExpress € 2.23, Tinytronics € 9.50)
-* optional Plantower PMSx003 laser PM sensor with G7 cable!) (AliExpress indoor: € 15.17)
+E.g. <a href="https://nl.aliexpress.com/item/0-96-inch-IIC-Seri-le-Geel-Blauw-OLED-Display-Module-128X64-I2C-SSD1306-12864-Lcd/32920071528.html?albbt=Google_7_shopping&isdl=y&slnk=&albslr=228849138&src=google&acnt=494-037-6276&aff_platform=google&crea=nl32920071528&netw=u&plac=&albcp=1626925412&mtctp=&aff_short_key=UneMJZVf&gclid=EAIaIQobChMI2czMspLr3wIVx8CyCh1c9AhwEAQYAiABEgKSl_D_BwE&albag=63599479084&albch=shopping&trgt=296904914040&device=c&gclsrc=aw.ds">Oled display</a>
+* optional Plantower PMS7003 laser PM sensor with G7 cable!) (AliExpress indoor: € 15.17)
 Advised because the unit displays raw PM counts values and can be used outdoor.
 Plantower has a new PMSx003 (black) which has cleaning support and tube inlet (€ 80).
-E.g. <a href="https://wholesaler.alibaba.com/product-detail/PMSX003-PM1-0-PM2-5-PM10_60805148973.html
+E.g. <a href="https://wholesaler.alibaba.com/product-detail/PMSX003-PM1-0-PM2-5-PM10_60805148973.html">PMSx003 dust sensor</a>
 * Alternative is Nova SDS011 (bigger, less PM types, but has air inlet tube connection)
+E.g. <a href="https://nl.aliexpress.com/item/Nova-PM-sensor-SDS011-High-precision-laser-pm2-5-air-quality-detection-sensor-module-Super-dust/32606349048.html">SDS011 Nova dust sensor</a>
 * optional GY-NE06MV2 NEO-6M GPS module TTL connection (AliExpress € 3.15)
-E.g. <a href="https://nl.aliexpress.com/item/Free-Shipping-1PC-Ublox-NEO6MV2-GPS-Module-Aircraft-Flight-Controller-For-Arduino-New/1765564932.html?spm=a2g0z.10010108.1000014.1.6bbe5745MX6VBm&pvid=8a1a37bb-4e68-40af-8a6b-66145261e6b5&gps-id=pcDetailBottomMoreOtherSeller&scm=1007.13338.80878.000000000000000&scm-url=1007.13338.80878.000000000000000&scm_id=1007.13338.80878.000000000000000
+E.g. <a href="https://nl.aliexpress.com/item/Free-Shipping-1PC-Ublox-NEO6MV2-GPS-Module-Aircraft-Flight-Controller-For-Arduino-New/1765564932.html?spm=a2g0z.10010108.1000014.1.6bbe5745MX6VBm&pvid=8a1a37bb-4e68-40af-8a6b-66145261e6b5&gps-id=pcDetailBottomMoreOtherSeller&scm=1007.13338.80878.000000000000000&scm-url=1007.13338.80878.000000000000000&scm_id=1007.13338.80878.000000000000000">NEO6MV2 GPS module</a>
 * optional Sensirion SHT31 (AliExpress € 2), BME280 (AliExpress € 3),
-E.g. <a href="https://nl.aliexpress.com/item/Free-Shipping-1PC-Ublox-NEO6MV2-GPS-Module-Aircraft-Flight-Controller-For-Arduino-New/1765564932.html?spm=a2g0z.10010108.1000014.1.6bbe5745MX6VBm&pvid=8a1a37bb-4e68-40af-8a6b-66145261e6b5&gps-id=pcDetailBottomMoreOtherSeller&scm=1007.13338.80878.000000000000000&scm-url=1007.13338.80878.000000000000000&scm_id=1007.13338.80878.000000000000000
+E.g. <a href="https://nl.aliexpress.com/item/Free-shipping-SHT31-Temperature-SHT31-D-Humidity-Sensor-module-Breakout-Weather-for-Arduino/32695064184.html">Sensirion SHT31 meteo sensor</a>
 * or better BME680 I2C (has interesting gas sensor, AliExpress € 10.50) meteo sensor (do not use I2C/TTL BME680, I2C bus errors)
-E.g. <a href="https://nl.aliexpress.com/item/1-stks-Ultra-kleine-Druk-CJMCU-680-BME680-Temperatuur-Vochtigheid-Druk-Sensor-voor-Drone-Accessoires-Hoge/32847670390.html?spm=a2g0s.9042311.0.0.2b344c4dRa5gbW
+E.g. <a href="https://nl.aliexpress.com/item/1-stks-Ultra-kleine-Druk-CJMCU-680-BME680-Temperatuur-Vochtigheid-Druk-Sensor-voor-Drone-Accessoires-Hoge/32847670390.html?spm=a2g0s.9042311.0.0.2b344c4dRa5gbW">BME680 meteo sensor</a>
 * wiring: per module 4 wires: female/male for 4 modules:
 2 packs Dupont jumpercables 20cm 10 per package (2 X € 1.50 Tinytronics)
 Remark: better to create a UART/I2C connector shield with Grove sockets and connectors. See the picture. Board design with Grove sockets is available.
@@ -62,8 +64,6 @@ Some fixing materials:
 * 4 cm tube for air inlet of PM module (SDS011 or black PMSA003)
 * piece of wood to be able to attach the outdoor cable box on a wall.
 * some material to fixate the components and allow airflow in the box
-
-<img src="images/LoPy-MySense-modules.png" align=center width=350>
 
 ### TTN gateway
 
