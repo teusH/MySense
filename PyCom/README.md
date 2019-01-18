@@ -17,8 +17,8 @@ Comment: here we used the indoor dust sensor PMS7003. Use for outdoor the PMSx00
 ## Shopping lis (ca € 100-150):
 * PyCom LoPy-4 controller  PYCLOPY4 (Tinytronics  € 42.-)
 * optional LoPy Expansie board 2.0 PYCEXPBOARD2.0 (Tinytronics € 19.-) (development board)
-* alternative is a DIY PCB conneceor board with 6 Grove connectors (3 TTL and 3 I2C) ca € 10
-(send email for drawing)
+* alternative is a DIY PCB conneceor board with 6 Grove connectors (3 TTL and 3 I2C) ca € 15 (incl the  components (mosfet, resisters, pins).
+PCB board has optional components to be able to use solarcel power. Send email for drawing of the PCB.
 * LoPy-Sigfox antenne kit 868 Mhz PYCLOSIAN868KIT (Tinytronics € 10.50)
 * optional SSD1306 I2C Yellow/Blue 128X64 oled display (AliExpress € 2.23, Tinytronics € 9.50)
 E.g. <a href="https://nl.aliexpress.com/item/0-96-inch-IIC-Seri-le-Geel-Blauw-OLED-Display-Module-128X64-I2C-SSD1306-12864-Lcd/32920071528.html?albbt=Google_7_shopping&isdl=y&slnk=&albslr=228849138&src=google&acnt=494-037-6276&aff_platform=google&crea=nl32920071528&netw=u&plac=&albcp=1626925412&mtctp=&aff_short_key=UneMJZVf&gclid=EAIaIQobChMI2czMspLr3wIVx8CyCh1c9AhwEAQYAiABEgKSl_D_BwE&albag=63599479084&albch=shopping&trgt=296904914040&device=c&gclsrc=aw.ds">Oled display</a>
@@ -35,7 +35,7 @@ E.g. <a href="https://nl.aliexpress.com/item/Free-shipping-SHT31-Temperature-SHT
 * or better BME680 I2C (has interesting gas sensor, AliExpress € 10.50) meteo sensor (do not use I2C/TTL BME680, I2C bus errors)
 E.g. <a href="https://nl.aliexpress.com/item/1-stks-Ultra-kleine-Druk-CJMCU-680-BME680-Temperatuur-Vochtigheid-Druk-Sensor-voor-Drone-Accessoires-Hoge/32847670390.html?spm=a2g0s.9042311.0.0.2b344c4dRa5gbW">BME680 meteo sensor</a>
 * wiring: per module 4 wires: female/male for 4 modules:
-2 packs Dupont jumpercables 20cm 10 per package (2 X € 1.50 Tinytronics)
+<a href="https://www.seeedstudio.com/Grove-4-pin-Female-Jumper-to-Grove-4-pin-Conversion-Cable-5-PCs-per-PAc-p-1020.html">Grove to female jumper 4 wire conversion cable</a> 5 per pack Seed Studio  € 5.00.
 Remark: better to create a UART/I2C connector shield with Grove sockets and connectors. See the picture. Board design with Grove sockets is available.
 * assortiment thrink tubes (2.5 mm and bigger) (€ 3.45 Ben's Electronics)
 * V220 outdoor cablebox 10X12.5 cm, larger is better eg OBO T100 or T160. (electroshop.nl € 5.39)
