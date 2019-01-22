@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRGBled.py,v 1.1 2019/01/22 11:43:34 teus Exp teus $
+# $Id: MyRGBled.py,v 1.2 2019/01/22 12:04:26 teus Exp teus $
 
 # exercise RGB ed of Pi different colloprs for a period of time
 # <led color=red secs=0.2> ....
@@ -117,18 +117,24 @@ class RGBthread:
                 GPIO.output(self.conf[pin], GPIO.HIGH) # Set conf to high(+3.3V) to off led
             self.gpio = {}
             for pin in ['pinR','pinG','pinB']:
-                self.gpio[pin] = GPIO.PWM(self[pin], 2000)  # set Frequence to 2KHz
+                self.gpio[pin] = GPIO.PWM(self.conf[pin], 2000)  # set Frequence to 2KHz
                 self.gpio[pin].start(0)      # Initial duty Cycle = 0(leds off)
-        except: self.pins = False
+        except Excerption as err:
+            self.pins = False
+            print("RGB hw init failed")
+	    return False
+        return True
     
     # RGB hardware reset
     def RGBstop(self):
-        if (not self.pins) or (not len(self.gpio)): return
-        for pin in ['pinR','pinG','pinB']:
-            self.gpio[pin].stop()
-            GPIO.output(self.conf[pin], GPIO.HIGH)    # Turn off all leds
-        GPIO.cleanup()
-        self.gpio = {}
+        try:
+            if (not self.pins) or (not len(self.gpio)): return
+            for pin in ['pinR','pinG','pinB']:
+                self.gpio[pin].stop()
+                GPIO.output(self.conf[pin], GPIO.HIGH)    # Turn off all leds
+            GPIO.cleanup()
+            self.gpio = {}
+        except: pass
     
     def RGBhasOne(self):
         if len(self.commands): return True
@@ -165,8 +171,9 @@ class RGBthread:
                         # if self.debug: print("Thread leaves waits for RGB command")
                         self.lock.release()
                 cmd = self.RGBgetOne()
-                if not 'color' in cmd.keys(): cmd = None
-                if (cmd == None) and (not self.inSync): continue
+                if (cmd == None) or (not 'color' in cmd.keys()):
+                    if not self.inSync: continue
+                    else: break
                 self.setColor(int(cmd['color']))
                 if ('secs' in cmd.keys()) and (cmd['secs'] <= 0.001): continue
                 if self.debug:
@@ -214,12 +221,12 @@ class RGBthread:
             'pinG': 100 - self.Map((col & 0x00FF00) >> 8, 0, 255, 0, 100),
             'pinB': 100 - self.Map((col & 0x0000FF) >> 0, 0, 255, 0, 100)
         }
-        if self.debug: print("Set led to color: 0x%X" % col)
+        if self.debug: print("Set led to color: 0x%.6X" % col)
         for f in freq.keys():
             if self.debug or (not self.pins):
                 print("Set led color %s: %d%%" % ( f, freq[f]))
             if self.pins:
-                self.gpio[f].ChangeDutyCycle(freq)  # Change duty cycle
+                self.gpio[f].ChangeDutyCycle(freq[f])  # Change duty cycle
 
         # R_val = map((col & 0xFF0000) >> 16, 0, 255, 0, 100)
         # G_val = map((col & 0x00FF00) >> 8, 0, 255, 0, 100)
@@ -229,8 +236,19 @@ class RGBthread:
         # self.gpio['pinG'].ChangeDutyCycle(100-G_val)
         # self.gpio['pinB'].ChangeDutyCycle(100-B_val)
 
+    def RGBcommand(self, strg):
+        strt = 0; myStrg = strg.upper()
+        while True:
+            strt = myStrg.find('<LED ',strt)
+            if strt < 0: return
+            end = myStrg.find('>', strt+5)
+            if end < 0: return
+            end += 1
+            self.AddRGBcommand(myStrg[strt:end])
+            strt = end
+
     def AddRGBcommand(self, light):
-        light = light[4:]
+        light = light[4:].upper()
         try: light = light[:light.index('>')]
         except: pass
         light = light.strip()
@@ -238,13 +256,13 @@ class RGBthread:
         light = re.sub(' +',' ',light)
         for word in light.split():
             try:
-                if word[:3] == 'col':
+                if word[:3] == 'COL':
                     color = word[word.index('=')+1:]
                     if color.upper() in self.colors.keys():
                         cmd['color'] = self.colors[color.upper()]
                     else:
                         cmd['color'] = int(word[word.index('=0')+1:],0)
-                elif word[:3] == 'sec': cmd['secs'] = float(word[word.index('=')+1:])
+                elif word[:3] == 'SEC': cmd['secs'] = float(word[word.index('=')+1:])
                 else: print("Unknow RGB word %s" % word)
             except: pass
         if cmd['secs'] > 60*5.0: cmd['secs'] = 0 # 5 minutes is forever
