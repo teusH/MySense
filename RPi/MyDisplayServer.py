@@ -18,12 +18,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDisplayServer.py,v 1.13 2018/06/23 13:52:04 teus Exp teus $
+# $Id: MyDisplayServer.py,v 2.1 2019/01/25 15:23:49 teus Exp teus $
 
 # script will run standalone, collects text lines from sockets streams and
 # displays the scrolled lines on an Adafruit display
 
 # display is an OLED SSD1306 little B/W screen
+# use of RGBled
 # needs MySSD1306_display.py module, which is based on Adafruit library software
 
 import socket 
@@ -35,16 +36,22 @@ except:
 import time
 import sys
 import os
+import re
+import atexit
  
 # main thread starts display thread and maintains 5 socket readers on localhost/2017
 # shared variables between the threads
 Conf = {
     'stop': False,                # stop threads
     'lines': [],                  # lines to show on display
-    'display': ('SPI','128x64'),  # Adafruit display: SPI or I2C 32 or 64 pixels height
+    'display': (None,'128x64',True),  # Adafruit display: SPI or I2C 32 or 64 pixels height, oled Y/B?
     'addLine': None,              # ref to addLine display routine
-    'threads': [],                 # threads alive deprecated
+    'threads': [],                # threads alive deprecated
     'lock': threading.Lock(),     # lock between threads
+    'rgb': False,                 # use RGBled, dflt no RGB led
+    # 'pinR': 11, 'pinG': 13, 'pinB': 15, # default RGB Pi pins should be GPIO pins
+    # use GPIO pin numbering!
+    'pinR': 17, 'pinG': 27, 'pinB': 22, # default RGB Pi pins should be GPIO pins
     'debug': False,               # debug modus, no multi threading for sockets
     }
 TCP_IP = 'localhost'
@@ -58,7 +65,6 @@ PID_FILE = '/var/tmp/' + progname + '.pid'
 class DisplayThread(object):
     ''' manage the display in a thread '''
     def __init__(self,conf):
-        self.SSD1306 = __import__("MySSD1306_display")
         self.logger = conf['logging']
         threading.__init__("display")
         self.conf = conf
@@ -69,7 +75,9 @@ class DisplayThread(object):
         self.yb = conf['display'][2]
         self.logger.debug("[+]Adafruit display started")
         try:
-            self.SSD1306.InitDisplay(conf['display'][0],conf['display'][1],yb=conf['display'][2])
+            self.SSD1306 = __import__("MySSD1306_display")
+            if not self.SSD1306.InitDisplay(conf['display'][0],conf['display'][1],yb=conf['display'][2]):
+                self.logger.debug("No SSD1306 desplay hardware found")
             self.conf['addLine'] = self.SSD1306.addLine
         except:
             self.logger.fatal("Display error for SSD1306 type %s size %s." %(conf['display'][0],conf['display'][1]))
@@ -99,7 +107,7 @@ class ClientThread(object):
         self.sock.listen(5)
         while True:
             client, address = self.sock.accept()
-            if self.debug:
+            if len(sys.argv) <= 1: # no client thread
                 self.listenToClient(client,address)
             else:
                 threading.Thread(target = self.listenToClient,args = (client,address)).start()
@@ -159,6 +167,13 @@ class ClientThread(object):
                     for txt in data:
                         txt = txt[:-1]     # delete end of line delimeter
                         self.logger.debug("Received a line: %s" % txt)
+                        if txt[:4].lower() == '<led':
+                            if self.conf['rgb']:
+                              if not 'RGB' in self.conf.keys():
+                                self.conf['RGB'] = RGBthread(self.conf, debug=self.conf['debug'], inSync=False)
+                              txt = self.conf['RGB'].RGBcommand(txt)
+			    else: txt = txt[txt.find('>')+1:]
+			    if not len(txt): continue
                         if self.conf['addLine'] == None:
                             raise NameError("Unable to use addLine routine of Display")
                         args = {}
@@ -195,6 +210,265 @@ class ClientThread(object):
                     buffer += more
         if buffer:
             yield buffer
+
+# ===========================================================
+# RGB led (multi threaded class
+# ===========================================================
+
+# MyRGBled.py 1.2 2019/01/22 12:04:26
+
+# exercise RGB ed of Pi different colloprs for a period of time
+# <led color=red secs=0.2> ....
+# if secs option is undefined or 0 period is unlimited till next command
+# use: Conf dict as configuration
+# inSync=False do use multi threading
+# pinR:11 pinG:13 pinB:15 pin of Pi used for color led, if one isdnot defined no led
+# if not GPIO import (run is not on a Pi) no RGBled is used
+# debug = False provide extra debug info
+
+class RGBthread:
+    ''' manage the RGB leds of the Pi '''
+    def __init__(self, conf, debug=False, inSync=False):
+        self.debug = debug
+        if 'debug' in conf.keys(): self.debug = conf['debug']
+        self.conf = conf
+        self.threads = []; self.name = 'RGBthread'
+        self.gpio = {}
+        self.pins = False; self.RGBopen()
+        self.STOP = False
+        self.inSync = inSync # use threading or not
+        if 'RGBlock' in conf.keys(): self.lock = conf['RGBlock']
+        else:
+            self.lock = threading.Lock()
+            self.condition = threading.Condition(self.lock)
+        self.commands = []
+        if not self.inSync: self.start_thread()
+        return
+
+    # activated by thread start()
+    # note subthreads will not catch Keyboard Interrupt <cntrl>c
+    # kill it by <cntrl>z and kill %1
+    class ThisThread(threading.Thread):   # the real run part of the thread
+        def __init__(self,threading,loop,threadID, name):
+            threading.Thread.__init__(self)
+            self.threadID = threadID
+            self.name = name
+            self.loop = loop
+        def run(self):
+            # print("Thread started with self.loop call")
+            self.loop()
+            # print("Thread %s stopped." % self.name)
+            return
+
+    # stop the thread
+    def stop_thread(self):
+        self.STOP = True        # ask self threads to stop
+        if not self.inSync:
+            self.lock.acquire()
+            self.condition.notify()
+            self.lock.release()
+            for thrd in threading.enumerate():
+                try:
+                    threading.join()
+                except:
+                    pass
+            if self.debug: print("Stopped threads.")
+        self.RGBstop()
+        return
+
+    # initialize
+    def start_thread(self):
+        if self.STOP: return True
+        ID = threading.activeCount()+1
+        for Trd in self.threads:
+            if Trd.getName() == self.name:
+                if Trd.isAlive():
+                    return True
+                else:
+                    # maybe we should join first to delete the thread?
+                    self.threads.remove(Trd)
+        self.threads.append(self.ThisThread(threading, self.run, ID, self.name))
+        try:
+            atexit.register(self.stop_thread)
+            self.threads[len(self.threads)-1].start()
+            # time.sleep(2)      # allow some data to come in
+        except:
+            return False
+        return True
+
+    # ready RGB hardware
+    def RGBopen(self):
+        self.pins = True
+        try:
+            for pin in ['pinR','pinG','pinB']:
+                if not pin in self.conf.keys(): raise ValueError("Missing pin %s def" % pin)
+            import RPi.GPIO as GPIO
+	    # need to use GPIO pin numbers iso board pin due to Adafruit display lib
+            GPIO.setmode(GPIO.BCM)       # Numbers GPIOs by physical location
+            for pin in ['pinR','pinG','pinB']:
+                GPIO.setup(self.conf[pin], GPIO.OUT)   # Set conf' mode is output
+                GPIO.output(self.conf[pin], GPIO.HIGH) # Set conf to high(+3.3V) to off led
+            self.gpio = {}
+            for pin in ['pinR','pinG','pinB']:
+                self.gpio[pin] = GPIO.PWM(self.conf[pin], 2000)  # set Frequence to 2KHz
+                self.gpio[pin].start(0)      # Initial duty Cycle = 0(leds off)
+        except Exception as err:
+            self.pins = False
+            print("RGB hw init failed")
+	    return False
+        return True
+    
+    # RGB hardware reset
+    def RGBstop(self):
+        try:
+            if (not self.pins) or (not len(self.gpio)): return
+            for pin in ['pinR','pinG','pinB']:
+                self.gpio[pin].stop()
+                GPIO.output(self.conf[pin], GPIO.HIGH)    # Turn off all leds
+            GPIO.cleanup()
+            self.gpio = {}
+        except: pass
+    
+    def RGBhasOne(self):
+        if len(self.commands): return True
+        else: return False
+
+    def RGBgetOne(self):
+        # print("RGBgetOne called")
+        if not self.inSync:
+            # if self.debug: print("RGBgetOne gets lock")
+            self.lock.acquire()
+            # if self.debug: print("RGBgetOne has lock")
+        if not len(self.commands): cmd = {}
+        else: cmd = self.commands.pop(0)
+        if not self.inSync: self.lock.release()
+        if self.debug: print("RGB got command: ", cmd)
+        return cmd
+
+    def run(self):
+        if not self.inSync:
+            if self.debug: print("RGB run() thread start")
+        while True:
+            try:
+                if self.STOP:
+                    # print("RGB thread stopped")
+                    break
+                cmd = {}
+                if not self.inSync:
+                    while True:
+                        self.lock.acquire()
+                        if self.RGBhasOne():
+                            self.lock.release(); break
+                        # if self.debug: print("Thread wait on condition RGB cmd ready")
+                        self.condition.wait()
+                        # if self.debug: print("Thread leaves waits for RGB command")
+                        self.lock.release()
+                cmd = self.RGBgetOne()
+                if (cmd == None) or (not 'color' in cmd.keys()):
+                    if not self.inSync: continue
+                    else: break
+                self.setColor(int(cmd['color']))
+                if ('secs' in cmd.keys()) and (cmd['secs'] <= 0.001): continue
+                if self.debug:
+                    print("RGBthread light for %f seconds" % cmd['secs'])
+                time.sleep(cmd['secs'])
+                self.setColor(0x000000)  # color black
+                if self.inSync: return
+            except Exception as err:
+                print("Thread exception as %s" % err)
+                break
+
+    def Map(self, x, in_min, in_max, out_min, out_max):
+        return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+    
+    colors = {
+        'WHITE': 0XFFFFFF,
+        'SILVER': 0XC0C0C0,
+        'GRAY': 0X808080,
+        'GREY': 0X808080,
+        'BLACK': 0X000000,
+        'RED': 0XFF0000,
+        'MAROON': 0X800000,
+        'YELLOW': 0XFFFF00,
+        'OLIVE': 0X808000,
+        'LIME': 0X00FF00,
+        'GREEN': 0X008000,
+        'AQUA': 0X00FFFF,
+        'TEAL': 0X008080,
+        'BLUE': 0X0000FF,
+        'NAVY': 0X000080,
+        'FUCHSIA': 0XFF00FF,
+        'PURPLE': 0X800080,
+        'CYAN': 0X00FFFF,
+        'DARKBLUE': 0X0000A0,
+        'LIGHTBLUE': 0XADD8E6,
+        'ORANGE': 0XFFA500,
+        'PURPLE': 0X800080,
+        'BROWN': 0XA52A2A,
+        'MAGENTA': 0XFF00FF,
+    }
+
+    def setColor(self,col):   # For example : col = 0x112233
+        freq = {
+            'pinR': self.Map((col & 0xFF0000) >> 16, 0, 255, 0, 100),
+            'pinG': self.Map((col & 0x00FF00) >> 8, 0, 255, 0, 100),
+            'pinB': self.Map((col & 0x0000FF) >> 0, 0, 255, 0, 100)
+        }
+        if self.debug: print("Set led to color: 0x%.6X" % col)
+        for f in freq.keys():
+            if self.debug or (not self.pins):
+                print("Set led color %s: %d%%" % ( f, freq[f]))
+            if self.pins:
+                self.gpio[f].ChangeDutyCycle(freq[f])  # Change duty cycle
+
+    def RGBcommand(self, strg):
+        strt = 0; myStrg = strg.upper()
+        fnd = myStrg.find('<LED ',strt)
+        if fnd < 0: return strg[strt:]
+        end = myStrg.find('>', strt+5)
+        if end < 0: return ''
+        end += 1
+        self.AddRGBcommand(myStrg[strt:end])
+        return strg[end:]
+
+    def AddRGBcommand(self, light):
+        light = light[4:].upper()
+        try: light = light[:light.index('>')]
+        except: pass
+        light = light.strip()
+        cmd = {'secs': 0}
+        light = re.sub(' +',' ',light)
+        for word in light.split():
+            try:
+                if word[:3] == 'COL':
+                    color = word[word.index('=')+1:]
+                    if color.upper() in self.colors.keys():
+                        cmd['color'] = self.colors[color.upper()]
+                    else:
+                        cmd['color'] = int(word[word.index('=0')+1:],0)
+                elif word[:3] == 'SEC': cmd['secs'] = float(word[word.index('=')+1:])
+                else: print("Unknow RGB word %s" % word)
+            except: pass
+        if cmd['secs'] > 60*5.0: cmd['secs'] = 0 # 5 minutes is forever
+        if not 'color' in cmd.keys(): return False
+        # if self.debug: print("Require lock for add a command")
+        if not self.inSync: self.lock.acquire()
+        # if self.debug: print("Add RGB command:", cmd)
+        self.commands.append(cmd)
+        if not self.inSync:
+            # print("And notify waiter")
+            self.condition.notify()
+            self.lock.release()
+        return True
+    
+    # Conf = {'pinR':11, 'pinG':13, 'pinB':15,}  # Conf is a dict
+    # Conf['debug'] = True
+    # RGB = RGBthread(Conf, debug=True, inSync=True)
+    # colCmds = [ '<led color=0xFF0000 sec=0.5>\n', ...]
+    # RGB.command(colCmds[0])
+    # if RGB.inSync: RGB.run()
+    # RGB.stop_thread()
+
 
 # ===========================================================
 # Routines needed to run as UNIX deamon
@@ -325,8 +599,8 @@ def deamon_status(pidfile):
 if __name__ == "__main__":
     import logging
     SIZE = '128x64'
-    BUS = None
-    YB = False  # YellowBlue oled (default not)
+    BUS = 'I2C'
+    YB = True  # YellowBlue oled (default not)
     for i in range(len(sys.argv)-1,-1,-1):   # parse the command line arguments
         if sys.argv[i][0] != '-': continue
         if sys.argv[i][0:2] == '-d':         # debug modus
@@ -334,6 +608,7 @@ if __name__ == "__main__":
             sys.argv.pop(i)
         elif sys.argv[i][0:2] == '-h':       # help/usage
             print("Adafruit display server arguments: -debug, -help, -port, -size (dflt 128x64 or 128x32), -bus (dflt SPI or I2C), [start|stop|status]")
+            print("    RGB led Pi pins -led (dflt false, if pin defined True), -R (red dfld %d), -Y (yellow dfld %d), -B (blue dfld %d). Use GPIO pin numbering scheme." %(Conf['pinR'],Conf['pinG'],Conf['pinB']))
             print("No argument: process is run in foreground and not deamonized.")
             exit(0)
         elif sys.argv[i][0:2] == '-p':       # port to listen to on localhost address
@@ -348,6 +623,23 @@ if __name__ == "__main__":
         elif sys.argv[i][0:2].lower() == '-y': # YellowBlue oled display
             YB = True
             sys.argv.pop(i)
+        # RGB led handling, donw in a separate thread, only started on first use
+        elif sys.argv[i][0:4].lower() == '-rgb': # enable RGBled, dflt OFF
+            Conf['rgb'] = True
+            sys.argv.pop(i)
+        # if any pin is not defined the led will NOT glow
+        elif sys.argv[i][0:2].lower() == '-R': # Red Pi pin nr RGB led
+            Conf['rgb'] = True
+            Conf['pinR'] = int(sys.argv[i+1])
+            sys.argv.pop(i+1); sys.argv.pop(i)
+        elif sys.argv[i][0:2].lower() == '-Y': # Yellow Pi pin nr RGB led
+            Conf['rgb'] = True
+            Conf['pinG'] = int(sys.argv[i+1])
+            sys.argv.pop(i+1); sys.argv.pop(i)
+        elif sys.argv[i][0:2].lower() == '-B': # Red Pi pin nr RGB led
+            Conf['rgb'] = True
+            Conf['pinB'] = int(sys.argv[i+1])
+            sys.argv.pop(i+1); sys.argv.pop(i)
 
     if Conf['debug']:
         logging.basicConfig(level=logging.DEBUG)
@@ -374,13 +666,13 @@ if __name__ == "__main__":
         else:
             deamon_detach(PID_FILE)
         logging.info("Display Server starts up")
-    else:
-        Conf['debug'] = True
+    # else:
+    #    Conf['debug'] = True
 
     if (SIZE != '128x32') and (SIZE != '128x64'):
         sys.exit("Display size %s is not supported!" % SIZE)
     if BUS == None:
-        sys.exit("Display HW bus needs to be defined: I2C or SPI!")
+        print("If oled display is used: Display HW bus needs to be defined: I2C or SPI!")
     elif (BUS != 'SPI') and (BUS != 'I2C'):
         sys.exit("Display bus %s is not supported!" % BUS)
     Conf['display'] = (BUS,SIZE,YB)
@@ -396,6 +688,6 @@ if __name__ == "__main__":
         Conf['stop'] = True
         logging.exception("Display Server: Unexpected exception")
     finally:
-        logging.info("Display Server: Shutting down")
+        logging.info("Display/RGBled Server: Shutting down")
         conf['stop'] = True
     logging.info("Display server: All done")
