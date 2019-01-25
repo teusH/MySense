@@ -23,6 +23,17 @@ The service can be used to send text to the small display to provide visual feed
 * use the Richard Hull's luma modules.
 * fix for I2C: display suddenly and sometimes displays from bottum up.
 
+## the Display (RGB led) server
+The display server listens on localhost port 2017 for incoming line based commands.
+Use eg `echo MyCommand | nc -w 2 localhost 2017`.
+MyCommand may be a text line. This text is fed to the oled display. The display will scroll if the text exceeds the display size. A bar in the text will delay the horizontal scroll longer.
+The text line may have attributes as eg `<clear>text line one` (clear display first).
+The `-y` command line option will define the oled Y/B (yellow/blue) use (first text line is yellow).
+
+The server will also be able to light the RGB led. Eg `<led color=red secs=1.5>` will light the red red for 1.5 seconds. The `secs` argument is optional as secs=0 (led not turned off). RGB led handling is enabled by the `-rgb` command line argument.
+The RGB pinnumbers have to be defined as GPIO numbers, default GPIO 17 R, GPIO 27 G, GPIO 22 B (pin board numbers: 11 R, 13 G, 15 B). Grpound eg board pinnr 9.
+RGB led use allows simple feed back e.g. red on error, green on data transaction, yellow on startup, etc.
+
 ### hardware
 * Adafruit SSD1306  display  € 22.85 (Kiwi or SOS Solutions) or via China: € 2.-.
 * GPIO: Cables to hook it up to 3.3V, Gnd, GPIO as follows:
@@ -48,7 +59,7 @@ Note: If you use GrovePi shield, use the Oled I2C version!
 You need to enable GPIO (Oled GPIO version with 7 cables) abd I2C (Oled I2C version with 4 wires) via the Pi config `rasp-config` routine and reboot.
 
 ## SW dependencies
-You need to install with apt: python-pil, python-imaging and python-smbus and with pip: Agafruit-GPIO, Adafruit-SSD1306. Make sure you have the latest version by using `pip list --outdated` and if needed upgrade with `pip install Adafruit-GPIO --upgrade` (version 1.0.2 gives parameter type error).
+You need to install with apt: python-pil, python-imaging and python-smbus and with pip: Agafruit-GPIO (uses GPIO pin numbering), Adafruit-SSD1306. Make sure you have the latest version by using `pip list --outdated` and if needed upgrade with `pip install Adafruit-GPIO --upgrade` (version 1.0.2 gives parameter type error).
 Or use `INSTALL.sh DISPLAY` for this.
 If you use GPIO make sure the display user is added to the group `spi` and for I2C version to the group 'i2c'.
 
