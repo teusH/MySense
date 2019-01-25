@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 import time
 
-# after examples from Adafruit SSD1306
-import Adafruit_GPIO.SPI as SPI
-import Adafruit_SSD1306
 import sys
 import logging
 
@@ -27,10 +24,19 @@ Lines = None
 stop = False
 YB   = False # display is yellow blue type
 
+# after examples from Adafruit SSD1306
+SSD1306 = True # display is present
+try:
+    import Adafruit_GPIO.SPI as SPI
+    import Adafruit_SSD1306
+except: SSD1306 = False
+
 # initialize the display, return ref to the display
 def InitDisplay(type,size,yb = False):
     global disp, width, height, image, draw, YB
+    global SSD1306
 
+    if not SSD1306: return False
     # Raspberry Pi pin configuration:
     RST = 24
     # Note the following are only used with SPI:
@@ -40,38 +46,44 @@ def InitDisplay(type,size,yb = False):
     # Note the following is only used with I2C:
     I2C = 1     # i2c bus number
     
-    if type == 'I2C' and size == '128x32':
+    try:
+      if type == 'I2C' and size == '128x32':
         # 128x32 display with hardware I2C:
         disp = Adafruit_SSD1306.SSD1306_128_32(rst=RST,i2c_bus=I2C)
-    elif type == 'I2C' and size == '128x64':
+      elif type == 'I2C' and size == '128x64':
         # 128x64 display with hardware I2C:
         disp = Adafruit_SSD1306.SSD1306_128_64(rst=RST,i2c_bus=I2C)
-    elif type == 'SPI' and size == '128x32':
+      elif type == 'SPI' and size == '128x32':
         # 128x32 display with hardware SPI:
         disp = Adafruit_SSD1306.SSD1306_128_32(rst=RST, dc=DC, spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE, max_speed_hz=8000000))
-    elif type == 'SPI' and size == '128x64':
+      elif type == 'SPI' and size == '128x64':
         # 128x64 display with hardware SPI:
         disp = Adafruit_SSD1306.SSD1306_128_64(rst=RST, dc=DC, spi=SPI.SpiDev(SPI_PORT, SPI_DEVICE, max_speed_hz=8000000))
-    else: raise ValueError("Unknown Adafruit Display.")
+      else: raise ValueError("Unknown Adafruit Display.")
 
-    # Initialize library.
-    disp.begin()
-    # Get display width and height.
-    width = disp.width
-    height = disp.height
-    YB = yb
+      # Initialize library.
+      disp.begin()
+      # Get display width and height.
+      width = disp.width
+      height = disp.height
+      YB = yb
     
-    # Clear display.
-    disp.clear()
-    disp.display()
+      # Clear display.
+      disp.clear()
+      disp.display()
 
-    ClearDisplay()
+      ClearDisplay()
 
+    except:
+      SSD1306 = False
+      return False
     return True
 
 def ClearDisplay():
     global image, draw
+    global SSD1306
 
+    if not SSD1306: return False
     # image with mode '1' for 1-bit color
     image = Image.new('1', (width, height))
     
@@ -86,6 +98,11 @@ def ClearDisplay():
 # TO DO: font and font size is per line now
 def addLine(text,**args):
     global Lines, font, fntSize, draw
+    global SSD1306
+
+    if not SSD1306:
+        print("Display: %s" % text)
+        return False
     if ('font' in args.keys()) and (type(args['font']) is str):
         if 'size' in args.keys(): fntSize = int(args['size'])
         if fntSize < 4: fintSize = 8
@@ -115,12 +132,14 @@ def addLine(text,**args):
 # allow to scroll if text width exceeds display width
 def scroll(linenr,yPos):
     global Lines, width, height, draw
+
     # baseY = yPos+Lines[linenr]['MaxH']
     if yPos > height: return False
     if not 'strt' in Lines[linenr].keys(): Lines[linenr]['strt'] = -6
     txt = Lines[linenr]['txt']
     if Lines[linenr]['strt'] > 0:
         txt = Lines[linenr]['txt'][Lines[linenr]['strt']:]
+    if not len(txt): return False
     delay = False
     if txt[0] == '|': delay = True
     twidth, unused = draw.textsize(txt, font=Lines[linenr]['fnt'])
@@ -195,6 +214,9 @@ def Display(lock):
 # run forever this function
 def Show(lock, conf):
     global Lines
+    global SSD1306
+
+    if not SSD1306: return # no hardware
     count = 0
     if 'lines' in conf.keys() and (type(conf['lines']) is list):
         Lines = conf['lines']
@@ -214,6 +236,7 @@ def Show(lock, conf):
                     with lock: Lines.pop(0)
                 else:
                     if len(Lines): Lines.pop(0)
+	elif lock == None: return   # not in thread
         if delay: time.sleep(10)
         else: time.sleep(0.3)
         
@@ -222,7 +245,8 @@ if __name__ == "__main__":
     BUS = 'I2C'
     SIZE = '128x64'
     YB = True
-    InitDisplay(BUS,SIZE,yb=YB)
+    if not InitDisplay(BUS,SIZE,yb=YB):
+        print("No SSD1306 hardware present")
     addLine('First short line',  font=font, fill=255)
     addLine('Second short line')
     addLine('Third line')
