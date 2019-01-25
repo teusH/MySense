@@ -18,11 +18,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRGBled.py,v 1.2 2019/01/22 12:04:26 teus Exp teus $
+# $Id: MyRGBled.py,v 1.4 2019/01/25 16:54:41 teus Exp teus $
 
 # exercise RGB ed of Pi different colloprs for a period of time
-# <led color=red secs=0.2> ....
+# <led color=red secs=0.2 repeat=5> ....: red light for 0.2 seconds, repeated 5 times with 0.2 delay
 # if secs option is undefined or 0 period is unlimited till next command
+# if repeat option not is defined the led sequence will not be repeated.
+# Each next sequence will be delayed with secs seconds.
 # use: Conf dict as configuration
 # inSync=False do use multi threading
 # pinR:11 pinY:13 pinB:15 pin of Pi used for color led, if one isdnot defined no led
@@ -111,6 +113,7 @@ class RGBthread:
             for pin in ['pinR','pinG','pinB']:
                 if not pin in self.conf.keys(): raise ValueError("Missing pin %s def" % pin)
             import RPi.GPIO as GPIO
+	    # for GPIO pin numbering use BCM iso BOARD!
             GPIO.setmode(GPIO.BOARD)       # Numbers GPIOs by physical location
             for pin in ['pinR','pinG','pinB']:
                 GPIO.setup(self.conf[pin], GPIO.OUT)   # Set conf' mode is output
@@ -174,12 +177,14 @@ class RGBthread:
                 if (cmd == None) or (not 'color' in cmd.keys()):
                     if not self.inSync: continue
                     else: break
-                self.setColor(int(cmd['color']))
-                if ('secs' in cmd.keys()) and (cmd['secs'] <= 0.001): continue
-                if self.debug:
+                for cnt in range(0,cmd['repeat']):
+                  if cnt: time.sleep(cmd['secs'])
+                  self.setColor(int(cmd['color']))
+                  if ('secs' in cmd.keys()) and (cmd['secs'] <= 0.001): continue
+                  if self.debug:
                     print("RGBthread light for %f seconds" % cmd['secs'])
-                time.sleep(cmd['secs'])
-                self.setColor(0xFFFFFF)  # color black
+                  time.sleep(cmd['secs'])
+                  self.setColor(0x000000)  # color black
                 if self.inSync: return
             except Exception as err:
                 print("Thread exception as %s" % err)
@@ -217,9 +222,9 @@ class RGBthread:
 
     def setColor(self,col):   # For example : col = 0x112233
         freq = {
-            'pinR': 100 - self.Map((col & 0xFF0000) >> 16, 0, 255, 0, 100),
-            'pinG': 100 - self.Map((col & 0x00FF00) >> 8, 0, 255, 0, 100),
-            'pinB': 100 - self.Map((col & 0x0000FF) >> 0, 0, 255, 0, 100)
+            'pinR': self.Map((col & 0xFF0000) >> 16, 0, 255, 0, 100),
+            'pinG': self.Map((col & 0x00FF00) >> 8, 0, 255, 0, 100),
+            'pinB': self.Map((col & 0x0000FF) >> 0, 0, 255, 0, 100)
         }
         if self.debug: print("Set led to color: 0x%.6X" % col)
         for f in freq.keys():
@@ -227,14 +232,6 @@ class RGBthread:
                 print("Set led color %s: %d%%" % ( f, freq[f]))
             if self.pins:
                 self.gpio[f].ChangeDutyCycle(freq[f])  # Change duty cycle
-
-        # R_val = map((col & 0xFF0000) >> 16, 0, 255, 0, 100)
-        # G_val = map((col & 0x00FF00) >> 8, 0, 255, 0, 100)
-        # B_val = map((col & 0x0000FF) >> 0, 0, 255, 0, 100)
-    
-        # self.gpio['pinR'].ChangeDutyCycle(100-R_val)     # Change duty cycle
-        # self.gpio['pinG'].ChangeDutyCycle(100-G_val)
-        # self.gpio['pinB'].ChangeDutyCycle(100-B_val)
 
     def RGBcommand(self, strg):
         strt = 0; myStrg = strg.upper()
@@ -252,7 +249,7 @@ class RGBthread:
         try: light = light[:light.index('>')]
         except: pass
         light = light.strip()
-        cmd = {'secs': 0}
+        cmd = {'secs': 0, 'repeat': 1}
         light = re.sub(' +',' ',light)
         for word in light.split():
             try:
@@ -263,10 +260,12 @@ class RGBthread:
                     else:
                         cmd['color'] = int(word[word.index('=0')+1:],0)
                 elif word[:3] == 'SEC': cmd['secs'] = float(word[word.index('=')+1:])
+                elif word[:3] == 'REP': cmd['repeat'] = int(word[word.index('=')+1:])
                 else: print("Unknow RGB word %s" % word)
             except: pass
         if cmd['secs'] > 60*5.0: cmd['secs'] = 0 # 5 minutes is forever
         if not 'color' in cmd.keys(): return False
+        if not cmd['secs']: cmd['repeat'] = 0
         # if self.debug: print("Require lock for add a command")
         if not self.inSync: self.lock.acquire()
         # if self.debug: print("Add RGB command:", cmd)
@@ -278,21 +277,24 @@ class RGBthread:
         return True
     
 if __name__ == '__main__':
+    import sys
+    # we use Pi board pin numbering scheme here
+    # eg Adafruit lib, eg SSD1306 lib routines, use default GPIO pin numbering instead
     Conf = {'pinR':11, 'pinG':13, 'pinB':15,}  # Conf is a dict
     Conf['debug'] = True
-    RGB = RGBthread(Conf, debug=True, inSync=False)
+    RGB = RGBthread(Conf, debug=True, inSync=True)
     try:
         colCmds = [
             '<led color=0xFF0000 sec=0.5>\n',
             '<led color=0x00FF00 sec=1.5>\n',
             '<led color=0x0000FF>\n',
             '<led color=0xFF0F00 sec=0>',
-            '<led color=red sec=2>\n',
-            '<led color=green sec=2>\n',
-            '<led color=blue sec=2>\n',
-            '<led color=white sec=2>\n',
-            '<led color=black sec=2>\n',
-            ]:
+            '<led col=red secs=2>\n',
+            '<led color=green sec=3>\n',
+            '<led color=blue sec=4>\n',
+            '<led color=white sec=5>\n',
+            '<led color=black>',
+            ]
         if len(sys.argv) > 1: colCmds = argv[1:]
         for col in colCmds:
             RGB.AddRGBcommand(col)

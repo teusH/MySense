@@ -30,7 +30,7 @@ MyCommand may be a text line. This text is fed to the oled display. The display 
 The text line may have attributes as eg `<clear>text line one` (clear display first).
 The `-y` command line option will define the oled Y/B (yellow/blue) use (first text line is yellow).
 
-The server will also be able to light the RGB led. Eg `<led color=red secs=1.5>` will light the red red for 1.5 seconds. The `secs` argument is optional as secs=0 (led not turned off). RGB led handling is enabled by the `-rgb` command line argument.
+The server will also be able to light the RGB led. Eg `<led color=red secs=1.5 repeat=5>` will light the red red for 1.5 seconds, wait 1.5 seconds and repeat 4 times the sequence. The `secs` argument is optional as secs=0 (led not turned off). Repeat attribiute is optional (default 1). RGB led handling is enabled by the `-rgb` command line argument.
 The RGB pinnumbers have to be defined as GPIO numbers, default GPIO 17 R, GPIO 27 G, GPIO 22 B (pin board numbers: 11 R, 13 G, 15 B). Grpound eg board pinnr 9.
 RGB led use allows simple feed back e.g. red on error, green on data transaction, yellow on startup, etc.
 

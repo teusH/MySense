@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDisplayServer.py,v 2.1 2019/01/25 15:23:49 teus Exp teus $
+# $Id: MyDisplayServer.py,v 2.2 2019/01/25 17:06:35 teus Exp teus $
 
 # script will run standalone, collects text lines from sockets streams and
 # displays the scrolled lines on an Adafruit display
@@ -218,8 +218,9 @@ class ClientThread(object):
 # MyRGBled.py 1.2 2019/01/22 12:04:26
 
 # exercise RGB ed of Pi different colloprs for a period of time
-# <led color=red secs=0.2> ....
+# <led color=red secs=0.2 repeat=5> ....
 # if secs option is undefined or 0 period is unlimited till next command
+# if repeat is undefined the cmd is one time (wait between next seq is secs seconds.
 # use: Conf dict as configuration
 # inSync=False do use multi threading
 # pinR:11 pinG:13 pinB:15 pin of Pi used for color led, if one isdnot defined no led
@@ -367,12 +368,14 @@ class RGBthread:
                 if (cmd == None) or (not 'color' in cmd.keys()):
                     if not self.inSync: continue
                     else: break
-                self.setColor(int(cmd['color']))
-                if ('secs' in cmd.keys()) and (cmd['secs'] <= 0.001): continue
-                if self.debug:
+                for cnt in range(0,cmd['repeat']):
+                  if cnt: time.sleep(cmd['secs'])
+                  self.setColor(int(cmd['color']))
+                  if ('secs' in cmd.keys()) and (cmd['secs'] <= 0.001): continue
+                  if self.debug:
                     print("RGBthread light for %f seconds" % cmd['secs'])
-                time.sleep(cmd['secs'])
-                self.setColor(0x000000)  # color black
+                  time.sleep(cmd['secs'])
+                  self.setColor(0x000000)  # color black
                 if self.inSync: return
             except Exception as err:
                 print("Thread exception as %s" % err)
@@ -436,7 +439,7 @@ class RGBthread:
         try: light = light[:light.index('>')]
         except: pass
         light = light.strip()
-        cmd = {'secs': 0}
+        cmd = {'secs': 0, 'repeat': 1}
         light = re.sub(' +',' ',light)
         for word in light.split():
             try:
@@ -447,6 +450,7 @@ class RGBthread:
                     else:
                         cmd['color'] = int(word[word.index('=0')+1:],0)
                 elif word[:3] == 'SEC': cmd['secs'] = float(word[word.index('=')+1:])
+                elif word[:3] == 'REP': cmd['repeat'] = int(word[word.index('=')+1:])
                 else: print("Unknow RGB word %s" % word)
             except: pass
         if cmd['secs'] > 60*5.0: cmd['secs'] = 0 # 5 minutes is forever
