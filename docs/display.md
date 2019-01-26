@@ -9,9 +9,13 @@ Operational 2017/6/17
 * Use `INSTALL.sh DISPLAY` to install the script and dependences.
 
 The script
-<img src="images/SSD1306.png" align=right width=175>
+<img src="images/SSD1306-RGBled.png" align=right width=225>
 has three modules:
-* display server: which uses Adafruit lib and driver to receive text and display the text on the little Adafruit SSD1306 display. Try the command `./MyDisplayServer.py -help` to see all the options and command arguments. The server is multithreaded.
+* display server: which uses Adafruit lib and driver to receive text and display the text on the little Adafruit <a href="https://www.aliexpress.com/item/0-96-inch-IIC-Serial-White-OLED-Display-Module-128X64-I2C-SSD1306-12864-LCD-Screen-Board/32896971385.html?spm=a2g0s.9042311.0.0.3da24c4dctrvsH">SSD1306 display</a> (Y/B, blue or white; AliExpress € 1.80).
+Optional <a href="https://www.aliexpress.com/item/1PCS-Smart-Electronics-FZ0455-4pin-KEYES-KY-016-Three-Colors-3-Color-RGB-LED-Sensor-Module/32763280158.html?spm=a2g0s.9042311.0.0.27424c4dN3XhqH">RGB led</a> (AliExpress € 0.35).
+We used Dupont female connector/wires (€ 0.50) to connect it to the Pi.
+
+Try the command `./MyDisplayServer.py -help` to see all the options and command arguments. The server is multithreaded.
 The DISPLAY service should be run as deamon. Add `@boot path/MyDisplayServer.py start`  e.g. to crontab of root.
 * a client which is an example to send text to the display server/service on `localhost TCP/IP port 2017`.
 * an output channel to send console type of measurement results to the little display. Use the plugin `MyDISPLAY.py`
