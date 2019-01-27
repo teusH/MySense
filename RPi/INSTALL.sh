@@ -1,7 +1,7 @@
 #!/bin/bash
 # installation of modules needed by MySense.py
 #
-# $Id: INSTALL.sh,v 1.5 2019/01/10 11:31:11 teus Exp teus $
+# $Id: INSTALL.sh,v 1.6 2019/01/27 10:44:49 teus Exp teus $
 #
 
 USER=${USER:-ios}
@@ -419,6 +419,15 @@ function DISPLAY(){
     then
         echo "GPIO: Missing spidev: please use \"sudo rasp-config\" and enable SPI"
     fi
+    echo "You can adjust MyDisplayServer server via 'crontab -e' later" >/dev/stderr
+    echo "You er" >/dev/stderr
+    read -t 15 -p "RGB led: Is there need to handle an RGB led from MyDisplayServer? [y|N]" ANS
+    case X"$ANS" in
+    Xy*|XY*)
+        YB+=' -rgb'
+        echo "You may need to adjust GPIO pin nr: dft '-R 17'  '-G 27' '-B 22'" >/dev/stderr
+    ;;
+    esac
     local INS_DIR=$(pwd)
     if [ ! -f MyDisplayServer.py ]
     then
