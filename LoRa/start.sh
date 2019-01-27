@@ -49,11 +49,11 @@ function Wait4Internet() {
     while [[ $(ping -c1 google.com 2>&1 | grep " 0% packet loss") == "" ]]; do
       if ((count >= 20))
       then
-         display '<clear>ERROR no internet'
+         display '<led color=red secs=0.5 repeat=5><clear>ERROR no internet'
          exit 1
       fi
       echo "[TTN Gateway]: Waiting for internet connection..."
-      display 'WAIT for internet'
+      display '<led color=red secs=0.1>WAIT for internet'
       sleep 30
       count+=1
     done
@@ -132,7 +132,7 @@ iot_update_gwid() {
         do
             if /bin/grep -q $NIC /proc/net/dev ; then break ; else NIC='' ; fi
         done
-        if [ -z "$NIC" ] ; then display "ERROR no NIC" ; exit 1 ; fi
+        if [ -z "$NIC" ] ; then display "<led color=red secs=0.1 repeat=10>ERROR no NIC" ; exit 1 ; fi
         GW_EUI=$(/sbin/ip link show $NIC | /usr/bin/awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3 "FFFE" $4$5$6 }')
 
         # replace last 8 digits of default gateway ID by actual GWID
@@ -145,7 +145,7 @@ iot_update_gwid() {
     display "${GWID_BEGIN}${GW_EUI,,}"
 }
 
-display "<clear>Starting TTN Gway"
+display "<led color=white><clear>Starting TTN Gway"
 # If there's a remote config, try to update it
 if [ -d ../gateway-remote-config ]; then
     display "Remote config update"
@@ -188,9 +188,9 @@ else
       1) break  # tty GPS locked
       ;;
       esac
-      display 'Wait for fixate'
+      display '<led color=yellow sec=0.1>Wait for fixate'
       sleep 120
-      display 'GPS try again'
+      display '<led color=orange color=0.1>GPS try again'
     done
 fi
 
@@ -204,7 +204,7 @@ then
     exit 0
 fi
 
-display '<clear>LoRa gateway'
+display '<led color-white secs=0.1 repeat=3><clear>LoRa gateway'
 sleep 30
 Wait4Internet
 for INT in eth0 wlan0
@@ -219,7 +219,7 @@ done
 # Fire up the forwarder.
 for NR in first second third fourth fifth
 do
-    display "LoRa FWDR startup\nstarted $NR time"
+    display "<led color=white secs=0.1>LoRa FWDR startup\nstarted $NR time"
     GW_reset
     if [ -x /usr/local/bin/GatewayLogDisplay.py ] && [ -z "$NODISPLAY" ]
     then
@@ -242,4 +242,4 @@ do
     fi
     # seems concentrator board sometimes does not start but can be restarted
 done
-display "LoRa Forwarder stopped"
+display "<led color=red secs=0.05 repeat=100>LoRa Forwarder stopped"
