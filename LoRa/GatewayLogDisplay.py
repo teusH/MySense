@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: GatewayLogDisplay.py,v 1.15 2018/12/16 16:30:01 teus Exp teus $
+# $Id: GatewayLogDisplay.py,v 1.16 2019/01/27 13:33:27 teus Exp teus $
 
 # script to rerad gw-forward LoRa logging on stdin
 # use oled display to visualize some statistics
@@ -49,15 +49,17 @@ def GetInput(stream):
     return line
 
 # send text to SSD1306 display server
+DspEnabled = True
 def displayMsg(msg):
-    global verbose
+    global verbose, DspEnabled
+    if not len(msg): return True
+    if verbose: print("Display message:", msg)
+    if not DspEnabled: return True
     host = 'localhost'
     port = 2017
     degree = u'\N{DEGREE SIGN}'
     micro = u'\N{MICRO SIGN}'
 
-    if verbose: print("Display message:", msg)
-    if not len(msg): return True
     if not type(msg) is list: msg = msg.split("\n")
     for i in range(len(msg)-1,-1,-1):
         if not len(msg[i]):
@@ -69,7 +71,6 @@ def displayMsg(msg):
         #msg[i] = msg[i].replace('ug/m3',micro + 'g/m³')
         msg[i] = msg[i].replace('ug/m3',micro + 'g/m3')
     msg = "\n".join(msg) + "\n"
-    if not len(msg): return True
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((host,port))
@@ -78,6 +79,7 @@ def displayMsg(msg):
         return True
     except:
         #raise IOError("Unable to talk to display service")
+        DspEnabled = False
         print( msg )
         sys.stdout.flush()
         return False
@@ -143,11 +145,17 @@ def Update():
         return False
     DisplayLock.acquire()
     Cleanup(CurDate)
-    thisHour[0][0] += Stat['UpstreamPackages']; thisDay[0][0] += Stat['UpstreamPackages']
-    thisHour[0][1] += Stat['UpstreamBytes']; thisDay[0][1] += Stat['UpstreamBytes']
-    thisHour[1][0] += Stat['DownstreamPackages']; thisDay[1][0] += Stat['DownstreamPackages']
-    thisHour[1][1] += Stat['DownstreamBytes']; thisDay[1][1] += Stat['DownstreamBytes']
-    thisHour[1][2] += Stat['TxErrors']; thisDay[1][1] += Stat['TxErrors']
+    if Stat['UpstreamPackages'] > 0:
+        thisHour[0][0] += Stat['UpstreamPackages']; thisDay[0][0] += Stat['UpstreamPackages']
+        thisHour[0][1] += Stat['UpstreamBytes']; thisDay[0][1] += Stat['UpstreamBytes']
+        displayMsg("<led color=lime secs=0.01 repeat=%d>" % ( Stat['UpstreamPackages'] if Stat['UpstreamPackages'] < 10 else 10))
+    if Stat['DownstreamPackages'] > 0:
+        thisHour[1][0] += Stat['DownstreamPackages']; thisDay[1][0] += Stat['DownstreamPackages']
+        thisHour[1][1] += Stat['DownstreamBytes']; thisDay[1][1] += Stat['DownstreamBytes']
+        displayMsg("<led color=blue secs=0.1 repeat=%d>" % (Stat['DownstreamPackages'] if Stat['DownstreamPackages'] < 10 else 10))
+    if Stat['TxErrors'] > 0:
+        thisHour[1][2] += Stat['TxErrors']; thisDay[1][1] += Stat['TxErrors']
+        displayMsg("<led color=red secs=0.01 repeat=%d>" % Stat['TxErrors'])
     NewRecord = True
     # print("Update happened")
     try:
@@ -364,6 +372,7 @@ Arguments:
   -t be also tranparent: input lines are transferred to output as well
   -q do not log hourly and dayly package statistics to std out (dflt log)
   -h this help message
+  file name, default read from stdin
 """)
     sys.exit(0)
 
@@ -394,7 +403,7 @@ while True:
         continue
     if line.find('ERROR: ') >= 0:
         if line.find('failed to start') >= 0:
-            displayMsg("FATAL FORWARDER\nconcentrator start failed")
+            displayMsg("<led color=red>FATAL FORWARDER\nconcentrator start failed")
             sys.exit(1)
         else:
             msg = line
