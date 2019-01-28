@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDisplayServer.py,v 2.2 2019/01/25 17:06:35 teus Exp teus $
+# $Id: MyDisplayServer.py,v 2.3 2019/01/28 11:22:08 teus Exp teus $
 
 # script will run standalone, collects text lines from sockets streams and
 # displays the scrolled lines on an Adafruit display
@@ -172,8 +172,8 @@ class ClientThread(object):
                               if not 'RGB' in self.conf.keys():
                                 self.conf['RGB'] = RGBthread(self.conf, debug=self.conf['debug'], inSync=False)
                               txt = self.conf['RGB'].RGBcommand(txt)
-			    else: txt = txt[txt.find('>')+1:]
-			    if not len(txt): continue
+                            else: txt = txt[txt.find('>')+1:]
+                            if not len(txt): continue
                         if self.conf['addLine'] == None:
                             raise NameError("Unable to use addLine routine of Display")
                         args = {}
@@ -304,7 +304,7 @@ class RGBthread:
             for pin in ['pinR','pinG','pinB']:
                 if not pin in self.conf.keys(): raise ValueError("Missing pin %s def" % pin)
             import RPi.GPIO as GPIO
-	    # need to use GPIO pin numbers iso board pin due to Adafruit display lib
+            # need to use GPIO pin numbers iso board pin due to Adafruit display lib
             GPIO.setmode(GPIO.BCM)       # Numbers GPIOs by physical location
             for pin in ['pinR','pinG','pinB']:
                 GPIO.setup(self.conf[pin], GPIO.OUT)   # Set conf' mode is output
@@ -316,7 +316,7 @@ class RGBthread:
         except Exception as err:
             self.pins = False
             print("RGB hw init failed")
-	    return False
+            return False
         return True
     
     # RGB hardware reset
@@ -627,20 +627,20 @@ if __name__ == "__main__":
         elif sys.argv[i][0:2].lower() == '-y': # YellowBlue oled display
             YB = True
             sys.argv.pop(i)
-        # RGB led handling, donw in a separate thread, only started on first use
         elif sys.argv[i][0:4].lower() == '-rgb': # enable RGBled, dflt OFF
+            # RGB led handling, donw in a separate thread, only started on first use
             Conf['rgb'] = True
             sys.argv.pop(i)
-        # if any pin is not defined the led will NOT glow
-        elif sys.argv[i][0:2].lower() == '-R': # Red Pi pin nr RGB led
+        elif sys.argv[i][0:2] == '-R': # Red Pi pin nr RGB led
+            # if any pin is not defined the led will NOT glow
             Conf['rgb'] = True
             Conf['pinR'] = int(sys.argv[i+1])
             sys.argv.pop(i+1); sys.argv.pop(i)
-        elif sys.argv[i][0:2].lower() == '-Y': # Yellow Pi pin nr RGB led
+        elif sys.argv[i][0:2] == '-G': # Green Pi pin nr RGB led
             Conf['rgb'] = True
             Conf['pinG'] = int(sys.argv[i+1])
             sys.argv.pop(i+1); sys.argv.pop(i)
-        elif sys.argv[i][0:2].lower() == '-B': # Red Pi pin nr RGB led
+        elif sys.argv[i][0:2] == '-B': # Blue Pi pin nr RGB led
             Conf['rgb'] = True
             Conf['pinB'] = int(sys.argv[i+1])
             sys.argv.pop(i+1); sys.argv.pop(i)
@@ -666,7 +666,7 @@ if __name__ == "__main__":
             deamon_status(PID_FILE)
             exit(0)
         elif sys.argv[1] != 'start':
-            sys.exit("Argument %s: unknown process request.")
+            sys.exit("Argument %s: unknown process request." % sys.argv[1])
         else:
             deamon_detach(PID_FILE)
         logging.info("Display Server starts up")

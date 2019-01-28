@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: GatewayLogDisplay.py,v 1.16 2019/01/27 13:33:27 teus Exp teus $
+# $Id: GatewayLogDisplay.py,v 1.17 2019/01/28 19:58:41 teus Exp teus $
 
 # script to rerad gw-forward LoRa logging on stdin
 # use oled display to visualize some statistics
@@ -403,8 +403,8 @@ while True:
         continue
     if line.find('ERROR: ') >= 0:
         if line.find('failed to start') >= 0:
-            displayMsg("<led color=red>FATAL FORWARDER\nconcentrator start failed")
-            sys.exit(1)
+            displayMsg("<led color=red secs=1 repeat=60><clear>FATAL FORWARDER\nconcentrator start failed")
+            break
         else:
             msg = line
         if not ERRORS: msg = '<clear>' + msg
@@ -438,4 +438,5 @@ while True:
     # if len(line) == 1: Alive = False
     # skip this line
 
+displayMsg("<led color=red>FATAL FORWARDER stopped")
 stop_thread()           

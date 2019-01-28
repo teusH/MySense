@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyRGBled.py,v 1.4 2019/01/25 16:54:41 teus Exp teus $
+# $Id: MyRGBled.py,v 1.6 2019/01/28 10:15:32 teus Exp teus $
 
 # exercise RGB ed of Pi different colloprs for a period of time
 # <led color=red secs=0.2 repeat=5> ....: red light for 0.2 seconds, repeated 5 times with 0.2 delay
@@ -113,8 +113,10 @@ class RGBthread:
             for pin in ['pinR','pinG','pinB']:
                 if not pin in self.conf.keys(): raise ValueError("Missing pin %s def" % pin)
             import RPi.GPIO as GPIO
-	    # for GPIO pin numbering use BCM iso BOARD!
-            GPIO.setmode(GPIO.BOARD)       # Numbers GPIOs by physical location
+            # GPIO.setmode(GPIO.BOARD)       # Numbers GPIOs by physical location
+	    # for GPIO pin numbering e.g. use with Adafruit lib use BCM iso BOARD!
+            # need to use GPIO pin numbers iso board pin due to Adafruit display lib
+            GPIO.setmode(GPIO.BCM)       # Numbers GPIOs by physical location
             for pin in ['pinR','pinG','pinB']:
                 GPIO.setup(self.conf[pin], GPIO.OUT)   # Set conf' mode is output
                 GPIO.output(self.conf[pin], GPIO.HIGH) # Set conf to high(+3.3V) to off led
@@ -280,7 +282,9 @@ if __name__ == '__main__':
     import sys
     # we use Pi board pin numbering scheme here
     # eg Adafruit lib, eg SSD1306 lib routines, use default GPIO pin numbering instead
-    Conf = {'pinR':11, 'pinG':13, 'pinB':15,}  # Conf is a dict
+    # 'pinR': 11, 'pinG': 13, 'pinB': 15, # default RGB Pi pins should be GPIO pins
+    # use GPIO pin numbering!
+    Conf = { 'pinR': 17, 'pinG': 27, 'pinB': 22, } # default RGB Pi pins should be GPIO pins
     Conf['debug'] = True
     RGB = RGBthread(Conf, debug=True, inSync=True)
     try:
