@@ -27,3 +27,13 @@ With the MySense RPi `INSTALL.sh` configuration script one will find options to 
 ## LoRa gateway script extensions
 * *start.sh* This shell script is extended with commands to identify internet access, adjust GPS localisation configuration on the fly, provide visual feedback on the oled display and RGB led and limit the forwarder logging as well give statistical visual feedback.
 * *GatewayLogDisplay.py* a log filter and visualisation of status and traffic statistics on the oled display and RGB led server `MyDisplayServer.py' (see RPi directory, install this script with INSTALL.sh).
+
+## Concentrator errors
+A frequent error `ERROR failed to start concentrator` is raised on the different fora. As more detailed of the rerason for the errors in the concentrator software is lacking some hints may be usefull:
+* make sure the Pi has a good powersupply of 5V DC and is able to deliver 2.1A. Many adapaters say they are 2.1A but the reality is different.
+* make sure the hardware reset pin 22 or other is really connected to the concentrator board and a separate script is doing the reset.
+* make sure the user has GPIO full access rights.
+
+Sometimes the errort is about wrong calibration version. The upload of the firmware probnably went wrong. E.g. use shielded cabling to the concentrator. Just a reboot may also cure this...
+
+Make sure when you powerup the antenna is connected. If not it may destroy the concentrator board.
