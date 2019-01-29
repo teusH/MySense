@@ -1,10 +1,12 @@
 # LoRaWan Long Range Internet of Things
-LoRaWan network for sensors coverage is needed to pick up the measurements data. Commercial coverage is provaided. This might be a solution for a very limited amount of measurement nodes, but the advantage of using the free The Things Network should be considered due to technical arguments.
+LoRaWan network for sensors coverage is needed to pick up the measurements data. Commercial coverage is provided. This might be a solution for a very limited amount of measurement nodes, but the advantage of using the free The Things Network should be considered due to technical arguments.
 
 One LoRa gateway (a data forwarder) will have a coverage with an outdoor antenna will be 2.5 km or much more if there is free sight.
 A commercial LoRa gateway will costs about € 750-1500. A DIY LoRa gateway is easy to configure for about € 120 (Pi/RAK831) up to € 170 (Pi/IC880A-SPI).
 
 ## DIY LoRa gateway
+<img src="images/MySense-Pi-RAK831-TTNgateway.png" align=right height=250>
+<img src="images/MySense-Pi-IC880A-SPI-TTNgateway.png" align=right height=250>
 To build a DIY gateway one will find on internet many good instructions:
 * <a href="https://webshop.ideetron.nl/iC880A-SPI"> Pi/IC880A-SPI</a>  € 115.- a quick start guide
 * <a href="https://nl.aliexpress.com/item/RAK831-Pilot-Gateway-SX1301-Raspberry-Pi3-GPS-met-complete-behuizing-voor-professionele-demonstratie-set-up/32883987457.html">Pi/RAK831</a> via AliExpress € 120.- - 170.- with aluminium (indoor) housing
