@@ -8,11 +8,17 @@ A commercial LoRa gateway will costs about € 750-1500. A DIY LoRa gateway is e
 <img src="images/MySense-Pi-RAK831-TTNgateway.png" align=right height=250>
 <img src="images/MySense-Pi-IC880A-SPI-TTNgateway.png" align=right height=250>
 To build a DIY gateway one will find on internet many good instructions:
+
 * <a href="https://webshop.ideetron.nl/iC880A-SPI"> Pi/IC880A-SPI</a>  € 115.- a quick start guide
+
 * <a href="https://nl.aliexpress.com/item/RAK831-Pilot-Gateway-SX1301-Raspberry-Pi3-GPS-met-complete-behuizing-voor-professionele-demonstratie-set-up/32883987457.html">Pi/RAK831</a> via AliExpress € 120.- - 170.- with aluminium (indoor) housing
+
 * <a href="https://github.com/ttn-zh/ic880a-gateway/wiki"> Github wiki</a> from zero to lorawan in a weekend
+
 * <a href="https://www.thethingsnetwork.org/forum/t/the-hard-rak831-cafe-part-2/10576">the RAK831 way<a>
+
 * <a href="https://www.thethingsnetwork.org/docs/gateways/rak831/">how to build lora gateway with rak831a</a>
+
 * <a href="https://www.thethingsnetwork.org/forum/t/rak831-vs-ic880a-spi/12423">rak831 versus ic880a-spia</a>
 
 The use of a header board (the wiring is just the board) is advised. If one uses wiring make sure to use a grounded shield for the data wiring. For both types of boards the software is very similar (SIMTECH).
