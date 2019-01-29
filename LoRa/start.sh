@@ -204,7 +204,7 @@ then
     exit 0
 fi
 
-display '<led color-white secs=0.1 repeat=3><clear>LoRa gateway'
+display '<led color=white secs=0.1 repeat=3><clear>LoRa gateway'
 sleep 30
 Wait4Internet
 for INT in eth0 wlan0
