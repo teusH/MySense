@@ -14,7 +14,7 @@ Overview of wiring and modules using a PCB boiard with Grove connectors to avoid
 
 Comment: here we used the indoor dust sensor PMS7003. Use for outdoor the PMSx003 dust sensor.
 
-## Shopping lis (ca € 100-150):
+## Shopping list (ca € 100-150):
 * PyCom LoPy-4 controller  PYCLOPY4 (Tinytronics  € 42.-)
 * optional LoPy Expansie board 2.0 PYCEXPBOARD2.0 (Tinytronics € 19.-) (development board)
 * alternative is a DIY PCB conneceor board with 6 Grove connectors (3 TTL and 3 I2C) ca € 15 (incl the  components (mosfet, resisters, pins).
@@ -64,6 +64,12 @@ Some fixing materials:
 * 4 cm tube for air inlet of PM module (SDS011 or black PMSA003)
 * piece of wood to be able to attach the outdoor cable box on a wall.
 * some material to fixate the components and allow airflow in the box
+
+### LoPy kit casing
+A simple housing case is made with a piece of plexiglas 60 X 240 mm (see for thedril mask for 3 mm dril the SVG file in the images directory).
+<img src="images/PVC-luchtpijpcase.png" align=right height=200>
+This plexiglas can be fixated within an PVC roof air outlet (length 300 mm diameter 80 mm) and some mosquito bait with PVC ring (socket).
+One may locate the LoRa antenna in the pipe or on the outside attached to the PVC ring.
 
 ### TTN gateway
 
@@ -135,6 +141,8 @@ If the GPS modules is installed the controller will (re)sent this location infor
 ## PyCom programming
 The PyCom boards are using MicroPython (see http://docs.micropython.org/en/latest/pyboard/).
 MicroPython is an embedded Python 3 alike scripting language.
+
+A guide to set up (your first steps with the Pycom module) the PyCom Lopy is available from the PyCom website: <a href="https://docs.pycom.io/gettingstarted/introduction.html">Getting Started"</a>. Make sure to install the latest PyCom firmware. Try to <a href="https://docs.pycom.io/gettingstarted/programming/examples.html">print 'Hello World'</a> from micro python `>>> print("Hello World")`, <a href="https://docs.pycom.io/gettingstarted/programming/first-project.html">blink the RGB led and erase/cleanup the PyCom `/flash' file system</a>.
 
 ## WiFi SECURITY
 Default the PyCom board will enable WiFi as Access Point with standard public known access passwords en telnet/ftp credentials. MAKE SURE you change this to avoid the use of the controller by anyone. See how to's:
