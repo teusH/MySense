@@ -1,5 +1,5 @@
 ## Description
-The LoPy is a low cost (€ 35) ESP controller which support micropython and has wifi, Bluetooth and LoRaWan or SigFox capabilities. MySense is using the PyCom expansion board (€ 16) for the wiring and programming.
+The LoPy is a low cost (€ 35) ESP controller which support micropython and has wifi, Bluetooth and LoRaWan or SigFox capabilities. MySense is using the PyCom expansion board V3 (€ 16) for the manufacturer firmware flashing, developemnt wiring and programming. For operations we use an own expansion PCBV board with Grove connectors to eliminate wiring and connection errors.
 
 MySense operates with TTN as LoRa dataconcentrator. MySense will check every 2.5 seconds (maximal 20 times) if a *join* with TTN LoRa network was succesfull.
 A red flash will denote there was not a join yet.
@@ -17,19 +17,31 @@ The right side pins top down are numbered as: Vin V3.3/V5, Gnd, 3V3, P23, P22, .
 
 <img src="images/PyCom-wiring-BME-SDS-PMS-SSD-GPS.png" align=right width=400>
 
-SDS011/PMS7003 TTL Uart connection:
+### TTL/UART devices connections
+SDS011/PMS7003/PMSx003 TTL UART connection:
 * SDS Gnd (black) -> LoPy Gnd (on right side 2nd pin, same pin as for BME)
-* SDS V5 (red) -> LoPy V5 (on right side, top pin)
-* SDS Rx (white) -> LoPy P3 / Tx1 (on left side, 5th pin from top)
-* SDS Tx (yellow)-> LoPy P4 / Rx1 (on left side, 6th pin from top)
+* SDS V5 (red)    -> LoPy V5 (on right side, top pin)
+* SDS Rx (yellow) -> LoPy P3 / Tx1 (on left side, 5th pin from top)
+* SDS Tx (white)  -> LoPy P4 / Rx1 (on left side, 6th pin from top)
 
-BME280/680 I2C  connection (default I2C address):
+Grove GPS TTL Uart connection:
+* GPS Gnd (black) -> LoPy Gnd (on right side, shared pin)
+* GPS Vcc (red) -> LoPy 3V3 (shared with others)
+* GPS Rx (green) -> LoPy P12 / Tx2 (on left side, 1st pin from bottom)
+* GPS Tx (yellow) -> LoPy P11 / Rx2 (on left side, 2nd pin from bottom)
+
+In `Config.py` one is able to define the pins. MySense will automatically detect on the defined UART pins the GPS and dust connector.
+
+### I2C devices connections
+SHT31/BME280/680 I2C  connection (default I2C address):
 * BME Gnd (black) -> LoPy Gnd (on right side, same pin as for SDS)
 * BME V3/5 (red) -> LoPy 3V3 (on right side, 3rd pin from top)
 * BME SDA (white) -> LoPy SDA (on right side, 4th pin from top)
 * BME SCL (yellow) -> LoPy CLK (on right side, 5th pin from top)
+The oled SSD1306 display I2C bus is connected parallel to each other.
 
-SSD1306 SPI connection (using GPIO pins):
+### Optional SPI device
+Optional SSD1306 SPI connection (using GPIO pins):
 * SSD CS (blue) -> LoPi P18
 * SSD DC (purple) -> LoPy P20
 * SSD RST (gray) -> LoPy P21
@@ -38,16 +50,10 @@ SSD1306 SPI connection (using GPIO pins):
 * SSD VCC (red) -> LoPy 3V3 (shared with BME280)
 * SSD GND (black) -> LoPy Gnd (on right side, same pin as for SDS)
 
-Warning: SPI oled display seems not run with PyCom firmware 1.17.3.b1 (April 2018). Previous version was ok.
-
-Grove GPS TTL Uart connection:
-* GPS Gnd (black) -> LoPy Gnd (on right side, shared pin)
-* GPS Vcc (red) -> LoPy 3V3 (shared with others)
-* GPS Rx (green) -> LoPy P12 / Tx2 (on left side, 1st pin from bottom)
-* GPS Tx (yellow) -> LoPy P11 / Rx2 (on left side, 2nd pin from bottom)
+Warning: SPI oled display seems not run with PyCom firmware 1.17.3.b1 (April 2018). A previous version was running ok.
 
 ## Remote command handling
-A simple ermote command via LoRa has been implemented: 
+A simple remote command via LoRa has been implemented: 
 * ?: send configuration and GPS location info 
 * O: switch oled display off
 * d: enable to send dust raw data
@@ -57,7 +63,7 @@ A simple ermote command via LoRa has been implemented:
 * S: stop
 * i<unsigned int value>: value should be > 60 seconds, defines new sample interval time
 * more to do
-* 
+On a reboot the remote command is lost. (To Do: survive a reboot).
 
 ## TTN how to
 You need to set up an account and password with The Things Network: https://thethingsnetwork.org/
@@ -65,18 +71,25 @@ You need to set up an account and password with The Things Network: https://thet
 Via the `console` add an application with a name: https://console.thethingsnetwork.org/applications/add
 If done so, click on the added application name and register a device: 
 ://console.thethingsnetwork.org/applications/NAME_APPLICATION/devices/register
-Write down the following information to be entered in the Config.py:
+Write down the following OTAA information to be entered in the Config.py:
 ```python
 dev_eui = "XXXXXXXXXXXXXXXX"
 app_eui = "YYYYYYYYYYYYYYYY"
 app_key = "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
 ```
+MySense is also supporting the ABP mode with LoRa. Just define the ABP keys. If available MySense will first try OTAA and if unsuccessfull (or if keys are not defined) will try ABP mode.
 If you want to access (and you want to do that during tests) the TTN MQTT server you need to write down the App ID (NAME_APPLICATION) and Access Key (bottom of the App Id page).
 
-If the LoPy sensor kit is running you
+To Do: support MQTT access via WiFi.
 
-## LoRa test
-### Send test data to TTN
+## MySense test
+MySense is supplying some simple test scripts to test LoRa, GPS, meteo, and dust sensors. Use xyz_test.py for this. E.g.:
+'''
+>>> import dust_test
+'''
+This enables you to test all modules and wiring one by one.
+
+### Data format handling at TTN webiste server
 Use the script `lora_test.py` to test your configuration and LoRa connectivity.
 ```python
     >>>import lora_test # this will send MySense info and MySense data
