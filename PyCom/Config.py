@@ -5,9 +5,9 @@
 #          app id  ???, dev id ???
 Network = 'TTN' # or 'WiFi'
 # OTAA keys
-dev_eui = "D4xxxxxxxxxxxx17"
+dev_eui = "AAxxxxxxxxxxxxE4"
 app_eui = "70xxxxxxxxxxxxD3"
-app_key = "5FxxxxxxxxxxxxxxxxxxxxxxxxxxxxA0"
+app_key = "E5xxxxxxxxxxxxxxxxxxxxxxxxxxxx36"
 # ABP keys
 # dev_addr  = "26xxxxF1"
 # nwk_swkey = "E8xxxxxxxxxxxxxxxxxxxxxxxxxxxx9C"
@@ -37,11 +37,8 @@ thisGPS = [0.0,0.0,0.0] # (LAT,LON,ALT)
 # Meteo: BME280, BME680, SHT31
 # meteo module is auto detected
 useMeteo = 'I2C'# I2C bus, None: disabled
-# uncomment if connected
-BME=680 # to discriminate BME280 from BME680
-# BME=280
-if BME == 680:
-    M_gBase = 430940.4 # BME680 gas base line (dflt None: recalculate)
+# only needed for BME680, if not defined recalculate takes 5 minutes
+M_gBase = 430940.4 # BME680 gas base line (dflt None)
 
 # use oled display None: disabled
 useSSD = 'I2C'

@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 3.6 2018/11/29 13:18:32 teus Exp teus $
+# $Id: MySense.py,v 3.8 2019/02/04 14:19:53 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 3.6 $"[11:-2]
+__version__ = "0." + "$Revision: 3.8 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -237,8 +237,6 @@ except: pass
 # search for I2C devices
 def searchDev(names=['BME','SHT','SSD']):
     global useMeteo, useSSD
-    try: from Config import BME
-    except: BME=280
     try:
         from Config import I2Cpins, I2Cdevices
     except:
@@ -252,8 +250,6 @@ def searchDev(names=['BME','SHT','SSD']):
                     print('sensor %s not in I2C names: ' % item[0][:3], names)
                     continue
                 name = item[0]
-                # next needs to be improved
-                if (item[0] == 'BME280') and (BME == 680): name = 'BME680'
                 print('%s I2C[%d]:' % (name,index), ' SDA ~> %s, SCL ~> %s' % I2Cpins[index], 'address 0x%2X' % item[1])
                 if (name[:3] in ['BME','SHT']) and (not type(useMeteo) is dict) and useMeteo:
                     useMeteo = { 'i2c': i2c[index], 'name': name, 'addr': item[1] }
@@ -322,28 +318,30 @@ if not type(useMeteo) is dict:
 else:
   meteo = useMeteo['name']
   try:
-    if meteo == 'BME280':
+    if meteo[:3] == 'BME':
       import BME280 as BME
-    elif meteo == 'BME680':
-      import BME_I2C as BME
-      try:
-        from Config import M_gBase
-      except:
-        M_gBase = None
+      useMeteo = BME.BME_I2C(useMeteo['i2c']['fd'], address=useMeteo['addr'], debug=False, calibrate=calibrate)
+      if (useMeteo.temperature < -40.0) or (useMeteo.pressure < 0.0):
+        # this is not a BME280 but a BME680
+        del BME
+        meteo = 'BME680'; useMeteo['name'] =  meteo
+        import BME_I2C as BME
+        useMeteo = BME.BME_I2C(i2c, address=addr, debug=False, calibrate=calibrate)
+        try:
+          from Config import M_gBase
+        except:
+          M_gBase = None
+        display('AQI wakeup')
+        useMeteo.gas_base = M_gBase
+        if useMeteo._gasBase: pass
+        nl -= LF # undo lf
+        # useMeteo.sea_level_pressure = 1011.25
     elif meteo == 'SHT31':
       import Adafruit_SHT31 as SHT
       useMeteo = SHT.SHT31(address=useMeteo['addr'], i2c=useMeteo['i2c']['fd'], calibrate=calibrate)
     else: # DHT serie not yet supported
       LED.blink(5,0.3,0xff0000,True)
       raise ValueError("Unknown meteo %s type" % meteo)
-    if meteo[:3] == 'BME':
-      useMeteo = BME.BME_I2C(useMeteo['i2c']['fd'], address=useMeteo['addr'], debug=False, calibrate=calibrate)
-    if meteo == 'BME680':
-      display('AQI wakeup')
-      useMeteo.gas_base = M_gBase
-      if useMeteo._gasBase: pass
-      nl -= LF # undo lf
-      # useMeteo.sea_level_pressure = 1011.25
     display('meteo: %s' % meteo)
   except Exception as e:
     useMeteo = None; meteo = ''

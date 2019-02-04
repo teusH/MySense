@@ -1,12 +1,10 @@
 from time import sleep
 from machine import I2C
 
-__version__ = "0." + "$Revision: 3.4 $"[11:-2]
+__version__ = "0." + "$Revision: 3.5 $"[11:-2]
 __license__ = 'GPLV4'
 
 def searchDev(names=['BME','SHT','SSD']):
-    try: from Config import BME
-    except: BME=280
     try:
         from Config import I2Cpins, I2Cdevices
     except:
@@ -25,38 +23,36 @@ def searchDev(names=['BME','SHT','SSD']):
                 if not item[0][:3] in names: continue
                 if device: continue  # first one we use
                 device = item[0]; bus = cur_i2c; nr = index
-                if (device == 'BME280') and (BME == 680): device = 'BME680'
                 address = item[1]
     return(nr,bus,device,address)
 
 (nr,i2c,meteo,addr) = searchDev(names=['BME','SHT'])
-print("Found I2C device %s" % meteo)
-if meteo: useMeteo = True
-else: useMeteo = False
-try:
-  if meteo == 'BME680':
-    import BME_I2C as BME
-  elif meteo == 'BME280':
-    import BME280 as BME
-  elif meteo == 'SHT31':
-    import Adafruit_SHT31 as SHT
-  else: useMeteo = False
-except:
-  raise OSError("Missing library %s" % meteo)
-
 if not i2c: raise ValueError("No meteo module found")
+
 try:
   from Config import calibrate
 except:
   calibrate = None
 
 # Create library object using our Bus I2C port
-if meteo[:3] == 'BME':
-    useMeteo = BME.BME_I2C(i2c, address=addr, debug=False, calibrate=calibrate)
-elif meteo[:3] == 'SHT':
-    useMeteo = SHT.SHT31(address=addr, i2c=i2c, calibrate=calibrate)
-else: raise ValueError("No meteo module connected")
+try:
+    if meteo[:3] == 'BME':
+        meteo = 'BME280'
+        import BME280 as BME
+        useMeteo = BME.BME_I2C(i2c, address=addr, debug=False, calibrate=calibrate)
+        if (useMeteo.temperature < -40.0) or (useMeteo.pressure < 0.0):
+            # this is not a BME280 but a BME680
+            del BME
+            meteo = 'BME680'
+            import BME_I2C as BME
+            useMeteo = BME.BME_I2C(i2c, address=addr, debug=False, calibrate=calibrate)
+    elif meteo[:3] == 'SHT':
+        import Adafruit_SHT31 as SHT
+        useMeteo = SHT.SHT31(address=addr, i2c=i2c, calibrate=calibrate)
+except:
+    raise ValueError("No meteo module connected")
 
+print("Found I2C device %s" % meteo)
 # change this to match the location's pressure (hPa) at sea level
 useMeteo.sea_level_pressure = 1024.25 # 1013.25
 for cnt in range(15):
