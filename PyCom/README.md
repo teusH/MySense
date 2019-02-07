@@ -8,9 +8,10 @@ Simple low cost (€120) satellites sensor kits.
 
 ## description
 
-Overview of wiring and modules using a PCB boiard with Grove connectors to avoid soldiering.
+Overview of wiring and modules using a PCB board with Grove connectors to avoid soldiering.
 
 <img src="images/LoPy-MySense-modules.png" align=center width=400>
+<img src="images/MySense-LoRa-lantern-outside.png" align=right width=150>
 
 Comment: here we used the indoor dust sensor PMS7003. Use for outdoor the PMSx003 dust sensor.
 
