@@ -12,14 +12,16 @@ Overview of wiring and modules using a PCB board with Grove connectors to avoid 
 
 <img src="images/LoPy-MySense-modules.png" align=center width=400>
 <img src="images/MySense-LoRa-lantern-outside.png" align=right width=150>
+<img src="images/MySense-LoPy-OBO-T100-outside.png" align=right width=150>
 
 Comment: here we used the indoor dust sensor PMS7003. Use for outdoor the PMSx003 dust sensor.
 
 ## Shopping list (ca € 100-150):
-* PyCom LoPy-4 controller  PYCLOPY4 (Tinytronics  € 42.-)
+* PyCom LoPy-4 controller  PYCLOPY4 (Tinytronics  € 35.-)
 * optional LoPy Expansie board 2.0 PYCEXPBOARD2.0 (Tinytronics € 19.-) (development board)
-* alternative is a DIY PCB conneceor board with 6 Grove connectors (3 TTL and 3 I2C) ca € 15 (incl the  components (mosfet, resisters, pins).
+* alternative is a DIY PCB connector board with 6 Grove connectors (3 TTL and 3 I2C) ca € 10 (incl the  components (mosfet, resisters, pins).
 PCB board has optional components to be able to use solarcel power. Send email for drawing of the PCB.
+Our PCB has been made by Fontys Venlo GreenTechLab.
 * LoPy-Sigfox antenne kit 868 Mhz PYCLOSIAN868KIT (Tinytronics € 10.50)
 * optional SSD1306 I2C Yellow/Blue 128X64 oled display (AliExpress € 2.23, Tinytronics € 9.50)
 E.g. <a href="https://nl.aliexpress.com/item/0-96-inch-IIC-Seri-le-Geel-Blauw-OLED-Display-Module-128X64-I2C-SSD1306-12864-Lcd/32920071528.html?albbt=Google_7_shopping&isdl=y&slnk=&albslr=228849138&src=google&acnt=494-037-6276&aff_platform=google&crea=nl32920071528&netw=u&plac=&albcp=1626925412&mtctp=&aff_short_key=UneMJZVf&gclid=EAIaIQobChMI2czMspLr3wIVx8CyCh1c9AhwEAQYAiABEgKSl_D_BwE&albag=63599479084&albch=shopping&trgt=296904914040&device=c&gclsrc=aw.ds">Oled display</a>
@@ -67,10 +69,13 @@ Some fixing materials:
 * some material to fixate the components and allow airflow in the box
 
 ### LoPy kit casing
-A simple housing case is made with a piece of plexiglas 60 X 240 mm (see for thedril mask for 3 mm dril the SVG file in the images directory).
+A simple housing case is made with a piece of plexiglas 61 X 230 mm (see for thedril mask for 3 mm dril the SVG file in the images directory).
 <img src="images/PVC-luchtpijpcase.png" align=right height=200>
 This plexiglas can be fixated within an PVC roof air outlet (length 300 mm diameter 80 mm) and some mosquito bait with PVC ring (socket).
 One may locate the LoRa antenna in the pipe or on the outside attached to the PVC ring.
+Make sure to paint the housing white and avoid direct sun on the kit.
+
+Another housing can be made with a V230 outdoor connector box e.g. OBO T100 box.
 
 ### TTN gateway
 
