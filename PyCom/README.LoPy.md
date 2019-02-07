@@ -1,7 +1,7 @@
 ## Description
 The LoPy is a low cost (€ 35) ESP controller which support micropython and has wifi, Bluetooth and LoRaWan or SigFox capabilities.
-<img src="images/MySense-LoRa-lantern-inside.png.png" align=right width=150>
-<img src="images/MySense-LoRa-lantern-outside.png.png" align=right width=150>
+<img src="images/MySense-LoRa-lantern-inside.png" align=right width=150>
+<img src="images/MySense-LoRa-lantern-outside.png" align=right width=150>
 MySense is using the PyCom expansion board V3 (€ 16) for the manufacturer firmware flashing, developemnt wiring and programming. For operations we use an own expansion PCBV board with Grove connectors to eliminate wiring and connection errors.
 
 MySense operates with TTN as LoRa dataconcentrator. MySense will check every 2.5 seconds (maximal 20 times) if a *join* with TTN LoRa network was succesfull.
