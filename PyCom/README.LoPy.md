@@ -1,5 +1,8 @@
 ## Description
-The LoPy is a low cost (€ 35) ESP controller which support micropython and has wifi, Bluetooth and LoRaWan or SigFox capabilities. MySense is using the PyCom expansion board V3 (€ 16) for the manufacturer firmware flashing, developemnt wiring and programming. For operations we use an own expansion PCBV board with Grove connectors to eliminate wiring and connection errors.
+The LoPy is a low cost (€ 35) ESP controller which support micropython and has wifi, Bluetooth and LoRaWan or SigFox capabilities.
+<img src="images/MySense-LoRa-lantern-inside.png.png" align=right width=150>
+<img src="images/MySense-LoRa-lantern-outside.png.png" align=right width=150>
+MySense is using the PyCom expansion board V3 (€ 16) for the manufacturer firmware flashing, developemnt wiring and programming. For operations we use an own expansion PCBV board with Grove connectors to eliminate wiring and connection errors.
 
 MySense operates with TTN as LoRa dataconcentrator. MySense will check every 2.5 seconds (maximal 20 times) if a *join* with TTN LoRa network was succesfull.
 A red flash will denote there was not a join yet.
@@ -52,7 +55,13 @@ Optional SSD1306 SPI connection (using GPIO pins):
 
 Warning: SPI oled display seems not run with PyCom firmware 1.17.3.b1 (April 2018). A previous version was running ok.
 
-## Remote command handling
+## Housing
+We used PVC pipe components available from DIY nearby warehousing. Basically an PVC air outlet pipe of 80 mm diameter, a 75 mm connection socket and a plexyglas for the sensor frame 3 X 61 X 230 mm.
+For a cutting guide and drill mask see the SVG (Inkscape) files:
+* images/MySense-LoRa-layout-lantern.svg
+* images/MySense-lantern-pipe-cutting.svg
+
+## Features: Remote command handling
 A simple remote command via LoRa has been implemented: 
 * ?: send configuration and GPS location info 
 * O: switch oled display off
@@ -65,7 +74,7 @@ A simple remote command via LoRa has been implemented:
 * more to do
 On a reboot the remote command is lost. (To Do: survive a reboot).
 
-## TTN how to
+## Data collecting: TTN how to
 You need to set up an account and password with The Things Network: https://thethingsnetwork.org/
 
 Via the `console` add an application with a name: https://console.thethingsnetwork.org/applications/add
