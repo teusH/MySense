@@ -39,7 +39,9 @@ E.g. <a href="https://nl.aliexpress.com/item/Free-shipping-SHT31-Temperature-SHT
 E.g. <a href="https://nl.aliexpress.com/item/1-stks-Ultra-kleine-Druk-CJMCU-680-BME680-Temperatuur-Vochtigheid-Druk-Sensor-voor-Drone-Accessoires-Hoge/32847670390.html?spm=a2g0s.9042311.0.0.2b344c4dRa5gbW">BME680 meteo sensor</a>
 * wiring: per module 4 wires: female/male for 4 modules:
 <a href="https://www.seeedstudio.com/Grove-4-pin-Female-Jumper-to-Grove-4-pin-Conversion-Cable-5-PCs-per-PAc-p-1020.html">Grove to female jumper 4 wire conversion cable</a> 5 per pack Seed Studio  € 5.00.
+<img src="images/LoPy-PCB-V1-wiring.png" align=right width=250>
 Remark: better to create a UART/I2C connector shield with Grove sockets and connectors. See the picture. Board design with Grove sockets is available.
+See the SVG file (and the picture) of the alternative PCB LoPy expansion board designed by Fontys Venlo GreenTechLab as example.
 * assortiment thrink tubes (2.5 mm and bigger) (€ 3.45 Ben's Electronics)
 * V220 outdoor cablebox 10X12.5 cm, larger is better eg OBO T100 or T160. (electroshop.nl € 5.39)
 Or use PVC pipes and roof air outlet exhaust. Advised is to paint it white and use double pipes for heat isolation.
