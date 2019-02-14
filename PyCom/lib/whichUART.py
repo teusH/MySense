@@ -1,7 +1,7 @@
 from machine import UART
 from time import sleep
 
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
 __license__ = 'GPLV4'
 
 # Config.py definitions preceed
@@ -59,13 +59,13 @@ class identifyUART:
                   elif i < 2: ser.write(b'\xAA\xB4\x06\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\x06\xAB') # second try activate SDS
                 continue
             # if self.debug: print("Read: %s" % line)
-            if line.count(b'BM') > 0: # start char 0x42,0x4D
+            if (not 'dust' in found) and (line.count(b'BM') > 0): # start char 0x42,0x4D
                 self.dust = 'PMSx003'; self.D_Tx = one[0]; self.D_Rx = one[1]
                 found.append('dust')
-            elif line.count(b'\xAA') and line.count(b'\xC0'): # start char 0xAA,0xC0 tail 0xAB
+            elif (not 'dust' in found) and line.count(b'\xAA') and line.count(b'\xC0'): # start char 0xAA,0xC0 tail 0xAB
                 self.dust = 'SDS011'; self.D_Tx = one[0]; self.D_Rx = one[1]
                 found.append('dust')
-            elif line.count(b'\r\n') or (line.count(b',') > 1):
+            elif (not 'gps' in found) and (line.count(b'GPGGA') or line.count(b',') > 1):
                 self.useGPS = 'UART'; self.G_Tx = one[0]; self.G_Rx = one[1]
                 found.append('gps')
             else: continue
