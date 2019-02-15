@@ -1,7 +1,7 @@
 from time import sleep
 from machine import I2C
 
-__version__ = "0." + "$Revision: 3.5 $"[11:-2]
+__version__ = "0." + "$Revision: 3.6 $"[11:-2]
 __license__ = 'GPLV4'
 
 def searchDev(names=['BME','SHT','SSD']):
@@ -55,7 +55,7 @@ except:
 print("Found I2C device %s" % meteo)
 # change this to match the location's pressure (hPa) at sea level
 useMeteo.sea_level_pressure = 1024.25 # 1013.25
-for cnt in range(15):
+for cnt in range(5):
   try:
     print("\nTemperature: %0.1f C" % useMeteo.temperature)
     hum = useMeteo.humidity
@@ -90,3 +90,5 @@ for cnt in range(15):
     sleep(1)
     continue
   sleep(30)
+import sys
+sys.exit()

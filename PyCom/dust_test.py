@@ -1,8 +1,8 @@
 # simple test script for dust sensors
-# $Id: dust_test.py,v 1.8 2018/12/02 15:45:12 teus Exp teus $
+# $Id: dust_test.py,v 1.9 2019/02/15 16:42:49 teus Exp teus $
 # standalone test loop
 
-__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__version__ = "0." + "$Revision: 1.9 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import time, sleep
@@ -43,7 +43,7 @@ print("Dust module sampling %d secs, interval of measurement %d minutes" % (samp
 sensor = senseDust(port=len(uart), debug=True, sample=sampling, interval=0, pins=(D_Tx,D_Rx), calibrate=calibrate)
 if sensor and (sensor.mode != sensor.NORMAL): sensor.Normal()
 errors = 0
-for cnt in range(15):
+for cnt in range(5):
     timings = time()
     try:
       # sensor.GoActive() # fan on wait 60 secs
@@ -70,3 +70,5 @@ for cnt in range(15):
         except:
             errors += 1
             sleep(60)
+import sys
+sys.exit()

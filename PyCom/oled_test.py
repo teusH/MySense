@@ -1,7 +1,7 @@
 from time import sleep_ms
 from machine import I2C
 
-__version__ = "0." + "$Revision: 3.2 $"[11:-2]
+__version__ = "0." + "$Revision: 3.3 $"[11:-2]
 __license__ = 'GPLV4'
 
 def searchDev(names=['BME','SHT','SSD']):
@@ -142,3 +142,6 @@ try:
     display("s/n " + myID, 0, 16, False)
 except:
     print("Failed")
+print("DONE")
+import sys
+sys.exit()

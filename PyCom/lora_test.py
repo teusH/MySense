@@ -1,4 +1,4 @@
-__version__ = "0." + "$Revision: 1.10 $"[11:-2]
+__version__ = "0." + "$Revision: 1.11 $"[11:-2]
 __license__ = 'GPLV4'
 
 Network = ''
@@ -71,7 +71,7 @@ print("Sending version 0, meteo %s, dust %s, configured GPS: " % (meteo,dust), t
 if not n.send(info,port=3): print("send error")
 else: print('Info is sent')
 
-for cnt in range(5):
+for cnt in range(3):
   # old style
   # data = struct.pack('>HHHHHHHHl', 10+cnt, 15+cnt, 20+cnt, 25+cnt, 30+cnt, 35+cnt, 40+cnt, 45+cnt, time())
   # packaged as: type, PM25*10, PM10*10, temp*10+300, hum*10
@@ -85,3 +85,5 @@ for cnt in range(5):
   else: print('Data is sent')
   sleep(60)
 print('Done')
+import sys
+sys.exit()

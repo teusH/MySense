@@ -1,7 +1,7 @@
 from machine import UART
 from time import sleep_ms, ticks_ms
 
-__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__version__ = "0." + "$Revision: 1.9 $"[11:-2]
 __license__ = 'GPLV4'
 
 # dflt pins=(Tx-pin,Rx-pin): wiring Tx-pin -> Rx GPS module
@@ -80,6 +80,8 @@ try:
 
 except:
     print("Unable to get GPS data  on port %s" % useGPS)
+import sys
+sys.exit()
 
 
 
