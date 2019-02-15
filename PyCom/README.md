@@ -301,6 +301,7 @@ MySense has provided several simple XYZ_test.py python scripts to test the senso
 Make sure to configure the right pin ID's in `Config.py` configuration file for the test scripts.
 
 Test your setup one by one before trying out the main wrapper `MySense.py` via *MySense.runMe()* or `main.py`.
+A more detailed readme about the way `MySense.py` and other test script maybe of help can be found in the file `README.MySense.md`.
 
 ## Your First Steps
 * visit the PyCom.io website and follow the installation guide
