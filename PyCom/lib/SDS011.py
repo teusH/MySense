@@ -6,7 +6,7 @@ Created on 24 Apr 2017
 # comes from https://github.com/rexfue/Feinstaub_LoPy
 # changes by teus license GPLV3
 # Frank Heuer wrote a better and more extensive script
-# $Id: SDS011.py,v 1.5 2018/04/18 08:55:29 teus Exp teus $
+# $Id: SDS011.py,v 1.6 2019/02/15 16:54:42 teus Exp teus $
 
 try:
   from machine import  UART
@@ -166,7 +166,7 @@ class SDS011:
     return self.startstopSDS(self.ACTIVE)
 
   # original read routine comes from irmusy@gmail.com http://http://irmus.tistory.com/
-  def getData(self):
+  def getData(self,debug=False):
     ''' read data telegrams from the serial interface (32 bytes)
       before actual read flush all pending data first
       during the period sample time: active (200-800 ms), passive read cmd 1 sec
@@ -203,7 +203,7 @@ class SDS011:
         # concentration (generic atmosphere conditions) in ug/m3
         # number of particles with diameter N in 0.1 liter air pcs/0.1dm3
         sample[fld[0]] = float(data[fld[2]]) # make it float
-      if self.debug:
+      if self.debug or debug:
         if not cnt:
           for fld in self.PM_fields:
             print("%8.8s " % fld[0],end='')

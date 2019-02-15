@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: PMSx003.py,v 1.11 2018/11/16 12:45:10 teus Exp teus $
+# $Id: PMSx003.py,v 1.12 2019/02/15 16:53:45 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -21,7 +21,7 @@ def ORD(val):
   return val & 0xFF
 
 """ Get sensor values: PM1, PM2.5 and PM10 from Plantower Particular Matter sensor
-  Types: 7003 or 5003
+  Types: 7003, x003 or 5003
   units: pcs/0.01qf, pcs/0.1dm3, ug/m3
   class inits:
     port=1 port number
@@ -229,7 +229,7 @@ class PMSx003:
   # data telegram struct for PMS5003 and PMS7003 (32 bytes)
   # PMS1003/PMS4003 the data struct is similar (24 bytes)
   # Hint: use pmN_atm (atmospheric) data values in stead of pmN values
-  def getData(self):
+  def getData(self,debug=False):
     ''' read data telegrams from the serial interface (32 bytes)
       before actual read flush all pending data first
       during the period sample time: active (200-800 ms), passive read cmd 1 sec
@@ -262,7 +262,7 @@ class PMSx003:
             waitcnt += 1
         if self.ser.any() < 2:
           ErrorCnt += 1
-          if self.debug: print("reactivate")
+          if self.debug or debug: print("reactivate")
           if self.mode == self.ACTIVE or self.mode == self.NORMAL:
             self.mode = self.PASSIVE
             if self.GoActive(): continue
@@ -284,7 +284,7 @@ class PMSx003:
       for w in range(40):
         if self.ser.any() >=30: break
         if w > 39: raise OSError("read telegram timeout")
-        if self.debug and (w%2): print("wait on telegram")
+        if (self.debug or debug) and (w%2): print("wait on telegram")
         sleep_ms(2000)
       buff = self.ser.read(30)
       # one measurement 200-800ms or every second in sample time
@@ -297,11 +297,11 @@ class PMSx003:
       data = struct.unpack('!HHHHHHHHHHHHHBBH', buff)
       if not sum(data[self.PMS_PCNT_0P3:self.PMS_VER]):
         # first reads show 0 particle counts, skip telegram
-        if self.debug: print("null telegram skipped")
+        if self.debug or debug: print("null telegram skipped")
         continue
       # compare check code
       if check != data[self.PMS_SUMCHECK]:
-        if self.debug:
+        if self.debug or debug:
           print("Incorrect check code check 0X%x != data check 0x%x" % (check,data[self.PMS_SUMCHECK]))
         ErrorCnt += 1
         if ErrorCnt >= 20:
@@ -325,7 +325,7 @@ class PMSx003:
         # concentration (generic atmosphere conditions) in ug/m3
         # number of particles with diameter N in 0.1 liter air pcs/0.1dm3
         sample[fld[0]] = float(data[fld[2]]) # make it float
-      if self.debug:
+      if self.debug or debug:
         if not cnt:
           for fld in self.PM_fields:
             print("%8.8s " % fld[0],end='')
