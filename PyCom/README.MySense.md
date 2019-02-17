@@ -80,12 +80,25 @@ Display
 Network
 ```
 
+## First operational measurement test
+If device confioguration and initialisation seems to work thge next step is to do some measurements.
+For a final test a susgestion is to try do initate some measurments:
+```python
+import MySense
+MySense.initDisplay()
+MySense.DoMeteo(debug=True)
+MySense.DoDust(debug=True)
+<cntrl>d
+```
+
 Test your setup one by one before trying out the main wrapper `MySense.py` via *MySense.runMe()* or `main.py`.
 If everythings seems to work use the following to initiate a test loop:
 ```python
 import MySense
 MySense.runMe(debug=True)
 ```
+This will also forward the measurement data to the network.
+Allow to run this for several hours.
 This can be interrupted with a <cntrl>c. If needed to be followed by a soft reset <cntrl>d
 
 ## make it operational
