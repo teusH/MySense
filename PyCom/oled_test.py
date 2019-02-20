@@ -1,14 +1,20 @@
 from time import sleep_ms
 from machine import I2C
 
-__version__ = "0." + "$Revision: 3.3 $"[11:-2]
+__version__ = "0." + "$Revision: 3.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 def searchDev(names=['BME','SHT','SSD']):
+    I2Cpins = [('P23','P22')] # I2C pins [(SDA,SCL), ...]
+    I2Cdevices = [
+            ('BME280',0x76),('BME280',0x77), # BME serie Bosch
+            ('SHT31',0x44),('SHT31',0x45),   # Sensirion serie
+            ('SSD1306',0x3c)                 # oled display
+       ]
     try:
         from Config import I2Cpins, I2Cdevices
     except:
-        raise ValueError("Define I22Pins, I2Cdevices in Config.py")
+        print(" Using defaults for I2C") #  I2Cpins, I2Cdevices)
     print("Wrong wiring may hang I2C address scan search...")
     bus = None
     device = None
