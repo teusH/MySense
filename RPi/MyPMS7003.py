@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyPMS7003.py,v 1.13 2018/08/29 19:26:16 teus Exp teus $
+# $Id: MyPMS7003.py,v 1.2 2019/02/22 20:05:20 teus Exp teus $
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
 #         active (monitor) mode: continues read (200-600 msec) during sample time
@@ -39,7 +39,7 @@
     units: pcs/0.01qf, pcs/0.1dm3, ug/m3
 """
 modulename='$RCSfile: MyPMS7003.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.13 $"[11:-2]
+__version__ = "0." + "$Revision: 1.2 $"[11:-2]
 
 # configurable options
 __options__ = [
@@ -58,7 +58,7 @@ Conf = {
     'usbid': 'Prolific.*-port',    # Qin Heng Electronics usb ID via lsusb
     'firmware': '',      # firmware number comes from module
     'prepend': '',       # prepend field name on output with this string
-    'fields': ['pm1_atm','pm25_atm','pm10_atm'], # types of pollutants
+    'fields': ['pm1','pm25','pm10'], # types of pollutants
      # 'pcs/qf' particle count per 0.01 qubic foot per minute
      #  spec: 0.01pcs/qf average per minute window
      # 'units' : ['pcs/qf','pcs/qf','pcs/qf'],   # dflt type the measurement unit
@@ -201,12 +201,12 @@ def get_device():
 
 # index of list
 PMS_FRAME_LENGTH = 0
-PMS_PM1P0 = 1
-PMS_PM2P5 = 2
-PMS_PM10P0 = 3
-PMS_PM1P0_ATM = 4
-PMS_PM2P5_ATM = 5
-PMS_PM10P0_ATM = 6
+PMS_PM1P0 = 4
+PMS_PM2P5 = 5
+PMS_PM10P0 = 6
+PMS_PM1P0_PAR = 1
+PMS_PM2P5_PAR = 2
+PMS_PM10P0_PAR = 3
 PMS_PCNT_0P3 = 7
 PMS_PCNT_0P5 = 8
 PMS_PCNT_1P0 = 9
@@ -222,9 +222,9 @@ PM_fields = [
             ('pm25','ug/m3',PMS_PM2P5),
             ('pm10','ug/m3',PMS_PM10P0),
             # concentration (generic atmosphere conditions) in ug/m3
-            ('pm1_atm','ug/m3',PMS_PM1P0_ATM),
-            ('pm25_atm','ug/m3',PMS_PM2P5_ATM),
-            ('pm10_atm','ug/m3',PMS_PM10P0_ATM),
+            ('pm1_par','par',PMS_PM1P0_PAR),
+            ('pm25_par','par',PMS_PM2P5_PAR),
+            ('pm10_par','par',PMS_PM10P0_PAR),
             # number of particles with diameter N in 0.1 liter air
             # 0.1 liter = 0.00353147 cubic feet, convert -> pcs / 0.01qf
             ('pm03_cnt','pcs/0.1dm3',PMS_PCNT_0P3),
@@ -357,7 +357,6 @@ def PassiveRead(conf):
 # added active/passive and fan on/off handling
 # data telegram struct for PMS5003 and PMS7003 (32 bytes)
 # PMS1003/PMS4003 the data struct is similar (24 bytes)
-# Hint: use pmN_atm (atmospheric) data values in stead of pmN values
 def PMSread(conf):
     ''' read data telegrams from the serial interface (32 bytes)
         before actual read flush all pending data first
@@ -466,7 +465,12 @@ def PMSread(conf):
             sys.stderr.write("\n")
             #print("%s [%s]\t: " % (fld[0],'ug/m3' if fld[0][-4:] != '_cnt' else 'pcs/0.1dm3'), str(sample[fld[0]]))
         cnt += 1
-        for fld in PM_fields: PM_sample[fld[0]] += sample[fld[0]]
+
+        for fld in PM_fields:
+            if fld[1] == 'par': # parameter
+                PM_sample[fld[0]] = sample[fld[0]]
+            else:
+                PM_sample[fld[0]] += sample[fld[0]]
         # average read time is 0.85 secs. Plantower specifies 200-800 ms
         # Plantower: in active smooth mode actual data update is 2 secs.
         if time() > StrtTime + conf['sample'] - 0.5: break  
@@ -474,6 +478,7 @@ def PMSread(conf):
     if SampleTime < 0: SampleTime = 0
     if cnt:     # average count during the sample time
         for fld in PM_fields:
+            if fld[1] == 'par': continue
             PM_sample[fld[0]] /= cnt
         # if conf['debug']:
         #     print("Average read time: %.2f secs, # reads %d,sample time %.1f seconds" % (SampleTime/cnt,cnt,SampleTime))
@@ -560,14 +565,12 @@ def Add(conf):
             conf['fd'].device.close()
             conf['fd'] = None
 	    MyLogger.log(modulename,"WARNING","Serial errors limit of 20 errors reached")
-            raise IOError("SDS011 serial errors")
+            raise IOError("PMSx003 serial errors")
         if not conf['Serial_Errors']: break
     values = { "time": int(time())}; index = 0
     for fld in conf['fields']:
         value = sample[fld]
-        # e.g. pm1 and pm1_atm are in units of ug/m3 (unknown conversion algorithm)
-        if (fld.replace('_atm','') in ['pm1','pm25','pm10']) and conf['units'][index] == 'pcs/qf':
-            value = Mass2Con(fld.replace('_atm',''),value)
+        # e.g. pm1, etc are in units of ug/m3 (unknown conversion algorithm)
         # 0.1 liter = 0.00353147 cubic feet -> pcs / 0.01qf (used elsewhere)
         if (fld[-4:] == '_cnt') and (conf['units'][index] == 'pcs/qf'):
             value *= 0.353147   # convert from liter to 0.01 qubic feet 
@@ -582,7 +585,7 @@ def Add(conf):
             elif not conf['rawCnt']:  # want raw values in ug/m3
                 data.append('%s=%.1f' % (fld[0],sample[fld[0]]))
             else:                     # convert values to pcs/0.01qf units
-                data.append('%s=%.1f' % (fld[0],Mass2Con(fld[0].replace('_atm',''),sample[fld[0]])))
+                data.append('%s=%.1f' % (fld[0],Mass2Con(fld[0],sample[fld[0]])))
     if len(data):
         if conf['debug']:
             print("raw,sensor=%s %s %d000" % (conf['type'][-7:],','.join(data),values['time']*1.0))
@@ -609,7 +612,7 @@ if __name__ == '__main__':
     # Conf['sync'] = True       # multi threading off?
     Conf['debug'] = 1           # print intermediate values
     Conf['interval'] = 240      # sample once per 4 minutes, causes passive mode
-    Conf['fields'] = ['pm1_atm','pm25_atm','pm10_atm'] # do values not in mass weight
+    Conf['fields'] = ['pm1','pm25','pm10'] # do values not in mass weight
     Conf['units'] = ['pcs/qf','pcs/qf','pcs/qf'] # do values not in mass weight
     Conf['raw'] = True          # display raw data with timestamps
     # Conf['prepend'] = 'pt_'     # prepend fields name with plantower id
