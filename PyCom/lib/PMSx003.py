@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: PMSx003.py,v 1.12 2019/02/15 16:53:45 teus Exp teus $
+# $Id: PMSx003.py,v 1.13 2019/02/22 13:57:35 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -35,12 +35,12 @@ def ORD(val):
 class PMSx003:
   # index of list
   PMS_FRAME_LENGTH = const(0)
-  PMS_PM1P0 = const(1)
-  PMS_PM2P5 = const(2)
-  PMS_PM10P0 = const(3)
-  PMS_PM1P0_ATM = const(4)
-  PMS_PM2P5_ATM = const(5)
-  PMS_PM10P0_ATM = const(6)
+  PMS_PM1P0_PAR1 = const(1)
+  PMS_PM2P5_PAR2 = const(2)
+  PMS_PM10P0_PAR3 = const(3)
+  PMS_PM1P0 = const(4)
+  PMS_PM2P5 = const(5)
+  PMS_PM10P0 = const(6)
   PMS_PCNT_0P3 = const(7)
   PMS_PCNT_0P5 = const(8)
   PMS_PCNT_1P0 = const(9)
@@ -73,13 +73,14 @@ class PMSx003:
     # pm1=[20,1] adds a calibration offset of 20 to measurement
     self.PM_fields = [
       # the Plantower conversion algorithm is unclear!
+      # internal parameters per size
+      ['pm1_par1','par',self.PMS_PM1P0_PAR1,None],
+      ['pm25_par2','par',self.PMS_PM2P5_PAR2,None],
+      ['pm10_par3','par',self.PMS_PM10P0_PAR3,None],
+      # concentration (generic atmosphere conditions) in ug/m3
       ['pm1','ug/m3',self.PMS_PM1P0,[0,1]],
       ['pm25','ug/m3',self.PMS_PM2P5,[0,1]],
       ['pm10','ug/m3',self.PMS_PM10P0,[0,1]],
-      # concentration (generic atmosphere conditions) in ug/m3
-      ['pm1_atm','ug/m3',self.PMS_PM1P0_ATM,None],
-      ['pm25_atm','ug/m3',self.PMS_PM2P5_ATM,None],
-      ['pm10_atm','ug/m3',self.PMS_PM10P0_ATM,None],
       # number of particles with diameter N in 0.1 liter air
       # 0.1 liter = 0.00353147 cubic feet, convert -> pcs / 0.01qf
       ['pm03_cnt','pcs/0.1dm3',self.PMS_PCNT_0P3,None],
@@ -339,7 +340,10 @@ class PMSx003:
       cnt += 1
 
       for fld in self.PM_fields:
-        PM_sample[fld[0]] = PM_sample.setdefault(fld[0],0.0)+sample[fld[0]]
+        if fld[1] == 'par': # parameter
+          PM_sample[fld[0]] = sample[fld[0]]
+        else:
+          PM_sample[fld[0]] = PM_sample.setdefault(fld[0],0.0)+sample[fld[0]]
       # average read time is 0.85 secs. Plantower specifies 200-800 ms
       # Plantower: in active smooth mode actual data update is 2 secs.
       if ticks_ms() > StrtTime + self.sample:
@@ -348,6 +352,7 @@ class PMSx003:
     if SampleTime < 0: SampleTime = 0
     if cnt:   # average count during the sample time
       for fld in self.PM_fields:
+        if fld[1] == 'par': continue
         PM_sample[fld[0]] /= cnt
         PM_sample[fld[0]] = round(self.calibrate(fld[3],PM_sample[fld[0]]),2)
 
