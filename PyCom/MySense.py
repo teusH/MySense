@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 4.1 2019/02/15 16:41:46 teus Exp teus $
+# $Id: MySense.py,v 4.2 2019/02/23 18:17:45 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 4.1 $"[11:-2]
+__version__ = "0." + "$Revision: 4.2 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -123,7 +123,7 @@ def I2Cdevs(names=['BME','SHT','SSD'], debug=False):
                   fnd = True
                   if not 'i2c' in Display.keys():
                     Display.update({ 'i2c': i2c[index], 'name': name, 'addr': item[1] })
-                    useDisplay = True
+                    useDisplay = True; useSSD = True
                     try:
                         from Config import useSSD  # deprecated
                         if not useSSD: useDisplay = False
@@ -330,10 +330,8 @@ def initMeteo(debug=False):
           # this is not a BME280 but a BME680?
           del BME
           import BME_I2C as BME
-          try:
-            from Config import M_gBase
-          except:
-            M_gBase = None
+          try: from Config import M_gBase
+          except: M_gBase = None
           calibrate['gas base'] = M_gBase
           meteo = 'BME680'
           Meteo['fd'] = BME.BME_I2C(Meteo['i2c']['fd'], address=Meteo['addr'], debug=debug, calibrate=calibrate)
@@ -347,19 +345,20 @@ def initMeteo(debug=False):
         if debug: print("Found %s" % meteo)
       elif meteo[:3] == 'SHT':
         import Adafruit_SHT31 as SHT
+        meteo = 'SHT31'
         Meteo['fd'] = SHT.SHT31(address=Meteo['addr'], i2c=Meteo['i2c']['fd'], calibrate=calibrate)
       else: # DHT serie not yet supported
         LED.blink(5,0.3,0xff0000,True)
         raise ValueError("Unknown meteo %s type" % meteo)
       Meteo['enabled'] = True
       Meteo['name'] = meteo
-      display('meteo: %s' % Meteo['name'])
+      if debug: print('meteo: %s' % Meteo['name'])
     except Exception as e:
       Meteo['use'] = False
       display("meteo %s failure" % meteo, (0,0), clear=True)
       print(e)
   if not Meteo['use']:
-    display("No meteo sensor")
+    if debug: print("No meteo in use")
     return False
   return True
 
@@ -418,7 +417,7 @@ def initDust(debug=False):
   if Dust['use'] == None: UARTdevs(debug=debug)
   if Dust['use']:
     # initialize dust: import relevant dust library
-    Dust['cnt'] = '' # dflt do not show PM cnt
+    Dust['cnt'] = False # dflt do not show PM cnt
     try:
       if Dust['name'][:3] == 'SDS':
         from SDS011 import SDS011 as senseDust
@@ -439,9 +438,8 @@ def initDust(debug=False):
       display("%s failure" % Dust['name'], (0,0), clear=True)
       print(e)
       useDust = None; Dust['name'] = ''
-    display('dust: %s' % Dust['name'])
-  else:
-    display("No PM sensing")
+    if debug: print('dust: %s' % Dust['name'])
+  elif debug: print("No dust in use")
   Dust['enabled'] = True if Dust['fd'] else False
   return Dust['use']
 
@@ -541,9 +539,9 @@ def CallBack(port,what):
         if Meteo['use']: Meteo['raw'] = False
     elif what == b'S': HALT = True
     elif what == b'#':  # send partical cnt
-        if Dust['name'][:3] == 'PMS': Dust['cnt'] = '_cnt'
+        if Dust['name'][:3] == 'PMS': Dust['cnt'] = True
     elif what == b'w': # send partical weight
-        Dust['cnt'] = ''
+        Dust['cnt'] = False
     else: return False
     return True
   cmd = None; value = None
