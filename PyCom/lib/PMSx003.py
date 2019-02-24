@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: PMSx003.py,v 1.13 2019/02/22 13:57:35 teus Exp teus $
+# $Id: PMSx003.py,v 1.14 2019/02/24 11:30:46 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -354,7 +354,10 @@ class PMSx003:
       for fld in self.PM_fields:
         if fld[1] == 'par': continue
         PM_sample[fld[0]] /= cnt
-        PM_sample[fld[0]] = round(self.calibrate(fld[3],PM_sample[fld[0]]),2)
+        if self.raw:
+          PM_sample[fld[0]] = round(PM_sample[fld[0]],2)
+        else:
+          PM_sample[fld[0]] = round(self.calibrate(fld[3],PM_sample[fld[0]]),2)
 
     # turn fan off?
     if self.interval - SampleTime > 60*1000:
