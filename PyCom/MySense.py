@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 4.2 2019/02/23 18:17:45 teus Exp teus $
+# $Id: MySense.py,v 4.3 2019/02/25 15:51:23 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 4.2 $"[11:-2]
+__version__ = "0." + "$Revision: 4.3 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -419,9 +419,15 @@ def initDust(debug=False):
     # initialize dust: import relevant dust library
     Dust['cnt'] = False # dflt do not show PM cnt
     try:
-      if Dust['name'][:3] == 'SDS':
+      if Dust['name'][:3] == 'SDS':    # Nova
         from SDS011 import SDS011 as senseDust
-      elif Dust['name'][:3] == 'PMS':
+      elif Dust['name'][:3] == 'SPS':  # Sensirion
+        from SPS30 import SPS30 as sensedust
+        try:
+            from Config import Dext # show also pm counts
+            if Dext: Dust['cnt'] = True
+        except: pass
+      elif Dust['name'][:3] == 'PMS':  # Plantower
         try:
             from Config import Dext # show also pm counts
             if Dext: Dust['cnt'] = True
@@ -539,7 +545,7 @@ def CallBack(port,what):
         if Meteo['use']: Meteo['raw'] = False
     elif what == b'S': HALT = True
     elif what == b'#':  # send partical cnt
-        if Dust['name'][:3] == 'PMS': Dust['cnt'] = True
+        if Dust['name'][:3] != 'SDS': Dust['cnt'] = True
     elif what == b'w': # send partical weight
         Dust['cnt'] = False
     else: return False
@@ -681,8 +687,11 @@ def DoDust(debug=False):
     rData = []
     for k in ['pm1','pm25','pm10']:
       rData.append(round(dData[k],1) if k in dData.keys() else None)
+    
     if Dust['cnt']:
-      for k in ['03','05','1','25','5','10']:
+      cnttypes = ['03','05','1','25','5','10']
+      if Dust['name'][:3] == 'SPS': cnttypes[4] = '4'
+      for k in cnttypes:
         if 'pm'+k+'_cnt' in dData.keys():
             rData.append(round(dData['pm'+k+'_cnt'],1))
         else: rData.append(0.0) # None
@@ -791,7 +800,7 @@ def SendInfo(port=3):
   global Meteo, Dust, Network
   global Gps, lastGPS, thisGPS
   meteo = ['','DHT11','DHT22','BME280','BME680','SHT31']
-  dust = ['None','PPD42NS','SDS011','PMSx003']
+  dust = ['None','PPD42NS','SDS011','PMSx003','SPS30']
   if Network['fd'] == None: return False
   if (not Meteo['enabled']) and (not Dust['enabled']) and (not Gps['enabled']):
     return True
