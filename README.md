@@ -1,7 +1,7 @@
 <img src="images/MySense-logo.png" align=right width=100>
 
 # MySense
-Last update of the README on 8th of July 2018
+Last update of the README on 25th Febr 2019
 
 ## Description
 Software Infrastructure or framework for managing environmental sensors and data aquisition
@@ -46,8 +46,10 @@ Provide a generalised dynamic Open Source based infrastructure to allow:
 ## Discussion
 MySense supports calibration of every single sensor. Sensor values will differ between the sensors within a branche and between branches. Correlation software is included. Advised is to calibrate the sensors regularly for a test period of several days (conditions should vary in the test period).
 
-Dust measurements are done by counting the particles. The most common dust sensor is the Nova SDS011. The Plantower PMS7003 is however 1/3 in size and counts more classes of particles as well provides also the raw values. Both have a fan and laser which are powered off in idle state.
-Dust measurments are influenced by humidity. A correction algorithm to enable to compare the dust measurements with reference sensor equipment (e.g. BAM1020) is in beta test (April 2018).
+Dust measurements are done by counting the particles. The most common dust sensor is the Nova SDS011. The Plantower PMSn003 (PMS7003 indoor and PMSx007 outdoor) and Sensirion SPS30 are however 1/3 in size and counts more classes of particles as well provides also the raw (real partical count) values. All have a fan and laser which are powered off in idle state.
+The SPS30 is small, use less energy but has air inlet and outlet aside of each other.
+
+Dust measurments are influenced by humidity. A correction algorithm to enable to compare the dust measurements with reference sensor equipment (e.g. BAM1020) is in beta test (end of 2018 and 2019). There is a plan for scientific statistical calibration report together with Uni Leiden, RIVM and Scapeler.
 
 <div style='vertical-align: top; clear: both'>
 <figure>
@@ -95,7 +97,8 @@ See for a How To: README.case.md
 # Software
 ## Scripts
 All scripts are written in Python 2. Python 3 is supported but not tested well.
-Scripts have been tested on Raspberry Pi (2 and 3) running Wheezy, Jessie and Stretch Debian based OS.
+The PyCom related script are written in micro Python (Python 3).
+Scripts have been tested on ARM based Raspberry Pi (2 and 3) running Wheezy, Jessie and Stretch Debian based OS and PyCom LoPy-4 (ESP8266 based controller).
 Scripts have a -h (help) option. With no arguments the script will be started in interactive mode. Arguments: *start*, *status*, *stop*.
 
 ### Support scripts
@@ -139,19 +142,20 @@ A working example of MySense script in todays operation:
                                     |
                                     |    
     INPUT PLUGINs                   |        OUTPUT CHANNELS    GATEWAY/BROKER
-                                  __|__
-    DHT11/22-meteo ---GPIO --->| ///|\\\ |>- CSV                _____
+                               | ///|\\\ |
+    DHT11/22-meteo ---GPIO --->||       ||>- CSV                _____
     GPS-locator -Uart USB  --->|=MySense=|>- console           ///|\\\  
     RSSI-wifi signal-strength >||  Pi3  ||>- MYSQL           |=MySense=|>-gspread
                                ||Pi ZeroW|
     Dylos-dust -USB-- RS232--->||Stretch||>- Mosquitto pub-->|| Debian||>-MySQL
-    Grove-loudness ---GPIO---->| \\\|/// |>- HTTP-Post       || Linux ||>-CSV
-    BME280 -meteo ---- I2C --->|    |    |>- email info      | \\\|/// |>-console
-    BME680 -meteo+gas--I2C --->|    |    |                   | server  |
-    SHT21/31 - planned-I2C --->|    |    |                   |         |
+    Grove-loudness ---GPIO---->||       ||>- HTTP-Post       || Linux ||>-CSV
+    BME280 -meteo ---- I2C --->|| ARM   ||>- email info      | \\\|/// |>-console
+    BME680 -meteo+gas--I2C --->||       ||                   | server  |
+    SHT21/31 - planned-I2C --->| \\\|/// |                   |         |
     PPD42NS -dust-Arduino-USB->|    |    |>- InFlux publish  |_________|>-InFlux pub
     Nova SDS011 -dust -USB --->|    |    |>- oled display SSD1306 (SPI/I2C)
-    Plantower PMS7003 -USB --->|    |    |>- Google gspread (alpha, deprecated)
+    Plantower PMSn003 -USB --->|    |    |>- Google gspread (alpha, deprecated)
+    Sensirion SPS30   -USB --->|    |    |   (see LoPy Feb 2019)
     O3,NO2,CO SPEC UART USB -->|    |    |   (beta test April 2018)
     NH3 - AlphaSense - I2C --->|    |    |   (planned Jun 2018)
     Adafruit rain -----GPIO -->|    |    |   (planned Aug 2018)
@@ -171,17 +175,18 @@ MySense LoRa air quality measurement kit:
 ```
           Arduino/Atom/Makr WiFi/USB --|-- WiFi / BlueTooth
                                     ___-__________
-    DHT11/22-meteo ---GPIO---->|   / Marvin        \
+    DHT11/22-meteo ---GPIO---->|   /               \
     BME680 -meteo+gas--I2C --->|= <  PyCom LoPy     >|-LoRa TTN MQTT >-< MySense >
     BME280 - meteo ----I2C --->|   | PyCom WiPy     >|-SigFox IoT (planned)
-                                   |               |                 
-    Nova SDS011 -dust -Uart -->|   \ ESP           /
+                                   | (Marvin)        |                 
+    Nova SDS011 -dust -Uart -->|   \ ESP8266       /
     Plantower PMS7003 -Uart -->|    --------------
+    Sensirion SPS30 ---Uart -->|
     Grove GPS ---------Uart -->|       |
                                |       |
     commands - LoRA TTN     -->|       |
-                                       |
-                                       |> SSD1306 128X64 oled display
+                               |       |
+    solarcel power switching<->|       |> SSD1306 128X64 oled display
 ```
 LoRa TTN is also used e.g. to change sample timings or to force information (e.g. location) to be send from the sensor kit.
 
@@ -226,7 +231,7 @@ Typical input rate from a sensor is 60 seconds (can be tuned) and for brokers it
 MySense can act either *sensor manager* or as *input from broker manager* to a set (dynamic) of output channels. 
 
 Available input plugins:
-* Dust: Dylos DC1100 or 1700 via serial interface, Shinyei GPIO (e.g. Grove dust sensor), Nova SDS011, Plantower PMS5003/7003.
+* Dust: Dylos DC1100 or 1700 via serial interface, Shinyei GPIO (e.g. Grove dust sensor), Nova SDS011, Plantower PMS5003/7003/x003, Sensirion SPS30.
 * Temperature/humidity: Adafruit DHT11/22, AM3202 and Grove variants, Bosch BME280 or BME680 (has indoor aq gas sensor), Sensirion SHT31-D.
 * RSSI (strength of wifi signal): via the platform
 * Location: GPS (GPS Ultimate from Adafruit/Grove) via TTL serial interface
@@ -297,10 +302,12 @@ The gas sensor development (NO2, O3, NH3, CO) is just (Febr 2017) started, Aug 2
 Calibration of dust counters like Shinyei, Nova SDS011 and Dylos is started in May/June 2017.
 Outdoor correlation tests started Sept 2017.
 Indoor calibration tests with Plantower PMS7003, Nova SDS011 and BME280/BME680 were done in April 2018.
+Outdoor calibration is due spring 2019.
 
 The use of the DHT22 has been depricated after a 3 month period beginning of 2018 with 10 sensots kits equipted with Marvin LoRa/DHT22/SDS011 sensors. The DHT22 differ too much from one to the other. Are much influenced by higher rel. humidity. As well the I2C bus (e.g. BME280) seems more reliable and is easier to use.
 
-The SDS011 (and probably PMS7003) are heavily influenced by rel. humidity of 80% and higher: exponential overestimated dust densities. In study with RIVM is a recalculation scheme to correct the values.
+All laser dust sensors are heavily influenced by rel. humidity of 80% and higher: exponential overestimating dust counts. In study with RIVM is a recalculation scheme to correct the values.
+The Plantower and Sensirion dust sensors provide also the raw particle counts. This will be used to calibrate these sensors. Report is due in spring 2019.
 
 Calibration of Alpha Sense gas sensors is a problematic area. Probably Sept 2017. First tests show Alpha Sense O3, CO2 are OK, NO2 not successfull, NH3 prosponed.
 

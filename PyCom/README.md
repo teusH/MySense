@@ -1,10 +1,10 @@
 <img src="images/MySense-logo.png" align=right width=100>
 
-# PyCom LoPy or WiPy  BME280/BME680 SDS011/PMS7003 GPS  MySense sensor kit
+# PyCom LoPy or WiPy  BME280/BME680 SDS011/PMS7003/SPS30 GPS  MySense sensor kit
 
-Status: *beta* 2018/04/02
+Status: *rc1* 2019/02/25
 
-Simple low cost (€120) satellites sensor kits.
+Simple low cost (ca €120) satellites sensor kits.
 
 ## description
 
@@ -46,9 +46,9 @@ See the SVG file (and the picture) of the alternative PCB LoPy expansion board d
 * V220 outdoor cablebox 10X12.5 cm, larger is better eg OBO T100 or T160. (electroshop.nl € 5.39)
 Or use PVC pipes and roof air outlet exhaust. Advised is to paint it white and use double pipes for heat isolation.
 
-Energy V230 supplyi (ca € 4):
+Energy V230 supply (ca € 4):
 * long USB adapter cable 2-3 meter (Action € 1.50)
-* USB V220 AC-5V= adapter (Action € 2.10)
+* USB V220 AC - 5V dc adapter 1A (Action € 2.10)
  
 or use solarpower if no V230 is available (ca € 100):
 * 12V to 5V step down (ca € 1): e.g. <a href="https://nl.aliexpress.com/item/9V-12V-24V-to-5V-3A-USB-step-down-voltage-regulator-module-DC-DC-Converter-Phone/32815945754.html?spm=a2g0z.search0104.3.58.518b4ea1g4V7Iq&ws_ab_test=searchweb0_0,searchweb201602_3_10065_10068_319_317_10696_10084_453_454_10083_10618_431_10304_10307_10820_10821_10301_537_536_10843_10059_10884_10887_100031_321_322_10103,searchweb201603_2,ppcSwitch_0&algo_expid=ee417a9f-b67e-4414-8df8-60f29a8a5a9e-8&algo_pvid=ee417a9f-b67e-4414-8df8-60f29a8a5a9e&transAbTest=ae803_4">5V USB</a>
@@ -59,16 +59,18 @@ or use solarpower if no V230 is available (ca € 100):
 * housing/case for the power
 
 ToDo:
-* software to put LoPy in sleep mode between samples
-* software to use WiFi for internet access connectivity if LoRa is not available
+* Solarcel software to put LoPy in sleep mode between samples and track energy supply
+* software to use WiFi/MQTT for internet access connectivity if LoRa is not available
 
 Some fixing materials:
 * small piece of plexiglas for cover oled display
 * 2 component glue
 * some fixing tool to stabalize the antenna
-* 4 cm tube for air inlet of PM module (SDS011 or black PMSA003)
+* 4 cm tube for air inlet of PM module (SDS011 or PMSx003)
 * piece of wood to be able to attach the outdoor cable box on a wall.
 * some material to fixate the components and allow airflow in the box
+
+One may need to extend those dust sensors without an inlet tube and inlet as well as ouytet on same side with some air separation guidence in order to avoid to measure only the dust circulating within the housing.
 
 ### LoPy kit casing
 A simple housing case is made with a piece of plexiglas 61 X 230 mm (see for thedril mask for 3 mm dril the SVG file in the images directory).
@@ -126,7 +128,8 @@ Datacommunication is done via WiFi (Mosquitto), or LoRa (TTN MQTT data concentra
 One may send data via MySense Pi server to RIVM in the Netherlands as well Luftdata in Germany.
 
 ### measurement data
-The MySense kit will collect measurements from dust (Nova SDS011 and Plantower PMS7003) sensors and meteo (BME280 or BME680 with air quality support) sensors and send this data either via wifi or LoRaWan (TTN) Mosquitto (MQTT) dataconcentrator. Dust measurements will be collected over a sample time (default 1 minute) and send to the data concentraor at interval (default 5 minutes) periods of time. Fan and laser of the dust sensors will be powered off in the idle periods of time.
+The MySense kit will collect measurements from dust (Nova SDS011, Plantower PMSn003 serie and Sensirion SPS30) sensors and meteo (BME280 or BME680 with air quality support) sensors and send this data either via wifi or LoRaWan (TTN) Mosquitto (MQTT) dataconcentrator. Dust measurements will be collected over a sample time (default 1 minute) and send to the data concentrator at interval (default 5 minutes) periods of time. Fan and laser of the dust sensors will be powered off in the idle periods of time.
+To ease the calibration of dust sensor one is advised to use sensors which beside the mass values also show the PM count values.
 
 The MySense server will collect this information from the MQTT servers and formward these measurements and meta data to e.g. a MySQL database, spreadsheet or another data stream service.
 
@@ -223,16 +226,18 @@ The PyCom scripts have the following structure:
 
 ### tested MySense sensor modules
 Choose one meteo and one dust sensor: MySense modules in development are:
-* SHT31 meteo: temp and humidity on I2C bus
-* BME280 meteo: temp, humidity and pressure on I2C bus
-* BME680 meteo: temp, humidity, pressure and air quality on I2C bus
+* Sensirion SHT31 meteo: temp and humidity on I2C bus
+* Bosch BME280 meteo: temp, humidity and pressure on I2C bus
+* Bosch BME680 meteo: temp, humidity, pressure and air quality on I2C bus
   One serie of BME680 I2C/TTL modules are causing I2C bus errors.
-* PMSx003 (black one) dust: PM1, PM2.5 and PM10 on UART TTL (no USB)
-* SDS011 dust: PM2.5 and PM10 on UART TTL (no USB)
+  Advantage of BME680 is the gas (AQI) sensor as gas indication.
+* Plantower PMS7003/PMSx003 (indoor and outdoor version) dust mass and count: PM1, PM2.5 and PM10 on UART TTL (no USB)
+* Nova SDS011 dust mass only: PM2.5 and PM10 on UART TTL (no USB)
+* Sensirion SPS30 dust mass and count: PM1, PM2.5, PM4 and PM10 on UART/I2C
 * GPS location: UART TTL (no USB)
-* SSD1306 tiny oled display: 128X64 pixels on GPIO bus or I2C bus.
-* LoRaWan: using TTN
-* MQTT: not implemented yet
+* SSD1306 tiny oled display: 128X64 pixels on GPIO bus or I2C (preferred) bus.
+* LoRaWan: using TTN MQTT server
+* MQTT via WiFi: not implemented yet
 
 Comment: do not use eg UART Rx on pin 12. Pin 12 high on reset will cause to omit executing boot.py and main.py.
 Maximum of UART modules is 2 (e.g. dust and GPS modules).
@@ -265,7 +270,7 @@ Examples:
 '''
 The PyCom has P0 Tx pin and P1 Rx pin (expansion board USB connected) for a 3rd TTL e.g. Spec TTL NO2 sensor. To Do: add Spec gas sensor driver.
 
-MySense support auto UART device recognition for GPS and dust sensors (SDS011, PMSx007 serie). See the `Config.py` file for details how to enable/disable ato configuration.
+MySense support auto UART device recognition for GPS and dust sensors (SDS011, PMSx007 serie, and SPS30). See the `Config.py` file for details how to enable/disable ato configuration.
 The UART pins may be defined (tuples: (white wire Tx,yellow wire Rx) -> device (Rx,Tx)) if not default pins (P4,P3),(P11,P10) are used.
 
 #### I2C for sensors and oled display
@@ -383,7 +388,7 @@ See for examples of wiring the `README.LopY.md` (LoRaWan TTN, BME280, SDS011 and
 
 ## To Do
 Add more sensor modules. The Shiney PPD42NS (unreliable and too much errors), DHT22 and DHT11 (too much peaks and outdoor time to live too short) meteo sensor are depricated. Sensirion SHT31 (only temperature and RH, not very precise).
-Note: The Plantower PMS7003 is much smaller and consumes less energy as the Nova SDS011 (has a nice air inlet). The Plantower PMSA003 (black one) has detachable fan, air tube inlet, cleanable inlet, and is more robust.
+Note: The Plantower PMS7003 and SPS30 are much smaller and consume less energy as the Nova SDS011 (but it has a nice air inlet). The Plantower PMSx003 has a detachable fan, air tube inlet, cleanable inlet, and is more robust for outdoor application.
 
 ## Licensing
 If not noted the scripts and changes to external scripts are GPL V3.
