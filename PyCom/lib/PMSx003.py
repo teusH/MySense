@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: PMSx003.py,v 1.14 2019/02/24 11:30:46 teus Exp teus $
+# $Id: PMSx003.py,v 1.15 2019/02/28 16:44:54 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -12,7 +12,14 @@ try:
   from micropython import const
   from time import ticks_ms, sleep_ms
 except:
-  from const import const, UART, ticks_ms, sleep_ms
+  try:
+    from const import const, UART, ticks_ms, sleep_ms
+  except:
+    import serial   # not micro python case
+    from time import time
+    def sleep_ms(ms): sleep(ms/1000.0)
+    def ticks_ms(): return int(time()*1000)
+    def const(a): return a
 
 import struct         # needed for unpack data telegram
 def ORD(val):
@@ -57,23 +64,33 @@ class PMSx003:
   STANDBY = const(4)   # mode passive, state standby fan is OFF
   # idle time minimal time to switch fan OFF
   IDLE  = const(120000)   # minimal idle time between sample time and interval
-  def __init__(self, port=1, debug=False, sample=60, interval=1200, raw=False, calibrate=None,pins=('P3','P4')):
+  def __init__(self, port=1, debug=False, sample=60, interval=1200, raw=False, calibrate=None,pins=('P3','P4'), clean=None, explicit=False):
     # read from UART1 V5/Gnd, PMS/Rx - GPIO P3/Tx, PMS/Tx - GPIO P4/Rx
     # measure average in sample time, interval freq. of samples in secs
-    self.ser = UART(port,baudrate=9600,pins=pins)
+    # explicit True: Plantower way of count (>PMi), False: Sensirion way (PM0.3-PMi) (dflt=False)
+    try:
+      if type(port) is str: # no PyCom case
+        self.ser = serial.Serial(port, 9600, bytesize=8, parity='N', stopbits=1, timeout=20, xonxoff=0, rtscts=0)
+        self.ser.any = self.in_waiting
+        self.ser.readall = self.ser.flushInput # reset_input_buffer
+      elif type(port) is int: # micro python case
+        self.ser = UART(port,baudrate=9600,pins=pins,timeout_chars=10)
+      else: self.ser = port # fd
+    except: raise IOError("SPS serial failed")
 
     self.firmware = None
     self.debug = debug
     self.interval = interval * 1000 # if interval == 0 no auto fan switching
     self.sample =  sample *1000
-    self.mode = self.ACTIVE
+    self.mode = self.STANDBY
     self.raw = raw
+    self.explicit = explicit        # counts are > PM size or < PM size
 
     # list of name, units, index in measurments, calibration factoring
     # pm1=[20,1] adds a calibration offset of 20 to measurement
     self.PM_fields = [
       # the Plantower conversion algorithm is unclear!
-      # internal parameters per size
+      # internal parameters per size (not of use)
       ['pm1_par1','par',self.PMS_PM1P0_PAR1,None],
       ['pm25_par2','par',self.PMS_PM2P5_PAR2,None],
       ['pm10_par3','par',self.PMS_PM10P0_PAR3,None],
@@ -83,7 +100,8 @@ class PMSx003:
       ['pm10','ug/m3',self.PMS_PM10P0,[0,1]],
       # number of particles with diameter N in 0.1 liter air
       # 0.1 liter = 0.00353147 cubic feet, convert -> pcs / 0.01qf
-      ['pm03_cnt','pcs/0.1dm3',self.PMS_PCNT_0P3,None],
+      # grain: average particle size
+      ['pm03_cnt','pcs/0.1dm3',self.PMS_PCNT_0P3,None] if explicit else ['grain','um',self.PMS_PCNT_0P3,None],
       ['pm05_cnt','pcs/0.1dm3',self.PMS_PCNT_0P5,None],
       ['pm1_cnt','pcs/0.1dm3',self.PMS_PCNT_1P0,None],
       ['pm25_cnt','pcs/0.1dm3',self.PMS_PCNT_2P5,None],
@@ -97,12 +115,10 @@ class PMSx003:
           if self.PM_fields[pm][0] == key:
             self.PM_fields[pm][3] = calibrate[key]
             break
-    # decomment if not micropython
-    try:
-      self.ser.any
-    except:
-      self.ser.readall = self.ser.flushInput # reset_input_buffer
-      self.ser.any = self.ser.inWaiting
+
+  def in_waiting(self): # for non PyCom python
+    try: return self.ser.in_waiting
+    except: raise IOError
 
   # calibrate by length calibration factor (Taylor) array
   def calibrate(self,cal,value):
@@ -218,10 +234,10 @@ class PMSx003:
 
   # in passive mode do one data telegram reading
   def PassiveRead(self):
-    if self.mode == self.ACTIVE: return
     if self.mode == self.STANDBY:
       self.Normal()
       sleep_ms(30000)    # wait 30 seconds to establish air flow
+    if self.mode != self.PASSIVE: self.GoPassive()
     return self.SendMode(0xE2,0)
 
 
@@ -295,7 +311,7 @@ class PMSx003:
 
       check = 0x42 + 0x4d # sum check every byte from HEADER to ERROR byte
       for b in buff[0:28]: check += ORD(b)
-      data = struct.unpack('!HHHHHHHHHHHHHBBH', buff)
+      data = list(struct.unpack('!HHHHHHHHHHHHHBBH', buff))
       if not sum(data[self.PMS_PCNT_0P3:self.PMS_VER]):
         # first reads show 0 particle counts, skip telegram
         if self.debug or debug: print("null telegram skipped")
@@ -321,21 +337,31 @@ class PMSx003:
         print("firmware: %s" % self.firmware)
 
       sample = {}
+      for i in range(self.PMS_PM1P0,self.PMS_PCNT_10P0): data[i] = float(data[i])
+      PM03 = data[self.PMS_PCNT_0P3]
       for fld in self.PM_fields:
         # concentrations in unit ug/m3
         # concentration (generic atmosphere conditions) in ug/m3
         # number of particles with diameter N in 0.1 liter air pcs/0.1dm3
-        sample[fld[0]] = float(data[fld[2]]) # make it float
+        if (not self.explicit) and (fld[2] == self.PMS_PCNT_0P3):
+            continue
+        if (not self.explicit) and (fld[2] >= self.PMS_PCNT_0P3):
+            sample[fld[0]] = PM03 - data[fld[2]]
+        else:
+            sample[fld[0]] = data[fld[2]] # make it float
+      if not self.explicit:
+        # sample['grain'] = None   # could do better
+        sample['grain'] = (0.65*(data[self.PMS_PCNT_0P3]-data[self.PMS_PCNT_1P0])+1.75*(data[self.PMS_PCNT_2P5]-data[self.PMS_PCNT_1P0])+3.75*(data[self.PMS_PCNT_2P5]-data[self.PMS_PCNT_5P0])+7.5*(data[self.PMS_PCNT_5P0]-data[self.PMS_PCNT_10P0]))/(data[self.PMS_PCNT_0P3]-data[self.PMS_PCNT_10P0])
       if self.debug or debug:
         if not cnt:
           for fld in self.PM_fields:
             print("%8.8s " % fld[0],end='')
           print()
           for fld in self.PM_fields:
-            print("%8.8s " % ('ug/m3' if fld[0][-4:] != '_cnt' else 'pcs/0.1dm3'),end='')
+            print("%8.8s " % fld[1],end='')
           print()
         for fld in self.PM_fields:
-          print("%8.8s " % str(sample[fld[0]]),end='')
+          print("%8.2f " % sample[fld[0]],end='')
         print()
       cnt += 1
 
@@ -363,3 +389,17 @@ class PMSx003:
     if self.interval - SampleTime > 60*1000:
       self.Standby()    # switch fan OFF
     return PM_sample
+
+if __name__ == "__main__":
+    import sys
+    from time import time, sleep
+    interval = 5*60
+    sample = 60
+    debug = False
+    explicit = False   # True: Plantower way of count, False: Sensirion way (dflt=False)
+    pmsx003 = PMSx003(port=sys.argv[1], debug=debug, sample=sample, interval=interval, explicit=explicit)
+    for i in range(4):
+        lastTime = time()
+        print(pmsx003.getData(debug=debug))
+        now = interval + time() -lastTime
+        if now > 0: sleep(now)
