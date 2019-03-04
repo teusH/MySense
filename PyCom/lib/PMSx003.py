@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: PMSx003.py,v 1.15 2019/02/28 16:44:54 teus Exp teus $
+# $Id: PMSx003.py,v 1.16 2019/03/02 10:50:30 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -100,6 +100,7 @@ class PMSx003:
       ['pm10','ug/m3',self.PMS_PM10P0,[0,1]],
       # number of particles with diameter N in 0.1 liter air
       # 0.1 liter = 0.00353147 cubic feet, convert -> pcs / 0.01qf
+      # std used here pcs/0.1dm3 (Plantower style)
       # grain: average particle size
       ['pm03_cnt','pcs/0.1dm3',self.PMS_PCNT_0P3,None] if explicit else ['grain','um',self.PMS_PCNT_0P3,None],
       ['pm05_cnt','pcs/0.1dm3',self.PMS_PCNT_0P5,None],

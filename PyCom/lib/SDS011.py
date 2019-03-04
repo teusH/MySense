@@ -6,7 +6,7 @@ Created on 24 Apr 2017
 # comes from https://github.com/rexfue/Feinstaub_LoPy
 # changes by teus license GPLV3
 # Frank Heuer wrote a better and more extensive script
-# $Id: SDS011.py,v 1.6 2019/02/15 16:54:42 teus Exp teus $
+# $Id: SDS011.py,v 1.5 2018/04/18 08:55:29 teus Exp teus $
 
 try:
   from machine import  UART
@@ -35,7 +35,8 @@ class SDS011:
   # idle time minimal time to switch fan OFF
   IDLE  = const(120000)   # minimal idle time between sample time and interval
 
-  def __init__(self, port=1, debug=False, sample=60, interval=1200, raw=False, calibrate=None,pins=('P3','P4')):
+  def __init__(self, port=1, debug=False, sample=60, interval=1200, raw=False, calibrate=None,pins=('P3','P4'), explicit=None):
+    # explicit (pm count style) not used
     self.ser = UART(1,baudrate=9600,pins=pins)
     self.firmware = None
     self.debug = debug

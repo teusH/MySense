@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2019, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: SPS30.py,v 1.2 2019/02/25 12:02:24 teus Exp teus $
+# $Id: SPS30.py,v 1.3 2019/03/02 10:50:30 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -72,10 +72,11 @@ class SPS30:
   # idle time minimal time to switch fan OFF
   IDLE  = const(120000)   # msecs, minimal idle time between sample time and interval
 
-  def __init__(self, port=1, debug=False, sample=60, interval=1200, raw=False, calibrate=None, pins=('P3','P4'), addr=SPS_ADDR, clean=None):
+  def __init__(self, port=1, debug=False, sample=60, interval=1200, raw=False, calibrate=None, pins=('P3','P4'), addr=SPS_ADDR, clean=None, explicit=False):
     # read from port=UART1 V5/Gnd, PMS/Rx - GPIO P3/Tx, PMS/Tx - GPIO P4/Rx
     # or port=/dev/ttyUSB?
     # measure average in sample time, interval freq. of samples in secs
+    # explicit True: Plantower way of count (>PMi), False: Sensirion way (PM0.3-PMi) (dflt=False)
     # idle <8 mA, operation 60 mA, max 5.5V, count/mass: 0.3 - size um
     # SPS pin nr:
     #     1=VCC, 2=Rx/SDA, 3=Tx/SCL, 4= sel(Gnd,I2C), 5=Gnd, 5 is corner side
@@ -99,6 +100,7 @@ class SPS30:
     self.sample =  sample * 1000
     self.raw = raw
     self.clean = clean  # clean fan after clean secs dflt: None (weekly)
+p   self.explicit = explicit # counts are > PM size or < PM size
 
     # dflts are from sample label
     self.name = self.device_info('name')
@@ -122,12 +124,16 @@ class SPS30:
       ['pm25','ug/m3',self.SPS_PM2P5,[0,1]],# 0.3 upto 2.5
       ['pm4','ug/m3',self.SPS_PM4P0,[0,1]],
       ['pm10','ug/m3',self.SPS_PM10P0,[0,1]],
-      ['pm05_cnt','pcs/cm3',self.SPS_PCNT_0P5,None],
-      ['pm1_cnt','pcs/cm3',self.SPS_PCNT_1P0,None],
-      ['pm25_cnt','pcs/cm3',self.SPS_PCNT_2P5,None],
-      ['pm4_cnt','pcs/cm3',self.SPS_PCNT_4P0,None],
-      ['pm10_cnt','pcs/cm3',self.SPS_PCNT_10P0,None],
+      # 0.1 liter = 0.00353147 cubic feet, convert -> pcs / 0.01qf
+      # std used here pcs/0.1dm3 (Plantower style)
+      ['pm05_cnt','pcs/0.1dm3',self.SPS_PCNT_0P5,[0,100]],
+      ['pm1_cnt','pcs/0.1dm3',self.SPS_PCNT_1P0,[0,100]],
+      ['pm25_cnt','pcs/0.1dm3',self.SPS_PCNT_2P5,[0,100]],
+      ['pm4_cnt','pcs/0.1dm3',self.SPS_PCNT_4P0,[0,100]],
+      ['pm10_cnt','pcs/0.1dm3',self.SPS_PCNT_10P0,[0,100]],
       ['grain','mu',self.SPS_TYP_SIZE,None],
+      # grain: average particle size
+      ['grain','mu',self.SPS_TYP_SIZE,None] if not explicit else ['pm03_cnt','pcs/0.1dm3',self.SPS_TYP_SIZE,[0,100]],
     ]
     if type(calibrate) is dict:
       for key in calibrate.keys():
@@ -378,7 +384,6 @@ class SPS30:
     # clear the input buffer first so we get latest reading
     if self.mode == self.STANDBY: self.GoPassive(debug=debug)
     StrtTime = ticks_ms(); LastTime = StrtTime+self.sample-1000
-    PM_sample = {}; cnt = 0
     while True:
         buff = []
         try:
@@ -403,6 +408,12 @@ class SPS30:
           PM_sample[fld[0]] = round(PM_sample[fld[0]],2)
         else:
           PM_sample[fld[0]] = round(self.calibrate(fld[3],PM_sample[fld[0]]),2)
+    if self.explicit:
+        PM10 = PM_sample[pm10_cnt]
+        for pmCnt in PM_sample.keys():
+            if pmCnt.find('_cnt') < 0: continue
+            if pmCnt.find('03_cnt') > 0: PM_sample['pm03_cnt'] = PM10
+            else: PM_sample[pmCnt] = PM10 - PM_sample[pmCnt]
     return PM_sample
 
 if __name__ == "__main__":
