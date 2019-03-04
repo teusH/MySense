@@ -1,7 +1,7 @@
 from time import sleep_ms
 from machine import I2C
 
-__version__ = "0." + "$Revision: 3.4 $"[11:-2]
+__version__ = "0." + "$Revision: 3.5 $"[11:-2]
 __license__ = 'GPLV4'
 
 def searchDev(names=['BME','SHT','SSD']):
@@ -33,7 +33,9 @@ def searchDev(names=['BME','SHT','SSD']):
                 address = item[1]
     return(nr,bus,device,address)
 
-from Config import useSSD
+useSSD = 'I2C'
+try: from Config import useSSD
+except: pass
 oled = None
 if useSSD:
   try:
