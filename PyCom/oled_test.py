@@ -1,7 +1,7 @@
 from time import sleep_ms
 from machine import I2C
 
-__version__ = "0." + "$Revision: 3.5 $"[11:-2]
+__version__ = "0." + "$Revision: 3.6 $"[11:-2]
 __license__ = 'GPLV4'
 
 def searchDev(names=['BME','SHT','SSD']):
@@ -39,7 +39,8 @@ except: pass
 oled = None
 if useSSD:
   try:
-    import SSD1306
+    try: import SSD1306
+    except: raise ImportError("library SSD1306 missing")
     width = 128; height = 64  # display sizes
     if useSSD == 'I2C': # display may flicker on reload
       (nr,i2c,oled,addr) = searchDev(names=['SSD'])
