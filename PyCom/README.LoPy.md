@@ -104,77 +104,21 @@ Use the script `lora_test.py` to test your configuration and LoRa connectivity.
     >>>import lora_test # this will send MySense info and MySense data
 ```
 ### Reading at TTN the data
-The payload format at TTN console may be configured like:
+Enter Java Script code to decode the payload format at TTN website via the console:
 ```java script
-function round(value, decimals) {
-  return Number(Math.round(value+'e'+decimals)+'e-'+decimals);
-}
-function bytes2(b,nr,cnt) {
-  return round(((b[nr]<<8)+b[nr+1])/cnt,1);
-}
-function notZero(b,nr) {
-  if( (b[nr]|b[nr+1]) ){ return true; } else { return false; }
-}
-
 function Decoder(bytes, port) {
   // Decode an uplink message from a buffer
   // (array) of bytes to an object of fields.
   var decoded = {};
 
-  // if (port === 3) decoded.led = bytes[0];
-  if ( port === 2 ) {
-    if ( bytes.length == 10 ) {
-      if( notZero(bytes,0) ){ decoded.temperature = bytes2(bytes,0,10.0)-30.0; } // oC
-      if( notZero(bytes,2) ){ decoded.humidity = bytes2(bytes,2,10.0); } // %
-      if( notZero(bytes,4) ){ decoded.pressure = bytes2(bytes,4,1.0); } // hPa
-      if( notZero(bytes,6) ){ decoded.pm10 = bytes2(bytes,6,10.0); }    // ug/m3
-      if( notZero(bytes,8) ){ decoded.pm25 = bytes2(bytes,8,10.0); }    // ug/m3
-    }
-    if ( bytes.length >= 16 ) {
-      if( notZero(bytes,0) ){ decoded.pm1 = bytes2(bytes,0,10.0); }   // ug/m3
-      if( notZero(bytes, 2) ){ decoded.pm25 = bytes2(bytes,2,10.0); } // ug/m3
-      if( notZero(bytes, 4) ){ decoded.pm10 = bytes2(bytes,4,10.0); } // ug/m3
-      if( notZero(bytes, 6) ){ decoded.temperature = bytes2(bytes,6,10.0)-30.0; } // oC
-      if( notZero(bytes, 8 ) ){ decoded.humidity = bytes2(bytes,8,10.0); } // %
-      if( notZero(bytes, 10) ){ decoded.pressure = bytes2(bytes,10,1.0); }   // hPa
-      if( notZero(bytes, 12) ){ decoded.gas = bytes2(bytes,12,1.0); }         // kOhm
-      if( notZero(bytes, 14) ){ decoded.aqi = bytes2(bytes,14,10.0); }        // %
-      if( bytes.length >= 20 ){ 
-        // timestamp base is Unix Epoch (GPS) or time power on LoPy
-        if( notZero(bytes,16) || notZero(bytes,18) ){ // Unix timestamp
-            decoded.utime = (bytes2(bytes,16,1)<<32) + bytes2(bytes,18,1);
-        }
-      }
-      if( bytes.length >= 26) {  // sensorkit is moving
-        var lat = bytes2rat(bytes,20);
-        if( lat ) {
-           decoded.latitude = round(lat/100000.0,6);
-           decoded.longitude = round(bytes2rat(bytes,22)/100000.0,6);
-           decoded.altitude = round(bytes2rat(bytes,24)/10.0,6);
-        }
-      }
-    }
-  }
-  var dustTypes = ['','PPD42NS','SDS011','PMS7003','','','','','','','','','','','',''];
-  var meteoTypes = ['','DHT11','DHT22','BME280','BME680','',''];
-  if ( port === 3 ){
-    decoded.version = bytes[0]/10.0;
-    if( bytes[1]&0x0f ) { decoded.dust = dustTypes[bytes[1]&017]; }
-    if( bytes[1]&0x70 ) { decoded.meteo = meteoTypes[(bytes[1]>>4)&07]; }
-    if( bytes[1]&0x80 ) { decoded.gps = 1; }
-    var lat = bytes2rat(bytes,2);
-    if( lat ) {
-      decoded.latitude = round(lat/100000.0,6);
-      decoded.longitude = round(bytes2rat(bytes,6)/100000.0,6);
-      decoded.altitude = round(bytes2rat(bytes,10)/10.0,6);
-    }
-    
-  }
-
-  return decoded;
+  // if (port === 3) meta data
+  // if ( port === 2 ) or (port === 4) for sensor data to json format
+  ...
 }
 ```
 Try this with a payload as showed on the tab 'data'.
+
+The payload can be decoded with the JavaScript as in the file `TTN-decode.js`. Try this with some test payloads before you make fully operational.
 
 ### how to collect the data from TTN MQTT server
 Here is an example how your sensor kit will show at the TTN MQTT server via the command:
