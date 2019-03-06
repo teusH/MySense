@@ -3,8 +3,12 @@
  * decode LoRa payload sent by MySense node
  * copy/paste this JavaScript into format area at TTN server
  */
+var version = "$Version: 1.4$".slice(10,-1);
 /*
-var version = "$Version: 1.1$".slice(9,-1);
+var payloads = [
+  "00000050007901C4033003FC000000000000",
+  "87002500360037031403140314CECECE01D1023103E30A64039E"
+];
 
 function PrtDecoded(strg,items) {
   document.write("&nbsp;&nbsp;" + strg + ": <br>");
@@ -114,7 +118,7 @@ function DecodePrt4(bytes) { /* PM count type HHHHHH */
     var decoded = { };
     // myPrt("port 2 PM cnt bytes " + bytes.length + ": " + bytes);
     var expl = false; var pm_4 = false;
-    try {
+    // try {
       if (bytes[0]&0x80) { expl = true; bytes[0] = bytes[0]| 0x40; }
       if (bytes[4]&0x80) { pm_4 = true; bytes[4] = bytes[4]| 0x40; }
       var pm45 = 0.0;
@@ -134,18 +138,18 @@ function DecodePrt4(bytes) { /* PM count type HHHHHH */
       }
       if (pm_4 ) { decoded.pm04_cnt = pm45; } /* Sensirion */
       else { decoded.pm05_cnt = pm45; }       /* Plantower */
-    }
-    catch { }
-    finally {  
+    // }
+    // catch { }
+    // finally {  
       // PrtDecoded("decode PM cnt port 4",decoded);
       return decoded;
-    }
+    // }
 }
 
 function decodePM(bytes) { /* ug/m3 [H]HH */
     var decoded = {}; var strt = 0;
     // myPrt("PM bytes " + bytes.length + ": " + bytes);
-    try {
+    // try {
       if ( bytes.length > 4 ) {
         if (notZero(bytes, 0)) {
           decoded.pm1 = round(bytes2(bytes, 0, 10), 1);
@@ -158,18 +162,18 @@ function decodePM(bytes) { /* ug/m3 [H]HH */
       if (notZero(bytes, strt+2)) {
         decoded.pm10 = round(bytes2(bytes, strt+2, 10), 1);
       }
-    }
-    catch {}
-    finally {
+    // }
+    // catch {}
+    // finally {
       // PrtDecoded("decodePM decoded",decoded);
       return decoded;
-    }
+    // }
 }
 
 function DecodePrt2(bytes) { /* PM counts HHHBBB */
     var decoded = {};
     // myPrt("port 2 PM cnt bytes " + bytes.length + ": " + bytes);
-    try {
+    // try {
       if (notZero(bytes, 0)) {
         decoded.pm03_cnt = round(bytes2(bytes, 0, 10), 1);
       }
@@ -188,18 +192,18 @@ function DecodePrt2(bytes) { /* PM counts HHHBBB */
       if (bytes[8]) {
         decoded.pm10_cnt = round(bytes[8] / 10, 1);
       }
-    }
-    catch {}
-    finally { 
+    // }
+    // catch {}
+    // finally { 
       // PrtDecoded("decode PM cnt port 2",decoded);
       return decoded;
-    }
+    // }
 }
 
 function decodeMeteo(bytes) { /* BME, SHT HH[H[HH]] */
     var decoded = {};
     // myPrt("Meteo decode bytes " + bytes.length + ": " + bytes);
-    try {
+    // try {
       if (notZero(bytes, 0)) {
         decoded.temperature = round(bytes2(bytes, 0, 10) - 30, 1);
       }
@@ -217,30 +221,30 @@ function decodeMeteo(bytes) { /* BME, SHT HH[H[HH]] */
       if (notZero(bytes, 8)) {
         decoded.aqi = round(bytes2(bytes, 8, 10), 1);
       }
-    }
-    catch {}
-    finally {
+    // }
+    // catch {}
+    // finally {
       // PrtDecoded("decode Meteo decoded",decoded);
       return decoded;
-    }
+    // }
 }
 
 function decodeGPS(bytes) { /* GPS NEO 6 */
     var lat = 0.0;
     // myPrt("decode GPS bytes " + bytes.length + ": " + bytes);
-    try { 
+    // try { 
         lat = bytes2rat(bytes, 0);
         if (lat) {
             decoded.latitude = round(lat / 100000, 6);
             decoded.longitude = round(bytes2rat(bytes, 4) / 100000, 6);
             decoded.altitude = round(bytes2rat(bytes, 8) / 10, 6);
         }
-    }
-    catch {}
-    finally {
+    // }
+    // catch {}
+    // finally {
       // PrtDecoded("decode GPS decoded",decoded);
       return decoded;
-    }
+    //}
 }
 
 function DecodeMeta(bytes) {
@@ -263,7 +267,7 @@ function DecodeMeta(bytes) {
     'BME680',
     'SHT31'
   ];
-  try {
+  // try {
     decoded.version = bytes[0] / 10;
     decoded.dust = dustTypes[(bytes[1] & 7)];
     if ((bytes[1] & 8)) {
@@ -279,12 +283,12 @@ function DecodeMeta(bytes) {
       decoded.longitude = round(bytes2rat(bytes, 6) / 100000, 6);
       decoded.altitude = round(bytes2rat(bytes, 10) / 10, 6);
     }
-  }
-  catch {}
-  finally {
+  // }
+  // catch {}
+  // finally {
       // PrtDecoded("decode meta info decoded",decoded);
       return decoded;
-  }
+  // }
 }
 
 function combine(decoded,addon) { /* combine 2nd arg object to first, return rtlt */
