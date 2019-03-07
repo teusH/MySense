@@ -6,8 +6,9 @@
 var version = "$Version: 1.4$".slice(10,-1);
 /*
 var payloads = [
-  "00000050007901C4033003FC000000000000",
-  "87002500360037031403140314CECECE01D1023103E30A64039E"
+  "00000050007901C4033003FC000000000000", // port 2
+  "87002500360037031403140314CECECE01D1023103E30A64039E", // port 2
+  "87000E0022008B80000D56055C002E000000010228015F03E1019D0114", // port 4
 ];
 
 function PrtDecoded(strg,items) {
@@ -28,8 +29,8 @@ var tests = [
   "payload": [0x00, 0x00, 0x00, 0x75, 0x00, 0x79, 0x01, 0x7E, 0x04, 0x3B, 0x04, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
   "result": {
     "humidity": 108.3,
-    "pm10": 12.1,
     "pm25": 11.7,
+    "pm10": 12.1,
     "pressure": 1041,
     "temperature": 8.2
   }
@@ -37,20 +38,39 @@ var tests = [
   "port": 2,
   "payload": [0x87, 0x00, 0x1B, 0x00, 0x26, 0x00, 0x4C, 0x02, 0x63, 0x02, 0x63, 0x02, 0x63, 0xE0, 0xE0, 0xE0, 0x01, 0x93, 0x02, 0x82, 0x03, 0xEB, 0x09, 0xA2, 0x02, 0x76],
   "result": {
+    "temperature": 10.3
+    "humidity": 64.2,
+    "pressure": 1003,
     "aqi": 63,
     "gas": 2466,
-    "humidity": 64.2,
+    "pm1": 2.7,
+    "pm25": 3.8,
+    "pm10": 7.6,
     "pm03_cnt": 61.1,
     "pm05_cnt": 61.1,
-    "pm1": 2.7,
-    "pm10": 7.6,
-    "pm10_cnt": 22.4,
     "pm1_cnt": 61.1,
-    "pm25": 3.8,
     "pm25_cnt": 22.4,
     "pm5_cnt": 22.4,
-    "pressure": 1003,
-    "temperature": 10.3
+    "pm10_cnt": 22.4,
+  }
+},{
+  "port": 4,
+  "payload": [],
+  "result": {
+    "TTN V": "1.4",
+    "temperature": 25.2
+    "humidity": 35.1,
+    "pressure": 993,
+    "aqi": 27.6,
+    "gas": 413,
+    "pm1": 1.4,
+    "pm25": 3.4,
+    "pm10": 13.9,
+    "pm03_cnt": 0.1,
+    "pm05_cnt": 0,
+    "pm1_cnt": 137.2,
+    "pm25_cnt": 4.6,
+    "pm10_cnt": 4915.2,
   }
 },{
   "port": 2,
@@ -118,7 +138,7 @@ function DecodePrt4(bytes) { /* PM count type HHHHHH */
     var decoded = { };
     // myPrt("port 2 PM cnt bytes " + bytes.length + ": " + bytes);
     var expl = false; var pm_4 = false;
-    // try {
+    try {
       if (bytes[0]&0x80) { expl = true; bytes[0] = bytes[0]| 0x40; }
       if (bytes[4]&0x80) { pm_4 = true; bytes[4] = bytes[4]| 0x40; }
       var pm45 = 0.0;
@@ -138,18 +158,18 @@ function DecodePrt4(bytes) { /* PM count type HHHHHH */
       }
       if (pm_4 ) { decoded.pm04_cnt = pm45; } /* Sensirion */
       else { decoded.pm05_cnt = pm45; }       /* Plantower */
-    // }
-    // catch { }
-    // finally {  
+    }
+    catch(e) { }
+    finally {  
       // PrtDecoded("decode PM cnt port 4",decoded);
       return decoded;
-    // }
+    }
 }
 
 function decodePM(bytes) { /* ug/m3 [H]HH */
     var decoded = {}; var strt = 0;
     // myPrt("PM bytes " + bytes.length + ": " + bytes);
-    // try {
+    try {
       if ( bytes.length > 4 ) {
         if (notZero(bytes, 0)) {
           decoded.pm1 = round(bytes2(bytes, 0, 10), 1);
@@ -162,18 +182,18 @@ function decodePM(bytes) { /* ug/m3 [H]HH */
       if (notZero(bytes, strt+2)) {
         decoded.pm10 = round(bytes2(bytes, strt+2, 10), 1);
       }
-    // }
-    // catch {}
-    // finally {
+    }
+    catch(e) {}
+    finally {
       // PrtDecoded("decodePM decoded",decoded);
       return decoded;
-    // }
+    }
 }
 
 function DecodePrt2(bytes) { /* PM counts HHHBBB */
     var decoded = {};
     // myPrt("port 2 PM cnt bytes " + bytes.length + ": " + bytes);
-    // try {
+    try {
       if (notZero(bytes, 0)) {
         decoded.pm03_cnt = round(bytes2(bytes, 0, 10), 1);
       }
@@ -192,18 +212,18 @@ function DecodePrt2(bytes) { /* PM counts HHHBBB */
       if (bytes[8]) {
         decoded.pm10_cnt = round(bytes[8] / 10, 1);
       }
-    // }
-    // catch {}
-    // finally { 
+    }
+    catch(e) {}
+    finally { 
       // PrtDecoded("decode PM cnt port 2",decoded);
       return decoded;
-    // }
+    }
 }
 
 function decodeMeteo(bytes) { /* BME, SHT HH[H[HH]] */
     var decoded = {};
     // myPrt("Meteo decode bytes " + bytes.length + ": " + bytes);
-    // try {
+    try {
       if (notZero(bytes, 0)) {
         decoded.temperature = round(bytes2(bytes, 0, 10) - 30, 1);
       }
@@ -221,30 +241,30 @@ function decodeMeteo(bytes) { /* BME, SHT HH[H[HH]] */
       if (notZero(bytes, 8)) {
         decoded.aqi = round(bytes2(bytes, 8, 10), 1);
       }
-    // }
-    // catch {}
-    // finally {
+    }
+    catch(e) {}
+    finally {
       // PrtDecoded("decode Meteo decoded",decoded);
       return decoded;
-    // }
+    }
 }
 
 function decodeGPS(bytes) { /* GPS NEO 6 */
     var lat = 0.0;
     // myPrt("decode GPS bytes " + bytes.length + ": " + bytes);
-    // try { 
+    try { 
         lat = bytes2rat(bytes, 0);
         if (lat) {
             decoded.latitude = round(lat / 100000, 6);
             decoded.longitude = round(bytes2rat(bytes, 4) / 100000, 6);
             decoded.altitude = round(bytes2rat(bytes, 8) / 10, 6);
         }
-    // }
-    // catch {}
-    // finally {
+    }
+    catch(e) {}
+    finally {
       // PrtDecoded("decode GPS decoded",decoded);
       return decoded;
-    //}
+    }
 }
 
 function DecodeMeta(bytes) {
@@ -267,7 +287,7 @@ function DecodeMeta(bytes) {
     'BME680',
     'SHT31'
   ];
-  // try {
+  try {
     decoded.version = bytes[0] / 10;
     decoded.dust = dustTypes[(bytes[1] & 7)];
     if ((bytes[1] & 8)) {
@@ -283,12 +303,12 @@ function DecodeMeta(bytes) {
       decoded.longitude = round(bytes2rat(bytes, 6) / 100000, 6);
       decoded.altitude = round(bytes2rat(bytes, 10) / 10, 6);
     }
-  // }
-  // catch {}
-  // finally {
+  }
+  catch(e) {}
+  finally {
       // PrtDecoded("decode meta info decoded",decoded);
       return decoded;
-  // }
+  }
 }
 
 function combine(decoded,addon) { /* combine 2nd arg object to first, return rtlt */
@@ -301,7 +321,7 @@ function Decoder(bytes, port) {
   // (array) of bytes to an object of fields.
   // myPrt("port" + port + ", length " + bytes.length + ": " + bytes);
   if ( port == 3 ) return DecodeMeta(bytes);
-  var decoded = { "TTN V": version }; var type = 0x0;
+  var decoded = { "TTNversion": version }; var type = 0x0;
   var strt = 0; var end = 1;
   /* dust [H]HH[HHH[BBB|HHH]] */
   if (bytes[0] & 0x80) { strt = 1; type = bytes[0]; } /* version >0.0 */
