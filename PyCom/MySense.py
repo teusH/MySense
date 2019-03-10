@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 4.3 2019/02/25 15:51:23 teus Exp teus $
+# $Id: MySense.py,v 4.6 2019/03/10 17:06:08 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 4.3 $"[11:-2]
+__version__ = "0." + "$Revision: 4.6 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -37,6 +37,11 @@ ALT = const(2)
 lastGPS = [0.0,0.0,0.0]
 thisGPS = [0.0,0.0,0.0] # configured GPS
 
+# LoRa ports
+# data port 2 old style and ug/m3, 4 new style grain, pm4/5 choice etc
+Dprt = (2,4)    # data ports
+Iprt = const(3) # info port, meta data
+
 # oled is multithreaded
 STOP = False
 STOPPED = False
@@ -57,10 +62,10 @@ sleep_time -= sample_time
 if sleep_time <= 0: sleep_time = 0.1
 
 # calibrate dict with lists for sensors { 'temperature': [0,1], ...}
+calibrate = {}
 try:
   from Config import calibrate
-except:
-  calibrate = {}
+except: pass
 
 # # stop processing press user button
 # button = Pin('P11',mode=Pin.IN, pull=Pin.PULL_UP)
@@ -182,8 +187,7 @@ def display(txt,xy=(0,None),clear=False, prt=True):
     if y == 0: nl = 16
     elif not offset: nl = y + LF
     if nl >= (64-13): nl = 16
-  if prt:
-    print(txt)
+  if prt: print(txt)
 
 def rectangle(x,y,w,h,col=1):
   global Display
@@ -330,16 +334,20 @@ def initMeteo(debug=False):
           # this is not a BME280 but a BME680?
           del BME
           import BME_I2C as BME
-          try: from Config import M_gBase
-          except: M_gBase = None
-          calibrate['gas base'] = M_gBase
           meteo = 'BME680'
           Meteo['fd'] = BME.BME_I2C(Meteo['i2c']['fd'], address=Meteo['addr'], debug=debug, calibrate=calibrate)
-          if Meteo['fd'].gas_base != None and not M_gBase:
+          if not 'gas_base' in Meteo.keys():
+            try:
+               from Config import M_gBase
+               Meteo['gas_base'] = int(M_gBase)
+            except: pass
+          if 'gas_base' in Meteo.keys():
+              Meteo['fd'].gas_base = Meteo['gas_base']
+          if not Meteo['fd'].gas_base:
               display('AQI wakeup')
-              M_gBase = Meteo['fd'].AQI # first time can take a while
-              if (Meteo['fd'].gas_base != None) and (M_gBase != None):
-                  display("Gas base: %0.1f" % Meteo['fd'].gas_base)
+              Meteo['fd'].AQI # first time can take a while
+              Meteo['gas_base'] = Meteo['fd'].gas_base
+          display("Gas base: %0.1f" % Meteo['fd'].gas_base)
           # Meteo['fd'].sea_level_pressure = 1011.25
         else: Meteo['fd'] = bme
         if debug: print("Found %s" % meteo)
@@ -423,20 +431,22 @@ def initDust(debug=False):
         from SDS011 import SDS011 as senseDust
       elif Dust['name'][:3] == 'SPS':  # Sensirion
         from SPS30 import SPS30 as sensedust
-        try:
-            from Config import Dext # show also pm counts
-            if Dext: Dust['cnt'] = True
-        except: pass
       elif Dust['name'][:3] == 'PMS':  # Plantower
-        try:
-            from Config import Dext # show also pm counts
-            if Dext: Dust['cnt'] = True
-        except: pass
         from PMSx003 import PMSx003 as senseDust
       else:
         LED.blink(5,0.3,0xff0000,True)
         raise ValueError("Unknown dust sensor")
-      Dust['fd'] = senseDust(port=len(uart), debug=debug, sample=sample_time, interval=0, pins=Dust['pins'], calibrate=calibrate)
+      try:
+        from Config import Dext # show also pm counts
+        if Dext: Dust['cnt'] = True
+      except: pass
+      # #pcs=range(PM0.3-PM) + average grain size, True #pcs>PM
+      Dust['expl'] = False
+      try:
+        from Config import Dexplicit
+        if Dexplicit:  Dust['expl'] = True
+      except: pass
+      Dust['fd'] = senseDust(port=len(uart), debug=debug, sample=sample_time, interval=0, pins=Dust['pins'], calibrate=calibrate, explicit=Dust['expl'])
       uart.append(len(uart))
       if debug:
         print("%s UART %d: " % (Dust['name'],len(uart)) + "Rx ~> Tx %s, Tx ~> Rx %s" % Dust['pins'])
@@ -599,8 +609,8 @@ def initNetwork(debug=False):
     Network['fd'] = LORA()
     # Connect to LoRaWAN
     display("Try  LoRaWan", (0,0), clear=True)
-    # need 2 ports: data on 2, info/ident on 3
-    if Network['fd'].connect(Network['keys'], ports=2, callback=CallBack):
+    # need 2 ports: data on 4, info/ident on 3
+    if Network['fd'].connect(Network['keys'], ports=(len(Dprt)+1), callback=CallBack):
        display("Using LoRaWan")
        Network ['enabled'] = True
     else:
@@ -629,7 +639,7 @@ PM10c = const(8)
 def DoDust(debug=False):
   global Dust, nl, STOP, STOPPED, Gps, lastGPS
   dData = {}; rData = [None,None,None]
-  if Meteo['use'] == None: initMeteo(debug=debug)
+  # if Meteo['use'] == None: initMeteo(debug=debug)
   if (not Dust['use']) or (not Dust['enabled']): return rData
 
   display('PM sensing',(0,0),clear=True,prt=False)
@@ -661,7 +671,7 @@ def DoDust(debug=False):
         sleep(2)
       STOP = False
     except Exception as e:
-      display("%s ERROR" % dust)
+      display("%s ERROR" % Dust['name'])
       print(e)
       LED.blink(3,0.1,0xff0000)
       dData = {}
@@ -695,6 +705,9 @@ def DoDust(debug=False):
         if 'pm'+k+'_cnt' in dData.keys():
             rData.append(round(dData['pm'+k+'_cnt'],1))
         else: rData.append(0.0) # None
+      if not Dust['expl']:  # PM0.3 < # pcs <PMi
+        rData[3] = round(dData['grain'],2) # PM0.3 overwritten
+        # print('pm grain: %0.2f' % dData['grain'])
     LED.off()
   return rData
 
@@ -735,7 +748,10 @@ def DoMeteo(debug=False):
                     mData[PRES] = convertFloat(Meteo['fd'].pressure)
                 elif Meteo['name'] == 'BME680':
                     if item == GAS: mData[GAS] = convertFloat(Meteo['fd'].gas)
-                    elif item == AQI: mData[AQI] = round(convertFloat(Meteo['fd'].AQI),1)
+                    elif item == AQI:
+                        mData[AQI] = round(convertFloat(Meteo['fd'].AQI),1)
+                        if not 'gas_base' in Meteo.keys():
+                            Meteo['gas_base'] = Meteo['fd'].gas_base
                 break
             except OSError as e: # I2C bus error, try to recover
                 print("OSerror %s on data nr %d" % (e,item))
@@ -770,7 +786,8 @@ def DoMeteo(debug=False):
 
 # denote a null value with all ones
 # denote which sensor values present in data package
-def DoPack(dData,mData,gps=None):
+def DoPack(dData,mData,gps=None,debug=False):
+  global Dust
   t = 0
   for d in dData, mData:
     for i in range(1,len(d)):
@@ -778,11 +795,36 @@ def DoPack(dData,mData,gps=None):
   if mData[0] == None: mData[0] = 0
   if dData[PM1] == None: # PM2.5 PM10 case
     d = struct.pack('>HH',int(dData[PM25]*10),int(dData[PM10]*10))
+    # print("PM 2.5, 10 cnt: ", dData[1:3])
   else:
     d = struct.pack('>HHH',int(dData[PM1]*10),int(dData[PM25]*10),int(dData[PM10]*10))
     t += 1
   if ('cnt' in Dust.keys()) and Dust['cnt']: # add counts
-    d += struct.pack('>HHHBBB',int(dData[PM03c]),int(dData[PM05c]),int(dData[PM1c]),int(dData[PM25c]*10),int(dData[PM5c]*10),int(dData[PM10c]*10))
+    # defeat: Plantower PM5c == Sensirion PM4c: to do: set flag in PM5c
+    flg = 0x8000 if Dust['name'][:3] in ['SPS',] else 0x0
+    try:
+      if Dust['expl']:
+        # 9 decrementing bytes, may change this
+        d += struct.pack('>HHHHHH',
+          int(dData[PM10c]*10+0.5),
+          int(dData[PM05c]*10+0.5),
+          int(dData[PM1c]*10+0.5),
+          int(dData[PM25c]*10+0.5),
+          int(dData[PM5c]*10+0.5)|flg,
+          int(dData[PM03c]*10+0.5))
+      else:
+        # 9 bytes, ranges, average grain size  >0.30*100
+        d += struct.pack('>HHHHHH',
+          int((dData[PM10c]-dData[PM5c])*10+0.5)|0x8000,
+          int(dData[PM05c]*10+0.5),
+          int((dData[PM1c]-dData[PM05c])*10+0.5),
+          int((dData[PM25c]-dData[PM1c])*10+0.5),
+          int((dData[PM5c]-dData[PM25c])*10+0.5)|flg,
+          int(dData[PM03c]*100+0.5))
+    except:
+      d += struct.pack('>HHHHHH',0,0,0,0,0,0)
+      display("Error dust fan",clear=True)
+      LED.blink(5,0.2,0xFF0000,False)
     t += 2
   m = struct.pack('>HHH',int(mData[TEMP]*10+300),int(mData[HUM]*10),int(mData[PRES]))
   if len(mData) > 3:
@@ -793,14 +835,16 @@ def DoPack(dData,mData,gps=None):
     t += 8
   else: l = ''
   # return d+m+l
-  return struct.pack('>B', t | 0x80)+d+m+l # flag the package
+  t = struct.pack('>B', t | 0x80) # flag the package
+  return t+d+m+l # flag the package
 
 # send kit info to LoRaWan
-def SendInfo(port=3):
+def SendInfo(port=Iprt):
   global Meteo, Dust, Network
   global Gps, lastGPS, thisGPS
   meteo = ['','DHT11','DHT22','BME280','BME680','SHT31']
   dust = ['None','PPD42NS','SDS011','PMSx003','SPS30']
+  print("meteo: %s, dust: %s" %(Meteo['name'],Dust['name']))
   if Network['fd'] == None: return False
   if (not Meteo['enabled']) and (not Dust['enabled']) and (not Gps['enabled']):
     return True
@@ -833,7 +877,7 @@ def Info(debug=False):
 
     import os
     display('%s' % PyCom, (0,0),clear=True)
-    display("MySense V %s" % __version__[:6], (0,0), clear=True)
+    display("MySense %s" % __version__[:8], (0,0), clear=True)
     from machine import unique_id
     import binascii
     # identity PyCom SN
@@ -881,10 +925,12 @@ def runMe(debug=False):
     if Dust['enabled']: dData = DoDust(debug=debug)
     if Meteo['enabled']: mData = DoMeteo(debug=debug)
 
-    # Send packet, data port = 2, info port = 3
+    # Send packet
     if Network['enabled']:
         if (Network['name'] == 'TTN'):
-          if  Network['fd'].send(DoPack(dData,mData,LocUpdate()),port=2):
+          if ('cnt' in Dust.keys()) and Dust['cnt']: port=Dprt[1]
+          else: port=Dprt[0]
+          if  Network['fd'].send(DoPack(dData,mData,LocUpdate(),debug=debug),port=port):
             LED.off()
           else:
             display(" LoRa send ERROR")
@@ -907,4 +953,4 @@ def runMe(debug=False):
       return False
 
 if __name__ == "__main__":
-  runMe()
+  runMe(debug=True)

@@ -3,12 +3,12 @@
  * decode LoRa payload sent by MySense node
  * copy/paste this JavaScript into format area at TTN server
  */
-var version = "$Version: 1.4$".slice(10,-1);
+var version = "$Version: 1.5$".slice(10,-1);
 /*
 var payloads = [
   "00000050007901C4033003FC000000000000", // port 2
   "87002500360037031403140314CECECE01D1023103E30A64039E", // port 2
-  "87000E0022008B80000D56055C002E000000010228015F03E1019D0114", // port 4
+  "87000100010001800001A100AA000400000035022C014703EF027B0119" // port 4
 ];
 
 function PrtDecoded(strg,items) {
@@ -25,7 +25,8 @@ function myPrt(output) {
 // test data
 /*
 var tests = [
-  {"port": 2,
+{ 
+  "port": 2,
   "payload": [0x00, 0x00, 0x00, 0x75, 0x00, 0x79, 0x01, 0x7E, 0x04, 0x3B, 0x04, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
   "result": {
     "humidity": 108.3,
@@ -35,42 +36,37 @@ var tests = [
     "temperature": 8.2
   }
 },{
+    "port": 4,
+    "payload": [87000100010001800001A100AA000400000035022C014703EF027B0119],
+    "result": {
+        "TTNversion": "1.5",
+        "temperature": 25.6
+        "pressure": 1007,
+        "humidity": 32.7,
+        "aqi": 28.1,
+        "gas": 635,
+        "grain": 0.5,
+        "pm1": 0.1,
+        "pm25": 0.1,
+        "pm10": 0.1,
+        "pm05_cnt": 41.7,
+        "pm1_cnt": 58.7,
+        "pm25_cnt": 59.1,
+        "pm5_cnt": 59.1,
+        "pm10_cnt": 59.1,
+    }
+},{
   "port": 2,
   "payload": [0x87, 0x00, 0x1B, 0x00, 0x26, 0x00, 0x4C, 0x02, 0x63, 0x02, 0x63, 0x02, 0x63, 0xE0, 0xE0, 0xE0, 0x01, 0x93, 0x02, 0x82, 0x03, 0xEB, 0x09, 0xA2, 0x02, 0x76],
   "result": {
-    "temperature": 10.3
-    "humidity": 64.2,
-    "pressure": 1003,
-    "aqi": 63,
-    "gas": 2466,
-    "pm1": 2.7,
-    "pm25": 3.8,
-    "pm10": 7.6,
+    "temperature": 10.3, "humidity": 64.2, "pressure": 1003, "aqi": 63, "gas": 2466,
+    "pm1": 2.7, "pm25": 3.8, "pm10": 7.6,
     "pm03_cnt": 61.1,
     "pm05_cnt": 61.1,
     "pm1_cnt": 61.1,
     "pm25_cnt": 22.4,
     "pm5_cnt": 22.4,
     "pm10_cnt": 22.4,
-  }
-},{
-  "port": 4,
-  "payload": [],
-  "result": {
-    "TTN V": "1.4",
-    "temperature": 25.2
-    "humidity": 35.1,
-    "pressure": 993,
-    "aqi": 27.6,
-    "gas": 413,
-    "pm1": 1.4,
-    "pm25": 3.4,
-    "pm10": 13.9,
-    "pm03_cnt": 0.1,
-    "pm05_cnt": 0,
-    "pm1_cnt": 137.2,
-    "pm25_cnt": 4.6,
-    "pm10_cnt": 4915.2,
   }
 },{
   "port": 2,
@@ -116,6 +112,7 @@ var tests = [
   }
 }
 ];
+
 */
 
 function round(value, decimals) {
@@ -136,11 +133,11 @@ function notZero(b, nr) {
 }
 function DecodePrt4(bytes) { /* PM count type HHHHHH */
     var decoded = { };
-    // myPrt("port 2 PM cnt bytes " + bytes.length + ": " + bytes);
-    var expl = false; var pm_4 = false;
+    myPrt("port 4 PM cnt bytes " + bytes.length + ": " + bytes);
+    var expl = true; var pm_4 = false;
     try {
-      if (bytes[0]&0x80) { expl = true; bytes[0] = bytes[0]| 0x40; }
-      if (bytes[4]&0x80) { pm_4 = true; bytes[4] = bytes[4]| 0x40; }
+      if (bytes[0]&0x80) { expl = false; bytes[0] = bytes[0] & 0x7F; }
+      if (bytes[4]&0x80) { pm_4 = true; bytes[4] = bytes[4] & 0x7F; }
       var pm45 = 0.0;
       decoded.pm10_cnt = round(bytes2(bytes, 0, 10), 1);
       decoded.pm05_cnt = round(bytes2(bytes, 2, 10), 1);
@@ -156,8 +153,8 @@ function DecodePrt4(bytes) { /* PM count type HHHHHH */
         pm45 += decoded.pm25_cnt;
         decoded.pm10_cnt += pm45;
       }
-      if (pm_4 ) { decoded.pm04_cnt = pm45; } /* Sensirion */
-      else { decoded.pm05_cnt = pm45; }       /* Plantower */
+      if (pm_4 ) { decoded.pm4_cnt = pm45; } /* Sensirion */
+      else { decoded.pm5_cnt = pm45; }       /* Plantower */
     }
     catch(e) { }
     finally {  
@@ -374,9 +371,9 @@ function Decoder(bytes, port) {
 var test = {};
 var rslt = {}; 
 
-//PrtDecoded(tests[1]["result"]);
-//rslt = Decoder(tests[1]["payload"],tests[1]["port"]);
-//PrtDecoded(rslt);
+// PrtDecoded(tests[1]["result"]);
+// rslt = Decoder(tests[1]["payload"],tests[1]["port"]);
+// PrtDecoded(rslt);
 
 for ( test in tests ) {
    rslt = Decoder(tests[test]["payload"],tests[test]["port"]);
