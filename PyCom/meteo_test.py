@@ -1,7 +1,7 @@
 from time import sleep
 from machine import I2C
 
-__version__ = "0." + "$Revision: 3.7 $"[11:-2]
+__version__ = "0." + "$Revision: 3.8 $"[11:-2]
 __license__ = 'GPLV4'
 
 def searchDev(names=['BME','SHT','SSD']):
@@ -55,6 +55,8 @@ try:
     elif meteo[:3] == 'SHT':
         import Adafruit_SHT31 as SHT
         useMeteo = SHT.SHT31(address=addr, i2c=i2c, calibrate=calibrate)
+except ImportError:
+    raise ValueError("SHT or BME library not installed")
 except:
     raise ValueError("No meteo module connected")
 

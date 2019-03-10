@@ -7,7 +7,7 @@ from bme680.constants import I2C_ADDR_PRIMARY,OS_2X,OS_4X,OS_8X,FILTER_SIZE_3,EN
 class BME_I2C:
   def __init__(self, i2c_device, address=I2C_ADDR_PRIMARY, debug=False, calibrate=None, raw=False):
     self.sensor = bme680.BME680(i2c_addr=address, i2c_device=i2c_device)
-    self.gas_base = None
+
     self.debug = debug
     # These oversampling settings can be tweaked to
     # change the balance between accuracy and noise in
@@ -23,15 +23,14 @@ class BME_I2C:
     self.sensor.set_gas_heater_duration(150)
     self.sensor.select_gas_heater_profile(0)
 
-    self.calibrate = { 'temperature': None, 'pressure': None, 'humidity': None, 'altitude': None, 'gas': None, 'gas base': None}
+    self.calibrate = { 'temperature': None, 'pressure': None, 'humidity': None, 'altitude': None, 'gas': None}
     if type(calibrate) is dict:
       for k in calibrate.keys():
         if (not k in self.calibrate.keys()) or (not type(calibrate[k]) is list):
-          continue
+            continue
         self.calibrate[k] = calibrate[k]
     self.raw = raw
     self.updated = 0 # millis of last BME680 data update
-
 
     self.sea_level_pressure = 1010.0
     # Set the humidity baseline to 40%, an optimal outdoor humidity.
@@ -39,7 +38,8 @@ class BME_I2C:
     # This sets the balance between humidity and gas reading in the
     # calculation of air_quality_score (25:75, humidity:gas)
     self.hum_weight = 0.25
-    self.gas_base = self.calibrate['gas base']
+    self.gas_base = None
+
 
   # calibrate by length calibration factor (Taylor) array
   def _calibrate(self,cal,value):
@@ -116,7 +116,7 @@ class BME_I2C:
             data.append(gas)
           else:
             data.pop(); data.insert(0,gas)
-          if self.debug: print("time: %dm%ds, gas: %d Ohms" % (int(cur_time-strt_time)/60,int(cur_time-strt_time)%60,gas))
+          if self.debug: print("time: %dm%ds, gas: %d Ohm" % (int(cur_time-strt_time)/60,int(cur_time-strt_time)%60,gas))
           if len(data) >= 50: break
         else:
           if self.debug: print("time: %dm%ds: heating up %d" % (int(cur_time-strt_time)/60,int(cur_time-strt_time)%60,gas))
@@ -124,13 +124,14 @@ class BME_I2C:
       sleep_ms(800)
     if len(data):
       self.gas_base = float(sum(data[0:]))/len(data)
+      if self.debug: print("New gas base: %.0f" % self.gas_base)
       return True
     return False
 
   @property
   def AQI(self):
     # calculate gas base line. Can take 5 minutes
-    if not self.gas_base:
+    if self.gas_base == None:
       if  not self._gasBase(): return None
     if not (self.get_data() and self.sensor.data.heat_stable): return None
     hum_offset = self._calibrate(self.calibrate['humidity'],self.sensor.data.humidity) - self.hum_base

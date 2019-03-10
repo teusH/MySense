@@ -1,8 +1,8 @@
 # simple test script for dust sensors
-# $Id: dust_test.py,v 1.9 2019/02/15 16:42:49 teus Exp teus $
+# $Id: dust_test.py,v 1.11 2019/03/08 16:27:08 teus Exp teus $
 # standalone test loop
 
-__version__ = "0." + "$Revision: 1.9 $"[11:-2]
+__version__ = "0." + "$Revision: 1.11 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import time, sleep
@@ -25,22 +25,29 @@ try:
     from SDS011 import SDS011 as senseDust
   elif dust[:3] == 'PMS':
     from PMSx003 import PMSx003 as senseDust
-  else: raise OSError("unknow dust sensor index %d" % dust)
+  elif dust[:3] == 'SPS':
+    from SPS30 import SPS30 as sensedust
+  else: raise OSError("Unknown dust sensor %s" % dust)
 except:
   raise OSError("No dust sensor lib %s found" % dust)
 
 sampling = 60    # each sampling time take average of values
 interval = 5*60  # take very 5 minutes a sample over 60 seconds
 
+Dexplicit = False
+try: from Config import Dexplicit
+except: pass
 try:
   from Config import calibrate
 except:
   calibrate = None
 
+sensor = senseDust(port=len(uart), debug=True, sample=sampling, interval=0, pins=(D_Tx,D_Rx), calibrate=calibrate, explicit=Dexplicit)
+
 print("Dust: using sensor %s, UART %d Rx on pin %s, Tx on pin %s" % (dust,len(uart),D_Tx, D_Rx))
 print("Dust module sampling %d secs, interval of measurement %d minutes" % (sampling, interval/60))
+print("PM pcs (count) values: %s" %("pcs >PMn (Plantower)" if Dexplicit else "pcs <PMn (Sensirion)")) 
 
-sensor = senseDust(port=len(uart), debug=True, sample=sampling, interval=0, pins=(D_Tx,D_Rx), calibrate=calibrate)
 if sensor and (sensor.mode != sensor.NORMAL): sensor.Normal()
 errors = 0
 for cnt in range(5):

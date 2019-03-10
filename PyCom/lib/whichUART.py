@@ -1,7 +1,7 @@
 from machine import UART
 from time import sleep
 
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 __license__ = 'GPLV4'
 
 # Config.py definitions preceed
@@ -47,22 +47,24 @@ class identifyUART:
         for baud in [9600,115200]:
           cnt = len(found)
           ser = UART(len(self.uart), baudrate=baud, pins=one, timeout_chars=20)
-          for i in range(0,3): # try 3 times to read known pattern
+          for i in range(0,6): # try 3 times to read known pattern
             line = []
             sleep(2)
             try: line = ser.readall()
             except:
-                print("Read error")
+                print("Uart read error")
                 continue
             if (line == None) or (not len(line)):   # try to wake up
                 if not 'dust' in found:
                   if self.debug: print("Try to wake up device")
-                  if not i: ser.write(b'BM\xe1\x00\x01\x01q') # try activate PMS
-                  elif i < 1: ser.write(b'\xAA\xB4\x06\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\x06\xAB') # second try activate SDS
-                  elif i < 2: ser.write(b'~\x00\xd3\x00,~') # try reset SPS
+                  if (i%3) == 0: ser.write(b'\x42\x4D\xE1\x00\x01\x01\x71') # try activate PMS
+                  elif (i%3) == 1: ser.write(b'\xAA\xB4\x06\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\x06\xAB') # second try activate SDS
+                  elif (i%3) == 2:
+                    ser.write(b'~\x00\xd3\x00,~') # try reset SPS
+                  sleep(1)
                 continue
             # if self.debug: print("Read: %s" % line)
-            if (not 'dust' in found) and (line.count(b'BM') > 0): # start char 0x42,0x4D
+            if (not 'dust' in found) and (line.count(b'\x42\x4D') > 0): # start char BM
                 self.dust = 'PMSx003'; self.D_Tx = one[0]; self.D_Rx = one[1]
                 found.append('dust')
             elif (not 'dust' in found) and line.count(b'\xAA') and line.count(b'\xC0'): # start char 0xAA,0xC0 tail 0xAB
