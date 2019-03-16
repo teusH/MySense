@@ -1,15 +1,30 @@
 from time import sleep
 from machine import I2C
 
-__version__ = "0." + "$Revision: 3.8 $"[11:-2]
+__version__ = "0." + "$Revision: 3.9 $"[11:-2]
 __license__ = 'GPLV4'
+
+def chip_ID(i2c, address=0x77): # I2C dev optional ID
+    chip_ID_ADDR = const(0xd0)
+    # Create I2C device.
+    if not type(i2c) is I2C:
+      raise ValueError('An I2C object is required.')
+    ID = 0 # 12 bits name, 9 bits part nr, 3 bits rev
+    try: ID = i2c.readfrom_mem(address, chip_ID_ADDR, 3)
+    except: pass
+    # print("ID: ", ID)
+    return int.from_bytes( ID,'little') & 0xFF
+
+BME280_ID = const(0x60)
+BME680_ID = const(0x61)
+SSD1306_ID = const(0x3)
 
 def searchDev(names=['BME','SHT','SSD']):
     I2Cpins = [('P23','P22')] # I2C pins [(SDA,SCL), ...]
     I2Cdevices = [
-            ('BME280',0x76),('BME280',0x77), # BME serie Bosch
-            ('SHT31',0x44),('SHT31',0x45),   # Sensirion serie
-            ('SSD1306',0x3c)                 # oled display
+            ['BME280',0x76],['BME280',0x77], # BME serie Bosch
+            ['SHT31',0x44],['SHT31',0x45],   # Sensirion serie
+            ['SSD1306',0x3c]                 # oled display
        ]
     try:
         from Config import I2Cpins, I2Cdevices
@@ -25,10 +40,16 @@ def searchDev(names=['BME','SHT','SSD']):
         regs = cur_i2c.scan()
         for item in I2Cdevices:
             if item[1] in regs:
-                print('%s I2C[%d]:' % (item[0],index), ' SDA ~> %s, SCL ~> %s' % I2Cpins[index], 'address 0x%2X' % item[1])
-                if not item[0][:3] in names: continue
-                if device: continue  # first one we use
-                device = item[0]; bus = cur_i2c; nr = index
+                ID = chip_ID(cur_i2c, item[1])
+                if item[0][:3] == 'BME':
+                  if ID == BME680_ID: item[0] = 'BME680'
+                  elif ID != BME280_ID: raise IOError("Unknown BME id 0x%X" % ID)
+                print('%s ID=0x%X I2C[%d]:' % (item[0],ID,index), ' SDA ~> %s, SCL ~> %s' % I2Cpins[index], 'address 0x%2X' % item[1])
+                if device:
+                    continue  # first one we use
+                device = item[0]
+                if not device[:3] in names: continue
+                bus = cur_i2c; nr = index
                 address = item[1]
     return(nr,bus,device,address)
 
@@ -43,15 +64,12 @@ except:
 # Create library object using our Bus I2C port
 try:
     if meteo[:3] == 'BME':
-        meteo = 'BME280'
+      if meteo == 'BME280':
         import BME280 as BME
-        useMeteo = BME.BME_I2C(i2c, address=addr, debug=False, calibrate=calibrate)
-        if (useMeteo.temperature < -40.0) or (useMeteo.pressure < 0.0):
-            # this is not a BME280 but a BME680
-            del BME
-            meteo = 'BME680'
-            import BME_I2C as BME
-            useMeteo = BME.BME_I2C(i2c, address=addr, debug=False, calibrate=calibrate)
+      elif meteo == 'BME680':
+        import BME_I2C as BME
+      else: raise IOError("Unknown BME chip")
+      useMeteo = BME.BME_I2C(i2c, address=addr, debug=False, calibrate=calibrate)
     elif meteo[:3] == 'SHT':
         import Adafruit_SHT31 as SHT
         useMeteo = SHT.SHT31(address=addr, i2c=i2c, calibrate=calibrate)
@@ -60,7 +78,7 @@ except ImportError:
 except:
     raise ValueError("No meteo module connected")
 
-print("Found I2C device %s" % meteo)
+print("Found I2C meteo device %s" % meteo)
 # change this to match the location's pressure (hPa) at sea level
 useMeteo.sea_level_pressure = 1024.25 # 1013.25
 for cnt in range(5):
