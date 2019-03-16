@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 4.6 2019/03/10 17:06:08 teus Exp teus $
+# $Id: MySense.py,v 4.7 2019/03/16 19:23:08 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 4.6 $"[11:-2]
+__version__ = "0." + "$Revision: 4.7 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -96,6 +96,21 @@ try:
     from Config import uart # allow P0,P1 pins?
 except: pass
 
+def chip_ID(i2c, address=0x77): # I2C dev optional ID
+    chip_ID_ADDR = const(0xd0)
+    # Create I2C device.
+    if not type(i2c) is I2C:
+      raise ValueError('An I2C object is required.')
+    ID = 0 # 12 bits name, 9 bits part nr, 3 bits rev
+    try: ID = i2c.readfrom_mem(address, chip_ID_ADDR, 3)
+    except: pass
+    # print("ID: ", ID)
+    return int.from_bytes( ID,'little') & 0xFF
+
+BME280_ID = const(0x60)
+BME680_ID = const(0x61)
+SSD1306_ID = const(0x3)
+
 # hw search for I2C devices
 def I2Cdevs(names=['BME','SHT','SSD'], debug=False):
     global I2Cdevices
@@ -115,8 +130,10 @@ def I2Cdevs(names=['BME','SHT','SSD'], debug=False):
             if item[1] in regs:
                 if not item[0][:3] in names:
                     continue
+                ID = chip_ID(i2c[index]['fd'], item[1])
                 name = item[0]
-                if debug: print('%s I2C[%d]:' % (name,index), ' SDA ~> %s, SCL ~> %s' % i2c[index]['pins'], 'address 0x%2X' % item[1])
+                if (name[:3] == 'BME') and (ID == BME680_ID): name = 'BME680'
+                if debug: print('%s id(0x%X) I2C[%d]:' % (name,ID,index), ' SDA ~> %s, SCL ~> %s' % i2c[index]['pins'], 'address 0x%2X' % item[1])
                 if name[:3] in ['BME','SHT']:
                   fnd = True
                   if not 'i2c' in Meteo.keys():
@@ -326,15 +343,11 @@ def initMeteo(debug=False):
     meteo = Meteo['name']
     try:
       if debug: print("Try %s" % meteo)
-      if meteo[:3] == 'BME':
-        import BME280 as BME
-        bme = BME.BME_I2C(Meteo['i2c']['fd'], address=Meteo['addr'], debug=debug, calibrate=calibrate)
-        meteo = 'BME280'
-        if (bme.temperature < -40.0) or (bme.pressure < 0.0):
-          # this is not a BME280 but a BME680?
-          del BME
+      if meteo == 'BME280':
+          import BME280 as BME
+          bme = BME.BME_I2C(Meteo['i2c']['fd'], address=Meteo['addr'], debug=debug, calibrate=calibrate)
+      elif meteo == 'BME680':
           import BME_I2C as BME
-          meteo = 'BME680'
           Meteo['fd'] = BME.BME_I2C(Meteo['i2c']['fd'], address=Meteo['addr'], debug=debug, calibrate=calibrate)
           if not 'gas_base' in Meteo.keys():
             try:
@@ -349,8 +362,6 @@ def initMeteo(debug=False):
               Meteo['gas_base'] = Meteo['fd'].gas_base
           display("Gas base: %0.1f" % Meteo['fd'].gas_base)
           # Meteo['fd'].sea_level_pressure = 1011.25
-        else: Meteo['fd'] = bme
-        if debug: print("Found %s" % meteo)
       elif meteo[:3] == 'SHT':
         import Adafruit_SHT31 as SHT
         meteo = 'SHT31'
@@ -526,6 +537,7 @@ def LocUpdate():
   global Gps, lastGPS, LAT, LON, ALT
   if not Gps['use']: return None
   location = [0.0,0.0,0.0]
+  if (not Gps['enabled']) or (not Gps['fd']): return None
   location[LAT] = round(float(Gps['fd'].latitude),5)
   location[LON] = round(float(Gps['fd'].longitude),5)
   location[ALT] = round(float(Gps['fd'].altitude),1)

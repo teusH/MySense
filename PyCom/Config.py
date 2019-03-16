@@ -5,20 +5,21 @@
 #          app id  ???, dev id ???
 Network = 'TTN' # or 'WiFi'
 # OTAA keys
-dev_eui = "AAxxxxxxxxxxxxE4"
+dev_eui = "AAxxxxxxxxxxxxb4"
 app_eui = "70xxxxxxxxxxxxD3"
-app_key = "E5xxxxxxxxxxxxxxxxxxxxxxxxxxxx36"
+app_key = "84xxxxxxxxxxxxxxxxxxxxxxxxxxxxE4"
+
 # ABP keys
 # dev_addr  = "26xxxxF1"
 # nwk_swkey = "E8xxxxxxxxxxxxxxxxxxxxxxxxxxxx9C"
 # app_swkey = "03xxxxxxxxxxxxxxxxxxxxxxxxxxxx02"
 
 # wifi AP or Node
-W_SSID = 'MySense-PyCom'
+W_SSID = 'MySense-HadM'
 W_PASS = 'acacadabra'
 
 # define 0 if not used (GPS may overwrite this)
-# thisGPS = [0.0,0.0,0.0] # (LAT,LON,ALT)
+# thisGPS = [0.0,0.0,0.0] # (LAT,LON,ALT) # default
 
 # uncomment if calibration is known
 # # date, reference to ?
@@ -35,23 +36,21 @@ W_PASS = 'acacadabra'
 
 # auto detect I2C address if module is wired/connected
 # Meteo: BME280, BME680, SHT31
-# meteo module is auto detected
 # useMeteo = 'I2C'# I2C bus, None: disabled
-# if BME680 is used:
-# M_gBase = 430940.4 # BME680 gas base line (dflt None or missing: recalculate)
+M_gBase = 227354.5 # BME680 gas base line (dflt None or missing: recalculate
 
 # use oled display None: disabled
-#useSSD = 'I2C' # deprecated
-#useSSD = 'SPI' # if not on I2C bus
+#useSSD = 'I2C' # deprecated, auto detect
+# useSSD = 'SPI' # if not on I2C bus
 # useDisplay = True  # or 'I2C'
-# SPI pins
-#S_CLKI = 'P19'  # brown D0
-#S_MOSI = 'P18'  # white D1
-#S_MISO = 'P16'  # NC
-# SSD pins on GPIO
-#S_DC   = 'P20'  # purple DC
-#S_RES  = 'P21'  # gray   RES
-#S_CS   = 'P17'  # blew   CS
+#  SPI pins
+# S_CLKI = 'P19'  # brown D0
+# S_MOSI = 'P18'  # white D1
+# S_MISO = 'P16'  # NC
+#  SSD pins on GPIO
+# S_DC   = 'P20'  # purple DC
+# S_RES  = 'P21'  # gray   RES
+# S_CS   = 'P17'  # blew   CS
 
 # SDA wire is white, SCL wire is yellow or gray
 # I2Cpins = [('P23','P22')] # I2C pins [(SDA,SCL), ...]
@@ -75,9 +74,11 @@ W_PASS = 'acacadabra'
 #calibrate = None # or e.g. { 'temperature': [-6.2,1], 'pm1': [-20.0,0.5], ...}
 
 # useDust = 'UART'     # UART, use False if not present
-#dust = 'PMS7003'     # define 0 if not
+# dust = 'PMS7003'     # define 0 if not, dflt: auto detect
 # D_Tx = 'P4'     # yellow Rx module
 # D_Rx = 'P3'     # white Tx module
 #sampling = 60  # secs, default dust sampling timing
 # Dext = '' # only Plantower/Sensirion: '_cnt' for pcs/0.1 dm3 (dflt: ug/m3)
-#Dext = True   # send PM count PMnn_cnt to database server
+Dext = True   # send PM count PMnn_cnt to database server
+# Dexplicit = False    # dflt, range PM0.3-PMi, Sensirion PM count style
+# True: Plantower PM count style, range PMi - PM10
