@@ -1,7 +1,7 @@
 """@package docstring
 asdfasdfsadf"""
 # comes from Adafruit
-# Changes by teus "$Revision: 2.2 $"
+# Changes by teus "$Revision: 2.3 $"
 
 from micropython import const
 from Device import *
@@ -11,6 +11,8 @@ import math
 
 # BME280 default address.
 _BME280_I2CADDR = const(0x76)
+_BME280_ID = const(0x60)
+_BME280_ID_ADDR = const(0xd0)
 
 # Operating Modes
 _BME280_OSAMPLE_1 = const(1)
@@ -68,6 +70,11 @@ class BME_I2C:
     if not type(i2c) is I2C:
       raise ValueError('An I2C object is required.')
     self._device = Device(address, i2c)
+    # check chip ID
+    chip_id = self._device.readU8(_BME280_ID_ADDR)
+    print("Got ID: 0x%X" % chip_id)
+    if chip_id != _BME280_ID:
+      raise RuntimeError("BME280 Not Found. Invalid chip ID: 0x{0:02x}".format(chip_id))
     # Load calibration values.
     self._load_calibration()
     self._device.write8(_BME280_REGISTER_CONTROL, 0x3F)
