@@ -3,7 +3,7 @@
 from time import sleep_ms
 from machine import I2C
 
-__version__ = "0." + "$Revision: 3.10 $"[11:-2]
+__version__ = "0." + "$Revision: 3.11 $"[11:-2]
 __license__ = 'GPLV4'
 
 def chip_ID(pins, i2c, address=0x77): # I2C dev optional ID
@@ -14,15 +14,15 @@ def chip_ID(pins, i2c, address=0x77): # I2C dev optional ID
     ID = 0 # 12 bits name, 9 bits part nr, 3 bits rev
     try: ID = i2c.readfrom_mem(address, chip_ID_ADDR, 3)
     except: # enable pwr?
-      i2c.init(I2C.MASTER, pins=pins[:2])
-      sleep_ms(200)
       if type(pins[2]) is str:
         from machine import Pin
         # print("Try to wakeup pin %s" % pins[2])
         if not Pin(pins[2], mode=Pin.OUT, pull=None, alt=-1).value():
           print("Activate I2C bus")
           Pin(pins[2], mode=Pin.OUT, pull=None, alt=-1).value(1)
-          sleep_ms(400)
+          sleep_ms(200)
+          i2c.init(I2C.MASTER, pins=pins[:2])
+          sleep_ms(200)
         ID = i2c.readfrom_mem(address, chip_ID_ADDR, 3)
     # print("ID: ", ID)
     return int.from_bytes( ID,'little') & 0xFF
@@ -118,19 +118,21 @@ for cnt in range(5):
             print("%salculating stable gas base level. Can take max 5 minutes to calculate gas base." % ('Rec' if cnt else 'C'))
         else: gBase = True
         AQI = useMeteo.AQI # first time can take a while
-        if useMeteo.gas_base != None and not gBase:
+        if useMeteo.gas_base != None:
             print("Gas base line calculated: %.1f" % useMeteo.gas_base)
             gBase = True
-        if (useMeteo.gas_base != None) and (AQI != None):
-            print("AQI: %0.1f %%" % AQI)
-        else: print("Was unable to calculate AQI. Will try again.")
         gas = useMeteo.gas
         print("Gas: %.3f Kohm" % round(gas/1000.0,2))
+        if (useMeteo.gas_base != None) and (AQI != None):
+            print("AQI: %0.1f %%" % AQI)
+        else:
+            print("Was unable to calculate AQI. Will try again.")
+            sleep_ms(30*1000)
+            continue
+        break
   except OSError as e:
     print("Got OS error: %s. Will try again." % e)
     i2c.init(I2C.MASTER,pins=I2Cpins[nr][:2])
     sleep_ms(1000)
-    continue
-  sleep_ms(30*1000)
 import sys
 sys.exit()
