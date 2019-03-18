@@ -3,8 +3,22 @@
 from time import sleep_ms
 from machine import I2C
 
-__version__ = "0." + "$Revision: 3.7 $"[11:-2]
+__version__ = "0." + "$Revision: 3.8 $"[11:-2]
 __license__ = 'GPLV4'
+
+# connect I2C to Gnd
+def PwrI2C(pins, i2c=None):
+    if type(pins[2]) is str:
+      from machine import Pin
+      if not Pin(pins[2], mode=Pin.OUT, pull=None, alt=-1).value():
+        print("Activate I2C bus")
+        Pin(pins[2], mode=Pin.OUT, pull=None, alt=-1).value(1)
+        sleep_ms(200)
+        if i2c:
+          i2c.init(I2C.MASTER, pins=pins[:2])
+          sleep_ms(200)
+      return True
+    return False
 
 def chip_ID(pins, i2c, address=0x77): # I2C dev optional ID
     chip_ID_ADDR = const(0xd0)
@@ -12,18 +26,10 @@ def chip_ID(pins, i2c, address=0x77): # I2C dev optional ID
     if not type(i2c) is I2C:
       raise ValueError('An I2C object is required.')
     ID = 0 # 12 bits name, 9 bits part nr, 3 bits rev
+    if type(pins[2]) is str: PwrI2C(pins)
     try: ID = i2c.readfrom_mem(address, chip_ID_ADDR, 3)
-    except: # enable pwr?
-      i2c.init(I2C.MASTER, pins=pins[:2])
-      sleep_ms(200)
-      if type(pins[2]) is str:
-        from machine import Pin
-        # print("Try to wakeup pin %s" % pins[2]))
-        if not Pin(pins[2], mode=Pin.OUT, pull=None, alt=-1).value():
-          print("Activate I2C bus")
-          Pin(pins[2], mode=Pin.OUT, pull=None, alt=-1).value(1)
-          sleep_ms(400)
-        ID = i2c.readfrom_mem(address, chip_ID_ADDR, 3)
+    except Exception as e: 
+        print("Unable to read I2C chip ID: %s" % e)
     # print("ID: ", ID)
     return int.from_bytes( ID,'little') & 0xFF
 
@@ -42,7 +48,7 @@ def searchDev(names=['BME','SHT','SSD']):
     # print("Wrong wiring may hang I2C address scan search...")
     try: from Config import I2Cpins
     except: pass
-    print(" Using I2C pins: ", I2Cpins)
+    print("Using I2C SDA/SCL/Pwr pins: ", I2Cpins)
     try: from Config import I2Cdevices
     except: pass
     print("Search for I2C devices", I2Cdevices)
@@ -51,6 +57,8 @@ def searchDev(names=['BME','SHT','SSD']):
         if len(I2Cpins[index]) == 2:
           I2Cpins[index] = tuple(list(I2Cpins[index])+[None])
         cur_i2c = I2C(index, I2C.MASTER, pins=I2Cpins[index][:2]) # master
+        if PwrI2C(I2Cpins[index], cur_i2c):
+            print("I2C bus %d is activated" % index)
         regs = cur_i2c.scan(); sleep_ms(100)
         for item in I2Cdevices:
             if type(item) is tuple: item = list(item)
@@ -102,7 +110,10 @@ if useSSD:
   except Exception as e:
     oled = None
     print('Oled display failed: %s' % e)
+    import sys
+    sys.exit()
 
+# found oled, try it and blow RGB led wissle
 from machine import unique_id
 from machine import Pin
 import binascii
@@ -183,7 +194,7 @@ try:
     myID = binascii.hexlify(unique_id()).decode('utf-8')
     display("s/n " + myID, 0, 16, False)
 except Exception as e:
-    print("Failed: %s" % e)
-print("DONE")
+    print("Failure: %s" % e)
+print("DONE. Soft reset.")
 import sys
 sys.exit()
