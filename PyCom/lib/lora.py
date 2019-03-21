@@ -2,7 +2,7 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 1.4 2018/11/08 17:04:53 teus Exp teus $
+# $Id: lora.py,v 1.5 2019/03/21 16:51:31 teus Exp teus $
 
 import socket
 from ubinascii import unhexlify
@@ -29,7 +29,7 @@ class LORA(object):
     LED.off()
 
     # Initialize LoRa in LORAWAN mode
-    self.lora = LoRa(mode = LoRa.LORAWAN)
+    self.lora = LoRa(mode=LoRa.LORAWAN, region=LoRa.EU868)
 
     if (not type(method) is dict):
         raise ValueError("No activation method defined.")
