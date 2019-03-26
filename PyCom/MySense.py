@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 4.7 2019/03/16 19:23:08 teus Exp teus $
+# $Id: MySense.py,v 4.8 2019/03/26 19:28:35 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 4.7 $"[11:-2]
+__version__ = "0." + "$Revision: 4.8 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -774,7 +774,7 @@ def DoMeteo(debug=False):
     sleep(0.5)
     rectangle(0,nl,128,LF,0)
   except Exception as e:
-    display("%s ERROR" % meteo)
+    display("%s ERROR" % Meteo['name'])
     print(e)
     LED.blink(5,0.1,0xff00ff,True)
     return [None,None,None,None,None]
