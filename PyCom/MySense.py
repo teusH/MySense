@@ -1,8 +1,8 @@
 # PyCom Micro Python / Python 3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 4.8 2019/03/26 19:28:35 teus Exp teus $
+# $Id: MySense.py,v 4.9 2019/03/28 21:25:17 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 4.8 $"[11:-2]
+__version__ = "0." + "$Revision: 4.9 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import sleep, time
@@ -345,7 +345,7 @@ def initMeteo(debug=False):
       if debug: print("Try %s" % meteo)
       if meteo == 'BME280':
           import BME280 as BME
-          bme = BME.BME_I2C(Meteo['i2c']['fd'], address=Meteo['addr'], debug=debug, calibrate=calibrate)
+          Meteo['fd'] = BME.BME_I2C(Meteo['i2c']['fd'], address=Meteo['addr'], debug=debug, calibrate=calibrate)
       elif meteo == 'BME680':
           import BME_I2C as BME
           Meteo['fd'] = BME.BME_I2C(Meteo['i2c']['fd'], address=Meteo['addr'], debug=debug, calibrate=calibrate)
