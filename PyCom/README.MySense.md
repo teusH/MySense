@@ -108,4 +108,6 @@ This can be interrupted with a <cntrl>c. If needed to be followed by a soft rese
     import MySense
     MySense.runMe()
 ```
+# some help scripts for testing hardware, connections and operational functions
+Povided in the script `SWcomponents_test.py` one can test via copy/paste and 'atom' REPL the hardware and software.
 * and give feedback to us
