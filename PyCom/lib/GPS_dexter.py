@@ -1,14 +1,14 @@
 # from https://github.com/DexterInd/GrovePi
 # Software/Python/dexter_gps
 # changed for micropython
-# $Id: GPS_dexter.py,v 1.6 2018/03/29 18:18:20 teus Exp teus $
+# $Id: GPS_dexter.py,v 5.2 2019/04/27 12:52:15 teus Exp teus $
 
 import re
 try:
-  from machine import UART, RTC
+  from machine import RTC
   from time import sleep_ms, ticks_ms
 except:
-  from const import UART, sleep_ms, ticks_ms  # not micropython
+  from const import sleep_ms, ticks_ms  # not micropython
   RTC = None
 
 patterns=["$GPGGA",
@@ -26,10 +26,18 @@ patterns=["$GPGGA",
 class GROVEGPS:
   # dflt pins=(Tx-pin,Rx-pin): wiring Tx-pin -> Rx GPS module
   def __init__(self,port=1,baud=9600,debug=False,pins=('P3','P4')):
-    try:
-      self.ser = UART(port,baudrate=baud,pins=pins)
-    except:
-      self.ser = UART(port,baudrate=baud)
+    if type(port) is str: # no PyCom case
+       import serial
+       self.ser = serial.Serial(port, 9600, bytesize=8, parity='N', stopbits=1, timeout=20, xonxoff=0, rtscts=0)
+       self.ser.any = self.in_waiting
+       self.ser.readall = self.ser.flushInput # reset_input_buffer
+    elif type(port) is int:
+      from machine import UART
+      try:
+        self.ser = UART(port,baudrate=baud,pins=pins)
+      except:
+        self.ser = UART(port,baudrate=baud)
+    else: self.ser = port
     self.ser.readall()
     self.raw_line = ""
     self.gga = []
@@ -49,6 +57,10 @@ class GROVEGPS:
     if self.debug:
       print(in_str)
 
+  def in_waiting(self): # for non PyCom python
+    try: return self.ser.in_waiting
+    except: raise ValueError
+
   # convert to string and if needed wait a little
   def readCR(self,serial):
     if not self.last_read:
@@ -64,7 +76,6 @@ class GROVEGPS:
       if self.debug: print('Read line error')
     self.last_read = ticks_ms()
     return line.strip()
-
 
   def clean_data(self):
     '''

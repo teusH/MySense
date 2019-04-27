@@ -56,8 +56,13 @@ class BME_I2C:
 
   def get_data(self):
     if (ticks_ms() - self.updated) > 500:
-      for i in range(0,5):
-        if self.sensor.get_sensor_data(): break
+      for i in range(5):
+        try:
+          if self.sensor.get_sensor_data(): break
+        except OSError as e:
+          if self.debug: print("BME680: %s" % e)
+          sleep_ms(100)
+          pass
         if i == 4: return False
         self.updated = ticks_ms()
     return True
@@ -96,32 +101,39 @@ class BME_I2C:
   # burn in and calculate baseline
   def _gasBase(self):
     self.gas_base = None
-    BURN_TIME = const(300)  # 5 minutes
+    BURN_TIME = const(3*60)  # minutes
     if self.debug:
       print("Gas resistance burn-in max: %d minutes" % (BURN_TIME/60))
     strt_time = time(); cur_time = time()
-    data = []; prev_gas = 0; stable = False; cnt = 0
+    data = []; prev_gas = 0; stable = False; cnt = 0; errs = 0
     while cur_time - strt_time < BURN_TIME:
-      cur_time = time()
-      if self.get_data():
-        gas = self._calibrate(self.calibrate['gas'],self.sensor.data.gas_resistance)
-        if (not stable ) and abs(gas - prev_gas) < 1000:
-          if cnt > 3:
-            stable = True
+      try:
+        cur_time = time()
+        if self.get_data():
+          gas = self._calibrate(self.calibrate['gas'],self.sensor.data.gas_resistance)
+          if (not stable ) and (abs(gas - prev_gas) < ((prev_gas*2)/100)): # 2%
+            if (cnt > 3) or self.sensor.data.heat_stable:
+              stable = True
+            else:
+              cnt += 1
+          elif not stable: cnt = 0
+          if stable:
+            if len(data) < 20:
+              data.append(gas)
+            else:
+              data.pop(); data.insert(0,gas)
+            if self.debug: print("time: %dm%ds, gas: %d Ohm" % (int(cur_time-strt_time)/60,int(cur_time-strt_time)%60,gas))
+            if cnt >= 10: break
           else:
-            cnt += 1
-        elif not stable: cnt = 0
-        if self.sensor.data.heat_stable and stable:
-          if len(data) < 50:
-            data.append(gas)
-          else:
-            data.pop(); data.insert(0,gas)
-          if self.debug: print("time: %dm%ds, gas: %d Ohm" % (int(cur_time-strt_time)/60,int(cur_time-strt_time)%60,gas))
-          if len(data) >= 50: break
-        else:
-          if self.debug: print("time: %dm%ds: heating up %d" % (int(cur_time-strt_time)/60,int(cur_time-strt_time)%60,gas))
-        prev_gas = gas
-      sleep_ms(800)
+            if self.debug: print("time: %dm%ds: heating up %d" % (int(cur_time-strt_time)/60,int(cur_time-strt_time)%60,gas))
+          prev_gas = gas
+        sleep_ms(800)
+      except OSError as e:
+        if str(e).find('bus err') < 0: raise OSError(e)
+        if (errs > 3): break
+        print("I2C bus error in gas base")
+        sleep_ms(100)
+        errs += 1
     if len(data):
       self.gas_base = float(sum(data[0:]))/len(data)
       if self.debug: print("New gas base: %.0f" % self.gas_base)

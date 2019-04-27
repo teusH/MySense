@@ -1,118 +1,243 @@
-from machine import UART
-from time import sleep
+# Copyright 2020, Teus Hagen, GPLV4
+# identify which UART device is c nnected to which TTL connector
+# to do?: from ucollections import namedtuple
+#        pins = namedtuple('pins',('Tx','Rx,'Pwr'))
+#        dustPins = pins('P11','P10','P20'); dustPins.Pwr etc
 
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+from time import sleep_ms
+from machine import UART
+
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 # Config.py definitions preceed
-# if UARTpins array of (Tx,Rx) tuples is defined try to identify UART device
+# if UARTpins array of (Tx,Rx[,Pwr]) tuples is defined try to identify UART device
 # if UARTpins is defined dust or useGPS + pins maybe overwritten
 class identifyUART:
-  def __init__(self, uart=[-1], UARTpins=[('P4','P3'),('P11','P10')], debug=False):
-    error = "Unable to identify UART devs"
-    self.uart = uart
-    if len(self.uart) > 3: raise ValueError(error)
+  def __init__(self, uart=1, UARTpins=None, identify=True, config={}, devs={}, debug=False):
+    self.myTypes = { 'dust': ['PMS','SDS','SPS'], 'gps': ['GPS','NEO-6']}
+    if not type(UARTpins) is list: UARTpins = []
+    self.pins = []       # available TTL pins
+    self.allocated = []  # TTL pins in use
+    if uart == 1:
+      self.pins.append(('P1','P0','P20'))
+      self.allocated.append(self.pins[0])
+    self.devices = devs  # file descrs of ttl devices
+    self.conf = config   # configs of ttl devices
+    if len(config):      # import config
+      for item in config.keys():
+        if len(self.pins) == 3: break
+        try:
+          config[item]['pins'] = tuple(config[item]['pins'])
+          if not config[item]['pins'] in self.pins:
+            self.pins.append(config[item]['pins'])
+        except: pass
+    self.conf['updated'] = False
+    if len(self.pins) == 1: # more pins?
+      try: from Config import UARTpins
+      except: pass
+      for item in UARTpins + [('P4','P3'),('P11','P10')]:
+        if len(self.pins) == 3: break
+        if len(item) < 3:
+          item = list(item)+[None]
+        item = tuple(item)
+        if item[0] in self.pins[0]:
+          self.pins[0] =  item
+        elif not item in self.pins: self.pins.append(item)
+    if not len(self.pins): self.pins=[('P4','P3',None),('P11','P10',None)] # dflt
     self.debug = debug
-    self.UARTs = UARTpins
-    self.dust = ''; self.D_Tx = None; self.D_Rx = None
-    self.useGPS = ''; self.G_Tx = None; self.G_Rx = None
-    try:
-      from Config import UARTpins as pins
-      if (type(pins) is list) and len(pins): self.UARTS = pins
-    except: pass
-    self.dust = 'PMSx003'; self.D_Tx = UARTpins[0][0]; self.D_Rx = UARTpins[0][1]  # defaults
-    try:
-      from Config import dust, D_Tx, D_Rx
-      self.dust = dust; self.D_Tx = D_Tx; self.D_Rx = D_Rx  # use config
-    except:  pass
-    self.useGPS = False; self.G_Tx = UARTpins[1][0]; self.G_Rx = UARTpins[1][1]  # defaults
-    try:
-      from Config import useGPS, G_Tx, G_Rx
-      self.useGPS = useGPS; self.G_Tx = G_Tx; self.G_Rx = G_Rx  # use config
-    except:  pass
-    if not len(self.UARTs):
-      if self.debug: print("No UART pins defined")
-    else:
-      devs = self.identify()
-      if self.debug: print("Found UART devices: %s" % ', '.join(devs))
+    if identify: self.identify()
+    if self.debug:
+      print("UART config: ", self.conf)
+      print("UART devs: ", self.devices)
     return None
 
-  # try to discover type of uart sensor
-  def identify(self):
-    found = []
-    for one in self.UARTs:
-        if (len(one) != 2) or (not type(one[0]) is str) or (not type(one[1]) is str):
-            continue
-        if self.debug: print("Try UART pins Tx %s, Rx %s" % one)
-        for baud in [9600,115200]:
-          cnt = len(found)
-          ser = UART(len(self.uart), baudrate=baud, pins=one, timeout_chars=20)
-          for i in range(0,6): # try 3 times to read known pattern
-            line = []
-            sleep(2)
-            try: line = ser.readall()
-            except:
-                print("Uart read error")
-                continue
-            if (line == None) or (not len(line)):   # try to wake up
-                if not 'dust' in found:
-                  if self.debug: print("Try to wake up device")
-                  if (i%3) == 0: ser.write(b'\x42\x4D\xE1\x00\x01\x01\x71') # try activate PMS
-                  elif (i%3) == 1: ser.write(b'\xAA\xB4\x06\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\x06\xAB') # second try activate SDS
-                  elif (i%3) == 2:
-                    ser.write(b'~\x00\xd3\x00,~') # try reset SPS
-                  sleep(1)
-                continue
-            # if self.debug: print("Read: %s" % line)
-            if (not 'dust' in found) and (line.count(b'\x42\x4D') > 0): # start char BM
-                self.dust = 'PMSx003'; self.D_Tx = one[0]; self.D_Rx = one[1]
-                found.append('dust')
-            elif (not 'dust' in found) and line.count(b'\xAA') and line.count(b'\xC0'): # start char 0xAA,0xC0 tail 0xAB
-                self.dust = 'SDS011'; self.D_Tx = one[0]; self.D_Rx = one[1]
-                found.append('dust')
-            elif (not 'gps' in found) and (line.count(b'GPGGA') or line.count(b',') > 1):
-                self.useGPS = 'UART'; self.G_Tx = one[0]; self.G_Rx = one[1]
-                found.append('gps')
-            elif (not 'dust' in found) and (line.count(b'~\x00\xd3\x00') or line.count(b'\x00\x2C~')):
-                self.useGPS = 'SPS30'; self.G_Tx = one[0]; self.G_Rx = one[1]
-                found.append('dust')
-            else: continue
-            if self.debug: print("UART: %s on Tx %s, Rx %s" % (found[-1], one[0],one[1]))
-            break
-          ser.readall(); ser.deinit(); del ser
-          if len(found) > cnt: break
-          if i > 2:
-            print("Unknown device found on Tx %s, Rx %s" % one)
-    return found
+  # power on/off on TTL, return prev value
+  def PwrTTL(self, pins, on=None):
+    if not type(pins[2]) is str: return None
+    from machine import Pin
+    pin = Pin(pins[2], mode=Pin.OUT)
+    if on:
+      if pin.value(): return True
+      if self.debug: print("Activate TTL chan (Tx,Rx,Pwr): ", pins)
+      pin.value(1); sleep_ms(200); return False
+    elif on == None: return pin.value()
+    elif pin.value():
+      if self.debug: print("Deactivate TTL chan (Tx,Rx,Pwr): ", pins)
+      pin.value(0); return True
+    else: return False
+
+    # unclear next fie does not seem to work
+  def openUART(self, atype='dust'):
+    if not atype in self.devices.keys(): self.identify(atype=atype)
+    if not atype in self.devices.keys(): raise ValueError("%s: not identified" % atype)
+    try: nr = self.pins.index(self.conf['pins'])
+    except: raise ValueError("%s: uart pins %s unknown" % (atype,str(self.conf['pins'])))
+    if self.devices[atype]['ttl'] == None:
+      self.devices[atype]['ttl'] = UART(nr, baudrate=self.conf[atype]['baud'], timeout_chars=20)
+      # self.devices[atype]['enabled'] = self.conf[atype]['use']
+    self.PwrTTL(self.conf[atype]['pins'], on=True)
+    return self.devices[atype]['ttl']
+
+  def closeUART(self, atype='dust'):
+    if not atype in self.devices.keys(): return False
+    self.PwrTTL(self.devices[atype]['pins'], on=False)
+    if self.devices[atype]['ttl'] != None:
+      self.devices[atype]['ttl'].deinit()
+      self.devices[atype]['ttl'] = None
+      # self.devices[atype]['ttl']['enabled'] = False
+    return True
+
+ # config a TTL channel and search which sensor is attached
+  def getConf(self, atype, pins, pwr=None):
+    #self.conf = { # PCB TTL defaults example
+    #    'usb':  {'name':'usb',    'pins':('P1','P0','P20'),  'use':False, 'baud':None},
+    #    'dust': {'name':'PMSx003','pins':('P11','P10','P9'), 'use':None,  'baud':9600},
+    #    'gps':  {'name':'NEO-6',  'pins':('P4'.'P3','P19'),  'use':None,  'baud':9600},
+    #    }
+    pins = tuple(pins)
+    try:
+      if self.conf[atype]['pins'] == pins:
+        if self.conf[atype]['name']: return self.conf[atype]
+    except: pass
+    data = [
+      b'\x42\x4D\xE1\x00\x01\x01\x71',     # PMS
+      b'\x7E\x00\x00\x02\x01\x03\xF9\x7E', # SPS start
+      b'\xAA\xB4\x06\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\x06\xAB', # SDS
+      ]
+    for baudrate in [9600, 115200]:
+      if self.debug: print("Try uart (baud=%d) pins: " % baudrate, pins)
+      nr = self.pins.index(pins)
+      if not (0 <= nr < 3): raise ValueError("UART index %d fail" % nr)
+      prev = self.PwrTTL(pins, on=True)
+      if not prev: sleep_ms(500)
+      ser = UART(nr, baudrate=baudrate, pins=pins[:2], timeout_chars=20)
+      fnd = None
+      if self.debug: print("getIdent type %s" % atype)
+      for i in range(0,2*len(data)):
+        sleep_ms(5*500 if atype == 'dust' else 500)
+        try:
+          line = ser.readall()
+          # if self.debug: print("Read: ", line)
+        except Exception as e:
+          if self.debug: print("TTL dev search %s" % e)
+          continue
+        if (atype == 'dust') and ((line == None) or (not len(line))):   # try to wake up
+          activate = data[i % len(data)]
+          if self.debug: print("%d: Try a wakeup, send: " % i, activate)
+          ser.write(activate)
+          continue
+        else:
+          if not line: continue
+          if line.count(b'u-blox'): fnd = 'NEO-6'
+          elif line.count(b'$GPG'): fnd = 'GPS'
+          elif line.count(b'\x42\x4D') or line.count(b'BM\x00\x1C'): fnd = 'PMSx003'
+          elif line.count(b'\xAA') and line.count(b'\xC0'): fnd = 'SDS011'
+          elif line.count(b'~\x00\x00') or line.count(b'\x00\xFF~'): fnd = 'SPS30'
+          if fnd: break
+      ser.readall(); ser.deinit(); del ser; self.PwrTTL(pins,on=prev)
+      use = True; Dexplicit = None; calibrate = None
+      if atype == 'dust':
+        try: from Config import useDust as use
+        except: pass
+        Dexplicit = False
+        try: from Config import Dexplicit
+        except: pass
+        if not 'calibrate' in self.conf.keys():
+          calibrate = None
+          try: from Config import calibrate
+          except: pass
+          self.config['calibrate'] = calibrate
+      elif atype.lower() == 'gps':
+        try: from Config import useGPS as use
+        except: pass
+      if fnd:
+        fnd = { 'name': fnd, 'baud':  baudrate, 'pins': pins, 'use': use }
+        if Dexplicit != None: fnd['Dexplicit'] = Dexplicit
+        if calibrate != None: fnd['calibrate'] = calibrate
+        self.conf[atype] = fnd; self.conf['updated'] = True; self.allocated.append(pins)
+        return self.conf[atype]
+    if (not pins[2]) and pwr:
+      for dlf in 'P19','P20': # try dflts: P1? in V2.1
+        fnd = self.getConf(atype,(pins[0],pins[1],dlf),baudrate=baudrate)
+        if fnd: return fnd
+    return None
+
+  # side effect will enable power, on end: power dflt enabled
+  def getIdent(self, atype='dust', power=True):
+    if self.debug: print("Using UART/pins (Tx/Rx/Pwr): ", self.pins)
+      # print("Wrong wiring may hang UART sensor scan search...")
+    if atype in self.devices.keys():
+      if self.debug: print("%s device: " % atype, self.devices[atype])
+      return self.devices[atype]
+    if (not atype in self.conf.keys()) or (self.conf[atype]['name'] == None):
+      fnd = None
+      for pins in self.pins:
+         if pins in self.allocated: continue
+         fnd = self.getConf(atype, pins)
+         if fnd: break
+      if not fnd:
+        print("Unable to find config for %s" % atype)
+        return None
+    self.devices[atype] = {'lib': None, 'enabled': None, 'conf': self.conf[atype]}
+    index = self.pins.index(tuple(self.conf[atype]['pins']))
+    if 0 <= index < 3:
+      # 'lib': not completed in this name space
+      self.devices[atype]['index'] = index
+      self.devices[atype]['ttl'] = UART(index, baudrate=self.conf[atype]['baud'], pins=tuple(self.conf[atype]['pins'][:2]), timeout_chars=500)
+      self.devices[atype]['enabled'] = self.conf[atype]['use']
+      self.PwrTTL(self.conf[atype]['pins'], on=power)
+      if self.debug: print("%s device: " % atype, self.devices[atype])
+    return self.devices[atype]
+
+  # search UARTs for sensor types
+  def identify(self,types=None):
+    if types == None: types = self.myTypes
+    for atype in types:
+      if not atype in self.devices.keys():
+        self.getIdent(atype=atype, power=None)
+    return self.devices
+
+  def Device(self,atype='dust'):
+    try:
+      if not atype in self.conf.keys():
+        self.getIdent(atype=atype,power=True)
+      return self.devices[atype]
+    except: return None
+
+  def Pins(self,atype='dust'):
+    try:
+      if not atype in self.conf.keys():
+        self.getIdent(atype=atype,power=True)
+      return self.conf[atype]['pins']
+    except: return None
+
+  def NAME(self,atype='dust'):
+    try:
+      if not atype in self.conf.keys():
+        self.getIdent(atype=atype,power=True)
+      return self.conf[atype]['name']
+    except: return None
 
   @property
-  def uartDust(self):
-    return self.dust, self.D_Tx, self.D_Rx
+  def Dust(self): return self.Device(atype='dust')
 
   @property
-  def DUST(self):
-    return self.dust
+  def DUST(self): return self.NAME(atype='dust')
 
   @property
-  def D_TX(self):
-    return self.D_Tx
+  def Gps(self): return self.Device(atype='gps')
 
   @property
-  def D_RX(self):
-    return self.D_Rx
+  def GPS(self): return self.NAME(atype='gps')
 
   @property
-  def uartGPS(self):
-    return self.useGPS, self.G_Tx, self.G_Rx
+  def config(self): return self.conf
 
   @property
-  def GPS(self):
-    return self.useGPS
+  def Devices(self): return self.devices
 
   @property
-  def G_TX(self):
-    return self.G_Tx
-
-  @property
-  def G_RX(self):
-    return self.G_Rx
+  def calibrate(self):
+    if 'calibrate' in self.conf.keys(): return self.conf['calibrate']
+    return None

@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2019, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: SPS30.py,v 1.3 2019/03/02 10:50:30 teus Exp teus $
+# $Id: SPS30.py,v 5.2 2019/04/27 12:52:15 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -21,14 +21,12 @@
 from time import sleep
 try:
   # for micropython:
-  from machine import UART
   from micropython import const
   from time import ticks_ms, sleep_ms
 except:
   try:
-    from const import const, UART, ticks_ms, sleep_ms
+    from const import const, ticks_ms, sleep_ms
   except:
-    import serial   # not micro python case
     from time import time
     def sleep_ms(ms): sleep(ms/1000.0)
     def ticks_ms(): return int(time()*1000)
@@ -83,12 +81,14 @@ class SPS30:
     # clean > 0: secs interval autoclean, None: init with a fan clean
     try:
       if type(port) is str: # no PyCom case
+        import serial
         self.ser = serial.Serial(port, 115200, bytesize=8, parity='N', stopbits=1, timeout=20, xonxoff=0, rtscts=0)
 	self.ser.any = self.in_waiting
       elif type(port) is int: # micro python case
+        from machine import UART
         self.ser = UART(port,baudrate=115200,pins=pins,timeout_chars=10)
       else: self.ser = port # fd
-    except: raise IOError("SPS serial failed")
+    except: raise ValueError("SPS serial failed")
 
     self.debug = debug
     self.addr = addr
@@ -145,7 +145,7 @@ p   self.explicit = explicit # counts are > PM size or < PM size
 
   def in_waiting(self): # for non PyCom python
     try: return self.ser.in_waiting
-    except: raise IOError
+    except: raise OSError
 
   def read_until(self,char=chr(0x7E)):
     try:
@@ -223,17 +223,18 @@ p   self.explicit = explicit # counts are > PM size or < PM size
     strt = False; buf = []; dlmtr = chr(0x7E)
     while True:
       try:
-        if (not strt) and (self.read_until(char=dlmtr ) == None): raise IOError("No data")
+        if (not strt) and (self.read_until(char=dlmtr ) == None):
+          raise OSError("No data")
         strt = True
         char = self.ser.read(1)
       except: (0x1, [])
       if char == dlmtr:
         buf = self.unstuff(buf)
         # to do: add sum chk, cmd check: buf[1] == cmd
-        if len(buf[4:-1]) != buf[3]: raise IOError("length rcv")
+        if len(buf[4:-1]) != buf[3]: raise ValueError("length rcv")
         break
       buf.append(struct.unpack('>B',char)[0])
-    if (~sum(buf) & 0xFF): raise IOError("checksum")
+    if (~sum(buf) & 0xFF): raise ValueError("checksum")
     if buf[1] != cmd: raise ValueError("sensor replay error")
     return (buf[2],buf[4:4+buf[3]]) # status, data
 

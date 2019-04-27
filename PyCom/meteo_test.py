@@ -2,82 +2,52 @@
 # simple test to see if meteo I2C device is present
 from time import sleep_ms
 from machine import I2C
+import sys
 
-__version__ = "0." + "$Revision: 3.12 $"[11:-2]
+__version__ = "0." + "$Revision: 5.3 $"[11:-2]
 __license__ = 'GPLV4'
 
-def PwrI2C(pins, i2c=None):
-    if type(pins[2]) is str:
-      from machine import Pin
-      if not Pin(pins[2], mode=Pin.OUT, pull=None, alt=-1).value():
-        print("Activate I2C bus")
-        Pin(pins[2], mode=Pin.OUT, pull=None, alt=-1).value(1)
-        sleep_ms(200)
-        if i2c:
-          i2c.init(I2C.MASTER, pins=pins[:2])
-          sleep_ms(200)
-      return True
-    return False
+abus = 'i2c'
+atype = 'meteo'
 
-def chip_ID(pins, i2c, address=0x77): # I2C dev optional ID
-    chip_ID_ADDR = const(0xd0)
-    # Create I2C device.
-    if not type(i2c) is I2C:
-      raise ValueError('An I2C object is required.')
-    ID = 0 # 12 bits name, 9 bits part nr, 3 bits rev
-    if type(pins[2]) is str: PwrI2C(pins)
-    try: ID = i2c.readfrom_mem(address, chip_ID_ADDR, 3)
-    except Exception as e:
-        print("Unable to read I2C chip ID: %s" % e)
-    # print("ID: ", ID)
-    return int.from_bytes( ID,'little') & 0xFF
+debug=False
+import ConfigJson
+config = {abus: {}}
+myConfig = ConfigJson.MyConfig(debug=debug)
+config[abus] = myConfig.getConfig(abus=abus)
+FndDevices = []
+if len(config[abus]): print("Found archived configuration for:")
+for dev in config[abus].keys():
+  FndDevices.append(dev)
+  print("%s: " % dev, config[abus][dev])
 
-BME280_ID = const(0x60)
-BME680_ID = const(0x61)
-SSD1306_ID = const(0x3)
+import whichI2C
+which = whichI2C.identifyI2C(config=config[abus], debug=debug)
+for dev in config[abus].keys():
+  if not dev in FndDevices:
+    if dev != 'updated':
+      print("Found device %s: " % dev, config[abus][dev])
+      MyConfig.dump(dev,config[abus][dev],abus=abus)
 
-I2Cpins = []
-# side effect: I2C pwr/gnd enabled
-def searchDev(names=['BME','SHT','SSD']):
-    global I2Cpins
-    I2Cpins = [('P23','P22',None)] # I2C pins [(SDA,SCL,Pwr), ...]
-    I2Cdevices = [
-            ('BME280',0x76),('BME280',0x77), # BME serie Bosch
-            ('SHT31',0x44),('SHT31',0x45),   # Sensirion serie
-            ('SSD1306',0x3c)                 # oled display
-       ]
-    try: from Config import I2Cpins
-    except: pass
-    print("Using I2C SDA/SCL/Pwr pins: ", I2Cpins)
-    try: from Config import I2Cdevices
-    except: pass
-    print("Search for I2C meteo devices", I2Cdevices)
-    # print("Wrong wiring may hang I2C address scan search...")
-    bus = None; device = None; address = None; nr = None
-    for index in range(0,len(I2Cpins)):
-        if len(I2Cpins[index]) == 2:
-          I2Cpins[index] = tuple(list(I2Cpins[index])+[None])
-        cur_i2c = I2C(index, I2C.MASTER, pins=I2Cpins[index][:2]) # master
-        if PwrI2C(I2Cpins[index], cur_i2c):
-            print("I2C bus %d is activated" % index)
-        regs = cur_i2c.scan(); sleep_ms(200)
-        for item in I2Cdevices:
-            if type(item) is tuple: item = list(item)
-            if item[1] in regs:
-                ID = chip_ID(I2Cpins[index], cur_i2c, item[1])
-                if item[0][:3] == 'BME':
-                  if ID == BME680_ID: item[0] = 'BME680'
-                  elif ID != BME280_ID: raise IOError("Unknown BME id 0x%X" % ID)
-                print('%s ID=0x%X I2C[%d]:' % (item[0],ID,index), ' SDA~>%s, SCL~>%s, Pwr->' % I2Cpins[index][:2], I2Cpins[index][2], ', reg 0x%2X' % item[1])
-                if device: continue  # first one is shown
-                device = item[0]
-                if not device[:3] in names: continue
-                bus = cur_i2c; nr = index
-                address = item[1]
-    return(nr,bus,device,address)
+if not config[abus][atype]['use']:
+  print("%s config: not use %s" % (atype,config[abus]['name']))
+  sys.exit()
 
-(nr,i2c,meteo,addr) = searchDev(names=['BME','SHT'])
-if not i2c: raise ValueError("No meteo module found")
+print("Using %s: " % atype, which.Device(atype))
+
+try:
+  device = which.getIdent(atype=atype)
+  nr = device['index']
+  i2c = device[abus]
+  addr = device['conf']['address']
+  meteo = which.METEO
+  pins = which.Pins(atype)
+except Exception as e:
+  print("Error: %s" % e)
+finally:
+  if not device:
+    print("Unable to find %s device" % atype)
+    sys.exit()
 
 try:
   from Config import calibrate
@@ -86,60 +56,72 @@ except:
 
 # Create library object using our Bus I2C port
 try:
+    which.PwrI2C(pins, on=True)
     if meteo == 'BME280':
       import BME280 as BME
-      useMeteo = BME.BME_I2C(i2c, address=addr, debug=False, calibrate=calibrate)
+      device['fd'] = BME.BME_I2C(i2c, address=addr, debug=False, calibrate=calibrate)
     elif meteo == 'BME680':
       import BME_I2C as BME
-      useMeteo = BME.BME_I2C(i2c, address=addr, debug=False, calibrate=calibrate)
+      device['fd'] = BME.BME_I2C(i2c, address=addr, debug=False, calibrate=calibrate)
     elif meteo[:3] == 'SHT':
         import Adafruit_SHT31 as SHT
-        useMeteo = SHT.SHT31(address=addr, i2c=i2c, calibrate=calibrate)
+        device['fd'] = SHT.SHT31(address=addr, i2c=i2c, calibrate=calibrate)
     else: raise ValueError(meteo)
 except ImportError:
     raise ValueError("SHT or BME library not installed")
 except Exception as e:
     raise ValueError("Fatal: meteo module %s" % e)
-
-print("Found I2C meteo device %s" % meteo)
 # change this to match the location's pressure (hPa) at sea level
-useMeteo.sea_level_pressure = 1024.25 # 1013.25
-for cnt in range(5):
+device['fd'].sea_level_pressure = 1024.25 # 1013.25
+
+print("Meteo I2C device: ", device)
+max = 5
+print("Try %d measurements" % max)
+for cnt in range(1,max+1):
+  if cnt != 1:
+    print("sleep for 15 secs")
+    sleep_ms(15*1000)
   try:
-    print("\nTemperature: %0.1f C" % useMeteo.temperature)
-    hum = useMeteo.humidity
-    print("Humidity: %0.1f %%" % hum)
-    if meteo[:3] == 'BME':
-        useMeteo.sea_level_pressure -= 0.5
-        print("Pressure: %0.3f hPa" % useMeteo.pressure)
-        print("Altitude = %0.2f meters with sea level pressure: %.2f hPa" % (useMeteo.altitude,useMeteo.sea_level_pressure))
+    if device['fd'].temperature != None:
+      print("\nRun %d of %d\nTemperature: %0.1f oC" % (cnt,max,device['fd'].temperature))
+    else: print("No temperature!")
+    if  device['fd'].humidity != None:
+      print("Humidity: %0.1f %%" % device['fd'].humidity)
+    else: print("No humidity!")
+    if (meteo[:3] == 'BME') and (device['fd'].pressure != None):
+        print("Pressure: %0.3f hPa" % device['fd'].pressure)
+        device['fd'].sea_level_pressure -= 0.5
+        print("Altitude = %0.2f meters with sea level pressure: %.2f hPa" % (device['fd'].altitude,device['fd'].sea_level_pressure))
     if meteo is 'BME680':
         if not cnt:
             try:
-              from Config import M_gBase  # if present do not recalculate
-              useMeteo.gas_base = M_gBase
-              gBase = True
-            except: useMeteo.gas_base = None # force recalculation gas base line
-        if useMeteo.gas_base == None:
+              if 'M_gBase' in myConfig.config.keys():
+                device['fd'].gas_base = config['M_gBase']
+              else:
+                  from Config import M_gBase  # if present do not recalculate
+                  device['fd'].gas_base = M_gBase
+                  myConfig.dump('M_gBase',M_gBase)
+            except: device['fd'].gas_base = None # force recalculation gas base line
+        if device['fd'].gas_base == None:
             gBase = False
             print("%salculating stable gas base level. Can take max 5 minutes to calculate gas base." % ('Rec' if cnt else 'C'))
         else: gBase = True
-        AQI = useMeteo.AQI # first time can take a while
-        if useMeteo.gas_base != None:
-            print("Gas base line calculated: %.1f" % useMeteo.gas_base)
+        AQI = device['fd'].AQI # first time can take a while
+        if device['fd'].gas_base != None:
+            print("Gas base line calculated: %.1f" % device['fd'].gas_base)
+            if not gBase: myConfig.dump('M_gBase',device['fd'].gas_base)
             gBase = True
-        gas = useMeteo.gas
-        print("Gas: %.3f Kohm" % round(gas/1000.0,2))
-        if (useMeteo.gas_base != None) and (AQI != None):
+        gas = device['fd'].gas
+        if gas != None: print("Gas: %.3f Kohm" % round(gas/1000.0,2))
+        if (device['fd'].gas_base != None) and AQI:
             print("AQI: %0.1f %%" % AQI)
         else:
             print("Was unable to calculate AQI. Will try again.")
+            print("Allow 30 secs extra sleep")
             sleep_ms(30*1000)
-            continue
-        break
   except OSError as e:
     print("Got OS error: %s. Will try again." % e)
-    i2c.init(I2C.MASTER,pins=I2Cpins[nr][:2])
-    sleep_ms(1000)
-import sys
+    i2c.init(I2C.MASTER,pins=pins[:2])
+
+if myConfig.dirty: myConfig.store
 sys.exit()

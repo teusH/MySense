@@ -6,14 +6,21 @@ Created on 24 Apr 2017
 # comes from https://github.com/rexfue/Feinstaub_LoPy
 # changes by teus license GPLV3
 # Frank Heuer wrote a better and more extensive script
-# $Id: SDS011.py,v 1.5 2018/04/18 08:55:29 teus Exp teus $
+# $Id: SDS011.py,v 5.2 2019/04/27 12:52:15 teus Exp teus $
 
+from time import sleep
 try:
-  from machine import  UART
+  # for micropython:
   from micropython import const
   from time import ticks_ms, sleep_ms
 except:
-  from const import const, UART, ticks_ms, sleep_ms
+  try:
+    from const import const, ticks_ms, sleep_ms
+  except:
+    from time import time
+    def sleep_ms(ms): sleep(ms/1000.0)
+    def ticks_ms(): return int(time()*1000)
+    def const(a): return a
 
 """ Get sensor values: PM2.5 and PM10 from Nova Particular Matter sensor
   Types: 7003 or 5003
@@ -37,7 +44,13 @@ class SDS011:
 
   def __init__(self, port=1, debug=False, sample=60, interval=1200, raw=False, calibrate=None,pins=('P3','P4'), explicit=None):
     # explicit (pm count style) not used
-    self.ser = UART(1,baudrate=9600,pins=pins)
+    if type(port) is str:
+      import serial
+      self.ser = serial.Serial(port, 9600, bytesize=8, parity='N', stopbits=1, timeout=20, xonxoff=0, rtscts=0)
+    elif type(port) is int:
+      from machine import UART
+      self.ser = UART(port,baudrate=9600,pins=pins)
+    else: self.ser = port # fd
     self.firmware = None
     self.debug = debug
     self.interval = interval * 1000 # if interval == 0 no auto fan switching
@@ -65,6 +78,10 @@ class SDS011:
     except:
       self.ser.readall = self.ser.flushInput # reset_input_buffer
       self.ser.any = self.ser.inWaiting
+
+  def in_waiting(self): # for non PyCom python
+    try: return self.ser.in_waiting
+    except: raise OSError
 
   # calibrate by length calibration factor (Taylor) array
   def calibrate(self,cal,value):

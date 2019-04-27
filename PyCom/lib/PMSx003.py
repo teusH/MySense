@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: PMSx003.py,v 1.18 2019/03/10 17:06:39 teus Exp teus $
+# $Id: PMSx003.py,v 1.1 2019/04/22 15:42:02 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -8,14 +8,12 @@
 # from __future__ import print_function
 # for micropython:
 try:
-  from machine import UART
   from micropython import const
   from time import ticks_ms, sleep_ms
 except:
   try:
-    from const import const, UART, ticks_ms, sleep_ms
+    from const import const, ticks_ms, sleep_ms
   except:
-    import serial   # not micro python case
     from time import time
     def sleep_ms(ms): sleep(ms/1000.0)
     def ticks_ms(): return int(time()*1000)
@@ -70,13 +68,15 @@ class PMSx003:
     # explicit True: Plantower way of count (>PMi), False: Sensirion way (PM0.3-PMi) (dflt=False)
     try:
       if type(port) is str: # no PyCom case
+        import serial
         self.ser = serial.Serial(port, 9600, bytesize=8, parity='N', stopbits=1, timeout=20, xonxoff=0, rtscts=0)
         self.ser.any = self.in_waiting
         self.ser.readall = self.ser.flushInput # reset_input_buffer
       elif type(port) is int: # micro python case
+        from machine import UART
         self.ser = UART(port,baudrate=9600,pins=pins,timeout_chars=10)
       else: self.ser = port # fd
-    except: raise IOError("PMS serial failed")
+    except: raise OSError("PMS serial failed")
 
     self.firmware = None
     self.debug = debug
@@ -120,7 +120,7 @@ class PMSx003:
 
   def in_waiting(self): # for non PyCom python
     try: return self.ser.in_waiting
-    except: raise IOError
+    except: raise ValueError
 
   # calibrate by length calibration factor (Taylor) array
   def calibrate(self,cal,value):
@@ -229,6 +229,7 @@ class PMSx003:
   def GoPassive(self):
     #print("Go Passive from 0X%X" % self.mode)
     if self.mode != self.PASSIVE:
+      self.ser.readall()
       return self.SendMode(0xE1,0)
     self.mode = self.PASSIVE
     return True
@@ -237,7 +238,9 @@ class PMSx003:
   def PassiveRead(self):
     if self.mode == self.STANDBY:
       self.Normal()
-      sleep_ms(30000)    # wait 30 seconds to establish air flow
+      for cnt in range(30):
+        self.ser.readall()
+        sleep_ms(1000)    # wait 30 seconds to establish air flow
     if self.mode != self.PASSIVE: self.GoPassive()
     return self.SendMode(0xE2,0)
 
@@ -314,11 +317,13 @@ class PMSx003:
       for w in range(40):
         if self.ser.any() >=30: break
         if w > 39: raise OSError("read telegram timeout")
-        if (self.debug or debug) and (w%2): print("wait on sensor data")
-        sleep_ms(2000)
+        if (self.debug or debug) and (w%2): print("wait %d on sensor data" % w)
+        sleep_ms(200)
       buff = self.ser.read(30)
       # one measurement 200-800ms or every second in sample time
       if cnt and (LastTime+1000 > ticks_ms()):
+        print("Skip %d dust measurement" % cnt)
+        self.ser.readall()
         continue   # skip measurement if time < 1 sec
       LastTime = ticks_ms()
 
@@ -327,7 +332,7 @@ class PMSx003:
       data = list(struct.unpack('!HHHHHHHHHHHHHBBH', buff))
       if not sum(data[self.PMS_PCNT_0P3:self.PMS_VER]):
         # first reads show 0 particle counts, skip telegram
-        if self.debug or debug: print("null data, skipped")
+        if self.debug: print("null data, skipped")
         continue
       # compare check code
       if check != data[self.PMS_SUMCHECK]:
@@ -360,8 +365,8 @@ class PMSx003:
       if not self.decreasing(data[self.PMS_PCNT_0P3:self.PMS_PCNT_10P0+1]): continue
       # estimate avg PM size
       grain = (0.4*(data[self.PMS_PCNT_0P3]-data[self.PMS_PCNT_0P5])+0.75*(data[self.PMS_PCNT_0P5]-data[self.PMS_PCNT_1P0])+1.75*(data[self.PMS_PCNT_2P5]-data[self.PMS_PCNT_1P0])+3.75*(data[self.PMS_PCNT_2P5]-data[self.PMS_PCNT_5P0])+7.5*(data[self.PMS_PCNT_5P0]-data[self.PMS_PCNT_10P0]))/(data[self.PMS_PCNT_0P3]-data[self.PMS_PCNT_10P0])
-      if self.debug or debug:
-        print("Raw data: ", data)
+      if self.debug: print("Raw data: ", data)
+      if debug:
         print("Sample data")
         if not cnt:
           for fld in self.PM_fields:
