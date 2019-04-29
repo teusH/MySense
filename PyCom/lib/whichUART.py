@@ -7,16 +7,16 @@
 from time import sleep_ms
 from machine import UART
 
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 5.3 $"[11:-2]
 __license__ = 'GPLV4'
 
 # Config.py definitions preceed
-# if UARTpins array of (Tx,Rx[,Pwr]) tuples is defined try to identify UART device
-# if UARTpins is defined dust or useGPS + pins maybe overwritten
-class identifyUART:
-  def __init__(self, uart=1, UARTpins=None, identify=True, config={}, devs={}, debug=False):
+# if MyPins array of (Tx,Rx[,Pwr]) tuples is defined try to identify UART device
+# if MyPins is defined dust or useGPS + pins maybe overwritten
+class identification:
+  def __init__(self, uart=1, MyPins=None, identify=True, config={}, devs={}, debug=False):
     self.myTypes = { 'dust': ['PMS','SDS','SPS'], 'gps': ['GPS','NEO-6']}
-    if not type(UARTpins) is list: UARTpins = []
+    if not type(MyPins) is list: MyPins = []
     self.pins = []       # available TTL pins
     self.allocated = []  # TTL pins in use
     if uart == 1:
@@ -34,9 +34,9 @@ class identifyUART:
         except: pass
     self.conf['updated'] = False
     if len(self.pins) == 1: # more pins?
-      try: from Config import UARTpins
+      try: from Config import UARTpins as MyPins
       except: pass
-      for item in UARTpins + [('P4','P3'),('P11','P10')]:
+      for item in MyPins + [('P4','P3'),('P11','P10')]:
         if len(self.pins) == 3: break
         if len(item) < 3:
           item = list(item)+[None]
@@ -53,7 +53,7 @@ class identifyUART:
     return None
 
   # power on/off on TTL, return prev value
-  def PwrTTL(self, pins, on=None):
+  def Power(self, pins, on=None):
     if not type(pins[2]) is str: return None
     from machine import Pin
     pin = Pin(pins[2], mode=Pin.OUT)
@@ -152,10 +152,11 @@ class identifyUART:
         try: from Config import useGPS as use
         except: pass
       if fnd:
-        fnd = { 'name': fnd, 'baud':  baudrate, 'pins': pins, 'use': use }
-        if Dexplicit != None: fnd['Dexplicit'] = Dexplicit
-        if calibrate != None: fnd['calibrate'] = calibrate
-        self.conf[atype] = fnd; self.conf['updated'] = True; self.allocated.append(pins)
+        thisConf = { 'name': fnd, 'baud':  baudrate, 'pins': pins, 'use': use }
+        if Dexplicit != None: thisConf['Dexplicit'] = Dexplicit
+        if calibrate != None: thisConf['calibrate'] = calibrate
+        self.conf[atype] = thisConf; self.conf['updated'] = True
+        self.allocated.append(pins)
         return self.conf[atype]
     if (not pins[2]) and pwr:
       for dlf in 'P19','P20': # try dflts: P1? in V2.1

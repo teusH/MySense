@@ -2,12 +2,11 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 5.2 2019/04/27 12:52:15 teus Exp teus $
+# $Id: lora.py,v 5.3 2019/04/29 20:23:54 teus Exp teus $
 
 import socket
 from ubinascii import unhexlify
 from network import LoRa
-from led import LED
 
 class LORA(object):
   'Wrapper class for LoRa'
@@ -17,16 +16,20 @@ class LORA(object):
     self.lora = LoRa(mode = LoRa.LORAWAN)
     self.callback = None
     self.sockets = []
-    # Disable blue blinking and turn LED off
-    LED.heartbeat(False)
-    LED.off()
+    self.LED = None
 
-  def connect(self, method, ports=1, callback=None, resume=False):
+  def connect(self, method, ports=1, callback=None, resume=False, myLED=None):
     """
     Connect device to LoRa.
     Set the socket and lora instances.
+    myLED is led object, resume: use lora vram
     """
     self.callback = callback # call back routine on LoRa reply callback(port,response)
+    self.LED = myLED
+    if myLED :
+      # import led
+      self.LED.heartbeat(False)
+      self.LED.on
     if (not type(method) is dict): raise ValueError("No activation method defined.")
     if len(method):
       count = 0
@@ -38,7 +41,7 @@ class LORA(object):
         self.lora.join(activation = LoRa.OTAA, auth = (dev_eui, app_eui, app_key), timeout = 0)
         # Wait until the module has joined the network
         while not self.lora.has_joined():
-          LED.blink(1, 2.5, 0xff0000)
+          if self.LED: self.LED.blink(1, 2.5, 0xff0000)
           if count > 20: break
           print("Wait for OTAA join: " ,  count)
           count += 1
@@ -59,13 +62,14 @@ class LORA(object):
         app_swkey = method['ABP'][2]; app_swkey = unhexlify(app_swkey)
         print("LoRa ABP join.")
         self.lora.join(activation = LoRa.ABP, auth = (dev_addr, nwk_swkey, app_swkey))
+      if not resume: self.dump
       # end of keys def
     elif resume:
       self.restore; print("Restored LoRa keys")
     else: raise ValueError("No LoRa keys")
 
     # Create a LoRa socket
-    LED.blink(2, 0.1, 0x009900)
+    if self.LED: self.LED.blink(2, 0.1, 0x009900)
     self.sockets = []
     self.sockets.append(socket.socket(socket.AF_LORA, socket.SOCK_RAW))
 
@@ -85,7 +89,7 @@ class LORA(object):
       self.sockets.append(socket.socket(socket.AF_LORA, socket.SOCK_RAW))
       self.sockets[nr+2].setblocking(False)
       if nr: self.sockets[nr+2].bind(nr+2)
-    LED.off()
+    if self.LED: self.LED.off()
     return True
 
   def send(self, data, port=2):
@@ -98,7 +102,7 @@ class LORA(object):
     rts = True
     try:
       self.sockets[port].send(data)
-      LED.blink(2, 0.1, 0x0000ff)
+      if self.LED: self.LED.blink(2, 0.1, 0x0000ff)
       # print("Sending data")
       # print(data)
     except OSError as e:
@@ -107,7 +111,7 @@ class LORA(object):
         print("errno: ", e.errno)
       rts = False
 
-    LED.off()
+    if self.LED: self.LED.off()
     data = self.sockets[port].recv(64)
     # print("Received data:", data)
     if self.callback and data:

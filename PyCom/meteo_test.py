@@ -4,7 +4,7 @@ from time import sleep_ms
 from machine import I2C
 import sys
 
-__version__ = "0." + "$Revision: 5.3 $"[11:-2]
+__version__ = "0." + "$Revision: 5.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 abus = 'i2c'
@@ -22,7 +22,7 @@ for dev in config[abus].keys():
   print("%s: " % dev, config[abus][dev])
 
 import whichI2C
-which = whichI2C.identifyI2C(config=config[abus], debug=debug)
+which = whichI2C.identification(config=config[abus], debug=debug)
 for dev in config[abus].keys():
   if not dev in FndDevices:
     if dev != 'updated':

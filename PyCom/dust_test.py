@@ -3,7 +3,7 @@
 
 # standalone test loop
 
-__version__ = "0." + "$Revision: 5.3 $"[11:-2]
+__version__ = "0." + "$Revision: 5.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import time, sleep_ms
@@ -28,7 +28,7 @@ for dev in config[abus].keys():
   print("%s: " % dev, config[abus][dev])
 
 import whichUART
-which = whichUART.identifyUART(identify=True,config=config[abus], debug=debug)
+which = whichUART.identification(identify=True,config=config[abus], debug=debug)
 for dev in config[abus].keys():
   if not dev in FndDevices:
     if dev != 'updated':

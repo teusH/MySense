@@ -1,4 +1,4 @@
-__version__ = "0." + "$Revision: 5.1 $"[11:-2]
+__version__ = "0." + "$Revision: 5.2 $"[11:-2]
 __license__ = 'GPLV4'
 
 import sys
@@ -7,7 +7,9 @@ from time import time, sleep
 import pycom
 pycom.heartbeat(False)
 LED = None
-try: from led import LED # show errors
+try:
+  import led # show errors
+  LED = led.LED()
 except: pass
 
 # roll in archive configuration
@@ -56,7 +58,7 @@ if initLoRa:
 else: print("Using LoRa info from vram")
 if wokeUp: info = True # no need to send meta data
 
-if not myLoRa.connect(method, ports=2, resume=(not initLoRa)):
+if not myLoRa.connect(method, ports=2, resume=(not initLoRa), myLED=LED):
   print("Failed to connect to LoRaWan TTN")
   if LED: LED.blink(5,0.3,0xff0000,False)
   sys.exit(0)

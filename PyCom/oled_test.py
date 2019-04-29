@@ -4,7 +4,7 @@ from time import sleep_ms
 from machine import I2C
 import sys
 
-__version__ = "0." + "$Revision: 5.3 $"[11:-2]
+__version__ = "0." + "$Revision: 5.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 abus='i2c'
@@ -22,7 +22,7 @@ for dev in config[abus].keys():
   print("%s: " % dev, config[abus][dev])
 
 import whichI2C
-which = whichI2C.identifyI2C(config=config[abus],debug=debug)
+which = whichI2C.identification(config=config[abus],debug=debug)
 # which.config
 # {'updated': True, 'meteo': {'use': True, 'pins': ('P23', 'P22', 'P21'), 'name': 'BME680', 'address': 118}, 'display': {'address': 60, 'pins': ['P23', 'P22', 'P21'], 'use': True, 'name': 'SSD1306'}}
 for dev in config[abus].keys():
@@ -45,7 +45,7 @@ if config[abus][atype]['use']:
       if (not device) or (not len(device)):
         raise ValueError("No I2C oled display found.")
       print("Found I2C[%d] device %s" % (device['index'],config[abus][atype]['name']))
-      which.PwrI2C(device['conf']['pins'], on=True)
+      which.Power(device['conf']['pins'], on=True)
       oled = device['lib'] = SSD1306.SSD1306_I2C(width,height,device['i2c'],addr=config[abus][atype]['address'])
     #elif False:  # 'SPI': # for fast display
     #  try:
@@ -74,7 +74,8 @@ if config[abus][atype]['use']:
 
 # found oled, try it and blow RGB led wissle
 try:
-  from led import LED
+  import LED
+  LED = led.LED()
 except:
   raise OSError("Install library led")
 
