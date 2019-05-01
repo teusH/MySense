@@ -7,7 +7,7 @@
 from time import sleep_ms
 from machine import UART
 
-__version__ = "0." + "$Revision: 5.3 $"[11:-2]
+__version__ = "0." + "$Revision: 5.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 # Config.py definitions preceed
@@ -76,12 +76,12 @@ class identification:
     if self.devices[atype]['ttl'] == None:
       self.devices[atype]['ttl'] = UART(nr, baudrate=self.conf[atype]['baud'], timeout_chars=20)
       # self.devices[atype]['enabled'] = self.conf[atype]['use']
-    self.PwrTTL(self.conf[atype]['pins'], on=True)
+    self.Power(self.conf[atype]['pins'], on=True)
     return self.devices[atype]['ttl']
 
   def closeUART(self, atype='dust'):
     if not atype in self.devices.keys(): return False
-    self.PwrTTL(self.devices[atype]['pins'], on=False)
+    self.Power(self.devices[atype]['pins'], on=False)
     if self.devices[atype]['ttl'] != None:
       self.devices[atype]['ttl'].deinit()
       self.devices[atype]['ttl'] = None
@@ -109,7 +109,7 @@ class identification:
       if self.debug: print("Try uart (baud=%d) pins: " % baudrate, pins)
       nr = self.pins.index(pins)
       if not (0 <= nr < 3): raise ValueError("UART index %d fail" % nr)
-      prev = self.PwrTTL(pins, on=True)
+      prev = self.Power(pins, on=True)
       if not prev: sleep_ms(500)
       ser = UART(nr, baudrate=baudrate, pins=pins[:2], timeout_chars=20)
       fnd = None
@@ -135,7 +135,7 @@ class identification:
           elif line.count(b'\xAA') and line.count(b'\xC0'): fnd = 'SDS011'
           elif line.count(b'~\x00\x00') or line.count(b'\x00\xFF~'): fnd = 'SPS30'
           if fnd: break
-      ser.readall(); ser.deinit(); del ser; self.PwrTTL(pins,on=prev)
+      ser.readall(); ser.deinit(); del ser; self.Power(pins,on=prev)
       use = True; Dexplicit = None; calibrate = None
       if atype == 'dust':
         try: from Config import useDust as use
@@ -187,7 +187,7 @@ class identification:
       self.devices[atype]['index'] = index
       self.devices[atype]['ttl'] = UART(index, baudrate=self.conf[atype]['baud'], pins=tuple(self.conf[atype]['pins'][:2]), timeout_chars=500)
       self.devices[atype]['enabled'] = self.conf[atype]['use']
-      self.PwrTTL(self.conf[atype]['pins'], on=power)
+      self.Power(self.conf[atype]['pins'], on=power)
       if self.debug: print("%s device: " % atype, self.devices[atype])
     return self.devices[atype]
 

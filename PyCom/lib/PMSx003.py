@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: PMSx003.py,v 1.1 2019/04/22 15:42:02 teus Exp teus $
+# $Id: PMSx003.py,v 5.3 2019/05/01 19:27:18 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -169,6 +169,7 @@ class PMSx003:
       while True:
         if err > 20:
             print("PMS response failed")
+            self.GoPassive()
             return False
         err += 1
         if not self.ser.any():
