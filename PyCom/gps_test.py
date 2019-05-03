@@ -4,7 +4,7 @@
 import sys
 from time import sleep_ms, ticks_ms
 
-__version__ = "0." + "$Revision: 5.6 $"[11:-2]
+__version__ = "0." + "$Revision: 5.8 $"[11:-2]
 __license__ = 'GPLV4'
 
 # dflt pins=(Tx-pin,Rx-pin,Pwr-pin): wiring Tx-pin -> Rx GPS module
@@ -22,12 +22,19 @@ config = {abus: {}}
 MyConfig = ConfigJson.MyConfig(debug=debug)
 config[abus] = MyConfig.getConfig(abus=abus)
 FndDevices = []
-for dev in config[abus].keys():
-  FndDevices.append(dev)
-  print("%s: " % dev, config[abus][dev])
+if config[abus]:
+  print("Found archived configuration for:")
+  for dev in config[abus].keys():
+    FndDevices.append(dev)
+    print("%s: " % dev, config[abus][dev])
 
 import whichUART
-which = whichUART.identification(identify=True,config=config[abus], debug=debug)
+if config[abus] and (atype in config[abus].keys()):
+  which = whichUART.identification(identify=True,config=config[abus], debug=debug)
+else: # look for new devices
+  which =  whichUART.identification(identify=True, debug=debug)
+  config[abus] = which.config
+  FndDevices = []
 for dev in config[abus].keys():
   if not dev in FndDevices:
     if dev != 'updated':

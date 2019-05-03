@@ -1,6 +1,6 @@
 # Copyright 2019, Teus Hagen, GPLV4
 # search for I2C devices and get supporting libraries loaded
-__version__ = "0." + "$Revision: 1.1 $"[11:-2]
+__version__ = "0." + "$Revision: 1.2 $"[11:-2]
 __license__ = 'GPLV4'
 
 import ujson
@@ -63,10 +63,7 @@ class MyConfig:
     else: value = avalue
     if abus != None:
       if not abus in self.config.keys(): self.config[abus] = {'updated': True}
-      if value != None: self.config[abus][atype] = value # is probably dict
-      else: # clean abus
-        try: del self.config[abus]
-        except: pass
+      self.config[abus][atype] = value # is probably dict
       if ('updated' in self.config[abus].keys()):
           if self.config[abus]['updated']: self.dirty = True
           del self.config[abus]['updated']

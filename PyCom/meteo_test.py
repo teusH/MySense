@@ -1,28 +1,33 @@
 # Copyright 2019, Teus Hagen, GPLV4
 # simple test to see if meteo I2C device is present
 from time import sleep_ms
-from machine import I2C
 import sys
 
-__version__ = "0." + "$Revision: 5.4 $"[11:-2]
+__version__ = "0." + "$Revision: 5.5 $"[11:-2]
 __license__ = 'GPLV4'
 
 abus = 'i2c'
 atype = 'meteo'
 
-debug=False
+debug=True
 import ConfigJson
 config = {abus: {}}
-myConfig = ConfigJson.MyConfig(debug=debug)
-config[abus] = myConfig.getConfig(abus=abus)
+MyConfig = ConfigJson.MyConfig(debug=debug)
+config[abus] = MyConfig.getConfig(abus=abus)
 FndDevices = []
-if len(config[abus]): print("Found archived configuration for:")
-for dev in config[abus].keys():
-  FndDevices.append(dev)
-  print("%s: " % dev, config[abus][dev])
+if config[abus]:
+  print("Found archived configuration for:")
+  for dev in config[abus].keys():
+    FndDevices.append(dev)
+    print("%s: " % dev, config[abus][dev])
 
 import whichI2C
-which = whichI2C.identification(config=config[abus], debug=debug)
+if config[abus] and (atype in config[abus].keys()):
+  which = whichI2C.identification(identify=True,config=config[abus], debug=debug)
+else: # look for new devices
+  which =  whichI2C.identification(identify=True, debug=debug)
+  config[abus] = which.config
+  FndDevices = []
 for dev in config[abus].keys():
   if not dev in FndDevices:
     if dev != 'updated':
@@ -56,7 +61,7 @@ except:
 
 # Create library object using our Bus I2C port
 try:
-    which.PwrI2C(pins, on=True)
+    which.Power(pins, on=True)
     if meteo == 'BME280':
       import BME280 as BME
       device['fd'] = BME.BME_I2C(i2c, address=addr, debug=False, calibrate=calibrate)
@@ -95,12 +100,12 @@ for cnt in range(1,max+1):
     if meteo is 'BME680':
         if not cnt:
             try:
-              if 'M_gBase' in myConfig.config.keys():
+              if 'M_gBase' in MyConfig.config.keys():
                 device['fd'].gas_base = config['M_gBase']
               else:
                   from Config import M_gBase  # if present do not recalculate
                   device['fd'].gas_base = M_gBase
-                  myConfig.dump('M_gBase',M_gBase)
+                  MyConfig.dump('M_gBase',M_gBase)
             except: device['fd'].gas_base = None # force recalculation gas base line
         if device['fd'].gas_base == None:
             gBase = False
@@ -109,7 +114,7 @@ for cnt in range(1,max+1):
         AQI = device['fd'].AQI # first time can take a while
         if device['fd'].gas_base != None:
             print("Gas base line calculated: %.1f" % device['fd'].gas_base)
-            if not gBase: myConfig.dump('M_gBase',device['fd'].gas_base)
+            if not gBase: MyConfig.dump('M_gBase',device['fd'].gas_base)
             gBase = True
         gas = device['fd'].gas
         if gas != None: print("Gas: %.3f Kohm" % round(gas/1000.0,2))
@@ -123,5 +128,5 @@ for cnt in range(1,max+1):
     print("Got OS error: %s. Will try again." % e)
     i2c.init(I2C.MASTER,pins=pins[:2])
 
-if myConfig.dirty: myConfig.store
+if MyConfig.dirty: MyConfig.store
 sys.exit()

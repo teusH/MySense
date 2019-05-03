@@ -4,7 +4,7 @@ from time import sleep_ms
 from machine import I2C
 import sys
 
-__version__ = "0." + "$Revision: 5.4 $"[11:-2]
+__version__ = "0." + "$Revision: 5.7 $"[11:-2]
 __license__ = 'GPLV4'
 
 abus='i2c'
@@ -16,14 +16,20 @@ MyConfig = ConfigJson.MyConfig(debug=debug)
 config = { abus: {} }
 config[abus] = MyConfig.getConfig(abus=abus)
 FndDevices = []
-if len(config[abus]): print("Found archived configuration for:")
-for dev in config[abus].keys():
-  FndDevices.append(dev)
-  print("%s: " % dev, config[abus][dev])
+if config[abus]:
+  print("Found archived configuration for:")
+  for dev in config[abus].keys():
+    FndDevices.append(dev)
+    print("%s: " % dev, config[abus][dev])
 
 import whichI2C
-which = whichI2C.identification(config=config[abus],debug=debug)
-# which.config
+if config[abus] and (atype in config[abus].keys()):
+  which = whichI2C.identification(identify=True,config=config[abus], debug=debug)
+else: # look for new devices
+  which =  whichI2C.identification(identify=True, debug=debug)
+  config[abus] = which.config
+  FndDevices = []
+# which.config =
 # {'updated': True, 'meteo': {'use': True, 'pins': ('P23', 'P22', 'P21'), 'name': 'BME680', 'address': 118}, 'display': {'address': 60, 'pins': ['P23', 'P22', 'P21'], 'use': True, 'name': 'SSD1306'}}
 for dev in config[abus].keys():
   if not dev in FndDevices:
@@ -74,7 +80,7 @@ if config[abus][atype]['use']:
 
 # found oled, try it and blow RGB led wissle
 try:
-  import LED
+  import led
   LED = led.LED()
 except:
   raise OSError("Install library led")

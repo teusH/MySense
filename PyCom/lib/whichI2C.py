@@ -5,20 +5,19 @@
 from time import sleep_ms
 from machine import I2C
 
-__version__ = "0." + "$Revision: 5.3 $"[11:-2]
+__version__ = "0." + "$Revision: 5.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 # Config.py definitions preceed
 # if MyPins array of [(SDA,SCL[,Pwr]) tuples to identify pins for devices
 class identification:
-  def __init__(self, i2c=0, MyPins=None, identify=True, config={}, devs={}, debug=False):
+  def __init__(self, i2c=0, MyPins=[], identify=True, config={}, devs={}, debug=False):
     self.myTypes = { 'meteo': ['BME','SHT'], 'display': ['SSD']}
     if not type(MyPins) is list: MyPins = []
     self.pins = []
     self.devices = devs
-    self.conf = config
     max = 3 # max 3 busses
-    if len(config): # import config
+    if config: # import config
       for item in config.keys():
         if len(self.pins) == max: break
         try:
@@ -27,8 +26,10 @@ class identification:
             self.pins.append(config[item]['pins'])
           max -= 1
         except: pass
+      self.conf = config
+    else: self.conf = dict()
     self.conf['updated'] = False
-    if not len(self.pins): # more?
+    if not self.pins: # more?
       try: from Config import I2Cpins as MyPins
       except: pass
       for i in range(0,len(MyPins)):
@@ -38,7 +39,7 @@ class identification:
         MyPins[i] = tuple(MyPins[i])
         if not MyPins[i] in self.pins:
           self.pins.append(MyPins[i])
-    if not len(self.pins): self.pins=[('P23','P22',None)] # dflt
+    if not self.pins: self.pins=[('P23','P22',None)] # dflt
     self.debug = debug
     if identify: self.identify()
     if self.debug:

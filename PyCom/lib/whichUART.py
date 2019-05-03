@@ -7,14 +7,14 @@
 from time import sleep_ms
 from machine import UART
 
-__version__ = "0." + "$Revision: 5.4 $"[11:-2]
+__version__ = "0." + "$Revision: 5.5 $"[11:-2]
 __license__ = 'GPLV4'
 
 # Config.py definitions preceed
 # if MyPins array of (Tx,Rx[,Pwr]) tuples is defined try to identify UART device
 # if MyPins is defined dust or useGPS + pins maybe overwritten
 class identification:
-  def __init__(self, uart=1, MyPins=None, identify=True, config={}, devs={}, debug=False):
+  def __init__(self, uart=1, MyPins=[], identify=True, config={}, devs={}, debug=False):
     self.myTypes = { 'dust': ['PMS','SDS','SPS'], 'gps': ['GPS','NEO-6']}
     if not type(MyPins) is list: MyPins = []
     self.pins = []       # available TTL pins
@@ -22,9 +22,9 @@ class identification:
     if uart == 1:
       self.pins.append(('P1','P0','P20'))
       self.allocated.append(self.pins[0])
+    self.index = uart
     self.devices = devs  # file descrs of ttl devices
-    self.conf = config   # configs of ttl devices
-    if len(config):      # import config
+    if config:      # import config
       for item in config.keys():
         if len(self.pins) == 3: break
         try:
@@ -32,6 +32,8 @@ class identification:
           if not config[item]['pins'] in self.pins:
             self.pins.append(config[item]['pins'])
         except: pass
+      self.conf = config   # configs of ttl devices
+    else: self.conf = dict()
     self.conf['updated'] = False
     if len(self.pins) == 1: # more pins?
       try: from Config import UARTpins as MyPins
@@ -44,8 +46,10 @@ class identification:
         if item[0] in self.pins[0]:
           self.pins[0] =  item
         elif not item in self.pins: self.pins.append(item)
-    if not len(self.pins): self.pins=[('P4','P3',None),('P11','P10',None)] # dflt
+    if len(self.pins) == uart:
+       self.pins += [('P4','P3',None),('P11','P10',None)] # dflt
     self.debug = debug
+    if debug: print("Pins %s, allocated: %s" %(str(self.pins),str(self.allocated))) 
     if identify: self.identify()
     if self.debug:
       print("UART config: ", self.conf)
@@ -67,14 +71,19 @@ class identification:
       pin.value(0); return True
     else: return False
 
-    # unclear next fie does not seem to work
+    # unclear if next 2 fie do work work properly
   def openUART(self, atype='dust'):
     if not atype in self.devices.keys(): self.identify(atype=atype)
     if not atype in self.devices.keys(): raise ValueError("%s: not identified" % atype)
-    try: nr = self.pins.index(self.conf['pins'])
-    except: raise ValueError("%s: uart pins %s unknown" % (atype,str(self.conf['pins'])))
     if self.devices[atype]['ttl'] == None:
-      self.devices[atype]['ttl'] = UART(nr, baudrate=self.conf[atype]['baud'], timeout_chars=20)
+      if self.devices[atype]['index'] == None:
+        free = [1,2]
+        for item in self.devices.keys():
+           try: free.remove(item['index'])
+           except: pass
+        if not free: return False
+      self.devices[atype]['index'] = free[0]
+      self.devices[atype]['ttl'] = UART(self.devices[atype]['index'], baudrate=self.conf[atype]['baud'], timeout_chars=20)
       # self.devices[atype]['enabled'] = self.conf[atype]['use']
     self.Power(self.conf[atype]['pins'], on=True)
     return self.devices[atype]['ttl']
@@ -85,6 +94,7 @@ class identification:
     if self.devices[atype]['ttl'] != None:
       self.devices[atype]['ttl'].deinit()
       self.devices[atype]['ttl'] = None
+      self.devices[atype]['index'] = None
       # self.devices[atype]['ttl']['enabled'] = False
     return True
 
@@ -107,11 +117,10 @@ class identification:
       ]
     for baudrate in [9600, 115200]:
       if self.debug: print("Try uart (baud=%d) pins: " % baudrate, pins)
-      nr = self.pins.index(pins)
-      if not (0 <= nr < 3): raise ValueError("UART index %d fail" % nr)
+      if not (0 <= self.index < 3): raise ValueError("UART index %d fail" % nr)
       prev = self.Power(pins, on=True)
       if not prev: sleep_ms(500)
-      ser = UART(nr, baudrate=baudrate, pins=pins[:2], timeout_chars=20)
+      ser = UART(self.index, baudrate=baudrate, pins=pins[:2], timeout_chars=20)
       fnd = None
       if self.debug: print("getIdent type %s" % atype)
       for i in range(0,2*len(data)):
@@ -181,11 +190,11 @@ class identification:
         print("Unable to find config for %s" % atype)
         return None
     self.devices[atype] = {'lib': None, 'enabled': None, 'conf': self.conf[atype]}
-    index = self.pins.index(tuple(self.conf[atype]['pins']))
-    if 0 <= index < 3:
+    if 0 <= self.index < 3:
       # 'lib': not completed in this name space
-      self.devices[atype]['index'] = index
-      self.devices[atype]['ttl'] = UART(index, baudrate=self.conf[atype]['baud'], pins=tuple(self.conf[atype]['pins'][:2]), timeout_chars=500)
+      self.devices[atype]['index'] = self.index
+      self.devices[atype]['ttl'] = UART(self.index, baudrate=self.conf[atype]['baud'], pins=tuple(self.conf[atype]['pins'][:2]), timeout_chars=500)
+      self.index += 1
       self.devices[atype]['enabled'] = self.conf[atype]['use']
       self.Power(self.conf[atype]['pins'], on=power)
       if self.debug: print("%s device: " % atype, self.devices[atype])

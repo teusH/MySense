@@ -3,7 +3,7 @@
 
 # standalone test loop
 
-__version__ = "0." + "$Revision: 5.4 $"[11:-2]
+__version__ = "0." + "$Revision: 5.6 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import time, sleep_ms
@@ -23,12 +23,20 @@ config = {abus: {}}
 MyConfig = ConfigJson.MyConfig(debug=debug)
 config[abus] = MyConfig.getConfig(abus=abus)
 FndDevices = []
-for dev in config[abus].keys():
-  FndDevices.append(dev)
-  print("%s: " % dev, config[abus][dev])
+if config[abus]:
+  print("Found archived configuration for:")
+  for dev in config[abus].keys():
+    FndDevices.append(dev)
+    print("%s: " % dev, config[abus][dev])
 
 import whichUART
-which = whichUART.identification(identify=True,config=config[abus], debug=debug)
+if config[abus] and (atype in config[abus].keys()):
+  which = whichUART.identification(identify=True,config=config[abus], debug=debug)
+else: # look for new devices
+  which =  whichUART.identification(identify=True, debug=debug)
+  config[abus] = which.config
+  FndDevices = []
+
 for dev in config[abus].keys():
   if not dev in FndDevices:
     if dev != 'updated':
@@ -81,7 +89,7 @@ if 'Dexplicit' in config[abus][atype].keys(): Dexplicit = config[abus][atype]['D
 else: Dexplicit = False # Sensirion count style
 calibrate = which.calibrate # all calibrate info
 
-which.PwrTTL(pins, on=True)
+which.Power(pins, on=True)
 from machine import UART
 print("Baudrate: %d" % baud)
 #ser = UART(1,baudrate=baud,timeout_chars=80,pins=pins[:2])
@@ -97,7 +105,7 @@ print("PM pcs (count) values: %s pcs " %(">PMn (a la Plantower)" if Dexplicit el
 if sensor and (sensor.mode != sensor.NORMAL): sensor.Normal()
 errors = 0
 max = 6
-prev =  which.PwrTTL(pins, on=True)
+prev =  which.Power(pins, on=True)
 for cnt in range(max):
     timings = time()
     try:
@@ -118,11 +126,11 @@ for cnt in range(max):
         print("Sleep now for %d secs with %s Off" % (timings, 'power On and fan' if cnt < (max/2) else 'fan controlled by power'))
         try:
             if cnt < (max/2): sensor.Standby()
-            else: which.PwrTTL(pins, on=False)
+            else: which.Power(pins, on=False)
             if timings > 60: sleep_ms((timings-60)*1000)
             print("Dust sensor start up")
             if cnt >= (max/2):
-                which.PwrTTL(pins, on=True)
+                which.Power(pins, on=True)
                 sleep_ms(200)
             sensor.Normal() # fan on measuring
             sleep_ms(30*1000) # fan start up
@@ -130,7 +138,7 @@ for cnt in range(max):
         except:
             errors += 1
             sleep_ms(60*1000)
-which.PwrTTL(pins, on=prev)
+which.Power(pins, on=prev)
 ser.deinit()
 #which.closeUART('dust')
 MyConfig.store # update archive config if needed
