@@ -4,7 +4,7 @@
 import sys
 from time import sleep_ms, ticks_ms
 
-__version__ = "0." + "$Revision: 5.5 $"[11:-2]
+__version__ = "0." + "$Revision: 5.6 $"[11:-2]
 __license__ = 'GPLV4'
 
 # dflt pins=(Tx-pin,Rx-pin,Pwr-pin): wiring Tx-pin -> Rx GPS module
@@ -102,7 +102,7 @@ try:
       data = gps.MyGPS()
       timing = int((ticks_ms()-timing+500)/1000)
       if data:
-        print("satellites (%d) qualified (%d) fit time: %d min, %d secs" % (gpos.satellites,gps.quality,timing/60,timing%60))
+        print("satellites (%d) qualified (%d) fit time: %d min, %d secs" % (gps.satellites,gps.quality,timing/60,timing%60))
         hours = int(float(data['timestamp']))
         days = int(float(data['date']))
         millies = int(float(data['timestamp'])*1000)%1000
