@@ -4,7 +4,7 @@
 import sys
 from time import sleep_ms, ticks_ms
 
-__version__ = "0." + "$Revision: 5.4 $"[11:-2]
+__version__ = "0." + "$Revision: 5.5 $"[11:-2]
 __license__ = 'GPLV4'
 
 # dflt pins=(Tx-pin,Rx-pin,Pwr-pin): wiring Tx-pin -> Rx GPS module
@@ -36,6 +36,8 @@ for dev in config[abus].keys():
         MyConfig.dump(dev,config[abus][dev],abus=abus)
         print("Store %s config in flash" % dev)
 
+print("config[%s] devices: %s" % (abus,str(config[abus].keys())))
+print("which.config[%s]: %s" % (abus,str(which.config)))
 if not config[abus][atype]['use']:
   print("%s config: not use %s" % (atype,config[abus]['name']))
   sys.exit()
@@ -59,15 +61,15 @@ print('GPS: using %s nr 1: Rx->pin %s, Tx->pin %s, Pwr->' % (which.GPS,pins[0],p
 
 try:
     print("Next can wait several minuets."); print("GPS raw:")
-    prev = which.PwrTTL(pins, on=True)
+    prev = which.Power(pins, on=True)
     if not prev: print("Power ON pin %s." % pins[2])
-    #ser = which.openUART('gps')
-    ser = device['ttl']
+    #ser = which.openUART(atype)
+    ser = device[abus]
     for cnt in range(20):
        if ser.any(): break
        if cnt > 19: raise OSError("GPS not active")
        sleep_ms(200); print('.',end='')
-    print("UART activated")
+    print("%s on %s is active" % (name,abus))
     for cnt in range(10):
       try:
         x = ser.readline()
@@ -76,31 +78,31 @@ try:
         break
       print(x)
       sleep_ms(200)
-    # which.closeUART('gps')
-    which.PwrTTL(pins, on=prev)
-    if not prev: print("Toggle power")
+    # which.closeUART(atype)
+    which.Power(pins, on=prev)
+    if not prev: print("powered OFF")
 
-    prev = which.PwrTTL(pins, on=True)
+    prev = which.Power(pins, on=True)
     print("Next can take several minutes...")
     print("Using GPS Dexter for location fit:")
     import GPS_dexter as GPS
     #gps = GPS.GROVEGPS(port=1,baud=9600,debug=False,pins=pins[:2])
     timing = ticks_ms()
-    gps = device['lib'] = GPS.GROVEGPS(port=device['ttl'],debug=debug)
+    gps = device['lib'] = GPS.GROVEGPS(port=device[abus],debug=debug)
     # for cnt in range(0,20):
     #    if ser.any(): break
     #    if cnt > 19: raise OSError("GPS not active")
     #    sleep_ms(200); print('.',end='')
-    # print("UART activated")
+    # print("%s on %s is active" & (name,abus))
     for cnt in range(2):
       if cnt:
         print("Try again. Sleep 30 seconds")
         sleep_ms(30*1000)
       if debug: print("Get GPS and time. Can take several minutes.")
       data = gps.MyGPS()
-      if not cnt: timing = int((ticks_ms()-start+500)/1000)
+      timing = int((ticks_ms()-timing+500)/1000)
       if data:
-        if not cnt: print("satellite fit time: %d min, %d secs" % (timing/60,timing%60))
+        print("satellites (%d) qualified (%d) fit time: %d min, %d secs" % (gpos.satellites,gps.quality,timing/60,timing%60))
         hours = int(float(data['timestamp']))
         days = int(float(data['date']))
         millies = int(float(data['timestamp'])*1000)%1000
@@ -110,7 +112,8 @@ try:
         # print(data)
         gps.debug = False
       else:
-        print('No satellites found for a fit')
+        print("Satellite search time: %d min, %d secs" % (timing/60,timing%60))
+        print('No satellites (%d) found for a qualified (%d) fit' % (gps.satellites,gps.quality))
         print('Turn on debugging')
         gps.debug = True
 
@@ -118,18 +121,17 @@ except ImportError:
     print("Missing Grove GPS libraries")
 except Exception as e:
     print("Unable to get GPS data on port with pins", pins, "Error: %s" % e)
-device['ttl'].deinit()
-which.PwrTTL(pins, on=prev)
+device[abus].deinit()
+which.Power(pins, on=prev)
 if not prev: print("Power OFF pin %s." % pins[2])
-#which.closeUART('gps')
+#which.closeUART(atype)
 if MyConfig.dirty: MyConfig.store
 import sys
 sys.exit()
 
-
-
 # raw  GPS output something like
 '''
+$GPTXT,01,01,02,u-blox ag - www.u-blox.com*50
 $GPGGA,001929.799,,,,,0,0,,,M,,M,,*4C
 $GPGSA,A,1,,,,,,,,,,,,,,,*1E
 $GPGSV,1,1,00*79

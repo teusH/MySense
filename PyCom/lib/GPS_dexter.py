@@ -1,7 +1,7 @@
 # from https://github.com/DexterInd/GrovePi
 # Software/Python/dexter_gps
 # changed for micropython
-# $Id: GPS_dexter.py,v 5.2 2019/04/27 12:52:15 teus Exp teus $
+# $Id: GPS_dexter.py,v 5.3 2019/05/03 14:20:13 teus Exp teus $
 
 import re
 try:
@@ -45,6 +45,8 @@ class GROVEGPS:
     self.debug = debug
     self.last_read = 0
     self.date = 0
+    self.max_wait = 20
+    self.max_retry = 50
 
     # compile regex once to use later
     for i in range(len(patterns)-1):
@@ -100,12 +102,12 @@ class GROVEGPS:
 
   def read(self):
     '''
-    Attempts 50 times at most to get valid data from GPS
+    Attempts max_retry times at most to get valid data from GPS
     Returns as soon as valid data is found
     If valid data is not found, then clean up data in GPS instance
     '''
     valid = False
-    for i in range(50):
+    for i in range(self.max_retry):
       # sleep_ms(500)
       self.raw_line = self.readCR(self.ser)
       if self.validate(self.raw_line):
@@ -120,7 +122,7 @@ class GROVEGPS:
 
   # use GPS date/time to update RTC time
   def UpdateRTC(self):
-    for i in range(20):
+    for i in range(self.max_wait):
       if self.date: break
       self.read()
     day = int(self.date)
