@@ -3,7 +3,7 @@
 
 # standalone test loop
 
-__version__ = "0." + "$Revision: 5.6 $"[11:-2]
+__version__ = "0." + "$Revision: 5.7 $"[11:-2]
 __license__ = 'GPLV4'
 
 from time import time, sleep_ms
@@ -85,7 +85,7 @@ except Exception as e:
 sampling = 60    # each sampling time take average of values
 interval = 5*60  # take very 5 minutes a sample over 60 seconds
 
-if 'Dexplicit' in config[abus][atype].keys(): Dexplicit = config[abus][atype]['Dexplicit']
+if 'Dexplicit' in config.keys(): Dexplicit = config['Dexplicit']
 else: Dexplicit = False # Sensirion count style
 calibrate = which.calibrate # all calibrate info
 

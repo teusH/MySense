@@ -7,7 +7,7 @@
 from time import sleep_ms
 from machine import UART
 
-__version__ = "0." + "$Revision: 5.5 $"[11:-2]
+__version__ = "0." + "$Revision: 5.6 $"[11:-2]
 __license__ = 'GPLV4'
 
 # Config.py definitions preceed
@@ -162,7 +162,7 @@ class identification:
         except: pass
       if fnd:
         thisConf = { 'name': fnd, 'baud':  baudrate, 'pins': pins, 'use': use }
-        if Dexplicit != None: thisConf['Dexplicit'] = Dexplicit
+        if Dexplicit != None: thisConf['explicit'] = Dexplicit
         if calibrate != None: thisConf['calibrate'] = calibrate
         self.conf[atype] = thisConf; self.conf['updated'] = True
         self.allocated.append(pins)

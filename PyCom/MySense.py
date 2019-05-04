@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV4
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.6 2019/05/01 19:22:01 teus Exp teus $
+# $Id: MySense.py,v 5.7 2019/05/04 19:36:04 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 5.6 $"[11:-2]
+__version__ = "0." + "$Revision: 5.7 $"[11:-2]
 __license__ = 'GPLV4'
 
 import sys
@@ -27,7 +27,7 @@ MyConfig = None      # handle to ConfigJson object
 MyConfiguration = {} # configuration stable between deepsleeps and power cycle
 MyDevices = {} # dyn. part, has bus refs to device dict with conf
 MyTypes = {}   # dyn. part, has type refs to device dict with conf
-MyNames = [('meteo','i2c'),('display','i2c'),('dust','ttl'),('GPS','ttl'),('accu','pin'),('deepsleep','pin')]
+MyNames = [('meteo','i2c'),('display','i2c'),('dust','ttl'),('gps','ttl'),('accu','pin'),('deepsleep','pin')]
 
 from time import sleep_ms, time
 import struct
@@ -130,12 +130,19 @@ def initConfig(debug=False):
   global wokeUp
 
   if MyConfig: return
-  import ConfigJson
-  MyConfig = ConfigJson.MyConfig(debug=debug)
-  MyConfiguration = MyConfig.getConfig()
 
   from machine import deepsleep, wake_reason, PWRON_WAKE
   wokeUp = wake_reason()[0] != PWRON_WAKE
+  import ConfigJson
+  MyConfig = ConfigJson.MyConfig(debug=debug)
+  MyConfiguration = MyConfig.getConfig()
+  if not wokeUp: # check startup mode
+    modus = nvs_get('modus')
+    if not modus:  MyConfig.clear # not def or 0: no archived conf
+    elif modus  == 1: # reset only discovered devices
+      for abus in ['ttl','i2c']:
+        try: MyConfiguration[abus] = dict()
+        except: pass
 
 ## CONF pins
 def getPinsConfig(debug=False):
@@ -176,7 +183,12 @@ def getBusConfig(busses=['i2c','ttl'], devices=None, debug=False):
     if abus == 'i2c': import whichI2C as which
     elif abus == 'ttl': import whichUART as which
     # PrintDict(MyConfiguration[abus],'MyConfiguration[%s]' % abus)
-    which = which.identification(identify=True, config=MyConfiguration[abus], debug=debug)
+    if MyConfiguration[abus]:
+      which = which.identification(identify=True, config=MyConfiguration[abus], debug=debug)
+    else:
+      which = which.identification(identify=True, debug=debug)
+      MyConfiguration[abus] = which.config
+      if debug: print("Bus %s: found %s types of devices" % (abus,str(MyConfiguration[abus].keys()) ))
     for atype in MyConfiguration[abus].keys():
       if not atype in busdevices: continue
       if not atype in FndDevices:
@@ -445,16 +457,23 @@ def PinPower(atype=None,on=None,debug=False):
     if not type(pins[2]) is str: return None
     from machine import Pin
     pin = Pin(pins[2], mode=Pin.OUT)
-    if on:
+    if on == None: return pin.value()
+    elif on:
       if pin.value(): return True
-      if debug: print("Activate %d chan (Tx,Rx,Pwr)=%s: " % (abus,str(pins)))
+      if debug: print("Activate %s chan (Tx,Rx,Pwr)=%s: " % (abus,str(pins)))
       pin.value(1); sleep_ms(200); return False
-    elif on == None: return pin.value()
     elif pin.value():
-      if debug: print("Deactivate %d chan (Tx,Rx,Pwr)=%s: " % (abus,str(pins)))
-      pin.value(0); return True
+      try:
+        # if true powercycle the bus. with GPS power cycling costs delays; dflt false
+        if not MyConfiguration['interval'][abus]: return True
+      except: pass
+      if debug: print("Deactivate %s chan (Tx,Rx,Pwr)=%s: " % (abus,str(pins)))
       pin.value(0); return True
     else: return False
+
+def PinPowerRts(atype,prev,rts=None,debug=False):
+  PinPower(atype,on=prev,debug=debug)
+  return rts
 
 ## I2C devices
 ## DISPLAY
@@ -546,18 +565,19 @@ def initMeteo(debug=False):
         import BME_I2C as BME
         Meteo['lib'] = BME.BME_I2C(Meteo[abus], address=Meteo['conf']['address'], debug=debug, calibrate=MyConfiguration['calibrate'])
         if not 'gas_base' in Meteo['conf'].keys():
+          global MyConfig
           try:
             from Config import M_gBase
-            Meteo['conf']['gas_base'] = int(M_gBase)
+            MyConfiguration['gas_base'] = int(M_gBase)
+            MyConfig.dump('gas_base',int(M_gBase))
           except: pass
-          if 'gas_base' in Meteo['conf'].keys():
-            Meteo['lib'].gas_base = Meteo['conf']['gas_base']
+          if 'gas_base' in MyConfiguration.keys():
+            Meteo['lib'].gas_base = MyConfiguration['gas_base']
           if not Meteo['lib'].gas_base:
-            global MyConfig
             display('AQI wakeup')
             Meteo['lib'].AQI # first time can take a while
-            Meteo['gas_base'] = Meteo['lib'].gas_base
-            MyConfig.dump(atype,MyConfiguration[atype],abus=abus)
+            MyConfiguration['gas_base'] = Meteo['lib'].gas_base
+            MyConfig.dump('gas_base',Meteo['lib'].gas_base)
           display("Gas base: %0.1f" % Meteo['lib'].gas_base)
           # Meteo['lib'].sea_level_pressure = 1011.25
       else: return False
@@ -691,20 +711,25 @@ def initDust(debug=False):
         if LED: LED.blink(5,0.3,0xff0000,l=True,force=True)
         raise ValueError("Unknown dust sensor")
       for item in ['Dext','explicit']:
-        Dust[item] = False # dflt do show PM cnt
-        try: Dust[item] = Dust['conf'][item]
+        value = None # dflt do show PM cnt
+        try:
+          value = MyConfiguration[item]
+          break
         except:
           try:
             if item == 'Dext': from Config import Dext as value
             elif item == 'explicit': from Config import Dexplicit as value
             else: continue
-            Dust[item] = Dust['conf'][item] = value
-            if value != None:
-              MyConfig.dump(atype=atype,avalue=MyConfiguration[abus][atype],abus=abus)
-          except: Dust[item] = True
+            MyConfig.dump('explicit',value)
+            MyConfiguration['explicit'] = value
+            break
+          except: pass
+      if value == None: # dflt
+        MyConfiguration['explicit'] = False
+        MyConfig.dump('explicit',False)
       # #pcs=range(PM0.3-PM) + average grain size, True #pcs>PM
       if Dust[abus] == None: return False
-      Dust['lib'] = senseDust(port=Dust[abus], debug=debug, sample=sample, interval=0, pins=Dust['conf']['pins'][:2], calibrate=MyConfiguration['calibrate'], explicit=Dust['explicit'])
+      Dust['lib'] = senseDust(port=Dust[abus], debug=debug, sample=sample, interval=0, pins=Dust['conf']['pins'][:2], calibrate=MyConfiguration['calibrate'], explicit=MyConfiguration['explicit'])
       if debug:
         print('Dust %s: (Tx,Rx,Pwr)=%s, Pwr %s' % (Dust['conf']['name'],Dust['conf']['pins'][:3], PinPower(atype=atype)))
     except Exception as e:
@@ -837,19 +862,22 @@ def initGPS(debug=False):
   except: return False
 
   Gps['enabled'] = False; Gps['lib'] = None; Gps['rtc'] = None
+  prev = PinPower(atype=atype,on=True,debug=debug)
   try:
       import GPS_dexter as GPS
+      # may cause 1 minute delay
       Gps['lib'] = GPS.GROVEGPS(port=Gps[abus],baud=9600,debug=debug,pins=Gps['conf']['pins'][:2])
       if debug:
         print('GPS %s: (Tx,Rx,Pwr)=%s, Pwr %s' % (Gps['conf']['name'],Gps['conf']['pins'][:3], PinPower(atype='gps')))
       Gps['enabled'] = True
-      myGPS = DoGPS(debug=debug)
-      if myGPS != None: lastGPS = myGPS
-      Gps['rtc'] = None
+      # myGPS = DoGPS(debug=debug)
+      # if myGPS != None: lastGPS = myGPS
+      # Gps['rtc'] = None
   except Exception as e:
       display('GPS failure', (0,0), clear=True)
       print(e)
       Gps['enabled'] = False; Gps[abus].ser.deinit(); Gps['lib'] = None
+  PinPower(atype=atype,on=prev,debug=debug)
   return Gps['enabled']
 
 # returns distance in meters between two GPS coodinates
@@ -876,12 +904,15 @@ def GPSdistance(gps1,gps2):
 
 def LocUpdate(debug=False):
   global Gps, UARTobj
-  global Gps, lastGPS, thisGPS
-  if not DoGPS(debug=debug): return lastGPS[0:]
-  if GPSdistance(thisGPS,lastGPS) <= 50.0:
+  global Gps, lastGPS, thisGPS  # thisGPS = start location
+  myGPS = DoGPS(debug=debug)
+  if not myGPS:
     return None
-  lastGPS = thisGPS[0:]
-  return thisGPS
+  if GPSdistance(myGPS,lastGPS) <= 50.0:
+    return lastGPS[0:]
+  if not thisGPS[1]: thisGPS = myGPS[0:]
+  lastGPS = myGPS[0:]
+  return lastGPS[0:]
 
 def DoGPS(debug=False):
   global thisGPS
@@ -889,25 +920,25 @@ def DoGPS(debug=False):
   global StartUpTime
   if not MyTypes:
     getMyConfig(debug=debug)
-    initGPS(debug=debug)
   atype = 'gps'; abus = Type2Bus(atype)
   try: Gps = MyTypes[atype]
-  except: return
+  except: return None
 
   if not MyTypes: getMyConfig(debug=debug)
   interval = MyConfiguration['interval']
-
-  if Gps['lib'] == None: initGPS(debug=debug)
-  if not Gps['lib'] or not Gps['enabled']: return None
   from time import localtime, timezone
   if (time()-StartUpTime) <= interval['gps_next']:
     if debug: print("No GPS update")
     return None
+
+  prev = PinPower(atype=atype,on=True,debug=debug)
+  if Gps['lib'] == None: initGPS(debug=False)
+  if not Gps['lib'] or not Gps['enabled']:
+    return PinPowerRts(atype,prev,debug=debug)
   if debug: print("Try date/RTC update")
   myGPS = [0.0,0.0,0.0]; prev = None
   try:
-    prev = PinPower(atype=atype,on=True,debug=True)
-    if Gps['lib'].quality < 1: display('wait GPS')
+    if Gps['lib'].quality < 1: display('wait GPS') # maybe 10 minutes
     for cnt in range(1,5):
       Gps['lib'].read()
       if Gps['lib'].quality > 0: break
@@ -920,8 +951,8 @@ def DoGPS(debug=False):
         interval[item] += (time() - correction)
       if Gps['rtc'] == None: Gps['rtc'] = True
     else:
-      if (Gps['lib'] == None) or debug: display('no GPS')
-      return None
+      display('no GPS')
+      return PinPowerRts(atype,prev,debug=debug)
     if Gps['rtc'] == True:
       now = localtime()
       if 3 < now[1] < 11: timezone(7200) # simple DST
@@ -938,16 +969,14 @@ def DoGPS(debug=False):
         thisGPS = myGPS[0:] # home location
         if interval['info'] < 60: interval['info_next'] = interval['info'] = 1 # force
     else: myGPS = None
-    if MyConfiguration['power'][abus]:
-      PinPower(atype=atype,on=prev,debug=debug)
     if debug and (myGPS != None):
       print("GPS: lon %.5f, lat %.5f, alt %.2f" % (myGPS[LON],myGPS[LAT],myGPS[ALT]))
   except:
     Gps['enabled'] = False; Gps['lib'].ser.deinit(); Gps['lib'] = None
     display('GPS error')
-    return None
+    return PinPowerRts(atype,False,debug=debug)
   if interval['gps_next']: interval['gps_next'] = time()+interval[atype]
-  return myGPS
+  return PinPowerRts(atype,prev,rts=myGPS, debug=debug)
 
 ## Pin devices
 def initAccu():
@@ -1135,7 +1164,7 @@ def SendInfo(port=Iprt):
 
 # startup info
 def initDevices(debug=False):
-  global MyConfiguration, MyTypes
+  global MyConfiguration, MyTypes, wokeUp
   global STOP
   if not len(MyConfiguration): getMyConfig()
 
@@ -1144,29 +1173,35 @@ def initDevices(debug=False):
     initDisplay(debug=debug)
 
     if initDust(debug=debug):
+      if not wokeUp:
         if Dust['cnt']: display("PM pcs:" + Dust['conf']['name'])
         else: display("PM   : " + Dust['conf']['name'])
     else: display("No dust sensor")
 
     if initMeteo(debug=debug):
-        display("meteo: " + Meteo['conf']['name'])
+      if not wokeUp: display("meteo: " + Meteo['conf']['name'])
     else: display("No meteo sensor")
 
-    sleep_ms(15000)
-    if not initGPS(debug=debug):
-        display("No GPS")
-    display('G:%.4f/%.4f' % (lastGPS[LAT],lastGPS[LON]))
+    # sleep_ms(15000)
+    if not wokeUp:
+      gps = DoGPS(debug=debug)
+      if not gps: display("No GPS")
+      else:
+         global lastGPS
+         lastGPS = gps
+         display('G:%.4f/%.4f' % (lastGPS[LAT],lastGPS[LON]))
 
     if initNetwork(debug=debug):
+      if not wokeUp:
         display('Network: %s' % Network['conf']['name'])
+        if Network['enabled']: SendInfo()
     else: display("No network")
-    if Network['enabled']: SendInfo()
   except Exception as e:
     # pycom.rgbled(0xFF0000)
     display("ERROR %s" % e)
     return False
 
-  if debug:
+  if debug and not wokeUp:
     for item in Meteo, Display, Dust, Gps, Network:
       print("MyDevices[bus] ", end='')
       PrintDict(item,item['type'])
@@ -1260,6 +1295,7 @@ def runMe(debug=False):
         if (Network['name'] == 'TTN'):
           if ('cnt' in Dust.keys()) and Dust['cnt']: port=Dprt[1]
           else: port=Dprt[0]
+          # LocUpdate -> DoGPS()
           if  Network['lib'].send(DoPack(dData,mData,LocUpdate(),aData=aData, debug=debug),port=port):
             if LED: LED.off
           else:

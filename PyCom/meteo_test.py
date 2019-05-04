@@ -3,7 +3,7 @@
 from time import sleep_ms
 import sys
 
-__version__ = "0." + "$Revision: 5.5 $"[11:-2]
+__version__ = "0." + "$Revision: 5.6 $"[11:-2]
 __license__ = 'GPLV4'
 
 abus = 'i2c'
@@ -100,22 +100,21 @@ for cnt in range(1,max+1):
     if meteo is 'BME680':
         if not cnt:
             try:
-              if 'M_gBase' in MyConfig.config.keys():
-                device['fd'].gas_base = config['M_gBase']
+              if 'gas_base' in MyConfig.config.keys():
+                device['fd'].gas_base = config['gas_base']
               else:
                   from Config import M_gBase  # if present do not recalculate
                   device['fd'].gas_base = M_gBase
-                  MyConfig.dump('M_gBase',M_gBase)
+                  MyConfig.dump('gas_base',M_gBase)
             except: device['fd'].gas_base = None # force recalculation gas base line
         if device['fd'].gas_base == None:
-            gBase = False
+            gotBase = False
             print("%salculating stable gas base level. Can take max 5 minutes to calculate gas base." % ('Rec' if cnt else 'C'))
-        else: gBase = True
+        else: gotBase = True
         AQI = device['fd'].AQI # first time can take a while
         if device['fd'].gas_base != None:
             print("Gas base line calculated: %.1f" % device['fd'].gas_base)
-            if not gBase: MyConfig.dump('M_gBase',device['fd'].gas_base)
-            gBase = True
+            if not gotBase: MyConfig.dump('gas_base',device['fd'].gas_base)
         gas = device['fd'].gas
         if gas != None: print("Gas: %.3f Kohm" % round(gas/1000.0,2))
         if (device['fd'].gas_base != None) and AQI:

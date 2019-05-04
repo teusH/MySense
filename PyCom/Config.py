@@ -26,6 +26,11 @@ W_PASS = 'GreenTechLab'
 #             'gps_next': 0,     # next gps update 0 OFF, 0.1 on
 #  }
 
+# MySense conf start modes: dflt: create configuration in flash on cold start
+#    and will auto detect devices on ttl and i2c bus
+#    nvs RAM is permanent in PyCom mem: change it with import pycom, and
+#    pycom.nvs_set('modus',1) will reset ttl/i2c configurion, and force auto detect
+#    pycom.nvs_set('modus',2) the archived configuratioin will be used
 # device power management dflt: do not unless pwr pins defined
 # power mgt of ttl/uarts OFF/on, i2c OFF/on and deep sleep minutes, 0 off
 # display: None (always on), False: always off, True on/off during sleep
