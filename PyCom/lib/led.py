@@ -27,6 +27,10 @@ class LED:
   def enable(self):
     self.Active = True
 
+  @property
+  def state(self):
+    return self.Active
+
   def blink(self,n = 0, d = 0.5, c = 0x0000ff, l = True, force=False, once=False):
     """
     Blink the LED.

@@ -2,7 +2,7 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 5.3 2019/04/29 20:23:54 teus Exp teus $
+# $Id: lora.py,v 5.4 2019/05/05 15:51:40 teus Exp teus $
 
 import socket
 from ubinascii import unhexlify
@@ -26,12 +26,9 @@ class LORA(object):
     """
     self.callback = callback # call back routine on LoRa reply callback(port,response)
     self.LED = myLED
-    if myLED :
-      # import led
-      self.LED.heartbeat(False)
-      self.LED.on
+    if myLED : myLED.heartbeat(False)
     if (not type(method) is dict): raise ValueError("No activation method defined.")
-    if len(method):
+    if method:
       count = 0
       if 'OTAA' in method.keys():
         # Join a network using OTAA (Over the Air Activation) next code looks strange
@@ -42,7 +39,7 @@ class LORA(object):
         # Wait until the module has joined the network
         while not self.lora.has_joined():
           if self.LED: self.LED.blink(1, 2.5, 0xff0000)
-          if count > 20: break
+          if count > 20: break  # stop this?
           print("Wait for OTAA join: " ,  count)
           count += 1
         if self.lora.has_joined():
@@ -130,5 +127,5 @@ class LORA(object):
     return self.lora.stats().tx_counter
 
   @property
-  def cleanup(self):
+  def clear(self):
     self.lora.nvram_erase()
