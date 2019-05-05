@@ -1,7 +1,7 @@
 # test kit with copy(<cntrl>shiftC)/paste(<cntrl>v) via REPL
 # test suite helps to detect hw configuration and software problems
 # one by one
-# Copyright 2019, Teus Hagen, GPLV4
+# Copyright 2019, Teus Hagen, GPLV3
 # xyz_test is operational test for xyz
 # other parts are functional tests for MySense.py wrapper
 

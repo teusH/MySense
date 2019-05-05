@@ -1,10 +1,10 @@
-# Copyright 2019, Teus Hagen, GPLV4
+# Copyright 2019, Teus Hagen, GPLV3
 # simple test to see if meteo I2C device is present
 from time import sleep_ms
 import sys
 
-__version__ = "0." + "$Revision: 5.6 $"[11:-2]
-__license__ = 'GPLV4'
+__version__ = "0." + "$Revision: 5.7 $"[11:-2]
+__license__ = 'GPLV3'
 
 abus = 'i2c'
 atype = 'meteo'

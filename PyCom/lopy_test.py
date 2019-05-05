@@ -1,5 +1,5 @@
-__version__ = "0." + "$Revision: 5.2 $"[11:-2]
-__license__ = 'GPLV4'
+__version__ = "0." + "$Revision: 5.3 $"[11:-2]
+__license__ = 'GPLV3'
 
 import sys
 from time import time, sleep

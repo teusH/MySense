@@ -1,12 +1,12 @@
-# Copyright 2019, Teus Hagen, GPLV4
+# Copyright 2019, Teus Hagen, GPLV3
 # search for I2C devices and get supporting libraries loaded
 # maintain a i2c dict config with name, use, pins, address
 #          and i2c devices with lib, i2c ref, index, and pins
 from time import sleep_ms
 from machine import I2C
 
-__version__ = "0." + "$Revision: 5.4 $"[11:-2]
-__license__ = 'GPLV4'
+__version__ = "0." + "$Revision: 5.5 $"[11:-2]
+__license__ = 'GPLV3'
 
 # Config.py definitions preceed
 # if MyPins array of [(SDA,SCL[,Pwr]) tuples to identify pins for devices

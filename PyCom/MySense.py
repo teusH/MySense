@@ -1,10 +1,10 @@
 # PyCom Micro Python / Python 3
-# Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV4
+# Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.8 2019/05/05 15:50:21 teus Exp teus $
+# $Id: MySense.py,v 5.10 2019/05/05 18:27:48 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 5.8 $"[11:-2]
-__license__ = 'GPLV4'
+__version__ = "0." + "$Revision: 5.10 $"[11:-2]
+__license__ = 'GPLV3'
 
 import sys
 from time import time, sleep
@@ -245,7 +245,7 @@ def getNetConfig(debug=False):
       if not len(MyDevices[atype]['method']):
         raise ValueError("No LoRa keys configured or LoRa config error")
       if debug: print("Init LoRa methods: %s." % ', '.join(MyDevices[atype]['method'].keys()))
-      MyConfiguration['LoRa'] = MyConfig.restore('LoRa')
+      MyConfiguration['LoRa'] = MyConfig.getConfig('LoRa')
     elif debug: print("Using LoRa info from vram")
     MyTypes['network'] = MyDevices[atype]
     if wokeUp: info = True # no need to send meta data
@@ -1073,8 +1073,10 @@ def CallBack(port,what):
 def initNetwork(debug=False):
   global MyTypes, LED, Dprt
   if not MyTypes: getMyConfig()
+  if not 'network' in MyTypes.keys(): getNetConfig(debug=debug)
   try: Network = MyTypes['network']
   except: return False
+  if Network['enabled']: return True
 
   def whichNet():
     if (Network['name'] == 'TTN') and Network['lib']:
@@ -1082,7 +1084,6 @@ def initNetwork(debug=False):
     print("No network found")
     return False
 
-  if Network['enabled']: return True
   if not whichNet(): return False
   # init == True if lora keys are in nv ram. No way to check if so?
   try:

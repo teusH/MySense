@@ -1,10 +1,10 @@
 # simple test script for dust sensors
-# Copyright 2019, Teus Hagen MySense GPLV4
+# Copyright 2019, Teus Hagen MySense GPLV3
 
 # standalone test loop
 
-__version__ = "0." + "$Revision: 5.7 $"[11:-2]
-__license__ = 'GPLV4'
+__version__ = "0." + "$Revision: 5.8 $"[11:-2]
+__license__ = 'GPLV3'
 
 from time import time, sleep_ms
 

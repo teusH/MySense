@@ -4,6 +4,8 @@
 
 Status: *rc1* 2019/02/25
 
+Copyright: 2019, Teus Hagen, Software license GPLV3. Improvements and additions should remain GPLV3 and be sent to authors.
+
 Simple low cost (ca €120) satellites sensor kits.
 
 ## description
@@ -17,6 +19,7 @@ Overview of wiring and modules using a PCB board with Grove connectors to avoid 
 Comment: here we used the indoor dust sensor PMS7003. Use for outdoor the PMSx003 dust sensor.
 
 ## Shopping list (ca € 100-150):
+
 * PyCom LoPy-4 controller  PYCLOPY4 (Tinytronics  € 35.-)
 * optional LoPy Expansie board 2.0 PYCEXPBOARD2.0 (Tinytronics € 19.-) (development board)
 * alternative is a DIY PCB connector board with 6 Grove connectors (3 TTL and 3 I2C) ca € 10 (incl the  components (mosfet, resisters, pins).
@@ -91,7 +94,7 @@ See for how-to instructions:
 * https://github.com/Lora-net/lora_gateway#readme
 * RAK831 concentrator: https://www.thethingsnetwork.org/labs/story/rak831-lora-gateway-from-package-to-online
 
-For MySense we changed the `/opt/ttn-gateway/bin/start.sh`, added WiFi access point for WEBMIN (use `INSTALL.sh WEBMIN` and Raspberry Pi OS configuratio (see `INSTALL.sh help`), and to log concentraor log messages to the oled display via the filter `GatewayLogDisplay.py`. The scripts can be found in the map LoRa.
+For MySense we changed the `/opt/ttn-gateway/bin/start.sh`, added WiFi access point for WEBMIN (use `INSTALL.sh WEBMIN` and Raspberry Pi OS configuration (see `INSTALL.sh help`), and to log concentraor log messages to the oled display via the filter `GatewayLogDisplay.py`. The scripts can be found in the map LoRa.
 See the map LoRa (or Google to The Things Network) for more details and functionality add-on's to build a DIY TTN gateway.
 
 The TTN ZH Pi based shopping list (we bought a ready to go gateway Pi2 based from IMST and changed the software to TTN for € 250):
@@ -299,7 +302,26 @@ Use the file `Config.py` to define which sensors are configured for the kit. Hav
 If `dev_eui, app_eui and app_key` is defined in `Config.py` the LoRaWan On The Air Authentication (OTAA) method will be tried first to join with 4 X 15 secs a wait for authorisation.
 If not defined or the join did not complete the ABP method will be used with the configured `dev_addr, nwk_swkey and app_swkey` in `Config.py`. With method ABP MySense will not wait for authorisation.
 
-Do not change the order in the `Meteo` and `Dust` array definition!
+The file `Config.py` will show default configuration items in comments. Make sure to define the correct LoRa (The Things Network) keys.
+
+In order to support solarcel as energy source MySense supports the *deepsleep* functionality. In order to do so there are 3 ways to keep the configuration details:
+* `Config.py` to allow a clean cold start (powerup boot).
+* `a json file in flash memory` to keep track of stable configurations and discovered devices. This allows mainly a warm reboot from eg a deepsleep.
+* `nvs ram` values to survive a powercycle e.g. LoRa keys and counters, different alarm settings.
+
+The auto maintained configuration data can be cleared as followed:
+```python
+    import pycom
+    pycom.nvs_set('modus',0) # 0 for clear all, 1 for clear ttl/i2c device conf
+    # modus 2: do not clear assembled configuration
+```
+The json configuration will be updated if via remote command the configuration item is changed. So the change will survive a reboot.
+
+Configuration item `power` will define if between deepsleeps de bus will be unpowered. E.g. deactivate GPS device fully.
+
+Configuration item `interval` will define e.g. sample times (dflt 1 minute), and interval timings (dflt 15 minutes). As well next time meta information will be sent or GPS will be tried to find GPS location and set day time.
+
+There is a wealth of confioguration possiblities. Not all have been tested. See the scripts to see what they are about.
 
 ### Testing hardware
 MySense has provided several simple XYZ_test.py python scripts to test the sensor modules for needed libraries and check of wiring.

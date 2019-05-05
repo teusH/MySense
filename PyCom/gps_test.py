@@ -1,11 +1,11 @@
 # test script for GPS location sensor
-# Copyright 2019, Teus Hagen MySense GPLV4
+# Copyright 2019, Teus Hagen MySense GPLV3
 
 import sys
 from time import sleep_ms, ticks_ms
 
-__version__ = "0." + "$Revision: 5.8 $"[11:-2]
-__license__ = 'GPLV4'
+__version__ = "0." + "$Revision: 5.9 $"[11:-2]
+__license__ = 'GPLV3'
 
 # dflt pins=(Tx-pin,Rx-pin,Pwr-pin): wiring Tx-pin -> Rx GPS module
 # Pwr dflt None (not switched) 3V3 DC

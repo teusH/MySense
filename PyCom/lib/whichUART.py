@@ -1,4 +1,4 @@
-# Copyright 2020, Teus Hagen, GPLV4
+# Copyright 2020, Teus Hagen, GPLV3
 # identify which UART device is c nnected to which TTL connector
 # to do?: from ucollections import namedtuple
 #        pins = namedtuple('pins',('Tx','Rx,'Pwr'))
@@ -7,8 +7,8 @@
 from time import sleep_ms
 from machine import UART
 
-__version__ = "0." + "$Revision: 5.6 $"[11:-2]
-__license__ = 'GPLV4'
+__version__ = "0." + "$Revision: 5.7 $"[11:-2]
+__license__ = 'GPLV3'
 
 # Config.py definitions preceed
 # if MyPins array of (Tx,Rx[,Pwr]) tuples is defined try to identify UART device

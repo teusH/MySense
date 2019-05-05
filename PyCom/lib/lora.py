@@ -2,7 +2,7 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 5.4 2019/05/05 15:51:40 teus Exp teus $
+# $Id: lora.py,v 5.5 2019/05/05 18:16:15 teus Exp teus $
 
 import socket
 from ubinascii import unhexlify
@@ -17,14 +17,16 @@ class LORA(object):
     self.callback = None
     self.sockets = []
     self.LED = None
+    self.debug = False
 
-  def connect(self, method, ports=1, callback=None, resume=False, myLED=None):
+  def connect(self, method, ports=1, callback=None, resume=False, myLED=None, debug=False):
     """
     Connect device to LoRa.
     Set the socket and lora instances.
     myLED is led object, resume: use lora vram
     """
     self.callback = callback # call back routine on LoRa reply callback(port,response)
+    self.debug = debug
     self.LED = myLED
     if myLED : myLED.heartbeat(False)
     if (not type(method) is dict): raise ValueError("No activation method defined.")
@@ -62,7 +64,8 @@ class LORA(object):
       if not resume: self.dump
       # end of keys def
     elif resume:
-      self.restore; print("Restored LoRa keys")
+      self.restore
+      if debug: print("Restored LoRa keys")
     else: raise ValueError("No LoRa keys")
 
     # Create a LoRa socket
@@ -76,13 +79,11 @@ class LORA(object):
     # Make the socket non-blocking
     self.sockets[0].setblocking(False)
 
-    # print("Create LoRaWAN socket")
-
     # Create a raw LoRa socket
     # default port 2
     self.sockets.append(None)
     for nr in range(ports):
-      print("Setting up port %d" % (nr+2))
+      if debug: print("Setting up port %d" % (nr+2))
       self.sockets.append(socket.socket(socket.AF_LORA, socket.SOCK_RAW))
       self.sockets[nr+2].setblocking(False)
       if nr: self.sockets[nr+2].bind(nr+2)
@@ -100,7 +101,7 @@ class LORA(object):
     try:
       self.sockets[port].send(data)
       if self.LED: self.LED.blink(2, 0.1, 0x0000ff)
-      # print("Sending data")
+      if self.debug: print("Sending data")
       # print(data)
     except OSError as e:
       if e.errno == 11:
@@ -110,7 +111,7 @@ class LORA(object):
 
     if self.LED: self.LED.off()
     data = self.sockets[port].recv(64)
-    # print("Received data:", data)
+    if self.debug: print("Received data:", data)
     if self.callback and data:
        self.callback(port,data)
     return rts
@@ -119,13 +120,16 @@ class LORA(object):
   def dump(self):
     from time import sleep_ms
     sleep_ms(1000)
+    if self.debug: print("Save LoRa keys")
     return self.lora.nvram_save()
 
   @property
   def restore(self):
     self.lora.nvram_restore()
+    if self.debug: print("Restore LoRa keys")
     return self.lora.stats().tx_counter
 
   @property
   def clear(self):
+    if self.debug: print("Clear LoRa keys")
     self.lora.nvram_erase()

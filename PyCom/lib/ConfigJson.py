@@ -1,7 +1,7 @@
-# Copyright 2019, Teus Hagen, GPLV4
+# Copyright 2019, Teus Hagen, GPLV3
 # search for I2C devices and get supporting libraries loaded
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
-__license__ = 'GPLV4'
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__license__ = 'GPLV3'
 
 import ujson
 

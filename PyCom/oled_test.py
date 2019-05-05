@@ -1,11 +1,11 @@
-# Copyright 2019, Teus Hagen, GPLV4
+# Copyright 2019, Teus Hagen, GPLV3
 # simple test to see if display I2C device is present
 from time import sleep_ms
 from machine import I2C
 import sys
 
-__version__ = "0." + "$Revision: 5.7 $"[11:-2]
-__license__ = 'GPLV4'
+__version__ = "0." + "$Revision: 5.8 $"[11:-2]
+__license__ = 'GPLV3'
 
 abus='i2c'
 atype='display'
