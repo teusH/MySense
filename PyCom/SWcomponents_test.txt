@@ -1,9 +1,54 @@
 # test kit with copy(<cntrl>shiftC)/paste(<cntrl>v) via REPL
 # test suite helps to detect hw configuration and software problems
 # one by one
+# not all leaves of the scripts will have been tested.
 # Copyright 2019, Teus Hagen, GPLV4
 # xyz_test is operational test for xyz
 # other parts are functional tests for MySense.py wrapper
+
+# HW configuration is maintained in config (may come from archive json file in flash mem
+# config dict: { (name,abus): value}, value is anything (reminder: json converts tuple to array)
+# name: eg dirty, accu(pin), sleep(pin)
+# reminder: accu disconnected and sleep is strapped: will auto remove archive in flash
+# abus (i2c,ttl): {(meteo,display,dust,gps,udated,calibrate): None or { (name,use,pins,baud,address): value}}
+
+# devices status is maintained in devs dict bus (i2c,ttl): dicts types (meteo,display,dust,gps)
+# The devs dict is not archived in flash mem.
+# devs dict: bus: i2c or ttl
+# each bus has a type a dict:
+#   lib (lib class module),
+#   index (nr file desc),
+#   conf (link to sensormeteo etc config dict),
+#   i2c (file descr),
+#   ttl (file descr),
+#   enabled (can be used, has file descr.)
+
+# test script may write config items in archived config if hardware is found
+# to delete archive config from flash mem: use
+import ConfigJson
+MyConf = ConfigJson.MyConfig               # get ref to archived configuration name space
+Myconfig.config                            # show current archived configuration
+Myconfig.config['ttl']['calibrate'] = None # remove calibration
+# MyConf.remove
+
+# activate configuration and use flash
+import MySense
+MyConfiguration = MySense.getMyConfig(debug=True)
+MyConfiguration  # show configuration
+MyDevices = MySense.MyDevices
+MyDevices        # show devices
+MyTypes = MySense.MyTypes
+MyTypes.keys()   # show types of connected devices
+
+MySense.initDevices(debug=True) # initialize all devices, get lib modules
+
+# then try. On failure provide a solution of the bug to author
+MySense.display('hello world')
+MySense.DoGPS(debug=True)   # can take a while
+MySense.DoMeteo(debug=True) # show meteo measurement
+MySense.DoDust(debug=True)  # show dust measurement, takes 1.5 minutyes
+MySense.DoAccu(debug=True)  # show accu voltage
+MySense.SendInfo()          # send meta data
 
 ########## check I2C part
 # basic functional test for hardware
@@ -23,11 +68,11 @@ Display
 print('Oled %s:' % Display['name'] + ' SDA~>%s, SCL~>%s, Pwr~>%s' % Display['pins'][:3], ' is %d' % I2Cobj.PwrI2C(Display['pins']))
 
 import SSD1306 as DISPLAY # try display
-Display['fd'] = DISPLAY.SSD1306_I2C(128,64,Display['i2c'], addr=Display['address'])
-Display['fd'].fill(1); Display['fd'].show()
+Display['lib'] = DISPLAY.SSD1306_I2C(128,64,Display['i2c'], addr=Display['address'])
+Display['lib'].fill(1); Display['lib'].show()
 from time import sleep
 sleep(1)
-Display['fd'].fill(0); Display['fd'].show()
+Display['lib'].fill(0); Display['lib'].show()
 import sys
 sys.exit() # reset
 
@@ -139,4 +184,26 @@ MySense.Power      # show powermanagement items
 # MySense.Power['sleep'] = True   # switch deepsleep on/off
 # TO DO
 # deepsleep and config save
+
+# test script may write config items in archived config if hardware is found
+# to delete archive config from flash mem: use
+import ConfigJson
+MyConf = ConfigJson.MyConfig
+MyConf.remove
+
+# once tests are working one does not need them in flash anymore
+# or use them via atom and 'run'
+import os
+os.remove('/flash/meteo_test.py')
+os.remove('/flash/dust_test.py')
+os.remove('/flash/oled_test.py')
+os.remove('/flash/lopy_test.py')
+os.remove('/flash/gps_test.py')
+# remove everything from flash mem:
+os.mkfs('/flash')
+# activate MySense:
+# main.py:
+import MySense
+MySense.runMe()
+# suggest to change wifi ssid and password of the wifi AP
 
