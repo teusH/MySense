@@ -2,7 +2,7 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 5.5 2019/05/05 18:16:15 teus Exp teus $
+# $Id: lora.py,v 5.6 2019/05/06 14:28:36 teus Exp teus $
 
 import socket
 from ubinascii import unhexlify
@@ -40,7 +40,7 @@ class LORA(object):
         self.lora.join(activation = LoRa.OTAA, auth = (dev_eui, app_eui, app_key), timeout = 0)
         # Wait until the module has joined the network
         while not self.lora.has_joined():
-          if self.LED: self.LED.blink(1, 2.5, 0xff0000)
+          if myLED: myLED.blink(1, 2.5, 0xff0000)
           if count > 20: break  # stop this?
           print("Wait for OTAA join: " ,  count)
           count += 1
@@ -65,11 +65,10 @@ class LORA(object):
       # end of keys def
     elif resume:
       self.restore
-      if debug: print("Restored LoRa keys")
     else: raise ValueError("No LoRa keys")
 
     # Create a LoRa socket
-    if self.LED: self.LED.blink(2, 0.1, 0x009900)
+    if myLED: myLED.blink(2, 0.1, 0x009900)
     self.sockets = []
     self.sockets.append(socket.socket(socket.AF_LORA, socket.SOCK_RAW))
 
@@ -83,11 +82,11 @@ class LORA(object):
     # default port 2
     self.sockets.append(None)
     for nr in range(ports):
-      if debug: print("Setting up port %d" % (nr+2))
       self.sockets.append(socket.socket(socket.AF_LORA, socket.SOCK_RAW))
       self.sockets[nr+2].setblocking(False)
       if nr: self.sockets[nr+2].bind(nr+2)
-    if self.LED: self.LED.off()
+      if debug: print("Installed LoRa port %d" % (nr+2))
+    if myLED: myLED.off
     return True
 
   def send(self, data, port=2):
@@ -109,7 +108,7 @@ class LORA(object):
         print("errno: ", e.errno)
       rts = False
 
-    if self.LED: self.LED.off()
+    if self.LED: self.LED.off
     data = self.sockets[port].recv(64)
     if self.debug: print("Received data:", data)
     if self.callback and data:

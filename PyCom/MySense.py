@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.10 2019/05/05 18:27:48 teus Exp teus $
+# $Id: MySense.py,v 5.11 2019/05/06 14:28:15 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 5.10 $"[11:-2]
+__version__ = "0." + "$Revision: 5.11 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -449,7 +449,8 @@ def PinPower(atype=None,on=None,debug=False):
   global MyConfiguration
   if not atype: return False
   if type(atype) is list:
-    for item in atype: PinPower(atype=item, on=on, debug=debug)
+    for item in atype:
+      PinPower(atype=item, on=on, debug=debug)
   else:
     abus = Type2Bus(atype)
     try:
@@ -774,7 +775,7 @@ def DoDust(debug=False):
   display('PM sensing',(0,0),clear=True,prt=False)
   prev = False
   if Dust['enabled']:
-    prev = PinPower(atype='dust',on=True, debug=debug)
+    prev = PinPower(atype=atype,on=True, debug=debug)
     if not prev:
         sleep_ms(1000)
         Dust['lib'].Standby()
@@ -811,7 +812,10 @@ def DoDust(debug=False):
       if LED: LED.blink(3,0.1,0xff0000)
       dData = {}
     if LED: LED.blink(3,0.1,0x00ff00)
-    if MyConfiguration['power'][abus]: PinPower(atype='dust',on=prev,debug=debug)
+    try:
+      if MyConfiguration['power'][Type2Bus(atype)]:
+        PinPower(atype=atype,on=prev,debug=debug)
+    except: pass
 
   if len(dData):
     for k in dData.keys():
@@ -1087,14 +1091,18 @@ def initNetwork(debug=False):
   if not whichNet(): return False
   # init == True if lora keys are in nv ram. No way to check if so?
   try:
-    if Network['lib'].connect(Network['method'], ports=(len(Dprt)+1), callback=CallBack, resume=Network['resume'], myLED=LED):
+    if Network['resume']: method = {}
+    else: method = Network['method']
+    if Network['lib'].connect(method=method, ports=(len(Dprt)+1), callback=CallBack, resume=Network['resume'], myLED=LED, debug=debug):
       display("Using LoRaWan")
       Network['enabled'] = True
       sleep_ms(10*1000)
     else:
       display("NO LoRaWan")
       Network['lib'] = None
-  except: return None
+  except Exception as e:
+    print("Error: %s" % e)
+    return None
   return Network ['enabled']
 
 # denote a null value with all ones
@@ -1200,7 +1208,7 @@ def initDevices(debug=False):
     initDisplay(debug=debug)
 
     try:
-      if initMyTypes['dust'](debug=debug):
+      if initDust(debug=debug):
         if not wokeUp:
           if MyTypes['dust']['cnt']: display("PM pcs:" + MyTypes['dust']['conf']['name'])
           else: display("PM   : " + MyTypes['dust']['conf']['name'])
@@ -1227,8 +1235,7 @@ def initDevices(debug=False):
         raise ValueError("LoRa keys")
       elif net:
         if not wokeUp:
-          display('network: %s' % MyTypes['network']['conf']['name'])
-          SendInfo()
+          display('network: %s' % MyTypes['network']['name'])
       else: raise ValueError("init network")
     except Exception as e: raise ValueError(e)
 
@@ -1308,10 +1315,11 @@ def runMe(debug=False):
     if LED: LED.blink(1,0.2,0x00FF00,l=False,force=True)
     toSleep = time()
     if interval['info'] and ((toSleep-StartUpTime) > interval['info_next']): # send info update
-       SendInfo()
+       if SendInfo(): print("Sent Meta info")
        if interval['info'] < 60: interval['info'] = 0 # was forced
        toSleep = time()
        interval['info_next'] = toSleep + interval['info']
+       nvs_set('info_next',interval['info_next'])
     # Power management ttl is done by DoXYZ()
     if Display['enabled'] and Power['display']: Display['lib'].poweron()
 
@@ -1353,23 +1361,31 @@ def runMe(debug=False):
     PinPower(atype=['gps','dust'],on=False,debug=debug) # auto on/off next time
     if Display['enabled'] and (Power['display'] != None):
        Display['lib'].poweroff()
-    elif not Power['i2c']:
+    # RGB led off?
+    if MyConfig.dirty:
+      print("Save configuration")
+      MyConfig.store
+
+    if Power['sleep'] and sleepMode():
+      if toSleep > 60:
+        MyDevices['lora']['lib'].dump
+        deepsleep(toSleep-1) # deep sleep
+      # will never arrive here
+    try:
+      if MyConfiguration['LoRa'] == 'ABP':
+        MyDevices['lora']['lib'].dump
+    except: pass
+    if not Power['i2c']:
       if not ProgressBar(0,62,128,1,toSleep,0xebcf5b,10):
         display('stopped SENSING', (0,0), clear=True)
         if LED: LED.blink(5,0.3,0xff0000,l=True)
-      continue
-    PinPower(atype=['display','meteo'],on=False,debug=debug)
-    if Power['sleep'] and sleepMode():
-      # save config and LoRa
-      if MyConfig.dirty: MyConfig.store
-      MyDevices['lora']['lib'].dump
-      if toSleep > 60:
-        deepsleep(toSleep-1) # deep sleep
-        # will never arrive here
-      else: sleep(toSleep)
+    else:
+      sleep(toSleep)
       # restore config and LoRa
-    elif LED: LED.blink(10,int(toSleep/10),0x748ec1,l=False)
+      if LED: LED.blink(10,int(toSleep/10),0x748ec1,l=False)
     PinPower(atype=['display','meteo'],on=True,debug=debug)
+    if Display['enabled'] and (Power['display'] != None):
+       Display['lib'].poweron()
 
 if __name__ == "__main__":
   runMe(debug=True)

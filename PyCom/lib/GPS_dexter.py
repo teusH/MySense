@@ -1,7 +1,7 @@
 # from https://github.com/DexterInd/GrovePi
 # Software/Python/dexter_gps
 # changed for micropython
-# $Id: GPS_dexter.py,v 5.4 2019/05/05 15:51:40 teus Exp teus $
+# $Id: GPS_dexter.py,v 5.5 2019/05/06 14:28:36 teus Exp teus $
 
 import re
 try:
@@ -45,8 +45,8 @@ class GROVEGPS:
     self.debug = debug
     self.last_read = 0
     self.date = 0
-    self.max_wait = 5
-    self.max_retry = 10  # wait for fix was 50
+    self.max_wait = 3
+    self.max_retry = 25  # wait for fix was 50
 
     # compile regex once to use later
     for i in range(len(patterns)-1):

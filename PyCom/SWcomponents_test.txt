@@ -1,8 +1,8 @@
+# Copyright 2019, Teus Hagen, license GPLV3
+#
 # test kit with copy(<cntrl>shiftC)/paste(<cntrl>v) via REPL
 # test suite helps to detect hw configuration and software problems
 # one by one
-# not all leaves of the scripts will have been tested.
-# Copyright 2019, Teus Hagen, GPLV4
 # xyz_test is operational test for xyz
 # other parts are functional tests for MySense.py wrapper
 
@@ -29,26 +29,39 @@ import ConfigJson
 MyConf = ConfigJson.MyConfig               # get ref to archived configuration name space
 Myconfig.config                            # show current archived configuration
 Myconfig.config['ttl']['calibrate'] = None # remove calibration
-# MyConf.remove
+# MyConf.clear
 
-# activate configuration and use flash
+# check which configuration and attached devices
+debug=True
 import MySense
-MyConfiguration = MySense.getMyConfig(debug=True)
-MyConfiguration  # show configuration
+MySense.getMyConfig(debug=debug)
+MyConfiguration = MySense.MyConfiguration
+MyConfiguration
 MyDevices = MySense.MyDevices
-MyDevices        # show devices
-MyTypes = MySense.MyTypes
-MyTypes.keys()   # show types of connected devices
+MyDevices
 
-MySense.initDevices(debug=True) # initialize all devices, get lib modules
+# complete MyDevices dictionaries
+# initDevices will do: initDisplay(), initDust(), initMeteo(), initNetwork(), DoGPS()
+debug=True
+MySense.initDevices(debug=debug) # will initialize I2C and TTL devices (GPS on cold start)
 
-# then try. On failure provide a solution of the bug to author
-MySense.display('hello world')
-MySense.DoGPS(debug=True)   # can take a while
-MySense.DoMeteo(debug=True) # show meteo measurement
-MySense.DoDust(debug=True)  # show dust measurement, takes 1.5 minutyes
-MySense.DoAccu(debug=True)  # show accu voltage
-MySense.SendInfo()          # send meta data
+# try to get some measurements
+debug=True
+MySense.DoGPS(debug=debug)
+dData = MySense.DoDust(debug=debug)  # dust measurement
+dData
+mData = MySense.DoMeteo(debug=debug) # meteo measurement
+mData
+aData = MySense.DoAccu(debug=debug)  # state accu
+aData                                # probably 0
+aData = 12.5                         # set accu voltage
+
+# try LoRa send info
+SendInfo()                           # send meta data
+# send data packet
+debug = True
+Network = MySense.MyTypes['network']
+Network['lib'].send(DoPack(dData,mData,MySense.LocUpdate(),aData=aData, debug=debug),port=4)
 
 ########## check I2C part
 # basic functional test for hardware
