@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.13 2019/05/06 18:40:42 teus Exp teus $
+# $Id: MySense.py,v 5.14 2019/05/06 20:10:01 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 5.13 $"[11:-2]
+__version__ = "0." + "$Revision: 5.14 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -1124,7 +1124,7 @@ def DoPack(dData,mData,gps=None,wData=[],aData=None,debug=False):
     # defeat: Plantower PM5c == Sensirion PM4c: to do: set flag in PM5c
     flg = 0x8000 if MyTypes['dust']['conf']['name'][:3] in ['SPS',] else 0x0
     try:
-      if MyTypes['dust']['explicit']:
+      if MyTypes['dust']['conf']['explicit']:
         # 9 decrementing bytes, may change this
         d += struct.pack('>HHHHHH',
           int(dData[PM10c]*10+0.5),
