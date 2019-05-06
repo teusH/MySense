@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.11 2019/05/06 14:28:15 teus Exp teus $
+# $Id: MySense.py,v 5.12 2019/05/06 18:30:11 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 5.11 $"[11:-2]
+__version__ = "0." + "$Revision: 5.12 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -845,7 +845,7 @@ def DoDust(debug=False):
         if 'pm'+k+'_cnt' in dData.keys():
             rData.append(round(dData['pm'+k+'_cnt'],1))
         else: rData.append(0.0) # None
-      if not Dust['expl']:  # PM0.3 < # pcs <PMi
+      if not Dust['explicit']:  # PM0.3 < # pcs <PMi
         rData[3] = round(dData['grain'],2) # PM0.3 overwritten
         # print('pm grain: %0.2f' % dData['grain'])
     if LED: LED.off
@@ -1124,7 +1124,7 @@ def DoPack(dData,mData,gps=None,wData=[],aData=None,debug=False):
     # defeat: Plantower PM5c == Sensirion PM4c: to do: set flag in PM5c
     flg = 0x8000 if MyTypes['dust']['conf']['name'][:3] in ['SPS',] else 0x0
     try:
-      if MyTypes['dust']['expl']:
+      if MyTypes['dust']['explicit']:
         # 9 decrementing bytes, may change this
         d += struct.pack('>HHHHHH',
           int(dData[PM10c]*10+0.5),
