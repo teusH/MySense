@@ -3,7 +3,7 @@
  * decode LoRa payload sent by MySense node
  * copy/paste this JavaScript into format area at TTN server
  */
-var version = "$Version: 1.5$".slice(10,-1);
+var version = "$Version: 1.6$".slice(10,-1);
 /*
 var payloads = [
   "00000050007901C4033003FC000000000000", // port 2
@@ -131,6 +131,7 @@ function notZero(b, nr) {
     return false;
   }
 }
+
 function DecodePrt4(bytes) { /* PM count type HHHHHH */
     var decoded = { };
     myPrt("port 4 PM cnt bytes " + bytes.length + ": " + bytes);
@@ -183,6 +184,36 @@ function decodePM(bytes) { /* ug/m3 [H]HH */
     catch(e) {}
     finally {
       // PrtDecoded("decodePM decoded",decoded);
+      return decoded;
+    }
+}
+
+function decodeAccu(bytes) { /* voltage */
+    var decoded = {};
+    // myPrt("Accu bytes " + bytes.length + ": " + bytes);
+    try {
+      if( bytes[0] > 0 ) decoded.accu = round(bytes[0]/10.0,1); 
+    }
+    catch(e) {}
+    finally {
+       // PrtDecoded("decodeAccu decoded",decoded);
+      return decoded;
+    }
+}
+
+function decodeWind(bytes) { /* speed m/sec, direction 0-359 */
+    var decoded = {}; var speed = 0.0; var direct = 0;
+    // myPrt("Wind bytes " + bytes.length + ": " + bytes);
+    try {
+      speed = round(bytes[0]/5.0,1);
+      if ( (bytes[1] & 0x80)) speed += 0.1;
+      decoded.wspeed = speed;
+      direct = (bytes[1] & 0x7F);
+      if (direct > 0 ) decoded.wdirection = (direct*3)%360;
+    }
+    catch(e) {}
+    finally {
+       // PrtDecoded("decodeWind decoded",decoded);
       return decoded;
     }
 }
@@ -317,6 +348,7 @@ function Decoder(bytes, port) {
   // Decode an uplink message from a node
   // (array) of bytes to an object of fields.
   // myPrt("port" + port + ", length " + bytes.length + ": " + bytes);
+  if ( port == 10 ) return {};  /* meteo sensor */
   if ( port == 3 ) return DecodeMeta(bytes);
   var decoded = { "TTNversion": version }; var type = 0x0;
   var strt = 0; var end = 1;
@@ -363,6 +395,14 @@ function Decoder(bytes, port) {
   if ( (type & 0x8) ) {
       decoded = combine(decoded,decodeGPS(bytes.slice(strt,strt+3*4)));
       strt += 3*4;
+  }
+  if ( (type & 0x16) ) {
+      decoded = combine(decoded,decodeWind(bytes.slice(strt,strt+2)));
+      strt += 2;
+  }
+  if ( (type & 0x32) ) {
+      decoded = combine(decoded, decodeAccu(bytes.slice(strt,strt+1)));
+      strt += 1;
   }
   return decoded;
 }
