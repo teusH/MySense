@@ -1,11 +1,11 @@
 # MySense architecture
 MySense overview:
-<img src="images/MySense-logo.png" align=left width=150>
+<img src="RPi/images/MySense-logo.png" align=left width=150>
 the building blocks
 
 ## STATUS
 2017/02/08
-<img src="images/MySense0.png" align=right width=150>
+<img src="RPi/images/MySense0.png" align=right width=150>
 STATUS: BETA operational
 
 ## USAGE:

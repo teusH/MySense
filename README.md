@@ -1,4 +1,4 @@
-<img src="images/MySense-logo.png" align=right width=100>
+<img src="RPi/images/MySense-logo.png" align=right width=100>
 
 # MySense
 Last update of the README on 25th Febr 2019
@@ -8,12 +8,13 @@ Software Infrastructure or framework for managing environmental sensors and data
 
 ### MySense Raspberry Pi controller
 
-<img src="images/MySenseCase-Pi.png" align=right height=100>
+<img src="RPi/images/MySenseCase-Pi.png" align=right height=100>
 MySense is able to act as *air quality measurement kit* or *node broker*. As measurement kit MySense will collect measurements from dust, gas and/or gas sensors and location sensor and forward the data to external data concentrators (databases as well data broker as eg mosquitto and influx), files eg spreadsheets, and display (Adafruit tiny display or console). As dataconcentrator MySense will connect to other data concentrator in stead of collecting the data from sensors.
 
 Two different controllers are used:
 1. Raspberry Pi for multiple functionality and easy block building reasons using lan/wifi/G4 and
-2. PyCom LoPy controller for only a very few sensors using LoRaWan as communication infrastructure.
+2. PyCom LoPy controller for only a very few sensors using LoRaWan as communication infrastructure. This measurement kit is under current development. The PyCom folder will show latest snapshot.
+
 The bus used for sensors are: USB (serial and I2C), GPIO (SPI) and I2C.
 The scripts are written in Python 2/3.
 
@@ -30,8 +31,11 @@ The bus used for sensors are: UART (serial), I2C and GPIO.
 The scripts are written in (embedded) micro Python. Micro python has more functionality as the language C used with Arduino boards.
 
 Visual feedback is provided with RGB led and optional a tiny Oled display from Adafruit.
+The measurement kit supports to run with a solarcel. For enabling this the architecture has had a major redesign.
 
-The LoRa directory will give information to build a DIY TTN LoRa gateway. The `INSTALL.sh` configuration script will support to install GPS, oled display, RGB led, WiFi remote access, G4 access and other standard functionality to a Rspberry Pi based gateway e.g. RAK831 or IC880a-PSI and Pi based gateway for a small budget TTN gateway. As such providing you with more functionality as commercial offered gateways.
+The LoRa directory will give information to build a DIY TTN LoRa gateway. The `INSTALL.sh` configuration script will support to install GPS, oled display, RGB led, WiFi remote access, G4 access and other standard functionality to a Raspberry Pi based gateway e.g. RAK831, RAK833 or IC880a-PSI and Pi based gateway for a small budget TTN gateway. Have a look at the RAK7258 LoRa gateway. A complete (indoor and outdoor) gateway for about €140 (AliExpress). As such providing you with more functionality as commercial offered gateways without a subscription fee.
+
+At this moment we have 20 measurements kits in the region as well around a cattle enterprise in order to allow an improved business case.
 
 ## Goal
 Provide a generalised dynamic Open Source based infrastructure to allow:
@@ -43,6 +47,26 @@ Provide a generalised dynamic Open Source based infrastructure to allow:
 * free availability  of the data
 * free availability of all software (GPLV4 license)
 
+The project is run by volunteers on a non-profit basis.
+
+## Supported functionalities
+Major functionalities will be added on the fly. Much is dependent on the quality of the applied sensors and visualisation of the data.
+* dust sensors: Nova (PM2.5, PM10), Plantower (PM1, PM2.5, PM10, counters PM0.3 up to PM10, average grain size), Sensirion (PM1, PM2.5,PM10, counters PM0.3 up to PM10). PM cpount data is needed to allow a much improved calibration).
+* meteo sensors: Adafruit (DHT: temperature and humidity), Bosh (BME: temperature, humidity, air pressure and air quality), Sensirion (SHT: temperature, humidity). Humidity is a must for calibration of dust measurement.
+* TTL or I2C interface to other sensors using standard Grove connectors. Use the standard API to standard product driver via Python. E.g. I2C anemometer, I2C/TTL gas sensors, etc.
+* solarcel and battery management (deepsleep and battery warning).
+* calibration on product base as well on measurement base to enable calibration.
+* GPS to support proper localisation. Mobile is supported.
+* commucation with LAN, Wifi (discouraged), G4 mobile data, and (TTN) IoT LoRaWan.
+* visualisation on the measurementa and status with tiny display.
+* auto detection of connected sensors: plug and play
+* remote control
+* dynamic sampling and interval of measurements
+* notices based warning system
+* visualisation of graphs for (Drupal) website with HighCharts garaphics
+* measurement and kist configuration archiving with MySql database.
+* scalable
+
 ## Discussion
 MySense supports calibration of every single sensor. Sensor values will differ between the sensors within a branche and between branches. Correlation software is included. Advised is to calibrate the sensors regularly for a test period of several days (conditions should vary in the test period).
 
@@ -53,8 +77,8 @@ Dust measurments are influenced by humidity. A correction algorithm to enable to
 
 <div style='vertical-align: top; clear: both'>
 <figure>
-<img src="images/MySense-kit-1.png" align=left height=200>
-<img src="images/MySense-kit-2.png" height=200>
+<img src="RPi/images/MySense-kit-1.png" align=left height=200>
+<img src="RPi/images/MySense-kit-2.png" height=200>
 <br />MySense sensor kits examples
 </figure>
 </div>
@@ -86,7 +110,7 @@ The `@reboot /home/ios/MySense/MyStart.sh` in the ios crontab table will automat
 ## Sensor kit case
 
 <div style='vertical-align: top; clear: both'>
-<img src="images/MySense-2-kast.png" align=left height=100>
+<img src="RPi/images/MySense-2-kast.png" align=left height=100>
 The main sensor kit case carrying the Raspberry Pi and all sensor/GPS modules is build from PVC roof gutter pieces: gutter end pieces for keeping the air in and the rain out, and overflow gutter box as casing.
 The case has a poweroff button and small window to show a tiny display with current measurements.
 The sensors are fixated on a Lego plate to allow flexibility of sensor changes.
@@ -168,8 +192,8 @@ A working example of MySense script in todays operation:
                                     |>-raw measurement values -> InFlux server or file
                                            calibration
 ```
-<img src="images/PVC-luchtpijpcase.png" height=150>
-<img src="images/SDS011-BME280-SSD1306.png" height=150>
+<img src="RPi/images/PVC-luchtpijpcase.png" height=150>
+<img src="RPi/images/SDS011-BME280-SSD1306.png" height=150>
 
 MySense LoRa air quality measurement kit:
 ```
@@ -289,7 +313,7 @@ Note that the `getdata()` input routine may need some time in order to allow the
 
 ## Current development focus
 
-<img src="images/SensorKit.png" width=300 align=right>
+<img src="RPi/images/SensorKit.png" width=300 align=right>
 The MySense framework/infrastructure is operational as lab test model (alpha phase).
 
 By default MySense uses a so called lightweight process (multithreaded) to allow sensor data to be collected asynchronously.
