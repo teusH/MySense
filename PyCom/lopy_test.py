@@ -1,6 +1,23 @@
-__version__ = "0." + "$Revision: 5.3 $"[11:-2]
+__version__ = "0." + "$Revision: 5.4 $"[11:-2]
 __license__ = 'GPLV3'
 
+from machine import deepsleep, wake_reason, PWRON_WAKE
+wokeUp = wake_reason()[0] != PWRON_WAKE
+if wokeUp: print("Woke up from deepsleep.")
+else: print("Cold reboot")
+
+################## json flashed configuration
+# roll in archive configuration
+try:
+  import ConfigJson
+except:
+  print("Missing library led and/or ConfigJson")
+  sys.exit()
+MyConfig = ConfigJson.MyConfig(debug=False)
+config = MyConfig.getConfig() # configuration
+if config: print("Got config from flash: %s" % str(config))
+
+####################### RGB led
 import sys
 from time import time, sleep
 # Turn off hearbeat LED
@@ -12,64 +29,7 @@ try:
   LED = led.LED()
 except: pass
 
-# roll in archive configuration
-try:
-  import ConfigJson
-except:
-  print("Missing library led and/or ConfigJson")
-  sys.exit()
-MyConfig = ConfigJson.MyConfig(debug=True)
-config = MyConfig.getConfig() # configuration
-
-from machine import deepsleep, wake_reason, PWRON_WAKE
-wokeUp = wake_reason()[0] != PWRON_WAKE
-
-if not wokeUp:
-  Network = ''
-  from Config import Network
-  if Network != 'TTN': raise ValueError("%s not supported" % Network)
-
-from lora import LORA
-myLoRa = LORA()
-initLoRa = not wokeUp
-if MyConfig.getConfig('LoRa') in ['ABP','OTAA']:
-  print("ABP LoRa info should be present in vram")
-  initLoRa = False
-#if myLoRa.restore: initLoRa = False  #  works only with ABP?
-# myLoRa.cleanup will clear LoRa
-
-info = None
-method = {}
-if initLoRa:
-  # OTAA keys
-  try:
-    from Config import dev_eui, app_eui, app_key
-    method['OTAA'] = (dev_eui, app_eui, app_key)
-    MyConfig.dump('LoRa','OTAA')
-  except: pass
-  # ABP keys
-  try:
-    from Config import dev_addr, nwk_swkey, app_swkey
-    method['ABP'] = (nwk_swkey, nwk_swkey, app_swkey)
-    MyConfig.dump('LoRa','ABP')
-  except: pass
-  if not len(method): raise ValueError("No LoRa keys configured or LoRa config error")
-  print("Init LoRa methods: %s." % ', '.join(method.keys()))
-else: print("Using LoRa info from vram")
-if wokeUp: info = True # no need to send meta data
-
-if not myLoRa.connect(method, ports=2, resume=(not initLoRa), myLED=LED):
-  print("Failed to connect to LoRaWan TTN")
-  if LED: LED.blink(5,0.3,0xff0000,False)
-  sys.exit(0)
-if MyConfig.dirty:
-  print("Dump LoRa info in vram")
-  myLoRa.dump
-  print("Stored LoRa method in flash")
-  MyConfig.store
-  config = MyConfig.getConfig()
-if LED: LED.blink(5,0.3,0x00ff00,False)
-
+################# S/N number
 import os
 uname = os.uname()
 print("Pycom %s" % uname.machine)
@@ -107,7 +67,7 @@ if accu > 0.1:
     print("Low accu voltage, charge accu")
     if LED: LED.blink(5,0.1,0x00ffff,False)
   elif LED: LED.blink(5,0.1,0x00ff00,False)
-else: print("No accu management pin %s connected" % MyConfig.config['accuPin'])
+else: print("No accu (management pin %s) connected." % MyConfig.config['accuPin'])
 
 ################ sleep
 sleeping = None
@@ -126,9 +86,8 @@ def sleepMode():
   return not sleeping.value()
 
 sleepMode()
-MyConfig.store
 
-print("Sleep button pin %s: state: %s." % (config['sleepPin'],
+print("Sleep button (pin %s) state: %s." % (config['sleepPin'],
                                    'NO strap' if not sleepMode() else 'strap placed'))
 if sleepMode():
   print("Will do DEEPSLEEP")
@@ -137,7 +96,6 @@ else:
   if LED: LED.blink(1,0.5,0xffffff,False)
   print("Will NOT do deepsleep")
 
-# sys.exit()
 #button = Pin('P18',mode=Pin.IN, pull=Pin.PULL_DOWN)
 #led = Pin('P9',mode=Pin.OUT)
 #
@@ -151,6 +109,50 @@ else:
 #  led.toggle()
 #
 # found oled, try it and blow RGB led wissle
+
+##################### LoRa
+if not wokeUp:
+  Network = ''
+  from Config import Network
+  if Network != 'TTN': raise ValueError("%s not supported" % Network)
+
+initLoRa = not wokeUp
+if MyConfig.getConfig('LoRa') in ['ABP','OTAA']:
+  print("Using %s LoRa info from flash" % MyConfig.getConfig('LoRa'))
+  initLoRa = False
+
+from lora import LORA
+myLoRa = LORA()
+# myLoRa.cleanup will clear LoRa nvram
+
+info = None
+method = {}
+if initLoRa:
+  # OTAA keys
+  try:
+    from Config import dev_eui, app_eui, app_key
+    method['OTAA'] = (dev_eui, app_eui, app_key)
+    MyConfig.dump('LoRa','OTAA')
+  except: pass
+  # ABP keys
+  try:
+    from Config import dev_addr, nwk_swkey, app_swkey
+    method['ABP'] = (nwk_swkey, nwk_swkey, app_swkey)
+    MyConfig.dump('LoRa','ABP')
+  except: pass
+  if not len(method): raise ValueError("No LoRa keys configured or LoRa config error")
+  print("Using %s LoRa methods from Config." % ', '.join(method.keys()))
+
+if MyConfig.dirty: 
+  print("Store LoRa method in flash")
+  MyConfig.store
+  config = MyConfig.getConfig()
+  if LED: LED.blink(5,0.3,0x00ff00,False)
+
+if not myLoRa.connect(method, ports=2, myLED=LED, debug=True):
+  print("Failed to connect to LoRaWan TTN")
+  if LED: LED.blink(5,0.3,0xff0000,False)
+  sys.exit(0)
 
 ################### LoRa
 def SendInfo(port,data):
@@ -166,32 +168,34 @@ def SendInfo(port,data):
 # meteo (None,DHT11,DHT22,BME280,BME680, ...) 4 high bits
 # GPS (longitude,latitude, altitude) float
 # send 17 bytes
-
-useGPS = False
+import struct
 thisGPS = [50.12345,6.12345,12.34]
 try: from Config import useGPS, thisGPS
 except: pass
 
-Meteo = ['unknown','DHT11','DHT22','BME280','BME680']
-try: from Config import meteo
-except: meteo = 'unknown'
-Dust = ['unknown','PPD42NS','SDS011','PMS7003']
-try: from Config import dust
-except: dust = 'unknown'
+if not wokeUp: # no need to send meta data again
+  useGPS = False
 
-import struct
-sense = ((Meteo.index(meteo)&0xf)<<4) | (Dust.index(dust)&0x7)
-if useGPS: sense |= 0x8
-info = struct.pack('>BBlll',0,sense,int(thisGPS[0]*100000),int(thisGPS[1]*100000), int(thisGPS[2]*10))
-print("Sending version 0, meteo %s, dust %s, configured GPS: " % (meteo,dust), thisGPS)
+  Meteo = ['unknown','DHT11','DHT22','BME280','BME680']
+  try: from Config import meteo
+  except: meteo = 'unknown'
+  Dust = ['unknown','PPD42NS','SDS011','PMS7003']
+  try: from Config import dust
+  except: dust = 'unknown'
 
-if not myLoRa.send(info,port=3):
-  print("send error")
-  if LED: LED.blink(5,0.3,0xff0000,False)
-else:
-  print('Info is sent')
-  if LED: LED.blink(5,0.3,0x00ff00,False)
+  sense = ((Meteo.index(meteo)&0xf)<<4) | (Dust.index(dust)&0x7)
+  if useGPS: sense |= 0x8
+  info = struct.pack('>BBlll',0,sense,int(thisGPS[0]*100000),int(thisGPS[1]*100000), int(thisGPS[2]*10))
+  print("Sending version 0, meteo %s, dust %s, configured GPS: " % (meteo,dust), thisGPS)
+  
+  if not myLoRa.send(info,port=3):
+    print("Info send error")
+    if LED: LED.blink(5,0.3,0xff0000,False)
+  else:
+    print('Info is sent')
+    if LED: LED.blink(5,0.3,0x00ff00,False)
 
+# send some data
 for cnt in range(3):
   if cnt:
     if LED:
@@ -210,17 +214,15 @@ for cnt in range(3):
     if LED: LED.blink(5,0.3,0xff0000,False)
     print("send error")
   else:
-    print('Fake data nr %d of 3 is sent' % (cnt+1))
+    print('Fake data nr %d of 3 is sent. Tx count %d. Joined: %s' % ((cnt+1),myLoRa.status,str(myLoRa.lora.has_joined())))
     if LED: LED.blink(5,0.3,0x00ff00,False)
 
-print("Dump LoRa info in vram")
-myLoRa.dump
 if (not sleepMode()) or wokeUp: # woke up from deepsleep or no deepsleep pin strap
   print('Done')
 else:
   if LED: LED.blink(5,0.3,0x0000ff,True)
-  print("Go into deepsleep for 30 secs")
-  deepsleep(30)
+  print("Go into deepsleep for 3 secs")
+  deepsleep(3000)
   ####################
   print("Should not arrive here")
   # myLoRa.restore
@@ -228,8 +230,8 @@ else:
 if (accu < 0.1) and sleepMode():
   if LED: LED.blink(10,0.3,0xff0000,False)
   print("strap on pin %s and NO accu attached:" % MyConfig.config['sleepPin'])
-  print("WARNING: RESET config in mem and LoRa vram")
+  print("WARNING: RESET config in mem and LoRa nvram")
   MyConfig.clear; config = MyConfig.getConfig()
-  MyLoRa.clear
+  # myLoRa.clear
 pycom.heartbeat(True)
 sys.exit()
