@@ -2,10 +2,9 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 5.7 2019/05/14 15:23:35 teus Exp teus $
+# $Id: lora.py,v 5.8 2019/05/15 14:55:14 teus Exp teus $
 
 import socket
-from ubinascii import unhexlify
 from network import LoRa
 from time import sleep_ms
 
@@ -30,17 +29,23 @@ class LORA(object):
     self.debug = debug
     self.LED = myLED
     if myLED : myLED.heartbeat(False)
-    self.restore; sleep_ms(500)
-    if self.lora.has_joined():
+    self.restore  #; sleep_ms(100)
+    if self.lora.has_joined() or self.status: # resume LoRa OTAA or ABP
       self.getPorts(ports)
       return True
     if self.debug: print("No previous LoRa join. Try to join.")
     if (not type(method) is dict): raise ValueError("No activation method defined.")
     if not method:
-      try:
-        from Config import dev_eui, app_eui, app_key
-        method['OTAA'] = (dev_eui, app_eui, app_key)
+      try: # OTAA
+        from Config import dev_eui
       except:
+        from machine import unique_id
+        from ubinascii import hexlify
+        dev_eui = 'AAAA'+hexlify(unique_id()) # use dflt
+      try:
+        from Config import app_eui, app_key
+        method['OTAA'] = (dev_eui, app_eui, app_key)
+      except: # ABP
         try:
           from Config import dev_addr, nwk_swkey, app_swkey
           method['ABP'] = (nwk_swkey, nwk_swkey, app_swkey)
@@ -48,7 +53,8 @@ class LORA(object):
       if self.debug: print("LoRa keys load from Config")
     count = 0
     if self.debug: print("Try to join LoRa/%s" % str(method.keys()))
-    if 'OTAA' in method.keys():
+    if 'OTAA' in method.keys(): # first OTAA
+      from ubinascii import unhexlify
       # Join a network using OTAA (Over the Air Activation) next code looks strange
       dev_eui = method['OTAA'][0]; dev_eui = unhexlify(dev_eui)
       app_eui = method['OTAA'][1]; app_eui = unhexlify(app_eui)
@@ -65,11 +71,12 @@ class LORA(object):
         print("LoRa OTAA join.")
       else: count = 0
 
-    if not count:
+    if not count: # if not ABP
       if not 'ABP' in method.keys():
         print("No ABP TTN keys defined.")
         return False
       import struct
+      from ubinascii import unhexlify
       # next code is strange. ABP method is not yet operational
       dev_addr = method['ABP'][0]; dev_addr = unhexlify(dev_addr)
       dev_addr = struct.unpack('>l', dev_addr)[0]

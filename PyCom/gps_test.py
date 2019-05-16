@@ -4,7 +4,7 @@
 import sys
 from time import sleep_ms, ticks_ms
 
-__version__ = "0." + "$Revision: 5.9 $"[11:-2]
+__version__ = "0." + "$Revision: 5.10 $"[11:-2]
 __license__ = 'GPLV3'
 
 # dflt pins=(Tx-pin,Rx-pin,Pwr-pin): wiring Tx-pin -> Rx GPS module
@@ -41,15 +41,16 @@ for dev in config[abus].keys():
       print("Found device %s: " % dev, config[abus][dev])
       if dev == atype:
         MyConfig.dump(dev,config[abus][dev],abus=abus)
-        print("Store %s config in flash" % dev)
+if MyConfig.dirty: print("Store %s config in flash" % dev)
+MyConfig.store
 
 print("config[%s] devices: %s" % (abus,str(config[abus].keys())))
 print("which.config[%s]: %s" % (abus,str(which.config)))
 if not config[abus][atype]['use']:
-  print("%s config: not use %s" % (atype,config[abus]['name']))
+  print("%s/%s config: not use" % (atype,config[abus]['name']))
   sys.exit()
 
-print("Using %s: " % atype, which.devices[atype])
+print("Using %s: device %s" % (atype, str(which.devices[atype])))
 
 device = None
 try:

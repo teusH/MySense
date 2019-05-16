@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.14 2019/05/06 20:10:01 teus Exp teus $
+# $Id: MySense.py,v 5.16 2019/05/16 19:26:26 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 5.14 $"[11:-2]
+__version__ = "0." + "$Revision: 5.16 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -37,9 +37,6 @@ import _thread
 # _thread.stack_size(6144)
 NoThreading = False
 
-LAT = const(0)
-LON = const(1)
-ALT = const(2)
 # LoRa ports
 # data port 2 old style and ug/m3, 4 new style grain, pm4/5 choice etc
 Dprt = (2,4)    # data ports
@@ -49,6 +46,9 @@ Iprt = const(3) # info port, meta data
 STOP = False
 STOPPED = False
 HALT = False  # stop by remote control
+LAT = const(0)
+LON = const(1)
+ALT = const(2)
 
 # return bus or if bus [type(s)]
 def Type2Bus(atype): # and visa versa
@@ -81,6 +81,19 @@ def getSN():
   import binascii
   SN = binascii.hexlify(unique_id()).decode('utf-8')
   return SN
+
+def getSavedGPS():
+  # global LAT, LON, ALT
+  try:
+    return [nvs_get('LAT')/1000000.0,nvs_get('LON')/1000000.0,nvs_get('ALT')/10.0]
+  except: return [0,0,0]
+
+def saveGPS(curGPS):
+  global LAT, LON, ALT
+  nvs_set('LAT',int(curGPS[LAT]*1000000))
+  nvs_set('LON',int(curGPS[LON]*1000000))
+  nvs_set('ALT',int(curGPS[ALT]*10))
+  return curGPS[0:]
 
 # Read accu voltage out
 def getVoltage(): # range 0 (None) and 11.4 (low) - 12.5 (high)
@@ -220,33 +233,33 @@ def getNetConfig(debug=False):
   if Network == 'TTN':
     atype = 'lora'
     MyDevices[atype] = { 'name': Network, 'type': atype, 'enabled': False }
-    from lora import LORA
-    MyDevices[atype]['lib'] = LORA()
-    MyDevices[atype]['resume'] = wokeUp
-    # 'LoRa' in config: use lora.vram
+    # 'LoRa' in config: use lora nvram
     if MyConfig.getConfig('LoRa') in ['ABP','OTAA']:
-      if debug: print("ABP LoRa info should be present in vram")
-      MyDevices[atype]['resume'] = True
+      if debug: print("Use LoRa nvram")
     #else: MyDevices[atype]['lib'].cleanup # will clear LoRa
   
     info = None
     MyDevices[atype]['method'] = {}
-    if not MyDevices[atype]['resume']: # no keys in vram or set them
-      try: # OTAA keys preceeds ABP
-        from Config import dev_eui, app_eui, app_key
-        MyDevices[atype]['method']['OTAA'] = (dev_eui, app_eui, app_key)
-        MyConfig.dump('LoRa','OTAA')
-      except: pass
-      try: # ABP keys
-        from Config import dev_addr, nwk_swkey, app_swkey
-        MyDevices[atype]['method']['ABP'] = (nwk_swkey, nwk_swkey, app_swkey)
-        MyConfig.dump('LoRa','ABP')
-      except: pass
-      if not len(MyDevices[atype]['method']):
-        raise ValueError("No LoRa keys configured or LoRa config error")
-      if debug: print("Init LoRa methods: %s." % ', '.join(MyDevices[atype]['method'].keys()))
-      MyConfiguration['LoRa'] = MyConfig.getConfig('LoRa')
-    elif debug: print("Using LoRa info from vram")
+    if not wokeUp: # no keys in nvram or set them
+      # lora routine will first try nvram restore and join (for ABP and cold start)
+      if not 'LoRa' in MyConfiguration.keys():
+        try: # OTAA keys preceeds ABP
+          from Config import dev_eui, app_eui, app_key
+          MyDevices[atype]['method']['OTAA'] = (dev_eui, app_eui, app_key)
+          MyConfig.dump('LoRa','OTAA')
+        except: pass
+        try: # ABP keys
+          from Config import dev_addr, nwk_swkey, app_swkey
+          MyDevices[atype]['method']['ABP'] = (nwk_swkey, nwk_swkey, app_swkey)
+          MyConfig.dump('LoRa','ABP')
+        except: pass
+        if not len(MyDevices[atype]['method']):
+          raise ValueError("No LoRa keys configured or LoRa config error")
+        if debug: print("Init LoRa methods: %s." % ', '.join(MyDevices[atype]['method'].keys()))
+        MyConfiguration['LoRa'] = MyConfig.getConfig('LoRa')
+      else:
+        if debug: print("Using LoRa %s info from nvram" % MyConfiguration['LoRa'])
+        MyDevices[atype]['method'][MyConfiguration['LoRa']] = (None,None,None)
     MyTypes['network'] = MyDevices[atype]
     if wokeUp: info = True # no need to send meta data
   else: None # no output
@@ -313,7 +326,8 @@ def getGlobals(debug=False):
     finally:
       MyConfig.dump('thisGPS',MyConfiguration['thisGPS'])
       # thisGPS = MyConfiguration['thisGPS']
-      lastGPS = MyConfiguration['thisGPS'][0:]
+      lastGPS = getSavedGPS()
+      if not lastGPS[0]: lastGPS = MyConfiguration['thisGPS'][0:]
       if MyConfiguration['interval']['gps_next']:
         MyConfiguration['interval']['gps_next'] = 0.1
 
@@ -456,7 +470,7 @@ def PinPower(atype=None,on=None,debug=False):
     try:
       pins = MyConfiguration[abus][atype]['pins']
       len(pins) == 3
-      if debug: print("Use %s power pins %s" % (atype,pins))
+      if debug: print("Use %s power pins %s, on=%s" % (atype,pins,str(on)))
     except: raise ValueError("Power pin %s missing" % atype)
     if not type(pins[2]) is str: return None
     from machine import Pin
@@ -483,7 +497,7 @@ def PinPowerRts(atype,prev,rts=None,debug=False):
 ## DISPLAY
 # tiny display Adafruit SSD1306 128 X 64 oled driver
 def initDisplay(debug=False):
-  global MyTypes
+  global MyTypes, wokeUp
   atype = 'display'
   if not MyTypes: getMyConfig()
   try: Display = MyTypes[atype]
@@ -527,7 +541,7 @@ def initDisplay(debug=False):
       #                   CLK/D0 ~> %s ' % spiPINs[nr] + 'MISO ~> %s' % S_MISO)
       else:
         Display['lib'] = None; Display['conf']['use'] = False
-        print("No SSD display or bus found")
+        if not wokeUp: print("No SSD display or bus found")
       if Display['lib']:
         Display['enabled'] = True
         Display['lib'].fill(1); oledShow(); sleep_ms(200)
@@ -544,7 +558,7 @@ def initDisplay(debug=False):
 
 # start meteo sensor
 def initMeteo(debug=False):
-  global MyTypes, MyConfiguration
+  global MyTypes, MyConfiguration, wokeUp
   if not MyTypes: getMyConfig()
   try:
     atype = 'meteo'
@@ -599,7 +613,7 @@ def initMeteo(debug=False):
     display("meteo %s failure" % Meteo['conf']['name'], (0,0), clear=True)
     print(e)
   if (not Meteo['enabled']) or (not Meteo['conf']['use']):
-    display("No meteo in use")
+    if not wokeUp: display("No meteo in use")
     return False
   return True
 
@@ -687,7 +701,7 @@ def DoMeteo(debug=False):
 # UART devices
 ## DUST
 def initDust(debug=False):
-  global MyConfig, MyConfiguration
+  global MyConfig, MyConfiguration, wokeUp
   global MyTypes
   if not MyTypes: getMyConfig()
   atype = 'dust'; abus = Type2Bus(atype)
@@ -742,7 +756,7 @@ def initDust(debug=False):
       print(e)
       Dust['conf']['name'] = ''
     if debug: print('dust: %s' % Dust['conf']['name'])
-  elif debug: print("No dust in use")
+  elif not wokeUp: print("No dust in use")
   if Dust['lib']: Dust['enabled'] = True
   return Dust['conf']['use']
 
@@ -864,7 +878,7 @@ def initGPS(debug=False):
   try:
     if Gps['lib']: return True
     if not Gps[abus]: return False
-    if not Gps['conf']['use']:
+    if (not Gps['conf']['use']) and not wokeUp:
       display('No GPS'); return False
     if not Gps['conf']['name'][:3] in ['GPS','NEO',]: return False
   except: return False
@@ -924,6 +938,7 @@ def LocUpdate(debug=False):
       MyConfiguration['thisGPS'] = myGPS[0:]
       MyConfig.dump('thisGPS',MyConfiguration['thisGPS'])
     lastGPS = myGPS[0:]
+    saveGPS(lastGPS) # save in nvram
   except: pass
   return lastGPS[0:]
 
@@ -952,11 +967,10 @@ def DoGPS(debug=False):
   if debug: print("Try date/RTC update")
   myGPS = [0.0,0.0,0.0]; prev = None
   try:
-    if Gps['lib'].quality < 1: display('wait GPS') # maybe 10 minutes
+    if Gps['lib'].quality < 1: display('wait GPS fix') # maybe 10 minutes
     for cnt in range(1,5):
-      Gps['lib'].read()
+      Gps['lib'].read(debug=debug)
       if Gps['lib'].quality > 0: break
-      if debug: print("GPS %d try" % cnt)
     if Gps['lib'].satellites > 3:
       correction = time()
       Gps['lib'].UpdateRTC()
@@ -986,6 +1000,7 @@ def DoGPS(debug=False):
         MyConfig.dump('thisGPS', MyConfiguration['thisGPS'])
         if interval['info'] < 60: interval['info_next'] = interval['info'] = 1 # force
       lastGPS = myGPS[0:]
+      saveGPS(lastGPS)
     else: myGPS = [0,0,0]
     if debug and (myGPS != None):
       print("GPS: lon %.5f, lat %.5f, alt %.2f" % (myGPS[LON],myGPS[LAT],myGPS[ALT]))
@@ -1075,7 +1090,7 @@ def CallBack(port,what):
 
 # LoRa setup
 def initNetwork(debug=False):
-  global MyTypes, LED, Dprt
+  global MyTypes, LED, Dprt, wokeUp
   if not MyTypes: getMyConfig()
   if not 'network' in MyTypes.keys(): getNetConfig(debug=debug)
   try: Network = MyTypes['network']
@@ -1091,9 +1106,9 @@ def initNetwork(debug=False):
   if not whichNet(): return False
   # init == True if lora keys are in nv ram. No way to check if so?
   try:
-    if Network['resume']: method = {}
+    if wokeUp: method = {}
     else: method = Network['method']
-    if Network['lib'].connect(method=method, ports=(len(Dprt)+1), callback=CallBack, resume=Network['resume'], myLED=LED, debug=debug):
+    if Network['lib'].connect(method=method, ports=(len(Dprt)+1), callback=CallBack, myLED=LED, debug=debug):
       display("Using LoRaWan")
       Network['enabled'] = True
       sleep_ms(10*1000)
@@ -1182,9 +1197,15 @@ def SendInfo(port=Iprt):
   try:
     if MyTypes['network']['lib'] == None: raise ValueError()
     print("meteo: %s, dust: %s" %(MyTypes['meteo']['conf']['name'],MyTypes['dust']['conf']['name']))
+    sense = 0
     for atype in ['meteo','dust','gps']:
-      if not MyTypes[atype]['enabled']: return True
-    sense = ((meteo.index(MyTypes['meteo']['conf']['name'])&0xf)<<4) | (dust.index(MyTypes['dust']['conf']['name'])&0x7)
+      if not atype in MyTypes.keys():
+        print("No %s sensor configured!" % atype); MyTypes[atype] = {'enabled': False }
+      if not MyTypes[atype]['enabled']: continue
+      if atype == 'meteo':
+        sense |= ((meteo.index(MyTypes['meteo']['conf']['name'])&0xf)<<4)
+      elif atype == 'dust':
+        sense |= (dust.index(MyTypes['dust']['conf']['name'])&0x7)
     gps = 0
     LocUpdate()
     sense |= 0x8
@@ -1288,7 +1309,8 @@ def runMe(debug=False):
     interval = MyConfiguration['interval']
     Power = MyConfiguration['power']
 
-    if not initDevices(debug=debug): # initialize devices and show initial info
+    # initialize devices and show initial info
+    if not initDevices(debug=debug): # initNet does LoRa nvram restore
       print("FATAL ERROR")
       if LED: LED.blink(25,0.2,0xFF0000,l=True,force=True)
       return False
@@ -1362,19 +1384,13 @@ def runMe(debug=False):
     if Display['enabled'] and (Power['display'] != None):
        Display['lib'].poweroff()
     # RGB led off?
-    if MyConfig.dirty:
-      print("Save configuration")
-      MyConfig.store
+    MyConfig.store # update config flash?
+    # LoRa nvram done via send routine
 
     if Power['sleep'] and sleepMode():
       if toSleep > 60:
-        MyDevices['lora']['lib'].dump
         deepsleep(toSleep-1) # deep sleep
       # will never arrive here
-    try:
-      if MyConfiguration['LoRa'] == 'ABP':
-        MyDevices['lora']['lib'].dump
-    except: pass
     if not Power['i2c']:
       if not ProgressBar(0,62,128,1,toSleep,0xebcf5b,10):
         display('stopped SENSING', (0,0), clear=True)

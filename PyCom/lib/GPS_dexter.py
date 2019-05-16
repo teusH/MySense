@@ -1,7 +1,7 @@
 # from https://github.com/DexterInd/GrovePi
 # Software/Python/dexter_gps
 # changed for micropython
-# $Id: GPS_dexter.py,v 5.5 2019/05/06 14:28:36 teus Exp teus $
+# $Id: GPS_dexter.py,v 5.7 2019/05/16 19:26:43 teus Exp teus $
 
 import re
 try:
@@ -38,15 +38,14 @@ class GROVEGPS:
       except:
         self.ser = UART(port,baudrate=baud)
     else: self.ser = port
-    self.ser.readall()
+    #self.ser.readall()
     self.raw_line = ""
     self.gga = []
     self.validation =[] # contains compiled regex
     self.debug = debug
-    self.last_read = 0
     self.date = 0
     self.max_wait = 3
-    self.max_retry = 25  # wait for fix was 50
+    self.max_retry = 50  # wait for fix was 50
 
     # compile regex once to use later
     for i in range(len(patterns)-1):
@@ -65,18 +64,15 @@ class GROVEGPS:
 
   # convert to string and if needed wait a little
   def readCR(self,serial):
-    if not self.last_read:
-      serial.readall()
-      self.last_read = ticks_ms()
-    self.last_read = ticks_ms()-self.last_read
-    if self.last_read < 200 and self.last_read >= 0:
-      sleep_ms(200-self.last_read)
     line = ''
+    for i in range(10):
+      if serial.any(): break
+      self.DEBUG("wait %d for GPS serial" % i)
+      sleep_ms(200)
     try:
       line = serial.readline().decode('utf-8')
     except:
-      if self.debug: print('Read line error')
-    self.last_read = ticks_ms()
+      self.DEBUG('Read line error')
     return line.strip()
 
   def clean_data(self):
@@ -100,7 +96,7 @@ class GROVEGPS:
     self.longitude = -1.0
     self.fancylat = ""  #
 
-  def read(self):
+  def read(self,debug=False):
     '''
     Attempts max_retry times at most to get valid data from GPS
     Returns as soon as valid data is found
@@ -110,6 +106,7 @@ class GROVEGPS:
     for i in range(self.max_retry):
       # sleep_ms(500)
       self.raw_line = self.readCR(self.ser)
+      self.DEBUG("GPS %d/%d read." %(i,self.max_retry))
       if self.validate(self.raw_line):
         valid = True
         break;
