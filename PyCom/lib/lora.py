@@ -2,7 +2,7 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 5.9 2019/05/17 12:34:01 teus Exp teus $
+# $Id: lora.py,v 5.10 2019/05/17 13:14:02 teus Exp teus $
 
 import socket
 from network import LoRa
@@ -36,7 +36,7 @@ class LORA(object):
     if self.debug: print("No previous LoRa join. Try to join.")
     if (not type(method) is dict): raise ValueError("No activation method defined.")
     fnd = False
-    if (not 'OTAA' in method.keys()) or not method['OTAA']:
+    if (not 'OTAA' in method.keys()) or not method['OTAA'] or not method['OTAA'][0]:
       try: # OTAA
         from Config import dev_eui
       except:
@@ -48,7 +48,7 @@ class LORA(object):
         method['OTAA'] = (dev_eui, app_eui, app_key)
         fnd = True
       except: pass
-    if (not 'ABP' in method.keys()) or not method['ABP']:
+    if (not 'ABP' in method.keys()) or not method['ABP'] or not method['ABP'][0]:
       try: # ABP
         from Config import dev_addr, nwk_swkey, app_swkey
         method['ABP'] = (nwk_swkey, nwk_swkey, app_swkey)
