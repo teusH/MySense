@@ -2,7 +2,7 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 5.8 2019/05/15 14:55:14 teus Exp teus $
+# $Id: lora.py,v 5.9 2019/05/17 12:34:01 teus Exp teus $
 
 import socket
 from network import LoRa
@@ -29,13 +29,14 @@ class LORA(object):
     self.debug = debug
     self.LED = myLED
     if myLED : myLED.heartbeat(False)
-    self.restore  #; sleep_ms(100)
+    self.restore; sleep_ms(100)
     if self.lora.has_joined() or self.status: # resume LoRa OTAA or ABP
       self.getPorts(ports)
       return True
     if self.debug: print("No previous LoRa join. Try to join.")
     if (not type(method) is dict): raise ValueError("No activation method defined.")
-    if not method:
+    fnd = False
+    if (not 'OTAA' in method.keys()) or not method['OTAA']:
       try: # OTAA
         from Config import dev_eui
       except:
@@ -45,12 +46,16 @@ class LORA(object):
       try:
         from Config import app_eui, app_key
         method['OTAA'] = (dev_eui, app_eui, app_key)
-      except: # ABP
-        try:
-          from Config import dev_addr, nwk_swkey, app_swkey
-          method['ABP'] = (nwk_swkey, nwk_swkey, app_swkey)
-        except: raise VCalueError("No LoRa keys defined")
-      if self.debug: print("LoRa keys load from Config")
+        fnd = True
+      except: pass
+    if (not 'ABP' in method.keys()) or not method['ABP']:
+      try: # ABP
+        from Config import dev_addr, nwk_swkey, app_swkey
+        method['ABP'] = (nwk_swkey, nwk_swkey, app_swkey)
+        fnd = True
+      except: pass
+    if not fnd: raise ValueError("No LoRa keys defined")
+    if self.debug: print("LoRa keys load from Config")
     count = 0
     if self.debug: print("Try to join LoRa/%s" % str(method.keys()))
     if 'OTAA' in method.keys(): # first OTAA
@@ -89,7 +94,6 @@ class LORA(object):
     if myLED: myLED.blink(2, 0.1, 0x009900)
     self.dump
     return True
-
 
   def getPorts(self,ports):
     # Create a LoRa sockets

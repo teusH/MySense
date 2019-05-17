@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.16 2019/05/16 19:26:26 teus Exp teus $
+# $Id: MySense.py,v 5.17 2019/05/17 12:33:00 teus Exp teus $
 #
-__version__ = "0." + "$Revision: 5.16 $"[11:-2]
+__version__ = "0." + "$Revision: 5.17 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -232,7 +232,7 @@ def getNetConfig(debug=False):
   
   if Network == 'TTN':
     atype = 'lora'
-    MyDevices[atype] = { 'name': Network, 'type': atype, 'enabled': False }
+    MyDevices[atype] = { 'name': Network, 'type': atype, 'enabled': False, 'lib': None }
     # 'LoRa' in config: use lora nvram
     if MyConfig.getConfig('LoRa') in ['ABP','OTAA']:
       if debug: print("Use LoRa nvram")
@@ -336,8 +336,8 @@ def oledShow():
   global MyTypes
   try:
     Display = MyTypes['display']
-    if not Display['lib']: return
     if not Display['conf']['use'] or not Display['enabled']: return
+    if not Display['lib']: return
   except: return
   for cnt in range(0,4):
     try:
@@ -1095,30 +1095,26 @@ def initNetwork(debug=False):
   if not 'network' in MyTypes.keys(): getNetConfig(debug=debug)
   try: Network = MyTypes['network']
   except: return False
-  if Network['enabled']: return True
+  if Network['enabled'] and Network['lib']: return True
 
-  def whichNet():
-    if (Network['name'] == 'TTN') and Network['lib']:
-      return True
-    print("No network found")
-    return False
-
-  if not whichNet(): return False
-  # init == True if lora keys are in nv ram. No way to check if so?
+  if not Network['name'] in 'TTN': return False
+  Network['enabled'] = False
   try:
-    if wokeUp: method = {}
-    else: method = Network['method']
-    if Network['lib'].connect(method=method, ports=(len(Dprt)+1), callback=CallBack, myLED=LED, debug=debug):
-      display("Using LoRaWan")
-      Network['enabled'] = True
-      sleep_ms(10*1000)
-    else:
+    from lora import LORA
+    Network['lib'] = LORA()
+    # resume is handled by driver
+    if not Network['lib'].connect(method=Network['method'], ports=(len(Dprt)+1), callback=CallBack, myLED=LED, debug=debug):
       display("NO LoRaWan")
       Network['lib'] = None
+      return False
   except Exception as e:
     print("Error: %s" % e)
     return None
-  return Network ['enabled']
+  Network['enabled'] = True
+  if not wokeUp:
+    display("Using LoRaWan")
+    sleep_ms(5*1000)
+  return True
 
 # denote a null value with all ones
 # denote which sensor values present in data package
@@ -1324,6 +1320,8 @@ def runMe(debug=False):
   Network = None
   try: Network = MyTypes['network']
   except: pass
+  try: Display = MyTypes['display']
+  except: pass
 
   if not wokeUp: # cold restart
     import os
@@ -1343,7 +1341,9 @@ def runMe(debug=False):
        interval['info_next'] = toSleep + interval['info']
        nvs_set('info_next',interval['info_next'])
     # Power management ttl is done by DoXYZ()
-    if Display['enabled'] and Power['display']: Display['lib'].poweron()
+    try:
+      if Display['enabled'] and Power['display']: Display['lib'].poweron()
+    except: pass
 
     dData = DoDust(debug=debug)
     if Dust and Dust['conf']['use']:
@@ -1363,13 +1363,13 @@ def runMe(debug=False):
           if  Network['lib'].send(DoPack(dData,mData,LocUpdate(),aData=aData, debug=debug),port=port):
             if LED: LED.off
           else:
-            display(" LoRa send ERROR")
+            display("LoRa send ERROR")
             if LED: LED.blink(5,0.2,0x9c5c00,l=False)
         elif LED: LED.blink(2,0.2,0xFF0000,l=False,force=True)
 
     if STOP:
       sleep_ms(60*1000)
-      Display['lib'].poweroff()
+      if Display['enabled']: Display['lib'].poweroff()
       PinPower(atype=['dust','gps','meteo','display'],on=False,debug=debug)
       # and put ESP in deep sleep: machine.deepsleep()
       return False
