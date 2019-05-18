@@ -1,13 +1,14 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.17 2019/05/17 12:33:00 teus Exp teus $
-#
-__version__ = "0." + "$Revision: 5.17 $"[11:-2]
+# $Id: MySense.py,v 5.18 2019/05/18 12:56:44 teus Exp teus $
+
+__version__ = "0." + "$Revision: 5.18 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
 from time import time, sleep
+from machine import deepsleep
 # Turn off hearbeat LED
 from pycom import heartbeat, nvs_set, nvs_get
 heartbeat(False)
@@ -110,7 +111,8 @@ def getVoltage(): # range 0 (None) and 11.4 (low) - 12.5 (high)
     if not atype in MyDevices.keys():
       from machine import ADC
       MyTypes['accu'] = MyDevices['accu'] = { 'lib': ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB)}
-    rts =  MyDevices[atype]['lib'].value()*0.004271845
+    rts =  MyDevices[atype]['lib'].value()*0.004271845 
+    # rts round(rts/0.12,1) # use load % of 12V?
     return (rts if rts > 0.1 else 0)
   except: return None
 
@@ -145,7 +147,7 @@ def initConfig(debug=False):
 
   if MyConfig: return
 
-  from machine import deepsleep, wake_reason, PWRON_WAKE
+  from machine import wake_reason, PWRON_WAKE
   wokeUp = wake_reason()[0] != PWRON_WAKE
   import ConfigJson
   MyConfig = ConfigJson.MyConfig(debug=debug)
@@ -160,13 +162,14 @@ def initConfig(debug=False):
 
 ## CONF pins
 def getPinsConfig(debug=False):
-  global MyConfiguration, MyConfiguration
+  global MyConfiguration, MyConfiguration, wokeUp
   global MyConfig
   if not MyConfig: initConfig()
   ## CONF accu
   deepsleepMode() # pins init
   ## CONF clear
-  if (not getVoltage()) and deepsleepMode():
+  accuV = getVoltage()
+  if (not accuV) and deepsleepMode(): # reset config
     if not wokeUp: # cold restart
       # no accu & deepsleep pin present
       print("Clear config in flash")
@@ -174,6 +177,11 @@ def getPinsConfig(debug=False):
       initConfig(debug=debug) 
       MyDevices = {}
       getVoltage(); deepsleepMode();
+  if wokeUp and (1.0 < accuV < 11.2): # accu is empty
+    from pycom import rgbled
+    pycom.rgbled(0x990000)
+    sleep(1)
+    deepsleep(15*60*1000)
 
 ## CONF busses
 def getBusConfig(busses=['i2c','ttl'], devices=None, debug=False):
@@ -272,8 +280,9 @@ def getGlobals(debug=False):
   if not 'interval' in MyConfiguration:
     try: from Config import interval
     except:
-      MyConfiguration['interval'] = { 'sample': 60,    # dust sample in secs
-             'interval': 15,     # sample interval in minutes
+      MyConfiguration['interval'] = {
+             'sample': 60,      # dust sample in secs
+             'interval': 15,    # sample interval in minutes
              'gps':      3*60,  # location updates in minutes
              'info':     24*60, # send kit info in minutes
       }
@@ -443,11 +452,11 @@ def showSleep(secs=60,text=None,inThread=False):
     _thread.exit()
   return True
 
-def SleepThread(secs=60, text=None):
-  global STOP, NoThreading
+def DisplayInThread(secs=60, text=None):
+  global STOP, STOPPED, NoThreading
   if NoThreading:
     display('waiting ...')
-    raise OSError
+    raise ValueError("No threading set")
   STOP = False; STOPPED = False
   try:
     _thread.start_new_thread(showSleep,(secs,text,True))
@@ -586,17 +595,17 @@ def initMeteo(debug=False):
           global MyConfig
           try:
             from Config import M_gBase
-            MyConfiguration['gas_base'] = int(M_gBase)
-            MyConfig.dump('gas_base',int(M_gBase))
+            Meteo['conf']['gas_base'] = int(M_gBase)
+            MyConfig.config.dirty = True
           except: pass
-          if 'gas_base' in MyConfiguration.keys():
-            Meteo['lib'].gas_base = MyConfiguration['gas_base']
+          if 'gas_base' in Meteo['conf'].keys():
+            Meteo['lib'].gas_base =  Meteo['conf']['gas_base']
           if not Meteo['lib'].gas_base:
             display('AQI wakeup')
             Meteo['lib'].AQI # first time can take a while
-            MyConfiguration['gas_base'] = Meteo['lib'].gas_base
-            MyConfig.dump('gas_base',Meteo['lib'].gas_base)
-          display("Gas base: %0.1f" % Meteo['lib'].gas_base)
+            Meteo['conf']['gas_base'] = Meteo['lib'].gas_base
+            MyConfig.config.dirty = True
+          display("Gas base: %0.1f" % Meteo['conf']['lib'].gas_base)
           # Meteo['lib'].sea_level_pressure = 1011.25
       else: return False
     elif Meteo['conf']['name'][:3] == 'SHT':
@@ -804,15 +813,17 @@ def DoDust(debug=False):
           display("G:%.4f/%.4f" % (lastGPS[LAT],lastGPS[LON]))
         display('measure PM')
   if Dust['enabled']:
+    sampleT = MyConfiguration['interval']['sample']
     if LED: LED.blink(3,0.1,0x005500)
-    # display('%d sec sample' % interval['sample'],prt=False)
+    # display('%d sec sample' % sampleT,prt=False)
     try:
       STOPPED = False
       try:
-        SleepThread(interval['sample'],'%d sec sample' % MyConfiguration['interval']['sample'])
-      except:
+        DisplayInThread(sampleT,'%d sec sample' % sampleT)
+      except Exception as e:
+        print("Thread error: %s" % str(e))
         STOPPED = True
-        display('%d sec sample' % MyConfiguration['interval']['sample'])
+        display('%d sec sample' % sampleT)
       dData = Dust['lib'].getData()
       for cnt in range(10):
         if STOPPED: break
