@@ -3,7 +3,7 @@
 
 # standalone test loop
 
-__version__ = "0." + "$Revision: 5.8 $"[11:-2]
+__version__ = "0." + "$Revision: 5.9 $"[11:-2]
 __license__ = 'GPLV3'
 
 from time import time, sleep_ms
@@ -45,8 +45,9 @@ for dev in config[abus].keys():
         MyConfig.dump(dev,config[abus][dev],abus=abus)
         print("Store %s config in flash" % dev)
 
-if not config[abus][atype]['use']:
-  print("%s config: not use %s" % (atype,config[abus]['name']))
+if not atype in config[abus].keys() or not config[abus][atype]['use']:
+  import sys
+  print("No %s found on bus %s or use turned off." % (atype,abus))
   sys.exit()
 
 print("Using %s: " % atype, which.devices[atype])
@@ -100,7 +101,7 @@ sensor = senseDust(port=ser, debug=debug, sample=sampling, interval=0, pins=pins
 
 print("Dust: using sensor %s, UART %d, " % (name,device['index']), "Rx~>%s, Tx~>%s, Pwr~>%s" % pins)
 print("Dust module sampling %d secs, interval of measurement %d minutes" % (sampling, interval/60))
-print("PM pcs (count) values: %s pcs " %(">PMn (a la Plantower)" if Dexplicit else "<PMn (a la Sensirion)")) 
+print("PM pcs (count) values: %s pcs " %(">PMn (a la Plantower)" if Dexplicit else "<PMn (a la Sensirion)"))
 
 if sensor and (sensor.mode != sensor.NORMAL): sensor.Normal()
 errors = 0
