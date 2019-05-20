@@ -3,7 +3,7 @@
 
 # standalone test loop
 
-__version__ = "0." + "$Revision: 5.9 $"[11:-2]
+__version__ = "0." + "$Revision: 5.10 $"[11:-2]
 __license__ = 'GPLV3'
 
 from time import time, sleep_ms
@@ -113,7 +113,7 @@ for cnt in range(max):
       # sensor.GoActive() # fan on wait 60 secs
       data = sensor.getData()
     except Exception as e:
-      print("%s read error raised as: %s" % (dust,e))
+      print("%s/%s read error raised as: %s" % (atype,name,e))
       if errors > 20: break
       errors += 1
       sleep_ms(30*1000)
