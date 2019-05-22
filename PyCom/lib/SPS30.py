@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2019, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: SPS30.py,v 5.2 2019/04/27 12:52:15 teus Exp teus $
+# $Id: SPS30.py,v 5.3 2019/05/22 09:44:59 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -100,7 +100,7 @@ class SPS30:
     self.sample =  sample * 1000
     self.raw = raw
     self.clean = clean  # clean fan after clean secs dflt: None (weekly)
-p   self.explicit = explicit # counts are > PM size or < PM size
+    self.explicit = explicit # counts are > PM size or < PM size
 
     # dflts are from sample label
     self.name = self.device_info('name')
