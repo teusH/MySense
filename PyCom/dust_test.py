@@ -3,7 +3,7 @@
 
 # standalone test loop
 
-__version__ = "0." + "$Revision: 5.10 $"[11:-2]
+__version__ = "0." + "$Revision: 5.11 $"[11:-2]
 __license__ = 'GPLV3'
 
 from time import time, sleep_ms
@@ -56,8 +56,6 @@ device = None
 try:
   device = which.getIdent(atype=atype)
   if debug: print("Found %s device, type %s on bus %s: " % (which.NAME(atype),atype,abus), device)
-  name = which.NAME(atype)
-  pins = which.Pins(atype)
 except Exception as e:
   print("Error: %s" % e)
 finally:
@@ -65,12 +63,10 @@ finally:
     print("Unable to find %s device" % atype)
     sys.exit()
 
-print('%s sensor: using %s nr 1: Rx->pin %s, Tx->pin %s, Pwr->' % (atype,which.NAME(atype=atype),pins[0],pins[1]),pins[2])
-
 name = which.DUST
 baud = config[abus][atype]['baud']
 pins = which.Pins('dust')
-print('%s sensor: using %s nr 1, %d baud: Rx->pin %s, Tx->pin %s, Pwr->' % (atype,name,baud,config[abus][atype]['pins'][0],config[abus][atype]['pins'][1]),config[abus][atype]['pins'][2])
+print('%s sensor: using %s uart 1, %d baud: Rx->pin %s, Tx->pin %s, Pwr->' % (atype,name,baud,config[abus][atype]['pins'][0],config[abus][atype]['pins'][1]),config[abus][atype]['pins'][2])
 
 try:
   if name[:3] == 'SDS':
@@ -78,7 +74,7 @@ try:
   elif name[:3] == 'PMS':
     from PMSx003 import PMSx003 as senseDust
   elif name[:3] == 'SPS':
-    from SPS30 import SPS30 as sensedust
+    from SPS30 import SPS30 as senseDust
   else: raise OSError("Unknown dust sensor %s" % dust)
 except Exception as e:
   raise OSError("Error with %s: %s" % (dust,e))
@@ -96,7 +92,7 @@ print("Baudrate: %d" % baud)
 #ser = UART(1,baudrate=baud,timeout_chars=80,pins=pins[:2])
 #ser = which.openUART('dust')
 ser =  device['ttl']
-debug=False
+#debug=False
 sensor = senseDust(port=ser, debug=debug, sample=sampling, interval=0, pins=pins[:2], calibrate=calibrate, explicit=Dexplicit)
 
 print("Dust: using sensor %s, UART %d, " % (name,device['index']), "Rx~>%s, Tx~>%s, Pwr~>%s" % pins)
@@ -111,7 +107,8 @@ for cnt in range(max):
     timings = time()
     try:
       # sensor.GoActive() # fan on wait 60 secs
-      data = sensor.getData()
+      data = sensor.getData(debug=debug)
+      debug = False
     except Exception as e:
       print("%s/%s read error raised as: %s" % (atype,name,e))
       if errors > 20: break

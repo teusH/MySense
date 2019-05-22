@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2019, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: SPS30.py,v 5.3 2019/05/22 09:44:59 teus Exp teus $
+# $Id: SPS30.py,v 5.4 2019/05/22 13:00:32 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -94,7 +94,7 @@ class SPS30:
     self.addr = addr
     self.mode = self.PASSIVE
     try: self.name = self.reset(debug=debug)
-    except: raise RuntimeError("Not SPS30 sensor") # wrong driver
+    except Exception as e: raise RuntimeError("Reset SPS30: %s" % str(e)) # wrong driver
 
     self.interval = interval * 1000 # if interval == 0 no auto fan switching
     self.sample =  sample * 1000
@@ -227,7 +227,7 @@ class SPS30:
           raise OSError("No data")
         strt = True
         char = self.ser.read(1)
-      except: (0x1, [])
+      except: return (0x1, [])
       if char == dlmtr:
         buf = self.unstuff(buf)
         # to do: add sum chk, cmd check: buf[1] == cmd
@@ -235,7 +235,7 @@ class SPS30:
         break
       buf.append(struct.unpack('>B',char)[0])
     if (~sum(buf) & 0xFF): raise ValueError("checksum")
-    if buf[1] != cmd: raise ValueError("sensor replay error")
+    if buf[1] != cmd: raise ValueError("sensor reply error")
     return (buf[2],buf[4:4+buf[3]]) # status, data
 
   # UART / Sensirion SPS30 SHDLC commands
@@ -271,8 +271,8 @@ class SPS30:
     (status, data) = self.receive(self.SPS_READ,debug=debug)
     if status:
       try:
-        print("SPS error: %d (%s)" % (status,error[status]))
-      except: print("SPS unklnown error: %d" % status)
+        print("SPS error: %d (%s)" % (status,self.error[status]))
+      except: print("SPS unknown error: %d" % status)
       return []
     rslts = []
     for i in range(0,len(data),4):
@@ -326,7 +326,6 @@ class SPS30:
     except: pass
     return ''
   
-  SPS_RESET = const(0xD3)
   # soft reset similar as power reset
   def reset(self,debug=False):
     if debug: print("SPS reset")
@@ -334,7 +333,7 @@ class SPS30:
       self.send(self.SPS_RESET,[],debug=debug)
       stat = self.receive(self.SPS_RESET)[0]
       if not stat: self.mode = self.STANDBY
-    except: raise RuntimeError
+    except Exception as e: raise RuntimeError(e)
     return stat
 
     # passive mode, go into standby state / sleep: fan OFF
