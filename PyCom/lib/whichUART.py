@@ -7,7 +7,7 @@
 from time import sleep_ms
 from machine import UART
 
-__version__ = "0." + "$Revision: 5.7 $"[11:-2]
+__version__ = "0." + "$Revision: 5.8 $"[11:-2]
 __license__ = 'GPLV3'
 
 # Config.py definitions preceed
@@ -111,9 +111,10 @@ class identification:
         if self.conf[atype]['name']: return self.conf[atype]
     except: pass
     data = [
-      b'\x42\x4D\xE1\x00\x01\x01\x71',     # PMS
-      b'\x7E\x00\x00\x02\x01\x03\xF9\x7E', # SPS start
-      b'\xAA\xB4\x06\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\x06\xAB', # SDS
+      (b'\x42\x4D\xE1\x00\x01\x01\x71',9600),     # PMS
+      (b'\x7E\x00\xD0\x01\x01\x2D\x7E',115200),     # SPS info
+      (b'\x7E\x00\x00\x02\x01\x03\xF9\x7E',115200), # SPS start
+      (b'\xAA\xB4\x06\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\x06\xAB',9600), # SDS
       ]
     for baudrate in [9600, 115200]:
       if self.debug: print("Try uart (baud=%d) pins: " % baudrate, pins)
@@ -124,17 +125,21 @@ class identification:
       fnd = None
       if self.debug: print("getIdent type %s" % atype)
       for i in range(0,2*len(data)):
-        sleep_ms(5*500 if atype == 'dust' else 500)
+        if data[i%len(data)][1] != baudrate: continue
+        if not ser.any():
+          sleep_ms(5*500 if atype == 'dust' else 500)
         try:
+          print("Bytes in serial buf %d" % ser.any())
           line = ser.readall()
-          # if self.debug: print("Read: ", line)
+          if self.debug: print("Read: ", line)
         except Exception as e:
           if self.debug: print("TTL dev search %s" % e)
           continue
         if (atype == 'dust') and ((line == None) or (not len(line))):   # try to wake up
-          activate = data[i % len(data)]
+          activate = data[i % len(data)][0]
           if self.debug: print("%d: Try a wakeup, send: " % i, activate)
           ser.write(activate)
+          sleep_ms(500)
           continue
         else:
           if not line: continue
@@ -143,6 +148,8 @@ class identification:
           elif line.count(b'\x42\x4D') or line.count(b'BM\x00\x1C'): fnd = 'PMSx003'
           elif line.count(b'\xAA') and line.count(b'\xC0'): fnd = 'SDS011'
           elif line.count(b'~\x00\x00') or line.count(b'\x00\xFF~'): fnd = 'SPS30'
+          elif line.count(b'~\x00\xD0\x00'):
+            fnd = 'SPS30'; print("SPS info name")
           if fnd: break
       ser.readall(); ser.deinit(); del ser; self.Power(pins,on=prev)
       use = True; Dexplicit = None; calibrate = None

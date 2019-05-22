@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.18 2019/05/18 12:56:44 teus Exp teus $
+# $Id: MySense.py,v 5.19 2019/05/22 18:49:50 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.18 $"[11:-2]
+__version__ = "0." + "$Revision: 5.19 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -492,7 +492,7 @@ def PinPower(atype=None,on=None,debug=False):
     elif pin.value():
       try:
         # if true powercycle the bus. with GPS power cycling costs delays; dflt false
-        if not MyConfiguration['interval'][abus]: return True
+        if not MyConfiguration['power'][abus]: return True
       except: pass
       if debug: print("Deactivate %s chan (Tx,Rx,Pwr)=%s: " % (abus,str(pins)))
       pin.value(0); return True
@@ -521,13 +521,14 @@ def initDisplay(debug=False):
   if not Display['conf']['use']: return True  # initialize only once
   Display['enable'] = False
   try:
-      import SSD1306 as DISPLAY
-      width = 128; height = 64  # display sizes
-      # display may flicker on reload
-      Display['lib'] = DISPLAY.SSD1306_I2C(width,height,
+      if 'i2c' in Display.keys():
+        import SSD1306 as DISPLAY
+        width = 128; height = 64  # display sizes
+        # display may flicker on reload
+        Display['lib'] = DISPLAY.SSD1306_I2C(width,height,
                              Display['i2c'], addr=Display['conf']['address'])
-      if debug:
-        print('Oled %s: (SDA,SCL,Pwr)=%s pwr is %s' % (Display['conf']['name'],str(Display['conf']['pins'][:3]),PinPower('display')))
+        if debug:
+          print('Oled %s: (SDA,SCL,Pwr)=%s pwr is %s' % (Display['conf']['name'],str(Display['conf']['pins'][:3]),PinPower('display')))
       #elif 'spi' in Display.keys(): # for fast display This needs rework for I2C style
       #  global spi, spiPINS
       #  try:
@@ -567,7 +568,7 @@ def initDisplay(debug=False):
 
 # start meteo sensor
 def initMeteo(debug=False):
-  global MyTypes, MyConfiguration, wokeUp
+  global MyTypes, MyConfiguration, wokeUp, MyConfig
   if not MyTypes: getMyConfig()
   try:
     atype = 'meteo'
@@ -596,17 +597,17 @@ def initMeteo(debug=False):
           try:
             from Config import M_gBase
             Meteo['conf']['gas_base'] = int(M_gBase)
-            MyConfig.config.dirty = True
+            MyConfig.dirty = True
           except: pass
-          if 'gas_base' in Meteo['conf'].keys():
-            Meteo['lib'].gas_base =  Meteo['conf']['gas_base']
-          if not Meteo['lib'].gas_base:
-            display('AQI wakeup')
-            Meteo['lib'].AQI # first time can take a while
-            Meteo['conf']['gas_base'] = Meteo['lib'].gas_base
-            MyConfig.config.dirty = True
-          display("Gas base: %0.1f" % Meteo['conf']['lib'].gas_base)
-          # Meteo['lib'].sea_level_pressure = 1011.25
+        if 'gas_base' in Meteo['conf'].keys():
+          Meteo['lib'].gas_base =  Meteo['conf']['gas_base']
+        if not Meteo['lib'].gas_base:
+          display('AQI wakeup')
+          Meteo['lib'].AQI # first time can take a while
+          Meteo['conf']['gas_base'] = Meteo['lib'].gas_base
+          MyConfig.dirty = True
+        display("Gas base: %0.1f" % Meteo['lib'].gas_base)
+        # Meteo['lib'].sea_level_pressure = 1011.25
       else: return False
     elif Meteo['conf']['name'][:3] == 'SHT':
       import Adafruit_SHT31 as SHT
