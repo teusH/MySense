@@ -4,7 +4,7 @@
 import sys
 from time import sleep_ms, ticks_ms
 
-__version__ = "0." + "$Revision: 5.10 $"[11:-2]
+__version__ = "0." + "$Revision: 5.11 $"[11:-2]
 __license__ = 'GPLV3'
 
 # dflt pins=(Tx-pin,Rx-pin,Pwr-pin): wiring Tx-pin -> Rx GPS module
@@ -41,16 +41,15 @@ for dev in config[abus].keys():
       print("Found device %s: " % dev, config[abus][dev])
       if dev == atype:
         MyConfig.dump(dev,config[abus][dev],abus=abus)
-if MyConfig.dirty: print("Store %s config in flash" % dev)
-MyConfig.store
+        print("Store %s config in flash" % dev)
 
 print("config[%s] devices: %s" % (abus,str(config[abus].keys())))
 print("which.config[%s]: %s" % (abus,str(which.config)))
 if not config[abus][atype]['use']:
-  print("%s/%s config: not use" % (atype,config[abus]['name']))
+  print("%s config: not use %s" % (atype,config[abus]['name']))
   sys.exit()
 
-print("Using %s: device %s" % (atype, str(which.devices[atype])))
+print("Using %s: " % atype, which.devices[atype])
 
 device = None
 try:
@@ -133,9 +132,18 @@ device[abus].deinit()
 which.Power(pins, on=prev)
 if not prev: print("Power OFF pin %s." % pins[2])
 #which.closeUART(atype)
-if MyConfig.dirty: MyConfig.store
+
+if MyConfig.dirty:
+  print("Config file needs to be updated")
+  from machine import Pin
+  apin = 'P18'  # deepsleep pin 
+  if not Pin(apin,mode=Pin.IN).value():
+    print("Update config in flash mem")
+    MyConfig.store
+
 import sys
 sys.exit()
+
 
 # raw  GPS output something like
 '''

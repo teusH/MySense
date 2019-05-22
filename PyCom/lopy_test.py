@@ -1,5 +1,9 @@
-__version__ = "0." + "$Revision: 5.4 $"[11:-2]
+__version__ = "0." + "$Revision: 5.5 $"[11:-2]
 __license__ = 'GPLV3'
+''' basis PyCom LoPy controller and PCB test.
+    if deepsleep pin not is enabled, no update of config file will be done.
+    If no accu is attached and deepsleep pin is enabled flashed config file will be cleared.
+'''
 
 from machine import deepsleep, wake_reason, PWRON_WAKE
 wokeUp = wake_reason()[0] != PWRON_WAKE
@@ -143,12 +147,6 @@ if initLoRa:
   if not len(method): raise ValueError("No LoRa keys configured or LoRa config error")
   print("Using %s LoRa methods from Config." % ', '.join(method.keys()))
 
-if MyConfig.dirty: 
-  print("Store LoRa method in flash")
-  MyConfig.store
-  config = MyConfig.getConfig()
-  if LED: LED.blink(5,0.3,0x00ff00,False)
-
 if not myLoRa.connect(method, ports=2, myLED=LED, debug=True):
   print("Failed to connect to LoRaWan TTN")
   if LED: LED.blink(5,0.3,0xff0000,False)
@@ -225,8 +223,15 @@ else:
   deepsleep(3000)
   ####################
   print("Should not arrive here")
-  # myLoRa.restore
 
+if MyConfig.dirty:
+  print("Config file needs to be updated")
+  if sleepMode():
+    print("Update config in flash mem")
+    MyConfig.store
+    if LED: LED.blink(5,0.3,0x00ff00,False)
+
+# Reset flashed configuration
 if (accu < 0.1) and sleepMode():
   if LED: LED.blink(10,0.3,0xff0000,False)
   print("strap on pin %s and NO accu attached:" % MyConfig.config['sleepPin'])

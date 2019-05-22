@@ -1,9 +1,13 @@
 # Copyright 2019, Teus Hagen, GPLV3
-# simple test to see if meteo I2C device is present
+''' simple test to see if meteo I2C device is present
+side effect: if device is found it is added to configuration file.
+Enable P18 pin to allow updates of flash configf file.
+'''
+
 from time import sleep_ms
 import sys
 
-__version__ = "0." + "$Revision: 5.7 $"[11:-2]
+__version__ = "0." + "$Revision: 5.8 $"[11:-2]
 __license__ = 'GPLV3'
 
 abus = 'i2c'
@@ -127,5 +131,11 @@ for cnt in range(1,max+1):
     print("Got OS error: %s. Will try again." % e)
     i2c.init(I2C.MASTER,pins=pins[:2])
 
-if MyConfig.dirty: MyConfig.store
+if MyConfig.dirty:
+  print("Config file needs to be updated")
+  from machine import Pin
+  apin = 'P18'  # deepsleep pin
+  if not Pin(apin,mode=Pin.IN).value():
+    print("Update config in flash mem")
+    MyConfig.store
 sys.exit()

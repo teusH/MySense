@@ -4,7 +4,7 @@ from time import sleep_ms
 from machine import I2C
 import sys
 
-__version__ = "0." + "$Revision: 5.8 $"[11:-2]
+__version__ = "0." + "$Revision: 5.9 $"[11:-2]
 __license__ = 'GPLV3'
 
 abus='i2c'
@@ -149,7 +149,12 @@ except Exception as e:
     print("Failure: %s" % e)
 
 if MyConfig.dirty:
-  print("Found new I2C devices. Will archive.")
-  MyConfig.store
+  print("Config file needs to be updated")
+  from machine import Pin
+  apin = 'P18'  # deepsleep pin
+  if not Pin(apin,mode=Pin.IN).value():
+    print("Update config in flash mem")
+    MyConfig.store
+
 print("DONE. Soft reset.")
 sys.exit()
