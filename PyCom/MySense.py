@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.19 2019/05/22 18:49:50 teus Exp teus $
+# $Id: MySense.py,v 5.20 2019/05/24 05:38:48 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.19 $"[11:-2]
+__version__ = "0." + "$Revision: 5.20 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -153,7 +153,9 @@ def initConfig(debug=False):
   MyConfig = ConfigJson.MyConfig(debug=debug)
   MyConfiguration = MyConfig.getConfig()
   if not wokeUp: # check startup mode
-    modus = nvs_get('modus')
+    modus = None
+    try: modus = nvs_get('modus')
+    except: pass
     if not modus: MyConfig.clear # not def or 0: no archived conf
     elif modus  == 1: # reset only discovered devices
       for abus in ['ttl','i2c']:
@@ -299,7 +301,9 @@ def getGlobals(debug=False):
       MyConfiguration['interval'][item] = 0
       nvs_set(item,0)
     else:
-      value = nvs_get(item)
+      value = None
+      try: value = nvs_get(item)
+      except: pass
       if value == None:
         nvs_set(item,0); value = 0
       MyConfiguration['interval'][item] = value
