@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2019, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: SPS30.py,v 5.4 2019/05/22 13:00:32 teus Exp teus $
+# $Id: SPS30.py,v 5.5 2019/05/24 15:27:47 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -93,7 +93,8 @@ class SPS30:
     self.debug = debug
     self.addr = addr
     self.mode = self.PASSIVE
-    try: self.name = self.reset(debug=debug)
+    try:
+      if self.reset(debug=debug): raise RuntimeError("SPS30: reset failed")
     except Exception as e: raise RuntimeError("Reset SPS30: %s" % str(e)) # wrong driver
 
     self.interval = interval * 1000 # if interval == 0 no auto fan switching
@@ -320,7 +321,8 @@ class SPS30:
         return ', '.join(rslt)
       elif info in cmds.keys():
         self.send(self.SPS_INFO,[cmds[info]], debug=debug)
-        strg = str(bytearray(self.receive(self.SPS_INFO)[1][:-1]))
+        strg = self.receive(self.SPS_INFO)[1][:-1]
+        strg = str(bytearray(strg))
         if debug: print("Got info \"%s\"" % strg)
         return strg
     except: pass
@@ -421,7 +423,7 @@ if __name__ == "__main__":
     from time import time, sleep
     interval = 5*60
     sample = 60
-    debug = False
+    debug = True
     sps30 = SPS30(port=sys.argv[1], debug=debug, sample=sample, interval=interval)
     for i in range(4):
         lastTime = time()
