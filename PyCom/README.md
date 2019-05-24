@@ -319,13 +319,24 @@ The json configuration will be updated if via remote command the configuration i
 
 Configuration item `power` will define if between deepsleeps de bus will be unpowered. E.g. deactivate GPS device fully.
 
-Configuration item `interval` will define e.g. sample times (dflt 1 minute), and interval timings (dflt 15 minutes). As well next time meta information will be sent or GPS will be tried to find GPS location and set day time.
+Configuration dictionary `interval` will define e.g. sample times ('sample': dflt 1 minute), and interval timings ('interval': dflt 15 minutes). As well next time meta information ('gps': 'gps_next', 'info': 'info_next': xyz_next values will be stored in nvs ram to survive a reboot) will be sent or GPS will be tried to find GPS location and set day time. 
+Configuration dictionary 'power' will define to enable/disable power on 'ttl', 'i2c' and 'display'. As well 'sleep' to enable a soft deepsleep (without sleep pin use).
 
-There is a wealth of confioguration possiblities. Not all have been tested. See the scripts to see what they are about.
+Configuration dictionary 'calibration' will define Taylor calibration rules for corection of 'temperatue', 'humidity', 'pressure', 'gas', 'pm1', 'pm25', pm10', and define 'gas_base' for AQI calculations.
+
+Use of Dext or Dexplicit (default False) will cause dust count values to be taken as inclusive previous size (Sensirion style or valuation; and cause average grain size to be calculated). True will; define Plantower style of valuation (sizes biger as underbound).
+
+There is a wealth of configuration possiblities. Not all have been tested. See the scripts to see what they are about.
+
+LoRa keys and package counter (important for ABP LoRa connectivity) are saved and maintained in nvs memory. As well last gps location and next meta info and next gps location check are kept in nvs memory.
 
 ### Testing hardware
 MySense has provided several simple XYZ_test.py python scripts to test the sensor modules for needed libraries and check of wiring.
 Make sure to configure the right pin ID's in `Config.py` configuration file for the test scripts.
+Default pins are defined as follows:
+* I2Cpins: 'P23' (SDA, white), 'P22' (SCL, yellow) and 'P21' (dflt None, Pwr enable/disable)
+* UARTpins: TTL3 ('P1' Rx yellow, 'P0' Tx white, 'P20' (dflt None) Pwr), TTL2 ('P4' Rx yellow, 'P3' Tx white, 'P19' (dflt None) Pwr), and TTL1 ('P11' Rx white, 'P10' Tx yellow, 'P9' (dflt None) Pwr). Tx/Rx is controiller side. At devices side Tx is yellow, and Rx is white wire.
+* other pins: 'P17' and ground for keeping track of accu voltage. And 'P18' so called deep sleep pin (force deepsleep).
 
 Test your setup one by one before trying out the main wrapper `MySense.py` via *MySense.runMe()* or `main.py`.
 A more detailed readme about the way `MySense.py` and other test script maybe of help can be found in the file `README.MySense.md`.
