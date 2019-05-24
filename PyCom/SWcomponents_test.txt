@@ -23,26 +23,32 @@
 #   ttl (file descr),
 #   enabled (can be used, has file descr.)
 
+# get serial number of the PyCom controller
+from machine import unique_id
+import binascii
+binascii.hexlify(unique_id()).decode('utf-8')
+
 # test script may write config items in archived config if hardware is found
 # to delete archive config from flash mem: use
 import ConfigJson
-MyConf = ConfigJson.MyConfig               # get ref to archived configuration name space
-Myconfig.config                            # show current archived configuration
-Myconfig.config['ttl']['calibrate'] = None # remove calibration
-# MyConf.clear
+MyConfig = ConfigJson.MyConfig(debug=True) # get ref to archived configuration name space
+MyConfig.getConfig()                       # get flashed configuration
+MyConfig.config                            # show current archived configuration
+# MyConf.clear                             # clear configuration in flash
 
 # check which configuration and attached devices
 debug=True
 import MySense
 MySense.getMyConfig(debug=debug)
-MyConfiguration = MySense.MyConfiguration
-MyConfiguration
-MyDevices = MySense.MyDevices
-MyDevices
+# MyConfiguration = MySense.MyConfiguration
+# MyConfiguration
+# MyDevices = MySense.MyDevices
+# MyDevices
 
 # complete MyDevices dictionaries
 # initDevices will do: initDisplay(), initDust(), initMeteo(), initNetwork(), DoGPS()
 debug=True
+import time
 MySense.initDevices(debug=debug) # will initialize I2C and TTL devices (GPS on cold start)
 
 # try to get some measurements
@@ -57,11 +63,12 @@ aData                                # probably 0
 aData = 12.5                         # set accu voltage
 
 # try LoRa send info
-SendInfo()                           # send meta data
+MySense.SendInfo()                           # send meta data
 # send data packet
 debug = True
+pData = MySense.DoPack(dData,mData,MySense.LocUpdate(),aData=aData, debug=debug)
 Network = MySense.MyTypes['network']
-Network['lib'].send(DoPack(dData,mData,MySense.LocUpdate(),aData=aData, debug=debug),port=4)
+Network['lib'].send(pData,port=4)
 
 ########## check I2C part
 # basic functional test for hardware
@@ -212,6 +219,17 @@ os.remove('/flash/dust_test.py')
 os.remove('/flash/oled_test.py')
 os.remove('/flash/lopy_test.py')
 os.remove('/flash/gps_test.py')
+
+# clean up LoPy chip
+# clear nvs_memory
+from machine import nvs_clear
+for var in ['modus','LAT','LON','ALT','gps_next','info_next']:
+  try: nvs_clear(var)
+  except: pass
+# clear lora keys
+import lora
+lora = LORA()
+lora.clear
 # remove everything from flash mem:
 os.mkfs('/flash')
 # activate MySense:
