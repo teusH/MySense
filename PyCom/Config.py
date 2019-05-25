@@ -39,7 +39,7 @@ W_PASS = 'GreenTechLab'
 
 # define None if GPS is not used
 # thisGPS = [0.0,0.0,0.0] # (LAT,LON,ALT) # GPS may overwrite this on startup
-# Power = { 'ttl': True, 'i2c': True, 'sleep': True, 'display': False }
+# Power = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': False }
 
 # calibration Taylor factors
 # calibrate = None # or e.g. { 'temperature': [-6.2,1], 'pm1': [-20.0,0.5], ...}
@@ -74,6 +74,7 @@ M_gBase = 245343.0 # BME680 gas base line (dflt None or missing: recalculate)
 # S_CS   = 'P17'  # blew   CS
 
 # SDA wire is white, SCL wire is yellow
+# I2Cpins = [('P23','P22',None)] # I2C pins [(SDA,SC,Pwr), ...]
 I2Cpins = [('P23','P22','P21')] # I2C pins [(SDA,SC,Pwr), ...]
 # I2Cdevices = [ # dflt sensor I2C address for identification
 #         ('BME280',0x76),('BME280',0x77), # BME serie Bosch incl 680
@@ -85,6 +86,7 @@ I2Cpins = [('P23','P22','P21')] # I2C pins [(SDA,SC,Pwr), ...]
 # device/module: (yellow Rx, white Tx, red Pwr optional deflt None)
 # UARTpins=[('P1','P0','P20'),('P4','P3',None),('P11','P10',None)] # default UART pins used by auto detect device
 # omit to use P1/P0, used for console
+# UARTpins=[('P1','P1',None),('P4','P3',None),('P11','P10',None)] # default UART pins used by auto detect device
 UARTpins=[('P4','P3','P19'),('P11','P10','P9')] # default UART pins used by auto detect device
 
 # useGPS = 'UART'      # None or False if not present, dflt True
@@ -92,7 +94,5 @@ UARTpins=[('P4','P3','P19'),('P11','P10','P9')] # default UART pins used by auto
 
 # useDust = 'UART'     # UART, use False if not present, dflt True
 # dust module uart: Rx = 'P4' yellow, Tx 'P3' white
-# Dext = '' # only Plantower/Sensirion: '_cnt' for pcs/0.1 dm3 (dflt: ug/m3)
-Dext = True   # send PM count PMnn_cnt to database server
-# Dexplicit = True     # default, limited range, Sensirion count style
+# Dexplicit = True     # default, limited range, Sensirion count style, will add average grain size
 #             False      Plantower count style, PM count > size
