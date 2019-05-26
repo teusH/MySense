@@ -1,14 +1,13 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.22 2019/05/26 09:51:54 teus Exp teus $
+# $Id: MySense.py,v 5.23 2019/05/26 13:40:08 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.22 $"[11:-2]
+__version__ = "0." + "$Revision: 5.23 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
 from time import time, sleep
-from machine import deepsleep
 # Turn off hearbeat LED
 from pycom import heartbeat, nvs_set, nvs_get
 heartbeat(False)
@@ -99,7 +98,8 @@ def saveGPS(curGPS):
 # Read accu voltage out
 def getVoltage(): # range 0 (None) and 11.4 (low) - 12.5 (high)
   global MyDevices, MyConfig, MyDevices, MyTypes
-  if not MyConfig: initConfig(); atype = 'accu'
+  if not MyConfig: initConfig()
+  atype = 'accu'
   try:
     if not 'accuPin' in MyConfiguration.keys():
       accuPin = 'P17'
@@ -125,7 +125,8 @@ def getVoltage(): # range 0 (None) and 11.4 (low) - 12.5 (high)
 # get deepsleep pin value
 def deepsleepMode():
   global MyDevices, MyConfig, MyConfiguration, MyTypes
-  if not MyConfig: initConfig(); atype = 'deepsleep'
+  if not MyConfig: initConfig()
+  atype = 'deepsleep'
   try:
     if not 'sleepPin' in MyConfiguration.keys():
       sleepPin = 'P18'
@@ -173,16 +174,18 @@ def getPinsConfig(debug=False):
   accuV = getVoltage()
   if (not accuV) and deepsleepMode(): # reset config
     if not wokeUp: # cold restart
-      # no accu & deepsleep pin present
-      print("Clear config in flash")
-      MyConfig.clear; MyConfig = None; MyConfiguration = {}
-      initConfig(debug=debug) 
-      MyDevices = {}
-      getVoltage(); deepsleepMode();
+      print("Clear config disabled")
+      # specal case: no accu & deepsleep pin present
+      # print("Clear config in flash")
+      # MyConfig.clear; MyConfig = None; MyConfiguration = {}
+      # initConfig(debug=debug) 
+      # MyDevices = {}
+      # getVoltage(); deepsleepMode();
   if wokeUp and (1.0 < accuV < 11.2): # accu is empty
     from pycom import rgbled
     pycom.rgbled(0x990000)
     sleep(1)
+    from machine import deepsleep
     deepsleep(15*60*1000)
 
 ## CONF busses
@@ -310,18 +313,20 @@ def getGlobals(debug=False):
   
   ## CONF power mgt
   # device power management dflt: do not unless pwr pins defined
-  # power mgt of ttl/uarts OFF/on, i2c OFF/on and deep sleep minutes, 0 off
+  # power mgt of ttl/uarts OFF/on, i2c OFF/on
+  # deepsleep mode: deep sleep OFF/on, ON with deepsleep pin
   # display: None (always on), False: always off, True on and off during sleep
-  # To Do: sleep pin P18 use deep sleep or delete config json file
+  # Warning: sleep pin P18 with no voltage on accu pin: clear config json file
   if not 'power' in MyConfiguration.keys():
-    try: from Config import Power
+    try:
+      from Config import Power
+      MyConfiguration['power'] = Power
     # deflt: no power mgt on ttl, i2c, display power mngt is used
     except:
-      if deepsleepMode():
-        MyConfiguration['power'] = { 'ttl': True, 'i2c': True, 'sleep': True, 'display': None }
-      else:
-        MyConfiguration['power'] = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': None }
+      MyConfiguration['power'] = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': None }
     if not wokeUp: MyConfig.dump('power', MyConfiguration['power'])
+  if deepsleepMode():
+    MyConfiguration['power']['ttl'] = MyConfiguration['power']['i2c'] = True
   # sleep dflt True: listen to pin mode
   
   ## CONF calibrate
@@ -974,7 +979,9 @@ def DoGPS(debug=False):
   from time import localtime, timezone
   if (time()-StartUpTime) <= interval['gps_next']:
     if debug: print("No GPS update")
-    return None
+    rts = getSavedGPS()
+    if rts[0]: return rts
+    else: return None
 
   prev = PinPower(atype=atype,on=True,debug=debug)
   if not Gps['lib']: initGPS(debug=False)
@@ -993,6 +1000,7 @@ def DoGPS(debug=False):
       StartUpTime += (time() - correction)
       for item in ['gps_next','info_next']:
         interval[item] += (time() - correction)
+        nvs_set(item,interval[item])
       if Gps['rtc'] == None: Gps['rtc'] = True
       print("%d GPS sats, time set" % Gps['lib'].satellites)
     else:
@@ -1403,9 +1411,11 @@ def runMe(debug=False):
     MyConfig.store # update config flash?
     # LoRa nvram done via send routine
 
-    if Power['sleep'] and sleepMode():
+    if Power['sleep'] or deepsleepMode():
       if toSleep > 60:
-        deepsleep(toSleep-1) # deep sleep
+        print("DeepSleep: %d secs" % (toSleep-1))
+        from machine import deepsleep
+        deepsleep((toSleep-1)*1000) # deep sleep
       # will never arrive here
     if not Power['i2c']:
       if not ProgressBar(0,62,128,1,toSleep,0xebcf5b,10):
