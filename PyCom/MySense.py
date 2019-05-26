@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.23 2019/05/26 13:40:08 teus Exp teus $
+# $Id: MySense.py,v 5.24 2019/05/26 14:10:04 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.23 $"[11:-2]
+__version__ = "0." + "$Revision: 5.24 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -1417,6 +1417,8 @@ def runMe(debug=False):
         from machine import deepsleep
         deepsleep((toSleep-1)*1000) # deep sleep
       # will never arrive here
+    if deepsleepMode(): wokeUp = True
+    else: wokeUp = False
     if not Power['i2c']:
       if not ProgressBar(0,62,128,1,toSleep,0xebcf5b,10):
         display('stopped SENSING', (0,0), clear=True)
