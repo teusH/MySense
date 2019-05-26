@@ -317,7 +317,7 @@ The auto maintained configuration data can be cleared as followed:
 ```
 The json configuration will be updated if via remote command the configuration item is changed. So the change will survive a reboot.
 
-Configuration item `power` will define if between deepsleeps de bus will be unpowered. E.g. deactivate GPS device fully.
+Configuration item `power` will define if between deepsleeps de bus will be unpowered. E.g. deactivate GPS device fully. The kit will go into deepsleep if AND deepsleep pin is enabled AND `power` attribute `sleep` is True. On a cold boot with deepsleep pin enabled the default startup `power` configuration will be with `ttl`, `i2c` and `sleep` defined as *True*.
 
 Configuration dictionary `interval` will define e.g. sample times ('sample': dflt 1 minute), and interval timings ('interval': dflt 15 minutes). As well next time meta information ('gps': 'gps_next', 'info': 'info_next': xyz_next values will be stored in nvs ram to survive a reboot) will be sent or GPS will be tried to find GPS location and set day time. 
 Configuration dictionary 'power' will define to enable/disable power on 'ttl', 'i2c' and 'display'. As well 'sleep' to enable a soft deepsleep (without sleep pin use).
@@ -329,6 +329,10 @@ Use of Dext or Dexplicit (default False) will cause dust count values to be take
 There is a wealth of configuration possiblities. Not all have been tested. See the scripts to see what they are about.
 
 LoRa keys and package counter (important for ABP LoRa connectivity) are saved and maintained in nvs memory. As well last gps location and next meta info and next gps location check are kept in nvs memory.
+
+How To clear the configuration in flash memory: on a cold reboot with deepsleep pin enabled and no accu attached to accu load management pin the json configuration file (dflt: `MySenseConfig.json`) in flash memory will be cleared and a new configuration will be detected. Use this procedure when new keys of sensors are attached to the controller.
+
+Question: how can I force a deepsleep without an accu attached to the kit? Answer: start without the deepsleep pin enabled. After trhe first interval install then the deepsleep pin.
 
 ### Testing hardware
 MySense has provided several simple XYZ_test.py python scripts to test the sensor modules for needed libraries and check of wiring.
