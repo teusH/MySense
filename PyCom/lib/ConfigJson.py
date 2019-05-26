@@ -1,12 +1,12 @@
 # Copyright 2019, Teus Hagen, GPLV3
 # search for I2C devices and get supporting libraries loaded
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 __license__ = 'GPLV3'
 
 import ujson
 
 class MyConfig:
-  def __init__(self, file='MySenseConfig.json', debug=False):
+  def __init__(self, file='MySenseConfig.json', archive=True, debug=False):
     # dict self.config = { 'ttl': { 'dust': {}, 'gps': {} }, 'var': value, ... }
     self.file = '/flash/' + file
     self.dirty = None
@@ -15,6 +15,7 @@ class MyConfig:
     self.items = ['name','address','pins','use','baud'] # keys to collect
     self.debug = debug
     self.stored = 0 # count as safeguard
+    self.doArchive = archive
     return None
 
   # import json config file
@@ -101,7 +102,8 @@ class MyConfig:
     return True
 
   @property
-  def store(self): self.export(force=False)
+  def store(self):
+    if self.doArchive: self.export(force=False)
 
   @property
   def archive(self): self.export(force=True)

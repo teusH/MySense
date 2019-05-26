@@ -1,4 +1,4 @@
-__version__ = "0." + "$Revision: 5.5 $"[11:-2]
+__version__ = "0." + "$Revision: 5.6 $"[11:-2]
 __license__ = 'GPLV3'
 ''' basis PyCom LoPy controller and PCB test.
     if deepsleep pin not is enabled, no update of config file will be done.
@@ -17,7 +17,7 @@ try:
 except:
   print("Missing library led and/or ConfigJson")
   sys.exit()
-MyConfig = ConfigJson.MyConfig(debug=False)
+MyConfig = ConfigJson.MyConfig(archive=(not wokeUp), debug=False)
 config = MyConfig.getConfig() # configuration
 if config: print("Got config from flash: %s" % str(config))
 

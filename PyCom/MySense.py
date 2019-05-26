@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.20 2019/05/24 05:38:48 teus Exp teus $
+# $Id: MySense.py,v 5.22 2019/05/26 09:51:54 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.20 $"[11:-2]
+__version__ = "0." + "$Revision: 5.22 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -150,7 +150,7 @@ def initConfig(debug=False):
   from machine import wake_reason, PWRON_WAKE
   wokeUp = wake_reason()[0] != PWRON_WAKE
   import ConfigJson
-  MyConfig = ConfigJson.MyConfig(debug=debug)
+  MyConfig = ConfigJson.MyConfig(archive=(not wokeUp), debug=debug)
   MyConfiguration = MyConfig.getConfig()
   if not wokeUp: # check startup mode
     modus = None
