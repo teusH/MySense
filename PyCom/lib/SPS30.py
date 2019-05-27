@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2019, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: SPS30.py,v 5.5 2019/05/24 15:27:47 teus Exp teus $
+# $Id: SPS30.py,v 5.6 2019/05/27 10:14:20 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -32,8 +32,6 @@ except:
     def ticks_ms(): return int(time()*1000)
     def const(a): return a
 
-import struct         # needed for unpack data telegram, big-endian
-
 """ Get sensor values: PM1, PM2.5 and PM10 from Sensirion Particular Matter sensor
   units: pcs/0.01qf, pcs/0.1dm3, ug/m3
   class inits:
@@ -43,6 +41,7 @@ import struct         # needed for unpack data telegram, big-endian
     interval=1200 sleep time-sample / fan off after sampling if 0 no interval
 """
 
+import struct         # needed for unpack data telegram, big-endian
 
 
 class SPS30:
@@ -83,7 +82,7 @@ class SPS30:
       if type(port) is str: # no PyCom case
         import serial
         self.ser = serial.Serial(port, 115200, bytesize=8, parity='N', stopbits=1, timeout=20, xonxoff=0, rtscts=0)
-	self.ser.any = self.in_waiting
+        self.ser.any = self.in_waiting
       elif type(port) is int: # micro python case
         from machine import UART
         self.ser = UART(port,baudrate=115200,pins=pins,timeout_chars=10)
@@ -94,7 +93,8 @@ class SPS30:
     self.addr = addr
     self.mode = self.PASSIVE
     try:
-      if self.reset(debug=debug): raise RuntimeError("SPS30: reset failed")
+      stat = self.reset(debug=debug)
+      if stat: print("Rest failed with %d" % stat) #raise RuntimeError("reset failed with %d" % stat)
     except Exception as e: raise RuntimeError("Reset SPS30: %s" % str(e)) # wrong driver
 
     self.interval = interval * 1000 # if interval == 0 no auto fan switching
@@ -221,20 +221,24 @@ class SPS30:
 
   # get data from uart, return tuple(status,data[])
   def receive(self, cmd, debug=False):
-    strt = False; buf = []; dlmtr = chr(0x7E)
+    strt = True; buf = bytearray()
+    for cnt in range(15):
+      if self.ser.any(): break
+      if debug: print("SPS wait...")
+      sleep_ms(1000)
     while True:
-      try:
-        if (not strt) and (self.read_until(char=dlmtr ) == None):
-          raise OSError("No data")
-        strt = True
-        char = self.ser.read(1)
-      except: return (0x1, [])
-      if char == dlmtr:
-        buf = self.unstuff(buf)
-        # to do: add sum chk, cmd check: buf[1] == cmd
-        if len(buf[4:-1]) != buf[3]: raise ValueError("length rcv")
-        break
-      buf.append(struct.unpack('>B',char)[0])
+      try: char = self.ser.read(1)
+      except: return (0x2, [])
+      if char == b'': raise OSError("No data")
+      elif strt:
+        if (char == b'\x7E'): strt = False
+        continue
+      if char == b'\x7E': break
+      buf += char
+    buf = self.unstuff(buf)
+    # to do: add sum chk, cmd check: buf[1] == cmd
+    if len(buf[4:-1]) != buf[3]: raise ValueError("length rcv")
+    if debug: print("Received: %s" % str(buf))
     if (~sum(buf) & 0xFF): raise ValueError("checksum")
     if buf[1] != cmd: raise ValueError("sensor reply error")
     return (buf[2],buf[4:4+buf[3]]) # status, data
@@ -260,8 +264,6 @@ class SPS30:
      if debug: print("Stop SPS")
      self.send(self.SPS_STOP,[], debug=debug)
      return self.receive(self.SPS_STOP)[0]
-
-  import struct
 
   # mass ug/m3: PM1.0, PM2.5, PM4.0, PM10
   # count pcs/cm3: PM0.5, PM1.0, PM2.5, PM4.0, PM10
@@ -322,7 +324,7 @@ class SPS30:
       elif info in cmds.keys():
         self.send(self.SPS_INFO,[cmds[info]], debug=debug)
         strg = self.receive(self.SPS_INFO)[1][:-1]
-        strg = str(bytearray(strg))
+        strg = str(strg[:-1].decode("ascii"))
         if debug: print("Got info \"%s\"" % strg)
         return strg
     except: pass
@@ -333,8 +335,10 @@ class SPS30:
     if debug: print("SPS reset")
     try:
       self.send(self.SPS_RESET,[],debug=debug)
+      print("receive status")
       stat = self.receive(self.SPS_RESET)[0]
       if not stat: self.mode = self.STANDBY
+      print("status: %d" % stat)
     except Exception as e: raise RuntimeError(e)
     return stat
 
@@ -391,11 +395,11 @@ class SPS30:
         try:
           buff = self.PassiveRead(debug=debug)
         except: pass
-	if len(buff) == self.SPS_TYP_SIZE+1: # must be all
+        if len(buff) == self.SPS_TYP_SIZE+1: # must be all
           for fld in self.PM_fields:
             PM_sample[fld[0]] = PM_sample.setdefault(fld[0],0.0)+buff[fld[2]]
           cnt += 1
-	elif not len(PM_sample):
+        elif not len(PM_sample):
           self.mode = self.STANDBY # wake it up
           return self.getData(debug=debug)
         if ticks_ms() >= LastTime: break
@@ -419,12 +423,20 @@ class SPS30:
     return PM_sample
 
 if __name__ == "__main__":
-    import sys
     from time import time, sleep
     interval = 5*60
     sample = 60
     debug = True
-    sps30 = SPS30(port=sys.argv[1], debug=debug, sample=sample, interval=interval)
+    try:
+      from machine import UART, Pin
+      pins = ('P4','P3','P19')
+      print("Using pins: %s" % str(pins))
+      Pin(pins[2],mode=Pin.OUT).value(1); sleep(1)
+      port = UART(1,baudrate=115200,pins=pins[:2],timeout_chars=20)
+    except:
+      import sys
+      port = sys.argv[1]
+    sps30 = SPS30(port=port, debug=debug, sample=sample, interval=interval)
     for i in range(4):
         lastTime = time()
         print(sps30.getData(debug=debug))
