@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.24 2019/05/26 14:10:04 teus Exp teus $
+# $Id: MySense.py,v 5.25 2019/05/27 13:29:03 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.24 $"[11:-2]
+__version__ = "0." + "$Revision: 5.25 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -742,7 +742,7 @@ def initDust(debug=False):
         from SDS011 import SDS011 as senseDust
         Dust['cnt'] = False
       elif Dust['conf']['name'][:3] == 'SPS':  # Sensirion
-        from SPS30 import SPS30 as sensedust
+        from SPS30 import SPS30 as senseDust
       elif Dust['conf']['name'][:3] == 'PMS':  # Plantower
         from PMSx003 import PMSx003 as senseDust
       else:
