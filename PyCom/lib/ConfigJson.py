@@ -1,6 +1,6 @@
 # Copyright 2019, Teus Hagen, GPLV3
 # search for I2C devices and get supporting libraries loaded
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+__version__ = "0." + "$Revision: 1.6 $"[11:-2]
 __license__ = 'GPLV3'
 
 import ujson
@@ -88,6 +88,7 @@ class MyConfig:
     self.config['version'] = self.version
     if not force:
       if not self.dirty: return True
+    print("Flash configuration")
     self.stored += 1
     try:
       if self.stored > 5: # safeguard

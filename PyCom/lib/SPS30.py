@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2019, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: SPS30.py,v 5.6 2019/05/27 10:14:20 teus Exp teus $
+# $Id: SPS30.py,v 5.8 2019/05/27 14:51:43 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -69,7 +69,7 @@ class SPS30:
   # idle time minimal time to switch fan OFF
   IDLE  = const(120000)   # msecs, minimal idle time between sample time and interval
 
-  def __init__(self, port=1, debug=False, sample=60, interval=1200, raw=False, calibrate=None, pins=('P3','P4'), addr=SPS_ADDR, clean=None, explicit=False):
+  def __init__(self, port=1, debug=False, sample=60, interval=1200, raw=False, calibrate=None, pins=('P3','P4'), addr=SPS_ADDR, clean=0, explicit=False):
     # read from port=UART1 V5/Gnd, PMS/Rx - GPIO P3/Tx, PMS/Tx - GPIO P4/Rx
     # or port=/dev/ttyUSB?
     # measure average in sample time, interval freq. of samples in secs
@@ -77,7 +77,7 @@ class SPS30:
     # idle <8 mA, operation 60 mA, max 5.5V, count/mass: 0.3 - size um
     # SPS pin nr:
     #     1=VCC, 2=Rx/SDA, 3=Tx/SCL, 4= sel(Gnd,I2C), 5=Gnd, 5 is corner side
-    # clean > 0: secs interval autoclean, None: init with a fan clean
+    # clean > 0: secs interval autoclean, 0 (dflt): weekly, None: clean initial
     try:
       if type(port) is str: # no PyCom case
         import serial
@@ -92,10 +92,7 @@ class SPS30:
     self.debug = debug
     self.addr = addr
     self.mode = self.PASSIVE
-    try:
-      stat = self.reset(debug=debug)
-      if stat: print("Rest failed with %d" % stat) #raise RuntimeError("reset failed with %d" % stat)
-    except Exception as e: raise RuntimeError("Reset SPS30: %s" % str(e)) # wrong driver
+    self.started = None
 
     self.interval = interval * 1000 # if interval == 0 no auto fan switching
     self.sample =  sample * 1000
@@ -103,20 +100,9 @@ class SPS30:
     self.clean = clean  # clean fan after clean secs dflt: None (weekly)
     self.explicit = explicit # counts are > PM size or < PM size
 
-    # dflts are from sample label
-    self.name = self.device_info('name')
-    if not self.name: self.name = 'SPS30'
-    self.firmware = self.device_info('serial')
-    if not self.firmware: self.firmware = '117118'
-    self.code = self.device_info('code')
-    if not self.code: self.code = 'SEN-15103'
-    if debug: print("name: '%s', S/N '%s', article: '%s'" % (self.name, self.firmware, self.device_info('code')))
-
-    if clean:
-      self.auto_clean(clean, debug=debug)
-      self.clean = 0
-    elif clean == None: self.fan_clean(debug=debug)
-    if debug: print("%s initialized, S/N '%s'" % (self.name,self.firmware))
+    # dflts are from sample label. Try later again
+    self.name = 'SPS30'; self.firmware = '117118'; self.code = 'SEN-15103'
+    self.clean = clean
 
     # list of name, units, index in measurments, calibration factoring
     # eg pm1=[20,1] adds a calibration offset of 20 to measurement
@@ -143,6 +129,28 @@ class SPS30:
           if self.PM_fields[pm][0] == key:
             self.PM_fields[pm][3] = calibrate[key]
             break
+
+  def isStarted(self, debug=False):
+    if self.started: return
+    self.started = 0
+    # dflts are from sample label
+    try:
+      self.started = True
+      if self.reset(debug=debug):
+        RuntimeError("Reset failed with %d" % stat)
+      # collect meta info
+      tmp = self.device_info('name')
+      if tmp: self.name = tmp
+      tmp = self.device_info('serial')
+      if tmp: self.firmware = tmp
+      tmp = self.device_info('code')
+      if tmp: self.code = tmp
+      if debug: print("name: '%s', S/N '%s', article: '%s'" % (self.name, self.firmware, self.device_info('code')))
+      if self.clean:
+        self.auto_clean(self.clean, debug=debug)
+        self.clean = 0
+      elif self.clean == None: self.fan_clean(debug=debug)
+    except Exception as e: RuntimeError(e)
 
   def in_waiting(self): # for non PyCom python
     try: return self.ser.in_waiting
@@ -213,6 +221,7 @@ class SPS30:
 
   # adds addr and append checksum, send stuffed bytearray
   def send(self,cmd,data, debug=False):
+    self.isStarted(debug=debug)
     s = [self.addr,cmd,len(data)] + data
     s.append((~(sum(s) & 0xFF)) & 0xFF)
     s = self.stuffing(s)   
@@ -335,10 +344,9 @@ class SPS30:
     if debug: print("SPS reset")
     try:
       self.send(self.SPS_RESET,[],debug=debug)
-      print("receive status")
       stat = self.receive(self.SPS_RESET)[0]
       if not stat: self.mode = self.STANDBY
-      print("status: %d" % stat)
+      if debug: print("reset status: %d" % stat)
     except Exception as e: raise RuntimeError(e)
     return stat
 
@@ -415,7 +423,7 @@ class SPS30:
         else:
           PM_sample[fld[0]] = round(self.calibrate(fld[3],PM_sample[fld[0]]),2)
     if self.explicit:
-        PM10 = PM_sample[pm10_cnt]
+        PM10 = PM_sample["pm10_cnt"]
         for pmCnt in PM_sample.keys():
             if pmCnt.find('_cnt') < 0: continue
             if pmCnt.find('03_cnt') > 0: PM_sample['pm03_cnt'] = PM10

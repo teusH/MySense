@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.25 2019/05/27 13:29:03 teus Exp teus $
+# $Id: MySense.py,v 5.26 2019/05/27 14:50:18 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.25 $"[11:-2]
+__version__ = "0." + "$Revision: 5.26 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -1304,7 +1304,6 @@ def getMyConfig(debug=False):
   getGlobals(debug=False)
   ## CONF archive all if dirty
   if MyConfig.dirty:
-    print("Flash updated config")
     MyConfig.store
     MyConfiguration = MyConfig.getConfig()
     if LED: LED.blink(5,0.3,0x00ff00,l=False)
