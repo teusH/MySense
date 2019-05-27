@@ -1,15 +1,15 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.26 2019/05/27 14:50:18 teus Exp teus $
+# $Id: MySense.py,v 5.28 2019/05/27 19:00:57 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.26 $"[11:-2]
+__version__ = "0." + "$Revision: 5.28 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
 from time import time, sleep
 # Turn off hearbeat LED
-from pycom import heartbeat, nvs_set, nvs_get
+from pycom import heartbeat, nvs_set, nvs_get, nvs_erase
 heartbeat(False)
 import os
 PyCom = 'PyCom %s' % os.uname().nodename
@@ -154,6 +154,7 @@ def initConfig(debug=False):
   MyConfig = ConfigJson.MyConfig(archive=(not wokeUp), debug=debug)
   MyConfiguration = MyConfig.getConfig()
   if not wokeUp: # check startup mode
+    nvs_set('gps',-1)
     modus = None
     try: modus = nvs_get('modus')
     except: pass
@@ -703,8 +704,11 @@ def DoMeteo(debug=False):
   # display results
   nl += 6  # oled spacing
   if Meteo['conf']['name'] == 'BME680':
-    title = "  C hum% pHa AQI"
-    values = "% 2.1f %2d %4d %2d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES]),round(mData[AQI]))
+    title = "  C hum% pHa"
+    values = "% 2.1f %2d %4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES]))
+    if mData[AQI] > 0:
+      title += ' AQI'
+      values += " %2d" % round(mData[AQI])
   elif Meteo['conf']['name'] == 'BME280':
     title = "    C hum%  pHa"
     values = "% 3.1f  % 3d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES]))
@@ -989,8 +993,12 @@ def DoGPS(debug=False):
     return PinPowerRts(atype,prev,debug=debug)
   if debug: print("Try date/RTC update")
   myGPS = [0.0,0.0,0.0]; prev = None
+  fixate = False
+  if nvs_get('gps') < 0: fixate = None; nvs_set('gps',0)
   try:
-    if Gps['lib'].quality < 1: display('wait GPS fix') # maybe 10 minutes
+    if Gps['lib'].quality < 1:
+      if fixate == None: display('wait GPS fixate')
+      else: print('wait GPS fixate') # maybe 10 minutes
     for cnt in range(1,5):
       Gps['lib'].read(debug=debug)
       if Gps['lib'].quality > 0: break
@@ -1004,7 +1012,8 @@ def DoGPS(debug=False):
       if Gps['rtc'] == None: Gps['rtc'] = True
       print("%d GPS sats, time set" % Gps['lib'].satellites)
     else:
-      display('no GPS fix')
+      if fixate == None: display('no GPS fixate')
+      else: print('no GPS fixate')
       # return PinPowerRts(atype,prev,rts=[0,0,0],debug=debug)
       return [0,0,0] # leave power on
     if Gps['rtc'] == True:
@@ -1023,8 +1032,8 @@ def DoGPS(debug=False):
         MyConfiguration['thisGPS'] = myGPS[0:]
         MyConfig.dump('thisGPS', MyConfiguration['thisGPS'])
         if interval['info'] < 60: interval['info_next'] = interval['info'] = 1 # force
-      lastGPS = myGPS[0:]
-      saveGPS(lastGPS)
+      lastGPS = myGPS[0:]; saveGPS(lastGPS)
+      fixate = True; nvs_set('gps',Gps['lib'].satellites)
     else: myGPS = [0,0,0]
     if debug and (myGPS != None):
       print("GPS: lon %.5f, lat %.5f, alt %.2f" % (myGPS[LON],myGPS[LAT],myGPS[ALT]))
@@ -1033,7 +1042,8 @@ def DoGPS(debug=False):
     display('GPS error')
     return PinPowerRts(atype,False,debug=debug)
   if interval['gps_next']: interval['gps_next'] = time()+interval[atype]
-  if MyConfiguration['power']['ttl']: prev = False
+  # Pwr on till fixate
+  if MyConfiguration['power']['ttl'] and fixate: prev = False
   return PinPowerRts(atype,prev,rts=myGPS, debug=debug)
 
 ## Pin devices
@@ -1407,7 +1417,7 @@ def runMe(debug=False):
     if Display['enabled'] and (Power['display'] != None):
        Display['lib'].poweroff()
     # RGB led off?
-    MyConfig.store # update config flash?
+    if MyConfig.dirty: MyConfig.store # update config flash?
     # LoRa nvram done via send routine
 
     if Power['sleep'] or deepsleepMode():
