@@ -7,7 +7,7 @@
 from time import sleep_ms
 from machine import UART
 
-__version__ = "0." + "$Revision: 5.9 $"[11:-2]
+__version__ = "0." + "$Revision: 5.10 $"[11:-2]
 __license__ = 'GPLV3'
 
 # Config.py definitions preceed
@@ -129,7 +129,6 @@ class identification:
         if not ser.any():
           sleep_ms(5*500 if atype == 'dust' else 500)
         try:
-          print("Bytes in serial buf %d" % ser.any())
           line = ser.readall()
           if self.debug: print("Read: ", line)
         except Exception as e:
