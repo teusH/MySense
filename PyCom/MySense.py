@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.28 2019/05/27 19:00:57 teus Exp teus $
+# $Id: MySense.py,v 5.29 2019/05/30 12:09:14 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.28 $"[11:-2]
+__version__ = "0." + "$Revision: 5.29 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -1028,7 +1028,7 @@ def DoGPS(debug=False):
       myGPS[LON] = round(float(Gps['lib'].longitude),5)
       myGPS[LAT] = round(float(Gps['lib'].latitude),5)
       myGPS[ALT] = round(float(Gps['lib'].altitude),1)
-      if MyConfiguration['thisGPS'][0] < 0.1:
+      if (MyConfiguration['thisGPS'][0] < 0.1) and (myGPS[0] > 0.1):
         MyConfiguration['thisGPS'] = myGPS[0:]
         MyConfig.dump('thisGPS', MyConfiguration['thisGPS'])
         if interval['info'] < 60: interval['info_next'] = interval['info'] = 1 # force
