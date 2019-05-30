@@ -6,6 +6,29 @@
 # xyz_test is operational test for xyz
 # other parts are functional tests for MySense.py wrapper
 
+# RESET LoPy FLASH MEMORY
+# MySense will archive the detected configuration:
+# which device is connected to which bus (TTL or I2C) and to which TTL socket
+# which library should be loaded to drive the device.
+# Make sure to choice the right 3V3 or V5 on the connector board for TTL socket.
+# Detected configuration is kept in flash memory and
+# loaded on warm reboot (deepsleep wakeup)
+# Certain values e.g. lora keys and lora package counter is kept in nvs_ram.
+# These archived data is cleared/reset as follows:
+# delete detected configuration surviving reboots
+import os
+os.remove('/flash/MySenseConfig.json')
+# os.mkfs('/flash')   # remove all MySense firmware
+# 
+# delete frequently changed status variables
+from pycom import nvs_erase_all
+nvs_erase_all()
+# for item in ['gps','mode','LAT','LON','ALT','info_next','gps_next']: nvs_erase(item)
+# delete LoRa saved status data
+from network import lora
+lora.nvram_erase()
+
+##### flashed configuraion data
 # HW configuration is maintained in config (may come from archive json file in flash mem
 # config dict: { (name,abus): value}, value is anything (reminder: json converts tuple to array)
 # name: eg dirty, accu(pin), sleep(pin)
@@ -23,6 +46,8 @@
 #   ttl (file descr),
 #   enabled (can be used, has file descr.)
 
+##### Some SOFTWARE TESTs
+# using next tests will give you some first inside in the MySense software
 # get serial number of the PyCom controller
 from machine import unique_id
 import binascii
@@ -62,6 +87,8 @@ aData = MySense.DoAccu(debug=debug)  # state accu
 aData                                # probably 0
 aData = 12.5                         # set accu voltage
 
+######## DEVICE TESTs
+# next will give youy some test script to test connected hardware components
 # try LoRa send info
 MySense.SendInfo()                           # send meta data
 # send data packet
