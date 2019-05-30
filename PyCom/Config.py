@@ -39,7 +39,7 @@ W_PASS = 'GreenTechLab'
 
 # define None if GPS is not used
 # thisGPS = [0.0,0.0,0.0] # (LAT,LON,ALT) # GPS may overwrite this on startup
-# Power = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': False }
+# Power = { 'ttl': False, 'i2c': False, 'led': False, 'sleep': False, 'display': False }
 
 # calibration Taylor factors
 # calibrate = None # or e.g. { 'temperature': [-6.2,1], 'pm1': [-20.0,0.5], ...}

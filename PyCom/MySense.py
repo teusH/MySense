@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.29 2019/05/30 12:09:14 teus Exp teus $
+# $Id: MySense.py,v 5.30 2019/05/30 13:29:26 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.29 $"[11:-2]
+__version__ = "0." + "$Revision: 5.30 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -324,7 +324,7 @@ def getGlobals(debug=False):
       MyConfiguration['power'] = Power
     # deflt: no power mgt on ttl, i2c, display power mngt is used
     except:
-      MyConfiguration['power'] = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': None }
+      MyConfiguration['power'] = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': None, 'led': False }
     if not wokeUp: MyConfig.dump('power', MyConfiguration['power'])
   if deepsleepMode():
     MyConfiguration['power']['ttl'] = MyConfiguration['power']['i2c'] = True
@@ -1334,9 +1334,6 @@ def runMe(debug=False):
 
   if not MyTypes:
     getMyConfig(debug=debug) 
-    # short cuts
-    interval = MyConfiguration['interval']
-    Power = MyConfiguration['power']
 
     # initialize devices and show initial info
     if not initDevices(debug=debug): # initNet does LoRa nvram restore
@@ -1347,6 +1344,9 @@ def runMe(debug=False):
     if debug:
       global MyConfig
       if MyConfig.dirty: print("Configuration is dirty")
+  # short cuts
+  interval = MyConfiguration['interval']
+  Power = MyConfiguration['power']
   Dust = None
   try: Dust = MyTypes['dust']
   except: pass
@@ -1362,7 +1362,8 @@ def runMe(debug=False):
     display("MySense %s" % __version__[:8], (0,0), clear=True)
     display("s/n " + getSN())
     display("probes: %ds/%dm" % (interval['sample'], (interval['interval']+interval['sample'])/60))
-  elif wokeUp and LED: LED.disable
+  elif wokeUp and LED:
+    if ('led' in Power.keys()) and Power['led']: LED.disable
 
   while True: # LOOP forever
     if LED: LED.blink(1,0.2,0x00FF00,l=False,force=True)
