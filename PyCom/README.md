@@ -312,15 +312,20 @@ In order to support solarcel as energy source MySense supports the *deepsleep* f
 The auto maintained configuration data can be cleared as followed:
 ```python
     import pycom
-    pycom.nvs_set('modus',0) # 0 for clear all, 1 for clear ttl/i2c device conf
-    # modus 2: do not clear assembled configuration
+    # 0 for clear flash configuration and nvs ram variables on cold (re)boot
+    # as well clear all nvs ram variables
+    pycom.nvs_set('modus',0)
+    # modus 1: for clear ttl/i2c device conf
+    # modus 2: do not clear assembled configuration (advised)
 ```
 The json configuration will be updated if via remote command the configuration item is changed. So the change will survive a reboot.
 
 Configuration item `power` will define if between deepsleeps de bus will be unpowered. E.g. deactivate GPS device fully. The kit will go into deepsleep if AND deepsleep pin is enabled AND `power` attribute `sleep` is True. On a cold boot with deepsleep pin enabled the default startup `power` configuration will be with `ttl`, `i2c` and `sleep` defined as *True*.
 
 Configuration dictionary `interval` will define e.g. sample times ('sample': dflt 1 minute), and interval timings ('interval': dflt 15 minutes). As well next time meta information ('gps': 'gps_next', 'info': 'info_next': xyz_next values will be stored in nvs ram to survive a reboot) will be sent or GPS will be tried to find GPS location and set day time. 
-Configuration dictionary 'power' will define to enable/disable power on 'ttl', 'i2c', 'led' (rgb led), 'wifi' and 'display'. As well 'sleep' to enable a soft deepsleep (without sleep pin use).
+Configuration dictionary 'power' will define, True is power off, to enable/disable power on 'ttl', 'i2c', 'led' (rgb led), 'wifi' and 'display'. As well 'sleep' to enable a soft deepsleep (without sleep pin use).
+
+WiFi AP will be configured with SSID/PASS as defined in Config.py after 15 measurements after a cold reboot. Unless 'power' item 'wifi' is defined as True. In which case the WiFi will be turned off after 15 measurements.
 
 Configuration dictionary 'calibration' will define Taylor calibration rules for corection of 'temperatue', 'humidity', 'pressure', 'gas', 'pm1', 'pm25', pm10', and define 'gas_base' for AQI calculations.
 

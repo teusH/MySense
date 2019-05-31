@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.31 2019/05/30 18:56:45 teus Exp teus $
+# $Id: MySense.py,v 5.34 2019/05/31 19:27:04 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.31 $"[11:-2]
+__version__ = "0." + "$Revision: 5.34 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -141,24 +141,32 @@ def deepsleepMode():
     return not MyDevices[atype]['lib'].value()
   except: return False
 
-wlan = None
 def setWiFi(debug=False):
-  global wlan, MyConfiguration, wokeUp
-  if wlan: return True
-  from network import WLAN
-  wlan = WLAN()
-  if deepsleepMode(): # may change this to always
+  global MyConfiguration, wokeUp
+  cnt = None
+  try: cnt = nvs_get('count')
+  except: pass
+  if not cnt: cnt = 0
+  elif not wokeUp: cnt = 0
+  nvs_set('count',cnt+1)
+  cntHour = 4
+  try: cntHour = int(4500/(MyConfiguration['interval']['interval']+MyConfiguration['interval']['sample'])
+  except: pass
+  if cnt == cntHour: # after ca 1 Hr turn wifi off or give it new ssid/pass
     try:
-      if MyConfiguration['power']['wifi']: wlan.deinit() # switch wifi off
-      return False
-    except: pass
-  try:
-    from Config import W_SSID, W_PASS
-    if W_SSID[-4:] == 'AAAA': W_SSID = W_SSID[:-4]+getSN()[-4:]
-    display("WiFi AP: %s" % W_SSID)
-    display("pass: %s" % W_PASS)
-    wlan.init(mode=WLAN.AP,ssid=W_SSID, auth=(WLAN.WPA2,W_PASS), channel=7, antenna=WLAN.INT_ANT)
-  except: return False
+      if MyConfiguration['power']['wifi']:
+        wlan.deinit() # switch wifi off
+        display("WiFi AP: off")
+        return False
+      from Config import W_SSID, W_PASS
+      if W_SSID[-4:] == 'AAAA': W_SSID = W_SSID[:-4]+getSN()[-4:]
+      from network import WLAN
+      wlan = WLAN()
+      display("WiFi AP: %s" % W_SSID)
+      display("pass: %s" % W_PASS)
+      sleep(5)
+      wlan.init(mode=WLAN.AP,ssid=W_SSID, auth=(WLAN.WPA2,W_PASS), channel=7, antenna=WLAN.INT_ANT)
+    except: return False
   return True
 
 ## configuration from flash
@@ -174,11 +182,15 @@ def initConfig(debug=False):
   MyConfig = ConfigJson.MyConfig(archive=(not wokeUp), debug=debug)
   MyConfiguration = MyConfig.getConfig()
   if not wokeUp: # check startup mode
+    from pycom import nvs_get, nvs_erase_all
     nvs_set('gps',-1)
     modus = None
     try: modus = nvs_get('modus')
     except: pass
-    if not modus: MyConfig.clear # not def or 0: no archived conf
+    if not modus:
+      if MyConfiguration: MyConfig.clear # not def or 0: no archived conf
+      MyConfiguration = dict()
+      nvs_erase_all()
     elif modus  == 1: # reset only discovered devices
       for abus in ['ttl','i2c']:
         try: MyConfiguration[abus] = dict()
@@ -1388,7 +1400,7 @@ def runMe(debug=False):
   while True: # LOOP forever
     if LED: LED.blink(1,0.2,0x00FF00,l=False,force=True)
     toSleep = time()
-    if not wlan: setWiFi(debug=debug)
+    setWiFi(debug=debug)
     if interval['info'] and ((toSleep-StartUpTime) > interval['info_next']): # send info update
        if SendInfo(): print("Sent Meta info")
        if interval['info'] < 60: interval['info'] = 0 # was forced

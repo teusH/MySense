@@ -37,10 +37,9 @@ The file `Config.py` will give the default definitions. You will need to define 
 All pins can be redefined. Default values are based on the PCB wiring board from Fontys GreenTechLab. Every define can be disabled as e.g. useGPS = False.
 
 ### WLAN access point
-Default WLAN AP is WPA2 as defined by PyCom firmware ('lopy-HEXN','www.pycom.io').
-This can be redefined by W_SSID/W_PASS in the configuration file (default: MySense-HEXN','BehoudDeParel').
-In deepsleep mode the WiFi can be switched off by defining 'wifi' (True) in 'power' config dictionary.
-So with deepsleep pin enabled the wifi will be switched off.
+Default WLAN AP is WPA2 as defined by PyCom firmware ('lopy-wlan-HEXN','www.pycom.io').
+This can be redefined by W_SSID/W_PASS in the configuration file (default: MySense-HEXN','BehoudDeParel'). The wifi AP name will be effectuated after 15 measurements from a cold (re)boot.
+The WiFi will be switched off by defining 'wifi' (True) in 'power' config dictionary after 15 measurments from a cold (re)boot.
 
 ### Scripts to test devices (sensors)
 
