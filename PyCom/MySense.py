@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.35 2019/06/01 13:11:25 teus Exp teus $
+# $Id: MySense.py,v 5.36 2019/06/01 14:50:57 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.35 $"[11:-2]
+__version__ = "0." + "$Revision: 5.36 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -106,7 +106,7 @@ def getVoltage(): # range 0 (None) and 11.4 (low) - 12.5 (high)
       try: from Config import accuPin
       except: pass
       MyConfig.dump('accuPin',accuPin)
-      MyConfiguration['accupin'] = accuPin
+      MyConfiguration['accuPin'] = accuPin
     else: accuPin = MyConfiguration['accuPin']
     if not atype in MyDevices.keys():
       from machine import ADC
@@ -183,7 +183,6 @@ def initConfig(debug=False):
   MyConfiguration = MyConfig.getConfig()
   if not wokeUp: # check startup mode
     from pycom import nvs_get, nvs_erase_all
-    nvs_set('gps',-1)
     modus = None
     try: modus = nvs_get('modus')
     except: pass
@@ -195,6 +194,7 @@ def initConfig(debug=False):
       for abus in ['ttl','i2c']:
         try: MyConfiguration[abus] = dict()
         except: pass
+    nvs_set('gps',-1)
 
 ## CONF pins
 def getPinsConfig(debug=False):
