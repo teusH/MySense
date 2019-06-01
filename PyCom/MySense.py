@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.34 2019/05/31 19:27:04 teus Exp teus $
+# $Id: MySense.py,v 5.35 2019/06/01 13:11:25 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.34 $"[11:-2]
+__version__ = "0." + "$Revision: 5.35 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -150,7 +150,7 @@ def setWiFi(debug=False):
   elif not wokeUp: cnt = 0
   nvs_set('count',cnt+1)
   cntHour = 4
-  try: cntHour = int(4500/(MyConfiguration['interval']['interval']+MyConfiguration['interval']['sample'])
+  try: cntHour = int(4500/MyConfiguration['interval']['interval'])
   except: pass
   if cnt == cntHour: # after ca 1 Hr turn wifi off or give it new ssid/pass
     try:
@@ -327,7 +327,6 @@ def getGlobals(debug=False):
     finally:
       for item in ['interval','gps','info']:
         MyConfiguration['interval'][item] *= 60
-        MyConfiguration['interval']['interval'] -= MyConfiguration['interval']['sample']
         if MyConfiguration['interval']['interval'] <= 0:
           MyConfiguration['interval']['interval'] = 0.1
     MyConfig.dump('interval',MyConfiguration['interval'])
@@ -1393,6 +1392,9 @@ def runMe(debug=False):
     display('%s' % PyCom, (0,0),clear=True)
     display("MySense %s" % __version__[:8], (0,0), clear=True)
     display("s/n " + getSN())
+    if not wokeUp:
+      if deepsleepMode(): display("energy saving")
+      else: display("active mode")
     display("probes: %ds/%dm" % (interval['sample'], (interval['interval']+interval['sample'])/60))
   elif wokeUp and LED:
     if ('led' in Power.keys()) and Power['led']: LED.disable
