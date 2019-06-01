@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.36 2019/06/01 14:50:57 teus Exp teus $
+# $Id: MySense.py,v 5.37 2019/06/01 15:06:53 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.36 $"[11:-2]
+__version__ = "0." + "$Revision: 5.37 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -1395,7 +1395,7 @@ def runMe(debug=False):
     if not wokeUp:
       if deepsleepMode(): display("energy saving")
       else: display("active mode")
-    display("probes: %ds/%dm" % (interval['sample'], (interval['interval']+interval['sample'])/60))
+    display("probes: %ds/%dm" % (interval['sample'], interval['interval']/60))
   elif wokeUp and LED:
     if ('led' in Power.keys()) and Power['led']: LED.disable
 
