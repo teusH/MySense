@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.37 2019/06/01 15:06:53 teus Exp teus $
+# $Id: MySense.py,v 5.38 2019/06/01 18:32:17 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.37 $"[11:-2]
+__version__ = "0." + "$Revision: 5.38 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -147,7 +147,6 @@ def setWiFi(debug=False):
   try: cnt = nvs_get('count')
   except: pass
   if not cnt: cnt = 0
-  elif not wokeUp: cnt = 0
   nvs_set('count',cnt+1)
   cntHour = 4
   try: cntHour = int(4500/MyConfiguration['interval']['interval'])
@@ -195,6 +194,7 @@ def initConfig(debug=False):
         try: MyConfiguration[abus] = dict()
         except: pass
     nvs_set('gps',-1)
+    nvs_set('count',0)
 
 ## CONF pins
 def getPinsConfig(debug=False):
