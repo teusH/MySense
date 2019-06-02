@@ -34,9 +34,10 @@ W_PASS = 'BehoudDeParel'
 # display: None (always on), False: always off, True on/off during sleep
 # sleep pin enabled: ttl and i2c will be set to True
 # wifi on True: after 1 Hr wifi is turned off
+# 'sleep' True force deepsleep, dflt off
 # led: True rgb led is disabled, only ON on failure
+# Power = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': None, 'led': False, 'wifi': False }
 # less energy use next
-# Power = { 'ttl': False, 'i2c': False, 'wfi': False, 'led': False, 'sleep': False, 'display': None }
 
 # define None if GPS is not used, detected start GPS is archived in nvs ram
 # dynamic (gps > 50m) location is sent to data portal
