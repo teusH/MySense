@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.38 2019/06/01 18:32:17 teus Exp teus $
+# $Id: MySense.py,v 5.39 2019/06/02 12:23:25 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.38 $"[11:-2]
+__version__ = "0." + "$Revision: 5.39 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -158,7 +158,7 @@ def setWiFi(debug=False):
         display("WiFi AP: off")
         return False
       from Config import W_SSID, W_PASS
-      if W_SSID[-4:] == 'AAAA': W_SSID = W_SSID[:-4]+getSN()[-4:]
+      if W_SSID[-4:] == 'AAAA': W_SSID = W_SSID[:-4]+getSN()[-4:].lower()
       from network import WLAN
       wlan = WLAN()
       display("WiFi AP: %s" % W_SSID)

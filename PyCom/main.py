@@ -3,7 +3,7 @@ def setWiFi():
   try:
     from machine import unique_id
     import binascii
-    SSID = 'MySense-' + binascii.hexlify(unique_id()).decode('utf-8')[-4:]
+    SSID = 'MySense-' + binascii.hexlify(unique_id()).decode('utf-8')[-4:].lower()
     PASS = 'www.pycom.io'
     from network import WLAN
     wlan = WLAN()
