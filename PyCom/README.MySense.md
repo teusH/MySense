@@ -49,6 +49,11 @@ Default WLAN AP is WPA2 as defined by PyCom firmware ('lopy-wlan-HEXN','www.pyco
 This can be redefined by W_SSID/W_PASS in the configuration file (default: MySense-HEXN','BehoudDeParel'). The wifi AP name will be effectuated after ca 1 hour from a cold (re)boot.
 The WiFi will be switched off by defining 'wifi' (True) in 'power' config dictionary after 1 hour of measurements. Use this to save energy and security reasons.
 
+### OVER The AIR (OTA) update
+Via LoRaWan one can send the command 'W' to the MySense node. If the WiFi AP was turned off the WiFi AP will be enabled with the initial `MySense-HEXn`/`www.pycom.io` credentials for one hour.
+
+To Do: use the <a href="https://docs.pycom.io/tutorials/all/ota.html">PyCom OTA</a> update method.
+
 ### Scripts to test devices (sensors)
 
 MySense has provided several simple XYZ_test.py python scripts to test the sensor modules for needed libraries and check of wiring.

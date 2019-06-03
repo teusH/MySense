@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.39 2019/06/02 12:23:25 teus Exp teus $
+# $Id: MySense.py,v 5.40 2019/06/03 08:10:03 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.39 $"[11:-2]
+__version__ = "0." + "$Revision: 5.40 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -141,23 +141,32 @@ def deepsleepMode():
     return not MyDevices[atype]['lib'].value()
   except: return False
 
-def setWiFi(debug=False):
-  global MyConfiguration, wokeUp
+def setWiFi(reset=False,debug=False):
+  global MyConfiguration
   cnt = None
   try: cnt = nvs_get('count')
   except: pass
   if not cnt: cnt = 0
-  nvs_set('count',cnt+1)
   cntHour = 4
   try: cntHour = int(4500/MyConfiguration['interval']['interval'])
   except: pass
+  if reset:
+    nvs_set('count',0)
+    if cnt > cntHour: cnt == cntHour # enable wifi
+    else: cnt = 0
+  else: nvs_set('count',cnt+1)
   if cnt == cntHour: # after ca 1 Hr turn wifi off or give it new ssid/pass
     try:
-      if MyConfiguration['power']['wifi']:
-        wlan.deinit() # switch wifi off
-        display("WiFi AP: off")
-        return False
-      from Config import W_SSID, W_PASS
+      W_SSID = 'MySense-AAAA'; W_PASS = 'www.mycom.io'
+      if not reset:
+        if MyConfiguration['power']['wifi']:
+          wlan.deinit() # switch wifi off
+          display("WiFi AP: off")
+          return False
+        try: from Config import W_SSID
+        except: pass
+        try: from Config import W_PASS
+        except: pass
       if W_SSID[-4:] == 'AAAA': W_SSID = W_SSID[:-4]+getSN()[-4:].lower()
       from network import WLAN
       wlan = WLAN()
@@ -1139,6 +1148,8 @@ def CallBack(port,what):
         if MyTypes['dust']['conf']['name'][:3] != 'SDS': MyTypes['dust']['cnt'] = True
       elif what == b'w': # send partical weight
         MyTypes['dust']['cnt'] = False
+      elif what == b'W': # enable WiFi
+        return setWiFi(reset=True)
       else: return
 
     cmd = None; value = None

@@ -62,8 +62,9 @@ or use solarpower if no V230 is available (ca € 100):
 * housing/case for the power
 
 ToDo:
-* Solarcel software to put LoPy in sleep mode between samples and track energy supply
 * software to use WiFi/MQTT for internet access connectivity if LoRa is not available
+* Over The Air (OTA) update via the <a href="https://docs.pycom.io/tutorials/all/ota.html">PyCom OTA method</a>.
+Currenty one can use WiFi AP access and Atom. If the WiFi AP is powered off by configuration the LoRa command 'W' will enable WiFi AP of the node again for one hour.
 
 Some fixing materials:
 * small piece of plexiglas for cover oled display
