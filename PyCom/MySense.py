@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.41 2019/06/04 10:12:32 teus Exp teus $
+# $Id: MySense.py,v 5.42 2019/06/04 10:29:48 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.41 $"[11:-2]
+__version__ = "0." + "$Revision: 5.42 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -412,11 +412,13 @@ LF = const(13)
 def display(txt,xy=(0,None),clear=False, prt=True):
   global MyTypes, nl
   if not MyTypes: getMyConfig()
+  Display = None
   try:
     Display = MyTypes['display']
-    if not Display['lib']: initDisplay()
-  except: return
-  if Display['enabled'] and Display['conf']['use'] and Display['lib']:
+    if not Display['lib']:
+      if not initDisplay(): Display = None
+  except: pass
+  if Display and Display['enabled'] and Display['conf']['use'] and Display['lib']:
     offset = 0
     if xy[1] == None: y = nl
     elif xy[1] < 0:
