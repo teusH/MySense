@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.40 2019/06/03 08:10:03 teus Exp teus $
+# $Id: MySense.py,v 5.41 2019/06/04 10:12:32 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.40 $"[11:-2]
+__version__ = "0." + "$Revision: 5.41 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -1395,6 +1395,7 @@ def runMe(debug=False):
   Network = None
   try: Network = MyTypes['network']
   except: pass
+  Display = None
   try: Display = MyTypes['display']
   except: pass
 
@@ -1449,7 +1450,9 @@ def runMe(debug=False):
 
     if STOP:
       sleep_ms(60*1000)
-      if Display['enabled']: Display['lib'].poweroff()
+      try:
+        if Display['enabled']: Display['lib'].poweroff()
+      except: pass
       PinPower(atype=['dust','gps','meteo','display'],on=False,debug=debug)
       # and put ESP in deep sleep: machine.deepsleep()
       return False
@@ -1461,7 +1464,7 @@ def runMe(debug=False):
         Dust['lib'].Standby()   # switch off laser and fan
       elif toSleep < 15: toSleep = 15
     PinPower(atype=['gps','dust'],on=False,debug=debug) # auto on/off next time
-    if Display['enabled'] and (Power['display'] != None):
+    if Display and Display['enabled'] and (Power['display'] != None):
        Display['lib'].poweroff()
     # RGB led off?
     if MyConfig.dirty: MyConfig.store # update config flash?
@@ -1484,7 +1487,7 @@ def runMe(debug=False):
       # restore config and LoRa
       if LED: LED.blink(10,int(toSleep/10),0x748ec1,l=False)
     PinPower(atype=['display','meteo'],on=True,debug=debug)
-    if Display['enabled'] and (Power['display'] != None):
+    if Display and Display['enabled'] and (Power['display'] != None):
        Display['lib'].poweron()
 
 if __name__ == "__main__":
