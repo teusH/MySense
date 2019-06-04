@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.42 2019/06/04 10:29:48 teus Exp teus $
+# $Id: MySense.py,v 5.43 2019/06/04 10:44:06 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.42 $"[11:-2]
+__version__ = "0." + "$Revision: 5.43 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -532,7 +532,9 @@ def PinPower(atype=None,on=None,debug=False):
       pins = MyConfiguration[abus][atype]['pins']
       len(pins) == 3
       if debug: print("Use %s power pins %s, on=%s" % (atype,pins,str(on)))
-    except: raise ValueError("Power pin %s missing" % atype)
+    except:
+      if debug: print("Power pin %s missing" % atype)
+      return None
     if not type(pins[2]) is str: return None
     from machine import Pin
     pin = Pin(pins[2], mode=Pin.OUT)
