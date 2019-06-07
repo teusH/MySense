@@ -1,7 +1,7 @@
 # from https://github.com/DexterInd/GrovePi
 # Software/Python/dexter_gps
 # changed for micropython
-# $Id: GPS_dexter.py,v 5.7 2019/05/16 19:26:43 teus Exp teus $
+# $Id: GPS_dexter.py,v 5.8 2019/06/07 15:52:57 teus Exp teus $
 
 import re
 try:
@@ -215,6 +215,19 @@ class GROVEGPS:
       'altitude': int(self.altitude) }
 
 
-# gps = GROVEGPS(port=1,baud=9600,timeout=0,debug=False,pins=('P3','P4'))
-# data = gps.read()
-# print(data)
+if __name__ == "__main__":
+    import sys
+    print("Reading from %s for GPS" % sys.argv[1])
+    from time import time, sleep
+    interval = 5*60
+    pins = ('P3','P4',None)
+    sample = 60
+    debug = True
+    gps = GROVEGPS(port=sys.argv[1],baud=9600,debug=debug,pins=pins[:-1])
+    for i in range(4):
+        lastTime = time()
+        data = gps.read()
+        print(data)
+        now = interval + time() -lastTime
+        if now > 0: sleep(now)
+
