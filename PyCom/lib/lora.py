@@ -2,7 +2,7 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 5.11 2019/05/27 13:18:14 teus Exp teus $
+# $Id: lora.py,v 5.12 2019/06/14 13:26:30 teus Exp teus $
 
 import socket
 from network import LoRa
@@ -58,7 +58,7 @@ class LORA(object):
       except: # ABP
         try:
           from Config import dev_addr, nwk_swkey, app_swkey
-          method['ABP'] = (nwk_swkey, nwk_swkey, app_swkey)
+          method['ABP'] = (dev_addr, nwk_swkey, app_swkey)
           fnd = True
         except: pass
     if not fnd: raise ValueError("No LoRa keys defined")
