@@ -6,9 +6,8 @@
 var version = "$Version: 1.6$".slice(10,-1);
 /*
 var payloads = [
-  "00000050007901C4033003FC000000000000", // port 2
-  "87002500360037031403140314CECECE01D1023103E30A64039E", // port 2
-  "87000100010001800001A100AA000400000035022C014703EF027B0119" // port 4
+  "00000050007901C4033003FC000000000000",
+  "87002500360037031403140314CECECE01D1023103E30A64039E"
 ];
 
 function PrtDecoded(strg,items) {
@@ -25,48 +24,33 @@ function myPrt(output) {
 // test data
 /*
 var tests = [
-{ 
-  "port": 2,
+  {"port": 2,
   "payload": [0x00, 0x00, 0x00, 0x75, 0x00, 0x79, 0x01, 0x7E, 0x04, 0x3B, 0x04, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
   "result": {
     "humidity": 108.3,
-    "pm25": 11.7,
     "pm10": 12.1,
+    "pm25": 11.7,
     "pressure": 1041,
     "temperature": 8.2
   }
 },{
-    "port": 4,
-    "payload": [87000100010001800001A100AA000400000035022C014703EF027B0119],
-    "result": {
-        "TTNversion": "1.5",
-        "temperature": 25.6
-        "pressure": 1007,
-        "humidity": 32.7,
-        "aqi": 28.1,
-        "gas": 635,
-        "grain": 0.5,
-        "pm1": 0.1,
-        "pm25": 0.1,
-        "pm10": 0.1,
-        "pm05_cnt": 41.7,
-        "pm1_cnt": 58.7,
-        "pm25_cnt": 59.1,
-        "pm5_cnt": 59.1,
-        "pm10_cnt": 59.1,
-    }
-},{
   "port": 2,
   "payload": [0x87, 0x00, 0x1B, 0x00, 0x26, 0x00, 0x4C, 0x02, 0x63, 0x02, 0x63, 0x02, 0x63, 0xE0, 0xE0, 0xE0, 0x01, 0x93, 0x02, 0x82, 0x03, 0xEB, 0x09, 0xA2, 0x02, 0x76],
   "result": {
-    "temperature": 10.3, "humidity": 64.2, "pressure": 1003, "aqi": 63, "gas": 2466,
-    "pm1": 2.7, "pm25": 3.8, "pm10": 7.6,
+    "aqi": 63,
+    "gas": 2466,
+    "humidity": 64.2,
     "pm03_cnt": 61.1,
     "pm05_cnt": 61.1,
+    "pm1": 2.7,
+    "pm10": 7.6,
+    "pm10_cnt": 22.4,
     "pm1_cnt": 61.1,
+    "pm25": 3.8,
     "pm25_cnt": 22.4,
     "pm5_cnt": 22.4,
-    "pm10_cnt": 22.4,
+    "pressure": 1003,
+    "temperature": 10.3
   }
 },{
   "port": 2,
@@ -112,7 +96,6 @@ var tests = [
   }
 }
 ];
-
 */
 
 function round(value, decimals) {
@@ -131,10 +114,9 @@ function notZero(b, nr) {
     return false;
   }
 }
-
 function DecodePrt4(bytes) { /* PM count type HHHHHH */
     var decoded = { };
-    myPrt("port 4 PM cnt bytes " + bytes.length + ": " + bytes);
+    // myPrt("port 2 PM cnt bytes " + bytes.length + ": " + bytes);
     var expl = true; var pm_4 = false;
     try {
       if (bytes[0]&0x80) { expl = false; bytes[0] = bytes[0] & 0x7F; }
@@ -184,36 +166,6 @@ function decodePM(bytes) { /* ug/m3 [H]HH */
     catch(e) {}
     finally {
       // PrtDecoded("decodePM decoded",decoded);
-      return decoded;
-    }
-}
-
-function decodeAccu(bytes) { /* voltage */
-    var decoded = {};
-    // myPrt("Accu bytes " + bytes.length + ": " + bytes);
-    try {
-      if( bytes[0] > 0 ) decoded.accu = round(bytes[0]/10.0,1); 
-    }
-    catch(e) {}
-    finally {
-       // PrtDecoded("decodeAccu decoded",decoded);
-      return decoded;
-    }
-}
-
-function decodeWind(bytes) { /* speed m/sec, direction 0-359 */
-    var decoded = {}; var speed = 0.0; var direct = 0;
-    // myPrt("Wind bytes " + bytes.length + ": " + bytes);
-    try {
-      speed = round(bytes[0]/5.0,1);
-      if ( (bytes[1] & 0x80)) speed += 0.1;
-      decoded.wspeed = speed;
-      direct = (bytes[1] & 0x7F);
-      if (direct > 0 ) decoded.wdirection = (direct*3)%360;
-    }
-    catch(e) {}
-    finally {
-       // PrtDecoded("decodeWind decoded",decoded);
       return decoded;
     }
 }
@@ -295,6 +247,36 @@ function decodeGPS(bytes) { /* GPS NEO 6 */
     }
 }
 
+function decodeAccu(bytes) { /* voltage */
+    var decoded = {};
+    // myPrt("Accu bytes " + bytes.length + ": " + bytes);
+    try {
+      if( bytes[0] > 0 ) decoded.accu = round(bytes[0]/10.0,1); 
+    }
+    catch(e) {}
+    finally {
+       // PrtDecoded("decodeAccu decoded",decoded);
+      return decoded;
+    }
+}
+
+function decodeWind(bytes) { /* speed m/sec, direction 0-359 */
+    var decoded = {}; var speed = 0.0; var direct = 0;
+    // myPrt("Wind bytes " + bytes.length + ": " + bytes);
+    try {
+      speed = round(bytes[0]/5.0,1);
+      if ( (bytes[1] & 0x80)) speed += 0.1;
+      decoded.wspeed = speed;
+      direct = (bytes[1] & 0x7F);
+      if (direct > 0 ) decoded.wdirection = (direct*3)%360;
+    }
+    catch(e) {}
+    finally {
+       // PrtDecoded("decodeWind decoded",decoded);
+      return decoded;
+    }
+}
+
 function DecodeMeta(bytes) {
   var decoded = {}
   // myPrt("Info/Meta decode bytes " + bytes.length + ": " + bytes);
@@ -348,8 +330,8 @@ function Decoder(bytes, port) {
   // Decode an uplink message from a node
   // (array) of bytes to an object of fields.
   // myPrt("port" + port + ", length " + bytes.length + ": " + bytes);
-  if ( port == 10 ) return {};  /* meteo sensor */
   if ( port == 3 ) return DecodeMeta(bytes);
+  if ( port == 10 ) return {};
   var decoded = { "TTNversion": version }; var type = 0x0;
   var strt = 0; var end = 1;
   /* dust [H]HH[HHH[BBB|HHH]] */
@@ -382,27 +364,30 @@ function Decoder(bytes, port) {
   /* meteo HHH[HH] */
   end = strt+6; if ( bytes.length < end ) return decoded;
   if ( (type & 0x4) ) end += 4; /* add gas & aqi */
-  decoded = combine(decoded,decodeMeteo(bytes.slice(strt,end)));
-  strt = end; if ( bytes.length <= end+4 ) return decoded;
-  
-  if( notZero(bytes,strt) || notZero(bytes,strt+2) ){
-      decoded.utime = ((bytes[strt]<<24)+(bytes[strt+1]<<16)+(bytes[strt+2]<<8)+bytes[strt+3]);
-      strt += 4;
+  decoded = combine(decoded,decodeMeteo(bytes.slice(strt,end))); strt = end;
+  if ( bytes.length >= strt+3) { /* utime */
+      if( notZero(bytes,strt) || notZero(bytes,strt+2) ){
+          decoded.utime = ((bytes[strt]<<24)+(bytes[strt+1]<<16)+(bytes[strt+2]<<8)+bytes[strt+3]);
+          strt += 4;
+      }
   }
-  
-  /* location fff */
-  end = strt+3*4; if ( bytes.length < end ) return decoded;
-  if ( (type & 0x8) ) {
-      decoded = combine(decoded,decodeGPS(bytes.slice(strt,strt+3*4)));
-      strt += 3*4;
+  if ( bytes.length >= strt+3*4-1 ){ /* location fff */
+      if ( (type & 0x8) ) {
+          decoded = combine(decoded,decodeGPS(bytes.slice(strt,strt+3*4)));
+          strt += 3*4;
+      }
   }
-  if ( (type & 0x16) ) {
-      decoded = combine(decoded,decodeWind(bytes.slice(strt,strt+2)));
-      strt += 2;
+  if ( bytes.length >= strt+1) {  /* wind sp&degree */
+      if ( (type & 0x10) ) {
+          decoded = combine(decoded,decodeWind(bytes.slice(strt,strt+2)));
+          strt += 2;
+      }
   }
-  if ( (type & 0x32) ) {
-      decoded = combine(decoded, decodeAccu(bytes.slice(strt,strt+1)));
-      strt += 1;
+  if (bytes.length >= strt ){ /* accu volt */
+      if ( (type & 0x20) ) {
+          decoded = combine(decoded, decodeAccu(bytes.slice(strt,strt+1)));
+          strt += 1;
+      }
   }
   return decoded;
 }
@@ -411,9 +396,9 @@ function Decoder(bytes, port) {
 var test = {};
 var rslt = {}; 
 
-// PrtDecoded(tests[1]["result"]);
-// rslt = Decoder(tests[1]["payload"],tests[1]["port"]);
-// PrtDecoded(rslt);
+//PrtDecoded(tests[1]["result"]);
+//rslt = Decoder(tests[1]["payload"],tests[1]["port"]);
+//PrtDecoded(rslt);
 
 for ( test in tests ) {
    rslt = Decoder(tests[test]["payload"],tests[test]["port"]);
