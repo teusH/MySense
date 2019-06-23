@@ -1,4 +1,4 @@
-__version__ = "0." + "$Revision: 5.6 $"[11:-2]
+__version__ = "0." + "$Revision: 5.8 $"[11:-2]
 __license__ = 'GPLV3'
 ''' basis PyCom LoPy controller and PCB test.
     if deepsleep pin not is enabled, no update of config file will be done.
@@ -12,8 +12,7 @@ else: print("Cold reboot")
 
 ################## json flashed configuration
 # roll in archive configuration
-try:
-  import ConfigJson
+try: import ConfigJson
 except:
   print("Missing library led and/or ConfigJson")
   sys.exit()
@@ -67,7 +66,7 @@ def getBatVoltage():
 accu = getBatVoltage()
 if accu > 0.1:
   print("Accu voltage: %f Vdc" % accu)
-  if 0.1 < accu < 11.2: 
+  if 0.1 < accu < 11.2:
     print("Low accu voltage, charge accu")
     if LED: LED.blink(5,0.1,0x00ffff,False)
   elif LED: LED.blink(5,0.1,0x00ff00,False)
@@ -141,7 +140,7 @@ if initLoRa:
   # ABP keys
   try:
     from Config import dev_addr, nwk_swkey, app_swkey
-    method['ABP'] = (nwk_swkey, nwk_swkey, app_swkey)
+    method['ABP'] = (dev_addr, nwk_swkey, app_swkey)
     MyConfig.dump('LoRa','ABP')
   except: pass
   if not len(method): raise ValueError("No LoRa keys configured or LoRa config error")
@@ -185,7 +184,7 @@ if not wokeUp: # no need to send meta data again
   if useGPS: sense |= 0x8
   info = struct.pack('>BBlll',0,sense,int(thisGPS[0]*100000),int(thisGPS[1]*100000), int(thisGPS[2]*10))
   print("Sending version 0, meteo %s, dust %s, configured GPS: " % (meteo,dust), thisGPS)
-  
+
   if not myLoRa.send(info,port=3):
     print("Info send error")
     if LED: LED.blink(5,0.3,0xff0000,False)

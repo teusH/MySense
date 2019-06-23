@@ -133,3 +133,14 @@ This can be interrupted with a <cntrl>c. If needed to be followed by a soft rese
 Some help scripts for testing hardware, connections and operational functions
 provided in the script `SWcomponents_test.txt` one can test via copy/paste and 'atom' REPL the hardware and software.
 * and give positive and negative feedback to us and contribute!
+
+## events
+
+MySense will try to notify unexpected events during the measurments. Events will be shown via the RGB led: blinking red flash light and eventually constant red light on fatal events. Some of the events will be sent viua LoRa, if possible as well. Like STOP operations, and empty accu (<85% load).
+
+## accu watch dog
+
+If the accu is connected to Grn and ADC pin (board power pins: 5Vdc, Ground, Accu-Vcc, Accu-Gnd, s-reset on the PCB board), MySense will check via ADC the accu voltage. Will update the max/minimum value in nvs ram.
+Initialy the maximum is set on cold boot to accu voltage level.
+If accu voltage is lower as 85% of maximum MySense will enter a 15 minute deepsleep loop till the accu voltage level of 85% is reached.
+An accu low event will be sent via LoRa every 15 minutes.

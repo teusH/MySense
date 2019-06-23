@@ -5,7 +5,7 @@
 #          app id  ???, dev id ???
 Network = 'TTN' # or 'WiFi'
 # OTAA keys
-dev_eui = "AAAA" # will be completed by dev hex serial nr
+dev_eui = "AAAAAA" # will be completed by dev hex serial nr
 app_eui = "70123412341234D3"
 app_key = "7912341234123412341234123412345B"
 # ABP keys
@@ -14,9 +14,11 @@ app_key = "7912341234123412341234123412345B"
 # app_swkey = "27123412341234123412341234123404"
 
 # wifi AP or Node
-W_SSID = 'MySense-AAAA'  # will be completed with 4 S/N bytes
+W_SSID = 'MySense-AAAA' # last 4A's will be changed to last 4 of S/N
 W_PASS = 'BehoudDeParel'
 
+# power mgt of ttl/uarts OFF/on, i2c OFF/on and deep sleep minutes, 0 off
+# Power = { 'ttl': False, 'i2c': False, 'sleep': 0 }
 #  interval = { 'sample': 60,    # dust sample in secs
 #             'interval': 15,     # sample interval in minutes
 #             'gps':      3*60,  # location updates in minutes
@@ -29,19 +31,15 @@ W_PASS = 'BehoudDeParel'
 #    nvs RAM is permanent in PyCom mem: change it with import pycom, and
 #    pycom.nvs_set('modus',1) will reset ttl/i2c configurion, and force auto detect
 #    pycom.nvs_set('modus',2) the archived configuratioin will be used
-
-# power mgt of ttl/uarts OFF/on, i2c OFF/on and sleep deepsleep OFF/on, display ON/off
+# device power management dflt: do not unless pwr pins defined
+# power mgt of ttl/uarts OFF/on, i2c OFF/on and deep sleep minutes, 0 off
 # display: None (always on), False: always off, True on/off during sleep
-# sleep pin enabled: ttl and i2c will be set to True
-# wifi on True: after 1 Hr wifi is turned off
-# 'sleep' True force deepsleep, dflt off
-# led: True rgb led is disabled, only ON on failure
-# Power = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': None, 'led': False, 'wifi': False }
+# Power = { 'ttl': False, 'i2c': False, 'sleep': 0, 'display': None }
 # less energy use next
 
-# define None if GPS is not used, detected start GPS is archived in nvs ram
-# dynamic (gps > 50m) location is sent to data portal
+# define None if GPS is not used
 # thisGPS = [0.0,0.0,0.0] # (LAT,LON,ALT) # GPS may overwrite this on startup
+# Power = { 'ttl': False, 'i2c': False, 'led': False, 'sleep': False, 'display': False }
 
 # calibration Taylor factors
 # calibrate = None # or e.g. { 'temperature': [-6.2,1], 'pm1': [-20.0,0.5], ...}
@@ -61,11 +59,11 @@ W_PASS = 'BehoudDeParel'
 # Meteo: BME280, BME680, SHT31
 # meteo module is auto detected
 # useMeteo = 'I2C'# I2C bus, None: disabled
-M_gBase = 245343.0 # BME680 gas base line (dflt None or missing: recalculate 5 minutes)
+M_gBase = 245343.0 # BME680 gas base line (dflt None or missing: recalculate)
 
 # use oled display None: disabled
 # useDisplay = True  # or 'I2C' enable display, dflt auto detect
-# useDisplay = 'SPI' # if not on I2C bus deprecated
+# useDisplay = 'SPI' # if not on I2C bus
 #  SPI pins, deprecated
 # S_CLKI = 'P19'  # brown D0
 # S_MOSI = 'P18'  # white D1
@@ -76,6 +74,7 @@ M_gBase = 245343.0 # BME680 gas base line (dflt None or missing: recalculate 5 m
 # S_CS   = 'P17'  # blew   CS
 
 # SDA wire is white, SCL wire is yellow
+# I2Cpins = [('P23','P22',None)] # I2C pins [(SDA,SC,Pwr), ...]
 I2Cpins = [('P23','P22','P21')] # I2C pins [(SDA,SC,Pwr), ...]
 # I2Cdevices = [ # dflt sensor I2C address for identification
 #         ('BME280',0x76),('BME280',0x77), # BME serie Bosch incl 680
@@ -85,8 +84,12 @@ I2Cpins = [('P23','P22','P21')] # I2C pins [(SDA,SC,Pwr), ...]
 
 # uart allocations number from 0 (0,1,2) PCB label (TTL3,TTL2,TTL1)
 # device/module: (yellow Rx, white Tx, red Pwr optional deflt None)
-# UARTpins=[('P1','P0','P20'),('P4','P3',None),('P11','P10',None)] # default UART pins used by auto detect device
 # omit to use P1/P0, used for console
+# PCB V1.0
+# UARTpins=[('P1','P0',None),('P4','P3',None),('P11','P10',None)] # default UART pins used by auto detect device
+# PCB V2.0 (patch board to correct TTL1 Vcc!)
+#UARTpins=[('P3','P4','P19'),('P10','P11','P20')] # default UART pins used by auto detect device
+# PCB V2.1
 UARTpins=[('P4','P3','P19'),('P11','P10','P9')] # default UART pins used by auto detect device
 
 # useGPS = 'UART'      # None or False if not present, dflt True
@@ -94,6 +97,5 @@ UARTpins=[('P4','P3','P19'),('P11','P10','P9')] # default UART pins used by auto
 
 # useDust = 'UART'     # UART, use False if not present, dflt True
 # dust module uart: Rx = 'P4' yellow, Tx 'P3' white
-# PM count  and average PM size values are auto detected
-# Dexplicit = True     # default, limited range, Sensirion count style
+# Dexplicit = True     # default, limited range, Sensirion count style, will add average grain size
 #             False      Plantower count style, PM count > size
