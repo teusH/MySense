@@ -7,7 +7,7 @@
 from time import sleep_ms
 from machine import UART
 
-__version__ = "0." + "$Revision: 5.10 $"[11:-2]
+__version__ = "0." + "$Revision: 5.11 $"[11:-2]
 __license__ = 'GPLV3'
 
 # Config.py definitions preceed
@@ -146,9 +146,8 @@ class identification:
           elif line.count(b'$GPTXT') or line.count(b'$GNG') or line.count(b'$GPG'): fnd = 'GPS'
           elif line.count(b'\x42\x4D') or line.count(b'BM\x00\x1C'): fnd = 'PMSx003'
           elif line.count(b'\xAA') and line.count(b'\xC0'): fnd = 'SDS011'
+          elif line.count(b'~\x00\xD0\x00'): fnd = 'SPS30'
           elif line.count(b'~\x00\x00') or line.count(b'\x00\xFF~'): fnd = 'SPS30'
-          elif line.count(b'~\x00\xD0\x00'):
-            fnd = 'SPS30'; print("SPS info name")
           if fnd: break
       ser.readall(); ser.deinit(); del ser; self.Power(pins,on=prev)
       use = True; Dexplicit = None; calibrate = None

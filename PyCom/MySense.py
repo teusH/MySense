@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.43 2019/06/04 10:44:06 teus Exp teus $
+# $Id: MySense.py,v 5.45 2019/06/23 13:16:26 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.43 $"[11:-2]
+__version__ = "0." + "$Revision: 5.45 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -96,7 +96,7 @@ def saveGPS(curGPS):
   return curGPS[0:]
 
 # Read accu voltage out
-def getVoltage(): # range 0 (None) and 11.4 (low) - 12.5 (high)
+def getVoltage(debug=False): # range 0 (None) and 11.4 (low) - 12.5 (high)
   global MyDevices, MyConfig, MyDevices, MyTypes
   if not MyConfig: initConfig()
   atype = 'accu'
@@ -110,8 +110,28 @@ def getVoltage(): # range 0 (None) and 11.4 (low) - 12.5 (high)
     else: accuPin = MyConfiguration['accuPin']
     if not atype in MyDevices.keys():
       from machine import ADC
-      MyTypes['accu'] = MyDevices['accu'] = { 'lib': ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB)}
+      MyTypes[atype] = MyDevices[atype] = {
+        'max': None,
+        'lib': ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB)}
     rts =  MyDevices[atype]['lib'].value()*0.004271845 
+    if rts > 0.1:
+      max = MyTypes[atype]['max']
+      if max == None:
+        try: max = nvs_get('Vmax')/10.0
+        except: pass
+        if max == None: max = 0
+      if rts > (max + 0.09):
+        MyTypes[atype]['max'] = rts
+        nvs_set('Vmax', int(rts*10.0+0.5))
+        # if not max: MyConfig.dump('Vmax',max)
+      min = None
+      try: min = nvs_get('Vmin')/10.0
+      except: pass
+      if min == None: min = 100
+      if rts < (min - 0.09):
+        nvs_set('Vmin', int(rts*10.0-0.5))
+    #if debug: print("Accu V: %.1f" % rts)
+    print("Accu V: %.1f [%.1f - %.1f]" % (rts,min,max))
     # rts round(rts/0.12,1) # use load % of 12V?
     return (rts if rts > 0.1 else 0)
   except: return None
@@ -223,12 +243,20 @@ def getPinsConfig(debug=False):
       # initConfig(debug=debug) 
       # MyDevices = {}
       # getVoltage(); deepsleepMode();
-  if wokeUp and (1.0 < accuV < 11.2): # accu is empty
-    from pycom import rgbled
-    pycom.rgbled(0x990000)
-    sleep(1)
-    from machine import deepsleep
-    deepsleep(15*60*1000)
+  if accuV and (accuV > 1.0):
+    Vmax = None
+    try:
+      Vmax = nvs_get('Vmax')/10.0
+    except: pass
+    if not Vmax: Vmax = 12.6
+    if accuV < (Vmax*0.88): # 88% accu is empty
+      SendMeta(port=Iprt, event=13) # send event
+      nvs_set('Accu',int(accuV*10.0+0.5))
+      from pycom import rgbled
+      pycom.rgbled(0x990000)
+      sleep(1)
+      from machine import deepsleep
+      deepsleep(15*60*1000)
 
 ## CONF busses
 def getBusConfig(busses=['i2c','ttl'], devices=None, debug=False):
@@ -305,7 +333,7 @@ def getNetConfig(debug=False):
         except: pass
         try: # ABP keys
           from Config import dev_addr, nwk_swkey, app_swkey
-          MyDevices[atype]['method']['ABP'] = (nwk_swkey, nwk_swkey, app_swkey)
+          MyDevices[atype]['method']['ABP'] = (dev_addr, nwk_swkey, app_swkey)
           MyConfig.dump('LoRa','ABP')
         except: pass
         if not len(MyDevices[atype]['method']):
@@ -507,15 +535,15 @@ def showSleep(secs=60,text=None,inThread=False):
 def DisplayInThread(secs=60, text=None):
   global STOP, STOPPED, NoThreading
   if NoThreading:
-    display('waiting ...')
-    raise ValueError("No threading set")
+    STOPPED=True
+    raise ValueError('No threading')
   STOP = False; STOPPED = False
   try:
     _thread.start_new_thread(showSleep,(secs,text,True))
   except Exception as e:
-    print("threading failed: %s" % e)
     STOPPED=True
     NoThreading = True
+    raise ValueError("threading failed: %s" % e)
   sleep_ms(1000)
 # end of display routines
 
@@ -872,22 +900,24 @@ def DoDust(debug=False):
         display('measure PM')
   if Dust['enabled']:
     sampleT = MyConfiguration['interval']['sample']
-    if LED: LED.blink(3,0.1,0x005500)
+    if LED: LED.blink(3,0.1,0x005500,l=False)
     # display('%d sec sample' % sampleT,prt=False)
     try:
       STOPPED = False
       try:
         DisplayInThread(sampleT,'%d sec sample' % sampleT)
       except Exception as e:
-        print("Thread error: %s" % str(e))
         STOPPED = True
         display('%d sec sample' % sampleT)
+        print("Dust: %s" % str(e))
       dData = Dust['lib'].getData()
       for cnt in range(10):
         if STOPPED: break
         STOP = True
         print('waiting for thread')
-        sleep_ms(2000)
+        if LED: LED.blink(5,0.2,0x175826,l=False)
+        else: sleep_ms(1000)
+        sleep_ms(1000)
       STOP = False
     except Exception as e:
       display("%s ERROR" % Dust['conf']['name'])
@@ -1123,7 +1153,7 @@ def CallBack(port,what):
     if not what: return True
     if len(what) < 2:
       if what == b'?':
-        SendInfo(port); return True
+        SendMeta(port); return True
       elif what == b'O':
         if Display['conf']['use']:
           Display['lib'].poweroff()
@@ -1248,45 +1278,47 @@ def DoPack(dData,mData,gps=None,wData=[],aData=None,debug=False):
   else: l = ''
   w = ''
   if len(wData) == 2: # wind = [speed,direction]
-    wData[1] = int(round(wData[1]))/3
-    if not (0 <= wData[1] <= 360): wData[1] = 0 
-    else: wData += 3
-    if wData[1] >= 360: wData[1] = 359
-    w = struct.pack('>H', (int(round(wData[0])*10)<<7) | int(round(wData[1]))/3)
+    wData[1] = (int(round(wData[1])+2))%360
+    w = struct.pack('>H', (int(round(wData[0]*10.0))<<7) | ((wData[1]+1)/3))
     t += 16
   a = ''
   if aData: # accu
-    a = struct.pack('>B', int(round(aData) *10))
+    a = struct.pack('>B', int(round(aData*10.0)))
     t += 32
   # return d+m+l+w+a
   t = struct.pack('>B', t | 0x80) # flag the package
   return t+d+m+l+w+a # flag the package
 
 # send kit info to LoRaWan
-def SendInfo(port=Iprt):
+def SendMeta(port=Iprt, event=None):
   global LED, MyTypes, MyConfiguration
   meteo = ['','DHT11','DHT22','BME280','BME680','SHT31','WASP']
   dust = ['None','PPD42NS','SDS011','PMSx003','SPS30']
   thisGPS = [0,0,0]
   try: thisGPS = MyConfiguration['thisGPS']
   except: pass
+  sense = 0
+  version = int(__version__[0])*10+int(__version__[2])
   try:
     if MyTypes['network']['lib'] == None: raise ValueError()
-    print("meteo: %s, dust: %s" %(MyTypes['meteo']['conf']['name'],MyTypes['dust']['conf']['name']))
-    sense = 0
-    for atype in ['meteo','dust','gps']:
-      if not atype in MyTypes.keys():
-        print("No %s sensor configured!" % atype); MyTypes[atype] = {'enabled': False }
-      if not MyTypes[atype]['enabled']: continue
-      if atype == 'meteo':
-        sense |= ((meteo.index(MyTypes['meteo']['conf']['name'])&0xf)<<4)
-      elif atype == 'dust':
-        sense |= (dust.index(MyTypes['dust']['conf']['name'])&0x7)
-    gps = 0
-    LocUpdate()
-    sense |= 0x8
-    version = int(__version__[0])*10+int(__version__[2])
-    data = struct.pack('>BBlll',version,sense, int(thisGPS[LAT]*100000),int(thisGPS[LON]*100000),int(thisGPS[ALT]*10))
+    if event: # send event nr
+      if LED: LED.blink(1,0.2,0xFF0000,l=True) # red
+      data = struct.pack('>BBlll',version,0, 0,0,event)
+    else:
+      print("meteo: %s, dust: %s" %(MyTypes['meteo']['conf']['name'],MyTypes['dust']['conf']['name']))
+      for atype in ['meteo','dust','gps']:
+        if not atype in MyTypes.keys():
+          print("No %s sensor configured!" % atype); MyTypes[atype] = {'enabled': False }
+        if not MyTypes[atype]['enabled']: continue
+        if atype == 'meteo':
+          sense |= ((meteo.index(MyTypes['meteo']['conf']['name'])&0xf)<<4)
+        elif atype == 'dust':
+          sense |= (dust.index(MyTypes['dust']['conf']['name'])&0x7)
+      gps = 0
+      LocUpdate()
+      sense |= 0x8
+      data = struct.pack('>BBlll',version,sense, int(thisGPS[LAT]*100000),int(thisGPS[LON]*100000),int(thisGPS[ALT]*10))
+
     MyTypes['network']['lib'].send(data,port=port)
     if LED: LED.blink(1,0.2,0x0054FF,l=False) # blue
   except:
@@ -1420,7 +1452,7 @@ def runMe(debug=False):
     toSleep = time()
     setWiFi(debug=debug)
     if interval['info'] and ((toSleep-StartUpTime) > interval['info_next']): # send info update
-       if SendInfo(): print("Sent Meta info")
+       if SendMeta(): print("Sent Meta info")
        if interval['info'] < 60: interval['info'] = 0 # was forced
        toSleep = time()
        interval['info_next'] = toSleep + interval['info']
@@ -1453,6 +1485,7 @@ def runMe(debug=False):
         elif LED: LED.blink(2,0.2,0xFF0000,l=False,force=True)
 
     if STOP:
+      SendMeta(port=Iprt, event=1) # send stopped
       sleep_ms(60*1000)
       try:
         if Display['enabled']: Display['lib'].poweroff()
@@ -1466,7 +1499,7 @@ def runMe(debug=False):
       if toSleep > 30:
         toSleep -= 15
         Dust['lib'].Standby()   # switch off laser and fan
-      elif toSleep < 15: toSleep = 15
+    if toSleep < 15: toSleep = 15
     PinPower(atype=['gps','dust'],on=False,debug=debug) # auto on/off next time
     if Display and Display['enabled'] and (Power['display'] != None):
        Display['lib'].poweroff()
@@ -1486,7 +1519,7 @@ def runMe(debug=False):
       if not ProgressBar(0,62,128,1,toSleep,0xebcf5b,10):
         display('stopped SENSING', (0,0), clear=True)
         if LED: LED.blink(5,0.3,0xff0000,l=True)
-    else:
+    elif toSleep > 15:
       sleep(toSleep)
       # restore config and LoRa
       if LED: LED.blink(10,int(toSleep/10),0x748ec1,l=False)
