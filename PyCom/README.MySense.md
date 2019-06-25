@@ -59,6 +59,13 @@ To Do: use the <a href="https://docs.pycom.io/tutorials/all/ota.html">PyCom OTA<
 MySense has provided several simple XYZ_test.py python scripts to test the sensor modules for needed libraries and check of wiring.
 Make sure to configure the right pin ID's in `Config.py` configuration file for the test scripts if you use other pins as the defaults.
 
+### REPL modus
+On the PyCom expansion board one can force the LoPy-4 to enter REPL modus so one interact manually with the controller. See PyCom documentation how to achieve this (pin23 -> Gnd or save boot switch/reset).
+To enable REPL mode otherwise e.g. using PCB connector board, MySense main.py checksthe enabled deepsleep and accu voltage. The following scheme is used:
+* if deepsleep is enabled and accu voltage is higher as 4.8V REPL mode is entered.
+
+WARNING: if MySense runMe() loop is used the LoRa antenna should be attached! On the PyCom expansion board MySense will see: deepsleep is enabled, but accu voltage (even without an accu is below 4.8 Volt. So REPL modus will be entered. A mistake will distroy the LoPy! so for security attach always the antenna!
+
 #### TEST connected devices first
 E.g. start with testing the oled display:
 ```python
