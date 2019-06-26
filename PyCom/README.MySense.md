@@ -44,6 +44,14 @@ The file `Config.py` will give the default configuration definitions. You will n
 All pins can be redefined. Default values are based on the PCB wiring board from Fontys GreenTechLab. Every define can be disabled as e.g. useGPS = False.
 From Config.py one is able to define all functionality of MySense. On a cold restart a configuration will be compiled and stored in flash memory. A reboot will use the discovered configuration and detected devices.
 
+### GPS kit location
+MySense will complete the kit home location if the GPS coordinates in `Config.py` is defined as *[0,0,0]* (default). MySense will maintain current GPS location if distance to home location and previous location is more as 50 meters. In this case the (mobile) GPS location will be sent to the TTN server with the measurement data. This take place if a GPS satelite fixate is seen.
+
+### current time (UTC)
+On a GPS fixate the RTC clock of the controller will be updated. In this case measurement data will be completed with an offset (To be Done).
+The RTC time will be updated every hour on a fixate. This is update time is configurable.
+If there is no GPS fixate one is advised to use the lowest TTN gateway time as measurement time. For this type of measurements the offset of less as a second is neglectable.
+
 ### WLAN access point
 Default WLAN AP is WPA2 as defined by PyCom firmware ('lopy-wlan-HEXN','www.pycom.io') and is overwritten via main.py with 'MySense-HEXN' SSID.
 This can be redefined by W_SSID/W_PASS in the configuration file (default: MySense-HEXN','BehoudDeParel'). The wifi AP name will be effectuated after ca 1 hour from a cold (re)boot.
