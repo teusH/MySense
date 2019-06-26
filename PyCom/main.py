@@ -10,24 +10,24 @@ def setWiFi():
     wlan.init(mode=WLAN.AP,ssid=SSID, auth=(WLAN.WPA2,PASS), channel=7, antenna=WLAN.INT_ANT)
   except: pass
 
-try:
-  setWiFi()
-  from machine import wake_reason, PWRON_WAKE
-  if wake_reason()[0] != PWRON_WAKE:
-    import MySense
-    MySense.runMe()
-  elif True:
-    print('No MySense start')
-  else:
+setWiFi()
+from machine import wake_reason, PWRON_WAKE
+if wake_reason()[0] != PWRON_WAKE:
+  import MySense
+  MySense.runMe()
+# uncomment to force REPL mode.
+#if True: print('No MySense start')
+else: # deepsleep pin set and no accu voltage connected force REPL mode
+  try:
     from machine import Pin
     sleepPin = 'P18'
     try: from Config import sleepPin
     except: pass
-    # WARNING: on PyCom expansion board it looks like deepsleep is enabled
+    # WARNING: PyCom expansion board will show deepsleep pin enabled!
     if Pin(sleepPin,mode=Pin.IN).value(): # deepsleep disabled
       import MySense
       MySense.runMe() # MySense and sleep
-    else: # deepsleep enabled
+    else: # deepsleep enabled, avoid PyCom expansion board diff
       accuPin = 'P17'
       try: from Config import accuPin
       except: pass
@@ -36,5 +36,5 @@ try:
       if (ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB).value())*0.004271845 > 4.8:
         import MySense
         MySense.runMe() # MySense and deepsleep
-except: pass
+  except: pass
 # REPL modus

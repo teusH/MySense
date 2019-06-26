@@ -25,7 +25,8 @@ from pycom import nvs_erase_all
 nvs_erase_all()
 # for item in ['gps','mode','LAT','LON','ALT','info_next','gps_next']: nvs_erase(item)
 # delete LoRa saved status data
-from network import lora
+from network import LoRa
+lora = LoRa(mode=LoRa.LORAWAN, region=LoRa.EU868)
 lora.nvram_erase()
 
 ##### flashed configuraion data
