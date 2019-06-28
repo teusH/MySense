@@ -230,7 +230,7 @@ function decodeMeteo(bytes) { /* BME, SHT HH[H[HH]] */
 }
 
 function decodeGPS(bytes) { /* GPS NEO 6 */
-    var lat = 0.0;
+    var lat = 0.0; var decoded = {};
     // myPrt("decode GPS bytes " + bytes.length + ": " + bytes);
     try { 
         lat = bytes2rat(bytes, 0);
@@ -251,7 +251,7 @@ function decodeAccu(bytes) { /* voltage */
     var decoded = {};
     // myPrt("Accu bytes " + bytes.length + ": " + bytes);
     try {
-      if( bytes[0] > 0 ) decoded.accu = round(bytes[0]/10.0,1); 
+      if( bytes[0] > 0 ) decoded.accu = round(bytes[0]/10.0,2); 
     }
     catch(e) {}
     finally {
@@ -299,6 +299,7 @@ function DecodeMeta(bytes) {
   ];
   try {
     decoded.version = bytes[0] / 10;
+    if (bytes[1] == 0) { decoded.event = bytes[bytes.length-1]; return decoded; }
     decoded.dust = dustTypes[(bytes[1] & 7)];
     if ((bytes[1] & 8)) {
       decoded.gps = 1;
@@ -365,25 +366,19 @@ function Decoder(bytes, port) {
   end = strt+6; if ( bytes.length < end ) return decoded;
   if ( (type & 0x4) ) end += 4; /* add gas & aqi */
   decoded = combine(decoded,decodeMeteo(bytes.slice(strt,end))); strt = end;
-  if ( bytes.length >= strt+3) { /* utime */
-      if( notZero(bytes,strt) || notZero(bytes,strt+2) ){
-          decoded.utime = ((bytes[strt]<<24)+(bytes[strt+1]<<16)+(bytes[strt+2]<<8)+bytes[strt+3]);
-          strt += 4;
-      }
-  }
-  if ( bytes.length >= strt+3*4-1 ){ /* location fff */
+  if ( bytes.length >= strt+3*4-1 ){ /* gps location */
       if ( (type & 0x8) ) {
           decoded = combine(decoded,decodeGPS(bytes.slice(strt,strt+3*4)));
           strt += 3*4;
       }
   }
-  if ( bytes.length >= strt+1) {  /* wind sp&degree */
+  if ( bytes.length >= strt+1) { /* wind dir/speed */
       if ( (type & 0x10) ) {
           decoded = combine(decoded,decodeWind(bytes.slice(strt,strt+2)));
           strt += 2;
       }
   }
-  if (bytes.length >= strt ){ /* accu volt */
+  if (bytes.length >= strt ){ /* accu/battery volt */
       if ( (type & 0x20) ) {
           decoded = combine(decoded, decodeAccu(bytes.slice(strt,strt+1)));
           strt += 1;
