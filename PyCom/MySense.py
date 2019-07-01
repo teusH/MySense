@@ -1,13 +1,13 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.45 2019/06/23 13:16:26 teus Exp teus $
+# $Id: MySense.py,v 5.46 2019/07/01 15:23:37 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.45 $"[11:-2]
+__version__ = "0." + "$Revision: 5.46 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
-from time import time, sleep
+from time import sleep_ms, time, ticks_ms, ticks_diff
 # Turn off hearbeat LED
 from pycom import heartbeat, nvs_set, nvs_get, nvs_erase
 heartbeat(False)
@@ -19,9 +19,8 @@ try:
   import led
   LED = led.LED()
 except: pass
-debug = True
+debug = True  # enable print dictionary
 wokeUP = False
-StartUpTime = 0   # until RTC clock adjustment
 
 MyConfig = None      # handle to ConfigJson object
 MyConfiguration = {} # configuration stable between deepsleeps and power cycle
@@ -30,17 +29,17 @@ MyTypes = {}   # dyn. part, has type refs to device dict with conf
 MyNames = [('meteo','i2c'),('display','i2c'),('dust','ttl'),('gps','ttl'),('accu','pin'),('deepsleep','pin')]
 lastGPS = [0,0,0]
 
-from time import sleep_ms, time
 import struct
 from micropython import const
-import _thread
-# _thread.stack_size(6144)
-NoThreading = False
+Threading = True
+if Threading:
+  import _thread
+  # _thread.stack_size(6144)
 
 # LoRa ports
 # data port 2 old style and ug/m3, 4 new style grain, pm4/5 choice etc
 Dprt = (2,4)    # data ports
-Iprt = const(3) # info port, meta data
+Iprt = const(3) # info port, meta data, events
 
 # oled is multithreaded
 STOP = False
@@ -58,12 +57,14 @@ def Type2Bus(atype): # and visa versa
     if (atype == item[1]) and (not atype in rts): rts.append(item[0])
     elif atype == item[0]: return item[1]
   return rts
+
 def Type2Dev(atype):
   global MyTypes, MyDevices
   try: return MyDevices[Type2Bus(atype)][atype]
   except: return None
 
 def PrintDict(adict = None, header=''):
+  global debug
   if not debug: return
   global MyConfiguration, MyDevices
   if adict != None:
@@ -96,7 +97,7 @@ def saveGPS(curGPS):
   return curGPS[0:]
 
 # Read accu voltage out
-def getVoltage(debug=False): # range 0 (None) and 11.4 (low) - 12.5 (high)
+def getVoltage(debug=False): # range 0 (None) and 11.4 (88% low) - 12.5 (high)
   global MyDevices, MyConfig, MyDevices, MyTypes
   if not MyConfig: initConfig()
   atype = 'accu'
@@ -192,7 +193,7 @@ def setWiFi(reset=False,debug=False):
       wlan = WLAN()
       display("WiFi AP: %s" % W_SSID)
       display("pass: %s" % W_PASS)
-      sleep(5)
+      sleep_ms(5*1000)
       wlan.init(mode=WLAN.AP,ssid=W_SSID, auth=(WLAN.WPA2,W_PASS), channel=7, antenna=WLAN.INT_ANT)
     except: return False
   return True
@@ -250,11 +251,11 @@ def getPinsConfig(debug=False):
     except: pass
     if not Vmax: Vmax = 12.6
     if accuV < (Vmax*0.88): # 88% accu is empty
-      SendMeta(port=Iprt, event=13) # send event
+      SendEvent(port=Iprt, event=13, value=int(accuV*10)) # send event
       nvs_set('Accu',int(accuV*10.0+0.5))
       from pycom import rgbled
       pycom.rgbled(0x990000)
-      sleep(1)
+      sleep_ms(1*1000)
       from machine import deepsleep
       deepsleep(15*60*1000)
 
@@ -348,7 +349,7 @@ def getNetConfig(debug=False):
   else: None # no output
   
 def getGlobals(debug=False):
-  global MyConfiguration, MyConfig
+  global MyConfiguration, MyConfig, wokeUp
   if not MyConfig: initConfig()
   global lastGPS
   ## CONF interval
@@ -367,18 +368,14 @@ def getGlobals(debug=False):
         if MyConfiguration['interval']['interval'] <= 0:
           MyConfiguration['interval']['interval'] = 0.1
     MyConfig.dump('interval',MyConfiguration['interval'])
-  # item for next time to send info
-  for item in ['gps_next','info_next']:
-    if not wokeUp:
-      MyConfiguration['interval'][item] = 0
-      nvs_set(item,0)
-    else:
+  if not wokeUp:
+    # item for next time to send info: wrap around on 19 jan 2038!
+    for item in ['gps_next','info_next']: # secs next send, reset to 0
       value = None
       try: value = nvs_get(item)
       except: pass
-      if value == None:
-        nvs_set(item,0); value = 0
-      MyConfiguration['interval'][item] = value
+      if not value: nvs_set(item,0)
+    nvs_set('gps',-1)
   
   ## CONF power mgt
   # device power management dflt: do not unless pwr pins defined
@@ -407,16 +404,17 @@ def getGlobals(debug=False):
   
   ## CONF dflt location
   if not 'thisGPS' in MyConfiguration.keys():
+    thisGPS = [0.0,0.0,0.0]
     try: from Config import thisGPS # predefined GPS coord
     # location
-    except: MyConfiguration['thisGPS'] = [0.0,0.0,0.0] # completed by GPS
+    except: pass
     finally:
+      MyConfiguration['thisGPS'] = thisGPS # completed by GPS
       MyConfig.dump('thisGPS',MyConfiguration['thisGPS'])
-      # thisGPS = MyConfiguration['thisGPS']
-      lastGPS = getSavedGPS()
-      if not lastGPS[0]: lastGPS = MyConfiguration['thisGPS'][0:]
-      if MyConfiguration['interval']['gps_next']:
-        MyConfiguration['interval']['gps_next'] = 0.1
+      lastGPS = getSavedGPS() # from nvs
+      if not lastGPS[0]:
+        lastGPS = MyConfiguration['thisGPS'][0:]
+      nvs_set('gps_next',0)
 
 ## oled display routines
 def oledShow():
@@ -533,8 +531,8 @@ def showSleep(secs=60,text=None,inThread=False):
   return True
 
 def DisplayInThread(secs=60, text=None):
-  global STOP, STOPPED, NoThreading
-  if NoThreading:
+  global STOP, STOPPED, Threading
+  if not Threading:
     STOPPED=True
     raise ValueError('No threading')
   STOP = False; STOPPED = False
@@ -542,7 +540,7 @@ def DisplayInThread(secs=60, text=None):
     _thread.start_new_thread(showSleep,(secs,text,True))
   except Exception as e:
     STOPPED=True
-    NoThreading = True
+    Threading = False
     raise ValueError("threading failed: %s" % e)
   sleep_ms(1000)
 # end of display routines
@@ -557,6 +555,7 @@ def PinPower(atype=None,on=None,debug=False):
   else:
     abus = Type2Bus(atype)
     try:
+      if not MyConfiguration[abus][atype]['use']: return None
       pins = MyConfiguration[abus][atype]['pins']
       len(pins) == 3
       if debug: print("Use %s power pins %s, on=%s" % (atype,pins,str(on)))
@@ -1044,7 +1043,6 @@ def LocUpdate(debug=False):
 # TO DO: next should go in a thread
 def DoGPS(debug=False):
   global MyConfiguration, MyConfig, MyTypes
-  global StartUpTime
   global lastGPS
   if not MyTypes:
     getMyConfig(debug=debug)
@@ -1055,11 +1053,13 @@ def DoGPS(debug=False):
   if not MyTypes: getMyConfig(debug=debug)
   interval = MyConfiguration['interval']
   from time import localtime, timezone
-  if (time()-StartUpTime) <= interval['gps_next']:
-    if debug: print("No GPS update")
-    rts = getSavedGPS()
-    if rts[0]: return rts
-    else: return None
+  try:
+    if int(ticks_ms()/1000) < nvs_get('gps_next'):
+      if debug: print("No GPS update")
+      rts = getSavedGPS()
+      if rts[0]: return rts
+      else: return None
+  except: nvs_set('gps_next',0)
 
   prev = PinPower(atype=atype,on=True,debug=debug)
   if not Gps['lib']: initGPS(debug=False)
@@ -1067,8 +1067,12 @@ def DoGPS(debug=False):
     return PinPowerRts(atype,prev,debug=debug)
   if debug: print("Try date/RTC update")
   myGPS = [0.0,0.0,0.0]; prev = None
-  fixate = False
-  if nvs_get('gps') < 0: fixate = None; nvs_set('gps',0)
+  fixate = None
+  try: fixate = nvs_get(atype)
+  except: pass
+  if fixate == None:
+    nvs_set(atype,-1); fixate = -1
+  myGPS = [0,0,0]
   try:
     if Gps['lib'].quality < 1:
       if fixate == None: display('wait GPS fixate')
@@ -1077,26 +1081,19 @@ def DoGPS(debug=False):
       Gps['lib'].read(debug=debug)
       if Gps['lib'].quality > 0: break
     if Gps['lib'].satellites > 3:
-      correction = time()
       Gps['lib'].UpdateRTC()
-      StartUpTime += (time() - correction)
-      for item in ['gps_next','info_next']:
-        interval[item] += (time() - correction)
-        nvs_set(item,interval[item])
-      if Gps['rtc'] == None: Gps['rtc'] = True
       print("%d GPS sats, time set" % Gps['lib'].satellites)
     else:
-      if fixate == None: display('no GPS fixate')
+      if fixate < 0: display('no GPS fixate')
       else: print('no GPS fixate')
       # return PinPowerRts(atype,prev,rts=[0,0,0],debug=debug)
-      return [0,0,0] # leave power on
-    if Gps['rtc'] == True:
+      return MyGPS # leave power on
+    if int(time()) > int(ticks_ms()/1000+1000):
       now = localtime()
       if 3 < now[1] < 11: timezone(7200) # simple DST
       else: timezone(3600)
       display('%d/%d/%d %s' % (now[0],now[1],now[2],('mo','tu','we','th','fr','sa','su')[now[6]]))
       display('time %02d:%02d:%02d' % (now[3],now[4],now[5]))
-      Gps['rtc'] = False
     if Gps['lib'].longitude > 0:
       if debug: print("Update GPS coordinates")
       myGPS[LON] = round(float(Gps['lib'].longitude),5)
@@ -1105,19 +1102,17 @@ def DoGPS(debug=False):
       if (MyConfiguration['thisGPS'][0] < 0.1) and (myGPS[0] > 0.1):
         MyConfiguration['thisGPS'] = myGPS[0:]
         MyConfig.dump('thisGPS', MyConfiguration['thisGPS'])
-        if interval['info'] < 60: interval['info_next'] = interval['info'] = 1 # force
       lastGPS = myGPS[0:]; saveGPS(lastGPS)
-      fixate = True; nvs_set('gps',Gps['lib'].satellites)
-    else: myGPS = [0,0,0]
-    if debug and (myGPS != None):
+      fixate = True; nvs_set(atype,Gps['lib'].satellites)
+    if debug and myGPS[0]:
       print("GPS: lon %.5f, lat %.5f, alt %.2f" % (myGPS[LON],myGPS[LAT],myGPS[ALT]))
   except:
     Gps['enabled'] = False; Gps['lib'].ser.deinit(); Gps['lib'] = None
     display('GPS error')
-    return PinPowerRts(atype,False,debug=debug)
-  if interval['gps_next']: interval['gps_next'] = time()+interval[atype]
+    return PinPowerRts(atype,False,rts=myGPS,debug=debug)
+  nvs_set('gps_next',int(ticks_ms()/1000)+interval[atype])
   # Pwr on till fixate
-  if MyConfiguration['power']['ttl'] and fixate: prev = False
+  if MyConfiguration['power']['ttl'] and (fixate > 0): prev = False
   return PinPowerRts(atype,prev,rts=myGPS, debug=debug)
 
 ## Pin devices
@@ -1152,8 +1147,10 @@ def CallBack(port,what):
   try:
     if not what: return True
     if len(what) < 2:
+      SendEvent(event=2,value=what) # ack
       if what == b'?':
-        SendMeta(port); return True
+        nvs_set('info_next',0)
+        SendMeta(); return True
       elif what == b'O':
         if Display['conf']['use']:
           Display['lib'].poweroff()
@@ -1189,6 +1186,7 @@ def CallBack(port,what):
     cmd = None; value = None
     try:
       cmd, value = struct.unpack('>BH',what)
+      SendEvent(event=2,value=cmd) # ack
     except:
       return False
     if cmd == b'i':  # interval
@@ -1289,21 +1287,33 @@ def DoPack(dData,mData,gps=None,wData=[],aData=None,debug=False):
   t = struct.pack('>B', t | 0x80) # flag the package
   return t+d+m+l+w+a # flag the package
 
+def SendEvent(port=Iprt, event=None, value=0):
+  global LED, MyTypes, __version__
+  if not event: return True
+  try:
+    version = int(__version__[0])*10+int(__version__[2])
+    if LED: LED.blink(1,0.2,0xFF0000,l=True) # red
+    data = struct.pack('>BBBB',version, 0, value,event)
+    MyTypes['network']['lib'].send(data,port=port)
+    if LED: LED.blink(1,0.2,0x0054FF,l=False) # blue
+  except:
+    if LED: LED.blink(1,0.2,0xFF00AA,l=False) # purple
+    return False
+  return True
+
 # send kit info to LoRaWan
-def SendMeta(port=Iprt, event=None):
-  global LED, MyTypes, MyConfiguration
-  meteo = ['','DHT11','DHT22','BME280','BME680','SHT31','WASP']
-  dust = ['None','PPD42NS','SDS011','PMSx003','SPS30']
+def SendMeta(port=Iprt):
+  global LED, MyTypes, MyConfiguration, __version__
+  if int(ticks_ms()/1000) < nvs_get('info_next'): return False
+  meteo = ['','DHT11','DHT22','BME280','BME680','SHT31','WASP'] # max 16
+  dust = ['None','PPD42NS','SDS011','PMSx003','SPS30']          # max 8
   thisGPS = [0,0,0]
   try: thisGPS = MyConfiguration['thisGPS']
   except: pass
   sense = 0
-  version = int(__version__[0])*10+int(__version__[2])
   try:
+    version = int(__version__[0])*10+int(__version__[2])
     if MyTypes['network']['lib'] == None: raise ValueError()
-    if event: # send event nr
-      if LED: LED.blink(1,0.2,0xFF0000,l=True) # red
-      data = struct.pack('>BBlll',version,0, 0,0,event)
     else:
       print("meteo: %s, dust: %s" %(MyTypes['meteo']['conf']['name'],MyTypes['dust']['conf']['name']))
       for atype in ['meteo','dust','gps']:
@@ -1314,16 +1324,18 @@ def SendMeta(port=Iprt, event=None):
           sense |= ((meteo.index(MyTypes['meteo']['conf']['name'])&0xf)<<4)
         elif atype == 'dust':
           sense |= (dust.index(MyTypes['dust']['conf']['name'])&0x7)
-      gps = 0
+        elif atype == 'gps':
+          sense |= 0x8
       LocUpdate()
-      sense |= 0x8
       data = struct.pack('>BBlll',version,sense, int(thisGPS[LAT]*100000),int(thisGPS[LON]*100000),int(thisGPS[ALT]*10))
 
     MyTypes['network']['lib'].send(data,port=port)
+    display("Sent Meta info")
     if LED: LED.blink(1,0.2,0x0054FF,l=False) # blue
   except:
     if LED: LED.blink(1,0.2,0xFF00AA,l=False) # purple
     return False
+  nvs_set('info_next',int(ticks_ms()/1000)+ MyConfiguration['interval']['info'])
   return True
 
 # startup info
@@ -1408,7 +1420,6 @@ def getMyConfig(debug=False):
 def runMe(debug=False):
   global MyConfiguration, MyTypes, wlan
   global wokeUp # power cycle
-  global StartUpTime
 
   if not MyTypes:
     getMyConfig(debug=debug) 
@@ -1449,14 +1460,13 @@ def runMe(debug=False):
 
   while True: # LOOP forever
     if LED: LED.blink(1,0.2,0x00FF00,l=False,force=True)
-    toSleep = time()
+    toSleep = ticks_ms()
+    try:
+      if ((int(toSleep/1000+interval['sample']+30)) > nvs_get('gps')):
+        PinPower(atype='gps',on=True, debug=debug) # wakeup GPS dev
+    except: pass
     setWiFi(debug=debug)
-    if interval['info'] and ((toSleep-StartUpTime) > interval['info_next']): # send info update
-       if SendMeta(): print("Sent Meta info")
-       if interval['info'] < 60: interval['info'] = 0 # was forced
-       toSleep = time()
-       interval['info_next'] = toSleep + interval['info']
-       nvs_set('info_next',interval['info_next'])
+    SendMeta()
     # Power management ttl is done by DoXYZ()
     try:
       if Display['enabled'] and Power['display']: Display['lib'].poweron()
@@ -1485,7 +1495,7 @@ def runMe(debug=False):
         elif LED: LED.blink(2,0.2,0xFF0000,l=False,force=True)
 
     if STOP:
-      SendMeta(port=Iprt, event=1) # send stopped
+      SendEvent(port=Iprt, event=1) # send stopped
       sleep_ms(60*1000)
       try:
         if Display['enabled']: Display['lib'].poweroff()
@@ -1494,12 +1504,12 @@ def runMe(debug=False):
       # and put ESP in deep sleep: machine.deepsleep()
       return False
 
-    toSleep = interval['interval'] - (time() - toSleep)
+    toSleep = interval['interval']*1000 - ticks_diff(toSleep,ticks_ms())
     if Dust and Dust['enabled']:
-      if toSleep > 30:
-        toSleep -= 15
+      if toSleep > 30*1000:
+        toSleep -= 15*1000
         Dust['lib'].Standby()   # switch off laser and fan
-    if toSleep < 15: toSleep = 15
+    if toSleep < 15*1000: toSleep = 15*1000
     PinPower(atype=['gps','dust'],on=False,debug=debug) # auto on/off next time
     if Display and Display['enabled'] and (Power['display'] != None):
        Display['lib'].poweroff()
@@ -1508,21 +1518,22 @@ def runMe(debug=False):
     # LoRa nvram done via send routine
 
     if Power['sleep'] or deepsleepMode():
-      if toSleep > 60:
-        print("DeepSleep: %d secs" % (toSleep-1))
+      if toSleep > 60*1000:
+        toSleep -= 1000
+        print("DeepSleep: %d secs" % (toSleep/1000))
         from machine import deepsleep
-        deepsleep((toSleep-1)*1000) # deep sleep
+        deepsleep(toSleep) # deep sleep
       # will never arrive here
     if deepsleepMode(): wokeUp = True
     else: wokeUp = False
     if not Power['i2c']:
-      if not ProgressBar(0,62,128,1,toSleep,0xebcf5b,10):
+      if not ProgressBar(0,62,128,1,toSleep/1000,0xebcf5b,10):
         display('stopped SENSING', (0,0), clear=True)
         if LED: LED.blink(5,0.3,0xff0000,l=True)
-    elif toSleep > 15:
-      sleep(toSleep)
+    elif toSleep > 15*1000:
+      sleep_ms(toSleep)
       # restore config and LoRa
-      if LED: LED.blink(10,int(toSleep/10),0x748ec1,l=False)
+      if LED: LED.blink(10,int(toSleep/10000),0x748ec1,l=False)
     PinPower(atype=['display','meteo'],on=True,debug=debug)
     if Display and Display['enabled'] and (Power['display'] != None):
        Display['lib'].poweron()
