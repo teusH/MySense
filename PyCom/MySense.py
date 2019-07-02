@@ -1,13 +1,15 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.46 2019/07/01 15:23:37 teus Exp teus $
+# $Id: MySense.py,v 5.47 2019/07/02 14:49:03 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.46 $"[11:-2]
+__version__ = "0." + "$Revision: 5.47 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
-from time import sleep_ms, time, ticks_ms, ticks_diff
+from time import sleep_ms, time
+myTicks_ms = 0
+myTicks = 0
 # Turn off hearbeat LED
 from pycom import heartbeat, nvs_set, nvs_get, nvs_erase
 heartbeat(False)
@@ -82,6 +84,18 @@ def getSN():
   import binascii
   SN = binascii.hexlify(unique_id()).decode('utf-8')
   return SN
+
+def ticks(): # wrap in Jan 2038
+  global myTicks, myTicks_ms
+  from time import ticks_ms, ticks_diff
+  now = ticks_ms()
+  if not myTicks:
+    myTicks_ms = now
+    myTicks = int((now+500)/1000)
+  else:
+    myTicks += int((ticks_diff(myTicks_ms,now)+500)/1000)
+    myTicks_ms = now
+  return myTicks
 
 def getSavedGPS():
   # global LAT, LON, ALT
@@ -1054,7 +1068,7 @@ def DoGPS(debug=False):
   interval = MyConfiguration['interval']
   from time import localtime, timezone
   try:
-    if int(ticks_ms()/1000) < nvs_get('gps_next'):
+    if ticks() < nvs_get('gps_next'):
       if debug: print("No GPS update")
       rts = getSavedGPS()
       if rts[0]: return rts
@@ -1074,6 +1088,7 @@ def DoGPS(debug=False):
     nvs_set(atype,-1); fixate = -1
   myGPS = [0,0,0]
   try:
+    myTime = False
     if Gps['lib'].quality < 1:
       if fixate == None: display('wait GPS fixate')
       else: print('wait GPS fixate') # maybe 10 minutes
@@ -1081,16 +1096,17 @@ def DoGPS(debug=False):
       Gps['lib'].read(debug=debug)
       if Gps['lib'].quality > 0: break
     if Gps['lib'].satellites > 3:
-      Gps['lib'].UpdateRTC()
+      prev = time(); Gps['lib'].UpdateRTC()
+      if prev != time(): myTime = True
       print("%d GPS sats, time set" % Gps['lib'].satellites)
     else:
       if fixate < 0: display('no GPS fixate')
       else: print('no GPS fixate')
       # return PinPowerRts(atype,prev,rts=[0,0,0],debug=debug)
-      return MyGPS # leave power on
-    if int(time()) > int(ticks_ms()/1000+1000):
+      return myGPS # leave power on
+    if myTime: # RTC is adjusted
       now = localtime()
-      if 3 < now[1] < 11: timezone(7200) # simple DST
+      if 3 < now[1] < 11: timezone(7200) # a very simple MET DST
       else: timezone(3600)
       display('%d/%d/%d %s' % (now[0],now[1],now[2],('mo','tu','we','th','fr','sa','su')[now[6]]))
       display('time %02d:%02d:%02d' % (now[3],now[4],now[5]))
@@ -1110,7 +1126,7 @@ def DoGPS(debug=False):
     Gps['enabled'] = False; Gps['lib'].ser.deinit(); Gps['lib'] = None
     display('GPS error')
     return PinPowerRts(atype,False,rts=myGPS,debug=debug)
-  nvs_set('gps_next',int(ticks_ms()/1000)+interval[atype])
+  nvs_set('gps_next',ticks()+interval[atype])
   # Pwr on till fixate
   if MyConfiguration['power']['ttl'] and (fixate > 0): prev = False
   return PinPowerRts(atype,prev,rts=myGPS, debug=debug)
@@ -1304,7 +1320,7 @@ def SendEvent(port=Iprt, event=None, value=0):
 # send kit info to LoRaWan
 def SendMeta(port=Iprt):
   global LED, MyTypes, MyConfiguration, __version__
-  if int(ticks_ms()/1000) < nvs_get('info_next'): return False
+  if ticks() < nvs_get('info_next'): return False
   meteo = ['','DHT11','DHT22','BME280','BME680','SHT31','WASP'] # max 16
   dust = ['None','PPD42NS','SDS011','PMSx003','SPS30']          # max 8
   thisGPS = [0,0,0]
@@ -1335,7 +1351,7 @@ def SendMeta(port=Iprt):
   except:
     if LED: LED.blink(1,0.2,0xFF00AA,l=False) # purple
     return False
-  nvs_set('info_next',int(ticks_ms()/1000)+ MyConfiguration['interval']['info'])
+  nvs_set('info_next',ticks() + MyConfiguration['interval']['info'])
   return True
 
 # startup info
@@ -1460,9 +1476,9 @@ def runMe(debug=False):
 
   while True: # LOOP forever
     if LED: LED.blink(1,0.2,0x00FF00,l=False,force=True)
-    toSleep = ticks_ms()
+    toSleep = ticks()
     try:
-      if ((int(toSleep/1000+interval['sample']+30)) > nvs_get('gps')):
+      if (toSleep+interval['sample']+30) > nvs_get('gps'):
         PinPower(atype='gps',on=True, debug=debug) # wakeup GPS dev
     except: pass
     setWiFi(debug=debug)
@@ -1504,36 +1520,37 @@ def runMe(debug=False):
       # and put ESP in deep sleep: machine.deepsleep()
       return False
 
-    toSleep = interval['interval']*1000 - ticks_diff(toSleep,ticks_ms())
+    toSleep = interval['interval'] - (ticks()-toSleep)
     if Dust and Dust['enabled']:
-      if toSleep > 30*1000:
-        toSleep -= 15*1000
+      if toSleep > 30:
+        toSleep -= 15
         Dust['lib'].Standby()   # switch off laser and fan
-    if toSleep < 15*1000: toSleep = 15*1000
-    PinPower(atype=['gps','dust'],on=False,debug=debug) # auto on/off next time
-    if Display and Display['enabled'] and (Power['display'] != None):
-       Display['lib'].poweroff()
-    # RGB led off?
+    if toSleep < 15: toSleep = 15
+    else: # save energy
+      PinPower(atype=['gps','dust'],on=False,debug=debug) # auto on/off next time
+      if Display and Display['enabled'] and (Power['display'] != None):
+         Display['lib'].poweroff()
+      # RGB led off?
     if MyConfig.dirty: MyConfig.store # update config flash?
     # LoRa nvram done via send routine
 
     if Power['sleep'] or deepsleepMode():
-      if toSleep > 60*1000:
-        toSleep -= 1000
-        print("DeepSleep: %d secs" % (toSleep/1000))
+      if toSleep > 60:
+        toSleep -= 1
+        print("DeepSleep: %d secs" % (toSleep))
         from machine import deepsleep
-        deepsleep(toSleep) # deep sleep
+        deepsleep(toSleep*1000) # deep sleep
       # will never arrive here
     if deepsleepMode(): wokeUp = True
     else: wokeUp = False
     if not Power['i2c']:
-      if not ProgressBar(0,62,128,1,toSleep/1000,0xebcf5b,10):
+      if not ProgressBar(0,62,128,1,toSleep,0xebcf5b,10):
         display('stopped SENSING', (0,0), clear=True)
         if LED: LED.blink(5,0.3,0xff0000,l=True)
-    elif toSleep > 15*1000:
-      sleep_ms(toSleep)
+    elif toSleep > 15:
+      sleep_ms((toSleep-1)*1000)
       # restore config and LoRa
-      if LED: LED.blink(10,int(toSleep/10000),0x748ec1,l=False)
+      if LED: LED.blink(5,0.3,0x748ec1,l=False)
     PinPower(atype=['display','meteo'],on=True,debug=debug)
     if Display and Display['enabled'] and (Power['display'] != None):
        Display['lib'].poweron()
