@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.47 2019/07/02 14:49:03 teus Exp teus $
+# $Id: MySense.py,v 5.48 2019/07/03 16:21:42 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.47 $"[11:-2]
+__version__ = "0." + "$Revision: 5.48 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -30,6 +30,7 @@ MyDevices = {} # dyn. part, has bus refs to device dict with conf
 MyTypes = {}   # dyn. part, has type refs to device dict with conf
 MyNames = [('meteo','i2c'),('display','i2c'),('dust','ttl'),('gps','ttl'),('accu','pin'),('deepsleep','pin')]
 lastGPS = [0,0,0]
+AccuAlarm = None     # event on empty accu
 
 import struct
 from micropython import const
@@ -128,27 +129,28 @@ def getVoltage(debug=False): # range 0 (None) and 11.4 (88% low) - 12.5 (high)
       MyTypes[atype] = MyDevices[atype] = {
         'max': None,
         'lib': ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB)}
-    rts =  MyDevices[atype]['lib'].value()*0.004271845 
-    if rts > 0.1:
+    accuV =  MyDevices[atype]['lib'].value()*0.004271845 
+    if accuV > 0.1: # only for development
       max = MyTypes[atype]['max']
       if max == None:
         try: max = nvs_get('Vmax')/10.0
         except: pass
         if max == None: max = 0
-      if rts > (max + 0.09):
-        MyTypes[atype]['max'] = rts
-        nvs_set('Vmax', int(rts*10.0+0.5))
+      if accuV > (max + 0.09):
+        MyTypes[atype]['max'] = accuV
+        nvs_set('Vmax', int(accuV*10.0+0.5))
         # if not max: MyConfig.dump('Vmax',max)
       min = None
       try: min = nvs_get('Vmin')/10.0
       except: pass
       if min == None: min = 100
-      if rts < (min - 0.09):
-        nvs_set('Vmin', int(rts*10.0-0.5))
-    #if debug: print("Accu V: %.1f" % rts)
-    print("Accu V: %.1f [%.1f - %.1f]" % (rts,min,max))
-    # rts round(rts/0.12,1) # use load % of 12V?
-    return (rts if rts > 0.1 else 0)
+      if accuV < (min - 0.09):
+        nvs_set('Vmin', int(accuV*10.0-0.5))
+      if debug: print("Accu V: %.1f [%.1f - %.1f]" % (accuV,min,max))
+      if accuV < 10.9:
+        global AccuAlarm
+        AccuAlarm = True
+    return (accuV if accuV > 0.1 else 0)
   except: return None
 
 # sleep phases all active till config done after cold start, then:
@@ -264,8 +266,7 @@ def getPinsConfig(debug=False):
       Vmax = nvs_get('Vmax')/10.0
     except: pass
     if not Vmax: Vmax = 12.6
-    if accuV < (Vmax*0.88): # 88% accu is empty
-      SendEvent(port=Iprt, event=13, value=int(accuV*10)) # send event
+    if accuV < 10.8: # 12V accu class 6%
       nvs_set('Accu',int(accuV*10.0+0.5))
       from pycom import rgbled
       pycom.rgbled(0x990000)
@@ -1435,7 +1436,8 @@ def getMyConfig(debug=False):
 ########   main loop
 def runMe(debug=False):
   global MyConfiguration, MyTypes, wlan
-  global wokeUp # power cycle
+  global wokeUp    # power cycle
+  global AccuAlarm # accu empty?
 
   if not MyTypes:
     getMyConfig(debug=debug) 
@@ -1475,7 +1477,11 @@ def runMe(debug=False):
     if ('led' in Power.keys()) and Power['led']: LED.disable
 
   while True: # LOOP forever
-    if LED: LED.blink(1,0.2,0x00FF00,l=False,force=True)
+    if AccuAlarm:  # event on empty accu
+      if LED: LED.blink(3,0.1,0xF99B15,l=False,force=True)
+      SendEvent(port=Iprt, event=13, value=int(accuV*10)) # send event
+      AccuAlarm = False
+    elif LED: LED.blink(1,0.2,0x00FF00,l=False,force=True)
     toSleep = ticks()
     try:
       if (toSleep+interval['sample']+30) > nvs_get('gps'):
