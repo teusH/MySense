@@ -157,6 +157,9 @@ Events will be propagated to the TTN Lora sever.
 
 Om reception of a remote LoRa command (see the script for all remote commands) the command will be sent as a ping-pong back to the TTN server as an event acknowledgement.
 
+MySense is using a watchdog of `interval * 4` seconds.
+An activated watchdog will sent an event on startup with a mark of the script location of the halt.
+
 ## accu watch dog
 
 If the accu is connected to Grn and ADC pin (board power pins: 5Vdc, Ground, Accu-Vcc, Accu-Gnd, s-reset on the PCB board), MySense will check via ADC the accu voltage. Will update the max/minimum value in nvs ram.

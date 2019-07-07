@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.48 2019/07/03 16:21:42 teus Exp teus $
+# $Id: MySense.py,v 5.49 2019/07/07 08:37:12 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.48 $"[11:-2]
+__version__ = "0." + "$Revision: 5.49 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -23,6 +23,8 @@ try:
 except: pass
 debug = True  # enable print dictionary
 wokeUP = False
+from machine import WDT
+wdt    = None # watch dog
 
 MyConfig = None      # handle to ConfigJson object
 MyConfiguration = {} # configuration stable between deepsleeps and power cycle
@@ -30,7 +32,9 @@ MyDevices = {} # dyn. part, has bus refs to device dict with conf
 MyTypes = {}   # dyn. part, has type refs to device dict with conf
 MyNames = [('meteo','i2c'),('display','i2c'),('dust','ttl'),('gps','ttl'),('accu','pin'),('deepsleep','pin')]
 lastGPS = [0,0,0]
-AccuAlarm = None     # event on empty accu
+Alarm = None              # tuple (nr,value)
+AlarmAccu = const(13)     # event on empty accu, has accu level
+AlarmWDT = const(14)   # watchdog sensor event, has marks
 
 import struct
 from micropython import const
@@ -148,8 +152,8 @@ def getVoltage(debug=False): # range 0 (None) and 11.4 (88% low) - 12.5 (high)
         nvs_set('Vmin', int(accuV*10.0-0.5))
       if debug: print("Accu V: %.1f [%.1f - %.1f]" % (accuV,min,max))
       if accuV < 10.9:
-        global AccuAlarm
-        AccuAlarm = True
+        global Alarm, AlarmAccu
+        Alarm = (AlarmAccu,int(accuV*10))
     return (accuV if accuV > 0.1 else 0)
   except: return None
 
@@ -217,12 +221,18 @@ def setWiFi(reset=False,debug=False):
 ## configuration from flash
 def initConfig(debug=False):
   global MyConfiguration, MyConfig
-  global wokeUp
+  global wokeUp, Alarm, AlarmWDT
 
   if MyConfig: return
 
-  from machine import wake_reason, PWRON_WAKE
-  wokeUp = wake_reason()[0] != PWRON_WAKE
+  from machine import wake_reason, RTC_WAKE, reset_cause, WDT_RESET
+  wokeUp = wake_reason()[0] == RTC_WAKE # deepsleep wake up
+  Alarm = None
+  # if reset_cause() == WDT_RESET:
+  try: Alarm = nvs_get('AlarmWDT')
+  except: pass
+  if Alarm: Alarm = (AlarmWDT,Alarm) # got WDT timeout
+  else: Alarm = None
   import ConfigJson
   MyConfig = ConfigJson.MyConfig(archive=(not wokeUp), debug=debug)
   MyConfiguration = MyConfig.getConfig()
@@ -1433,11 +1443,19 @@ def getMyConfig(debug=False):
       print("MyDevices[bus] ", end='')
       PrintDict(MyTypes[item],'MyTypes[%s]' % item)
 
+def MyMark(mark): # watchdog: sensor timeout mark
+  global MyConfiguration
+  global wdt
+  if not wdt:
+    wdt = WDT(timeout=(MyConfiguration['interval']['interval']*3*1000))
+  nvs_set('AlarmWDT',mark)
+  wdt.feed()
+
 ########   main loop
 def runMe(debug=False):
   global MyConfiguration, MyTypes, wlan
   global wokeUp    # power cycle
-  global AccuAlarm # accu empty?
+  global Alarm     # watch dog
 
   if not MyTypes:
     getMyConfig(debug=debug) 
@@ -1477,10 +1495,11 @@ def runMe(debug=False):
     if ('led' in Power.keys()) and Power['led']: LED.disable
 
   while True: # LOOP forever
-    if AccuAlarm:  # event on empty accu
+    MyMark(10)
+    if Alarm:  # event on empty accu
       if LED: LED.blink(3,0.1,0xF99B15,l=False,force=True)
-      SendEvent(port=Iprt, event=13, value=int(accuV*10)) # send event
-      AccuAlarm = False
+      SendEvent(port=Iprt, event=Alarm[0], value=int(Alarm[1])) # send event
+      Alarm = False
     elif LED: LED.blink(1,0.2,0x00FF00,l=False,force=True)
     toSleep = ticks()
     try:
@@ -1494,15 +1513,23 @@ def runMe(debug=False):
       if Display['enabled'] and Power['display']: Display['lib'].poweron()
     except: pass
 
-    dData = DoDust(debug=debug)
-    if Dust and Dust['conf']['use']:
+    MyMark(20)
+    try:
+      dData = DoDust(debug=debug)
+      if Dust and Dust['conf']['use']:
         Dust['lib'].Standby()   # switch off laser and fan
         PinPower(atype='dust',on=False,debug=debug)
+    except Exception as e: print("dData except: %s" % str(e))
 
-    mData = DoMeteo(debug=debug)
+    MyMark(30)
+    try: mData = DoMeteo(debug=debug)
+    except Exception as e: print("mData except: %s" % str(e))
 
-    aData = DoAccu(debug=debug)
+    MyMark(40)
+    try: aData = {}; aData = DoAccu(debug=debug)
+    except Exception as e: print("aData except: %s" % str(e))
 
+    MyMark(50)
     # Send packet
     if Network and Network['enabled']:
         if (Network['name'] == 'TTN'):
@@ -1516,6 +1543,7 @@ def runMe(debug=False):
             if LED: LED.blink(5,0.2,0x9c5c00,l=False)
         elif LED: LED.blink(2,0.2,0xFF0000,l=False,force=True)
 
+    MyMark(60)
     if STOP:
       SendEvent(port=Iprt, event=1) # send stopped
       sleep_ms(60*1000)
@@ -1526,6 +1554,7 @@ def runMe(debug=False):
       # and put ESP in deep sleep: machine.deepsleep()
       return False
 
+    MyMark(70)
     toSleep = interval['interval'] - (ticks()-toSleep)
     if Dust and Dust['enabled']:
       if toSleep > 30:
@@ -1540,15 +1569,15 @@ def runMe(debug=False):
     if MyConfig.dirty: MyConfig.store # update config flash?
     # LoRa nvram done via send routine
 
+    MyMark(80)
     if Power['sleep'] or deepsleepMode():
-      if toSleep > 60:
-        toSleep -= 1
-        print("DeepSleep: %d secs" % (toSleep))
-        from machine import deepsleep
-        deepsleep(toSleep*1000) # deep sleep
+      toSleep -= 1
+      print("DeepSleep: %d secs" % (toSleep))
+      from machine import deepsleep
+      deepsleep(toSleep*1000) # deep sleep
       # will never arrive here
-    if deepsleepMode(): wokeUp = True
-    else: wokeUp = False
+
+    MyMark(90)
     if not Power['i2c']:
       if not ProgressBar(0,62,128,1,toSleep,0xebcf5b,10):
         display('stopped SENSING', (0,0), clear=True)
@@ -1560,6 +1589,8 @@ def runMe(debug=False):
     PinPower(atype=['display','meteo'],on=True,debug=debug)
     if Display and Display['enabled'] and (Power['display'] != None):
        Display['lib'].poweron()
+    if deepsleepMode(): wokeUp = True
+    else: wokeUp = False
 
 if __name__ == "__main__":
   runMe(debug=True)
