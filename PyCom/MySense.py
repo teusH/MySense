@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.49 2019/07/07 08:37:12 teus Exp teus $
+# $Id: MySense.py,v 5.51 2019/07/13 13:37:58 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.49 $"[11:-2]
+__version__ = "0." + "$Revision: 5.51 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -133,29 +133,35 @@ def getVoltage(debug=False): # range 0 (None) and 11.4 (88% low) - 12.5 (high)
       MyTypes[atype] = MyDevices[atype] = {
         'max': None,
         'lib': ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB)}
-    accuV =  MyDevices[atype]['lib'].value()*0.004271845 
-    if accuV > 0.1: # only for development
+    accuV = [MyDevices[atype]['lib'].value()*0.004271845]
+    if accuV[0] > 0.1:  # accu attached
+      for i in range(9): # 10 sec sample
+        sleep_ms(1000)
+        accuV.append(MyDevices[atype]['lib'].value()*0.004271845)
+    rts = (min(accuV),sum(accuV)/len(accuV),max(accuV))
+    if rts[1] > 0.1: # only for development
       max = MyTypes[atype]['max']
       if max == None:
         try: max = nvs_get('Vmax')/10.0
         except: pass
         if max == None: max = 0
-      if accuV > (max + 0.09):
-        MyTypes[atype]['max'] = accuV
-        nvs_set('Vmax', int(accuV*10.0+0.5))
+      if rts[1] > (max + 0.09):
+        MyTypes[atype]['max'] = rts[1]
+        nvs_set('Vmax', int(rts[1]*10.0+0.5))
         # if not max: MyConfig.dump('Vmax',max)
       min = None
       try: min = nvs_get('Vmin')/10.0
       except: pass
       if min == None: min = 100
-      if accuV < (min - 0.09):
-        nvs_set('Vmin', int(accuV*10.0-0.5))
-      if debug: print("Accu V: %.1f [%.1f - %.1f]" % (accuV,min,max))
-      if accuV < 10.9:
+      if rts[1] < (min - 0.09):
+        nvs_set('Vmin', int(rts[1]*10.0-0.5))
+      if debug: print("Accu V: %.1f [%.1f - %.1f]" % (rts[1],min,max))
+
+      if rts[1] < 10.9:
         global Alarm, AlarmAccu
-        Alarm = (AlarmAccu,int(accuV*10))
-    return (accuV if accuV > 0.1 else 0)
-  except: return None
+        Alarm = (AlarmAccu,int(rts[1]*10))
+    return rts
+  except: return [0,0,0]
 
 # sleep phases all active till config done after cold start, then:
 #    sleep pin not set & power sleep False: sleep, rgb led, wifi
@@ -261,7 +267,7 @@ def getPinsConfig(debug=False):
   deepsleepMode() # pins init
   ## CONF clear
   accuV = getVoltage()
-  if (not accuV) and deepsleepMode(): # reset config
+  if (not accuV[0]) and deepsleepMode(): # reset config
     if not wokeUp: # cold restart
       print("Clear config disabled")
       # specal case: no accu & deepsleep pin present
@@ -270,14 +276,14 @@ def getPinsConfig(debug=False):
       # initConfig(debug=debug) 
       # MyDevices = {}
       # getVoltage(); deepsleepMode();
-  if accuV and (accuV > 1.0):
-    Vmax = None
-    try:
-      Vmax = nvs_get('Vmax')/10.0
-    except: pass
-    if not Vmax: Vmax = 12.6
-    if accuV < 10.8: # 12V accu class 6%
-      nvs_set('Accu',int(accuV*10.0+0.5))
+  if accuV[0] and (accuV[0] > 1.0):
+    # Vmax = None
+    # try:
+    #   Vmax = nvs_get('Vmax')/10.0
+    # except: pass
+    # if not Vmax: Vmax = 12.6
+    if accuV[2] < 10.8: # 12V accu class 6%
+      nvs_set('Accu',int(accuV[1]*10.0+0.5))
       from pycom import rgbled
       pycom.rgbled(0x990000)
       sleep_ms(1*1000)
@@ -1146,13 +1152,13 @@ def DoGPS(debug=False):
 def initAccu():
   global MyDevices, MyConfig
   if not MyConfig: initConfig()
-  if not 'accu' in MyDevices.keys(): return (getVoltage() != 0)
+  if not 'accu' in MyDevices.keys(): return (getVoltage()[0] != 0)
   else: return True
 
 def DoAccu(debug=False):
   if not 'accu' in MyDevices.keys(): initAccu()
   try:
-    if MyDevices['accu']: return getVoltage()
+    if MyDevices['accu']: return getVoltage()[1]
   except: return 0
 
 ## LoRa
