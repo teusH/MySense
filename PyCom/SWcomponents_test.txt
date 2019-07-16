@@ -269,6 +269,7 @@ MySense.runMe()
 # post mortuum debugging variables, may fail if not (yet) set:
 from pycom import nvs_get
 nvs_get('AlarmWDT')	# point of last mark in loop
+nvs_get('AlarmSlp')     # last deepsleep in secs
 nvs_get('Vmax')/10.0	# maximum accu voltage
 nvs_get('Vmin')/10.0	# minimum accu voltage
 nvs_get('Accu')/10.0    # accu voltage if lower 10.8V

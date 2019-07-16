@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.53 2019/07/14 10:50:54 teus Exp teus $
+# $Id: MySense.py,v 5.54 2019/07/16 11:12:17 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.53 $"[11:-2]
+__version__ = "0." + "$Revision: 5.54 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -55,6 +55,16 @@ HALT = False  # stop by remote control
 LAT = const(0)
 LON = const(1)
 ALT = const(2)
+
+def MyMark(mark): # watchdog: sensor timeout mark
+  global MyConfiguration
+  global wdt
+  try:
+    if not wdt:
+      wdt = WDT(timeout=(MyConfiguration['interval']['interval']*3*1000))
+    else: wdt.feed()
+  except: pass
+  nvs_set('AlarmWDT',mark)
 
 # return bus or if bus [type(s)]
 def Type2Bus(atype): # and visa versa
@@ -260,6 +270,16 @@ def initConfig(debug=False):
     nvs_set('gps',-1)
     nvs_set('count',0)
 
+def DEEPSLEEP(secs):
+   nvs_set('AlarmSlp', secs)
+   if secs <= 30:
+     print("May not happen")
+     return
+   from machine import deepsleep
+   print('Deepsleep of %d secs' % secs)
+   deepsleep(secs*1000)
+   # never arrive here: warm reboot
+
 ## CONF pins
 def getPinsConfig(debug=False):
   global MyConfiguration, MyConfiguration, wokeUp
@@ -287,10 +307,8 @@ def getPinsConfig(debug=False):
     if volts[2] < 10.8: # 12V accu class 6%
       nvs_set('Accu',int(volts[1]*10.0+0.5))
       from pycom import rgbled
-      pycom.rgbled(0x990000)
-      sleep_ms(1*1000)
-      from machine import deepsleep
-      deepsleep(15*60*1000)
+      pycom.rgbled(0x990000); sleep_ms(1*1000)
+      DEEPSLEEP(15*60)
 
 ## CONF busses
 def getBusConfig(busses=['i2c','ttl'], devices=None, debug=False):
@@ -387,19 +405,20 @@ def getGlobals(debug=False):
   global lastGPS
   ## CONF interval
   if not 'interval' in MyConfiguration:
-    try: from Config import interval
-    except:
-      MyConfiguration['interval'] = {
-             'sample': 60,      # dust sample in secs
-             'interval': 15,    # sample interval in minutes
-             'gps':      3*60,  # location updates in minutes
-             'info':     24*60, # send kit info in minutes
-      }
-    finally:
-      for item in ['interval','gps','info']:
-        MyConfiguration['interval'][item] *= 60
-        if MyConfiguration['interval']['interval'] <= 0:
-          MyConfiguration['interval']['interval'] = 0.1
+    MyConfiguration['interval'] = {
+       'sample': 60,      # dust sample in secs
+       'interval': 15,    # sample interval in minutes
+       'gps':      3*60,  # location updates in minutes
+       'info':     24*60, # send kit info in minutes
+    }
+    try:
+      from Config import interval
+      if type(interval) is dict: MyConfiguration['interval'].update(interval)
+    except: pass
+    for item in ['interval','gps','info']:
+      MyConfiguration['interval'][item] *= 60
+      if MyConfiguration['interval']['interval'] <= 0:
+        MyConfiguration['interval']['interval'] = 0.1
     MyConfig.dump('interval',MyConfiguration['interval'])
   if not wokeUp:
     # item for next time to send info: wrap around on 19 jan 2038!
@@ -1451,14 +1470,6 @@ def getMyConfig(debug=False):
       print("MyDevices[bus] ", end='')
       PrintDict(MyTypes[item],'MyTypes[%s]' % item)
 
-def MyMark(mark): # watchdog: sensor timeout mark
-  global MyConfiguration
-  global wdt
-  if not wdt:
-    wdt = WDT(timeout=(MyConfiguration['interval']['interval']*3*1000))
-  nvs_set('AlarmWDT',mark)
-  wdt.feed()
-
 ########   main loop
 def runMe(debug=False):
   global MyConfiguration, MyTypes, wlan
@@ -1559,7 +1570,8 @@ def runMe(debug=False):
         if Display['enabled']: Display['lib'].poweroff()
       except: pass
       PinPower(atype=['dust','gps','meteo','display'],on=False,debug=debug)
-      # and put ESP in deep sleep: machine.deepsleep()
+      # and put ESP in deep sleep: DEEPSLEEP()
+      MyMark(61)
       return False
 
     MyMark(70)
@@ -1580,9 +1592,7 @@ def runMe(debug=False):
     MyMark(80)
     if Power['sleep'] or deepsleepMode():
       toSleep -= 1
-      print("DeepSleep: %d secs" % (toSleep))
-      from machine import deepsleep
-      deepsleep(toSleep*1000) # deep sleep
+      DEEPSLEEP(toSleep) # deep sleep
       # will never arrive here
 
     MyMark(90)
