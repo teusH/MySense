@@ -11,12 +11,20 @@ def setWiFi():
   except: pass
 
 setWiFi()
+startMe = False
 from machine import wake_reason, PWRON_WAKE
-if wake_reason()[0] != PWRON_WAKE:
+if wake_reason()[0] != PWRON_WAKE: startMe = True
+else: # work around fake wakeup
+  try:
+    from pycom import nvs_get
+    if nvs_get('AlarmSlp') and (nvs_get('') == 80): startMe = True
+  except: pass
+if startMe:
   import MySense
   MySense.runMe()
+
 # uncomment to force REPL mode.
-#if True: print('No MySense start')
+if True: print('No MySense start')
 else: # deepsleep pin set and no accu voltage connected force REPL mode
   try:
     from machine import Pin
