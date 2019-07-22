@@ -17,7 +17,8 @@ if wake_reason()[0] != PWRON_WAKE: startMe = True
 else: # work around fake wakeup
   try:
     from pycom import nvs_get
-    if nvs_get('AlarmSlp') and (nvs_get('') == 80): startMe = True
+    from time import ticks_ms
+    if nvs_get('AlarmSlp')*1000 < ticks_ms(): startMe = True
   except: pass
 if startMe:
   import MySense
