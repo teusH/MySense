@@ -1,5 +1,5 @@
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
-# $Id: main.py,v 1.11 2019/07/22 19:46:28 teus Exp teus $
+# $Id: main.py,v 1.12 2019/07/28 12:09:15 teus Exp teus $
 
 def setWiFi():
   try:
@@ -15,8 +15,8 @@ def setWiFi():
 def runMySense():
   import MySense
   MySense.runMe()  # should never return
-  from machine import reset
-  reset()
+  import myReset   # cold reboot or sleep forever
+  myReset.myEnd()
 
 setWiFi()
 
