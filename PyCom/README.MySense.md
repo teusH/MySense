@@ -149,16 +149,29 @@ Some help scripts for testing hardware, connections and operational functions
 provided in the script `SWcomponents_test.txt` one can test via copy/paste and 'atom' REPL the hardware and software.
 * and give positive and negative feedback to us and contribute!
 
-## events
+## events (RGB led is flashing)
 
-MySense will try to notify unexpected events during the measurments. Events will be shown via the RGB led: blinking red flash light and eventually constant red light on fatal events. Some of the events will be sent viua LoRa, if possible as well. Like STOP operations, and empty accu (<85% load).
+MySense will try to notify unexpected events during the measurements.
+These events will be shown via the RGB led: blinking red flash light and eventually constant red light on fatal events.
+Some recoverable events will be sent via LoRa, if possible as well. Like STOP operations, and empty accu (<85% energy level).
+If possible the events will be propagated to the TTN Lora sever.
+Some examples:
+* blue initial flash: start up
+* blue repeating: controller is in REPL mode
+* white repeating: wait in interval period
+* green repeating: initializing or wait on stable air stream: starting up fan
+* blue flash: LoRa send data
+* read flash: sensor failing
+RGB led may be turned of to save energy (see the configuration file).
 
-Events will be propagated to the TTN Lora sever.
-
-Om reception of a remote LoRa command (see the script for all remote commands) the command will be sent as a ping-pong back to the TTN server as an event acknowledgement.
+On the reception of a remote LoRa command (see the script for all remote commands) the command will be sent as a ping-pong back to the TTN server as an event acknowledgement.
 
 MySense is using a watchdog of `interval * 4` seconds.
 An activated watchdog will sent an event on startup with a mark of the script location of the halt.
+
+### MySense failure events
+
+If the main MySense measurement loop (routine MySense.runMe()) will exit for some extra ordenary reason the main.py will alarm this via RGB led warning signals and force a cold reboot if this event happens after some time. To avoid a reboot loop the controller will enter a permanant sleep with RGB warnings every 10 minutes.
 
 ## accu watch dog
 
