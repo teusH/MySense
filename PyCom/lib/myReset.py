@@ -2,13 +2,13 @@
 # script to catch main failures if running a while warn and reset
 # else sleep forever and warn every 10 minutes
 
-__version__ = "0." + "$Revision: 1.1 $"[11:-2]
+__version__ = "0." + "$Revision: 1.2 $"[11:-2]
 __license__ = 'GPLV3'
 
 # 
 from machine import Timer, reset
 from time import sleep_ms, ticks_ms
-from pycom import rgbled, heartbeat
+from pycom import rgbled, heartbeat, nvs_set
 
 class LEDblink:
  def __init__(self,count=-5,alarm=60):
@@ -25,7 +25,7 @@ class LEDblink:
    if self.max == 0: alarm.cancel()
 
 def myEnd(debug=False):
-  heartbeat(False)
+  heartbeat(False); nvs_set('myReset',ticks_ms()/1000)
   if debug or (ticks_ms() > 30*60*1000):
     myLed = LEDblink(alarm=15)
   else: myLed = LEDblink(count=1,alarm=(60*10))

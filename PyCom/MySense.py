@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.54 2019/07/16 11:12:17 teus Exp teus $
+# $Id: MySense.py,v 5.56 2019/07/28 20:58:35 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.54 $"[11:-2]
+__version__ = "0." + "$Revision: 5.56 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -34,7 +34,8 @@ MyNames = [('meteo','i2c'),('display','i2c'),('dust','ttl'),('gps','ttl'),('accu
 lastGPS = [0,0,0]
 Alarm = None              # tuple (nr,value)
 AlarmAccu = const(13)     # event on empty accu, has accu level
-AlarmWDT = const(14)   # watchdog sensor event, has marks
+AlarmWDT = const(14)      # watchdog sensor event, has marks
+AlarmReset = const(15)    # unexpected exit of runMe()
 
 import struct
 from micropython import const
@@ -244,24 +245,34 @@ def initConfig(debug=False):
   if MyConfig: return
 
   from machine import wake_reason, RTC_WAKE, reset_cause, WDT_RESET
+  from pycom import nvs_get, nvs_set
   wokeUp = wake_reason()[0] == RTC_WAKE # deepsleep wake up
-  Alarm = None
-  # if reset_cause() == WDT_RESET:
-  try: Alarm = nvs_get('AlarmWDT')
+  Alarm = None; AlarmT = None           # look for alarm event
+  try: Alarm = nvs_get('myReset')
   except: pass
-  if Alarm: Alarm = (AlarmWDT,Alarm) # got WDT timeout
+  if Alarm:
+    nvs_erase('myReset')
+    AlarmT = AlarmReset
+  elif reset_cause() == WDT_RESET:
+    AlarmT = AlarmWDT
+  if AlarmT:
+    try: Alarm = nvs_get('AlarmWDT') # where?
+    except: pass
+    Alarm = (AlarmT,Alarm) # got WDT timeout or runMe() fail
   else: Alarm = None
+  nvs_set('AlarmWDT',0)
+
   import ConfigJson
   MyConfig = ConfigJson.MyConfig(archive=(not wokeUp), debug=debug)
   MyConfiguration = MyConfig.getConfig()
   if not wokeUp: # check startup mode
-    from pycom import nvs_get, nvs_erase_all
     modus = None
     try: modus = nvs_get('modus')
     except: pass
     if not modus:
       if MyConfiguration: MyConfig.clear # not def or 0: no archived conf
       MyConfiguration = dict()
+      from pycom import nvs_erase_all
       nvs_erase_all()
     elif modus  == 1: # reset only discovered devices
       for abus in ['ttl','i2c']:
@@ -1478,16 +1489,16 @@ def runMe(debug=False):
 
   if not MyTypes:
     getMyConfig(debug=debug) 
-
+    MyMark(1) # init WatchDogTimer
     # initialize devices and show initial info
     if not initDevices(debug=debug): # initNet does LoRa nvram restore
       print("FATAL ERROR")
       if LED: LED.blink(25,0.2,0xFF0000,l=True,force=True)
       return False
-
     if debug:
       global MyConfig
       if MyConfig.dirty: print("Configuration is dirty")
+
   # short cuts
   interval = MyConfiguration['interval']
   Power = MyConfiguration['power']
