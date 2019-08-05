@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.56 2019/07/28 20:58:35 teus Exp teus $
+# $Id: MySense.py,v 5.57 2019/08/05 13:02:01 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.56 $"[11:-2]
+__version__ = "0." + "$Revision: 5.57 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -779,17 +779,17 @@ AQI  = const(4)
 def DoMeteo(debug=False):
   global MyTypes, LED
   global nl, LF
+  mData = [None,None,None,None,None]
   if not MyTypes:
     getMyConfig(debug=debug)
     initMeteo(debug=debug)
   atype = 'meteo'
   try: Meteo = MyTypes[atype]
-  except: return
+  except: return mData
 
   def convertFloat(val):
     return (0 if val is None else float(val))
 
-  mData = [None,None,None,None,None]
   if Meteo['lib'] == None: initMeteo(debug=debug)
   if (not Meteo['conf']['use']) or (not Meteo['enabled']): return mData
 
@@ -931,15 +931,15 @@ PM10c = const(8)
 def DoDust(debug=False):
   global nl, STOP, STOPPED, lastGPS
   global MyConfiguration, MyTypes
+  dData = {}; rData = [None,None,None]
   atype = 'dust'
   if not MyTypes:
     getMyConfig(debug=debug)
     initDust(debug=debug)
   try: Dust = MyTypes[atype]
-  except: return
+  except: return rData
 
 
-  dData = {}; rData = [None,None,None]
   if Dust['lib'] == None: initDust(debug=debug)
   if (not Dust['conf']['use']) or (not Dust['enabled']): return rData
 
