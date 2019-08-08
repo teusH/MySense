@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.57 2019/08/05 13:02:01 teus Exp teus $
+# $Id: MySense.py,v 5.58 2019/08/08 09:29:08 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.57 $"[11:-2]
+__version__ = "0." + "$Revision: 5.58 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -1528,7 +1528,9 @@ def runMe(debug=False):
     MyMark(10)
     if Alarm:  # event on empty accu
       if LED: LED.blink(3,0.1,0xF99B15,l=False,force=True)
-      SendEvent(port=Iprt, event=Alarm[0], value=int(Alarm[1])) # send event
+      try:
+        SendEvent(port=Iprt, event=Alarm[0], value=int(Alarm[1])) # send event
+      except: pass
       Alarm = False
     elif LED: LED.blink(1,0.2,0x00FF00,l=False,force=True)
     toSleep = ticks()
