@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.59 2019/08/14 10:44:21 teus Exp teus $
+# $Id: MySense.py,v 5.60 2019/08/14 14:33:38 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.59 $"[11:-2]
+__version__ = "0." + "$Revision: 5.60 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -641,7 +641,7 @@ def PinPower(atype=None,on=None,debug=False):
         if not MyConfiguration['power'][abus]: return True
       except: pass
       if debug: print("Deactivate %s chan (Tx,Rx,Pwr)=%s: " % (abus,str(pins)))
-      pin.value(0); return True
+      pin.value(0); sleep_ms(200); return True
     else: return False
 
 def PinPowerRts(atype,prev,rts=None,debug=False):
