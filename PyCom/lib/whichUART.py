@@ -7,7 +7,7 @@
 from time import sleep_ms
 from machine import UART
 
-__version__ = "0." + "$Revision: 5.11 $"[11:-2]
+__version__ = "0." + "$Revision: 5.12 $"[11:-2]
 __license__ = 'GPLV3'
 
 # Config.py definitions preceed
@@ -187,9 +187,9 @@ class identification:
       return self.devices[atype]
     if (not atype in self.conf.keys()) or (self.conf[atype]['name'] == None):
       fnd = None
-      for pins in self.pins:
-         if pins in self.allocated: continue
-         fnd = self.getConf(atype, pins)
+      for mypins in self.pins:
+         if mypins in self.allocated: continue
+         fnd = self.getConf(atype, mypins)
          if fnd: break
       if not fnd:
         print("Unable to find config for %s" % atype)
