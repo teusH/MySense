@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.60 2019/08/14 14:33:38 teus Exp teus $
+# $Id: MySense.py,v 5.61 2019/08/19 11:40:37 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.60 $"[11:-2]
+__version__ = "0." + "$Revision: 5.61 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -237,6 +237,18 @@ def setWiFi(reset=False,debug=False):
     except: return False
   return True
 
+# reset MySense
+def MyReset(cause=None):
+  import os
+  os.remove('/flash/MySenseConfig.json'); print("Cleared MySense config")
+  # delete frequently changed status variables
+  from pycom import nvs_erase_all
+  nvs_erase_all(); print("Cleared nvs mem")
+  if cause:
+    nvs_set('myReset',1); nvs_set('AlarmWDT',1) # send reset
+    import machine
+    machine.reset() # full reset LoPy
+
 ## configuration from flash
 def initConfig(debug=False):
   global MyConfiguration, MyConfig
@@ -308,7 +320,7 @@ def getPinsConfig(debug=False):
       # specal case: no accu & deepsleep pin present
       # print("Clear config in flash")
       # MyConfig.clear; MyConfig = None; MyConfiguration = {}
-      # initConfig(debug=debug) 
+      # initConfig(debug=debug)
       # MyDevices = {}
       # getVoltage(); deepsleepMode();
   if volts[0] and (volts[0] > 1.0):
@@ -341,7 +353,7 @@ def getBusConfig(busses=['i2c','ttl'], devices=None, debug=False):
     for dev in MyConfiguration[abus].keys():
       if not dev in busdevices: continue
       FndDevices.append(dev)
-      if debug: print("Reuse dev %s config: %s" % (dev, str(MyConfiguration[abus][dev]))) 
+      if debug: print("Reuse dev %s config: %s" % (dev, str(MyConfiguration[abus][dev])))
     if abus == 'i2c': import whichI2C as which
     elif abus == 'ttl': import whichUART as which
     # PrintDict(MyConfiguration[abus],'MyConfiguration[%s]' % abus)
@@ -377,7 +389,7 @@ def getNetConfig(debug=False):
     try: from Config import Network
     except: pass
   if not Network in ['TTN', None]: raise ValueError("%s not supported" % Network)
-  
+
   if Network == 'TTN':
     atype = 'lora'
     MyDevices[atype] = { 'name': Network, 'type': atype, 'enabled': False, 'lib': None }
@@ -385,7 +397,7 @@ def getNetConfig(debug=False):
     if MyConfig.getConfig('LoRa') in ['ABP','OTAA']:
       if debug: print("Use LoRa nvram")
     #else: MyDevices[atype]['lib'].cleanup # will clear LoRa
-  
+
     info = None
     MyDevices[atype]['method'] = {}
     if not wokeUp: # no keys in nvram or set them
@@ -411,7 +423,7 @@ def getNetConfig(debug=False):
     MyTypes['network'] = MyDevices[atype]
     if wokeUp: info = True # no need to send meta data
   else: None # no output
-  
+
 def getGlobals(debug=False):
   global MyConfiguration, MyConfig, wokeUp
   if not MyConfig: initConfig()
@@ -441,7 +453,7 @@ def getGlobals(debug=False):
       except: pass
       if not value: nvs_set(item,0)
     nvs_set('gps',-1)
-  
+
   ## CONF power mgt
   # device power management dflt: do not unless pwr pins defined
   # power mgt of ttl/uarts OFF/on, i2c OFF/on
@@ -459,14 +471,14 @@ def getGlobals(debug=False):
   if deepsleepMode():
     MyConfiguration['power']['ttl'] = MyConfiguration['power']['i2c'] = True
   # sleep dflt True: listen to pin mode
-  
+
   ## CONF calibrate
   if not 'calibrate' in MyConfiguration.keys():
     # calibrate dict with lists for sensors { 'temperature': [0,1], ...}
     try: from Config import calibrate
     except: MyConfiguration['calibrate'] = {}      # sensor calibration Tayler array
     if not wokeUp: MyConfig.dump('calibrate',MyConfiguration['calibrate'])
-  
+
   ## CONF dflt location
   if not 'thisGPS' in MyConfiguration.keys():
     thisGPS = [0.0,0.0,0.0]
@@ -1226,6 +1238,8 @@ def CallBack(port,what):
         if Display['conf']['use']:
           Display['lib'].poweron()
           ChangeConfig('power','display',None)
+      elif what.upper() == b'R': # LoPy reset
+        MyReset(cause=1)
       elif what == b'S':
         ChangeConfig('interval','sleep',True)
       elif what == b's':
@@ -1490,8 +1504,8 @@ def runMe(debug=False):
   global Alarm     # watch dog
 
   if not MyTypes:
-    getMyConfig(debug=debug) 
-    MyMark(1) # init WatchDogTimer
+    getMyConfig(debug=debug)
+    MyMark(2) # init WatchDogTimer
     # initialize devices and show initial info
     if not initDevices(debug=debug): # initNet does LoRa nvram restore
       print("FATAL ERROR")
