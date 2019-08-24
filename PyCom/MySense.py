@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.61 2019/08/19 11:40:37 teus Exp teus $
+# $Id: MySense.py,v 5.63 2019/08/24 11:26:02 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.61 $"[11:-2]
+__version__ = "0." + "$Revision: 5.63 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -240,12 +240,13 @@ def setWiFi(reset=False,debug=False):
 # reset MySense
 def MyReset(cause=None):
   import os
-  os.remove('/flash/MySenseConfig.json'); print("Cleared MySense config")
+  try: os.remove('/flash/MySenseConfig.json'); print("Cleared MySense config")
+  except: pass
   # delete frequently changed status variables
   from pycom import nvs_erase_all
   nvs_erase_all(); print("Cleared nvs mem")
   if cause:
-    nvs_set('myReset',1); nvs_set('AlarmWDT',1) # send reset
+    nvs_set('myReset',1); nvs_set('AlarmWDT',cause) # send reset
     import machine
     machine.reset() # full reset LoPy
 
@@ -1498,11 +1499,12 @@ def getMyConfig(debug=False):
       PrintDict(MyTypes[item],'MyTypes[%s]' % item)
 
 ########   main loop
-def runMe(debug=False):
+def runMe(debug=False,reset=False):
   global MyConfiguration, MyTypes, wlan
   global wokeUp    # power cycle
   global Alarm     # watch dog
 
+  if reset: MyReset()
   if not MyTypes:
     getMyConfig(debug=debug)
     MyMark(2) # init WatchDogTimer
