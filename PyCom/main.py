@@ -1,5 +1,8 @@
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
-# $Id: main.py,v 1.12 2019/07/28 12:09:15 teus Exp teus $
+# $Id: main.py,v 1.13 2019/08/25 10:57:27 teus Exp teus $
+# work around deepsleep ESP wakeup problem
+from time import sleep_ms
+sleep_ms(500)
 
 def setWiFi():
   try:
