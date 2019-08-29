@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.63 2019/08/24 11:26:02 teus Exp teus $
+# $Id: MySense.py,v 5.64 2019/08/29 14:04:52 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.63 $"[11:-2]
+__version__ = "0." + "$Revision: 5.64 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -808,7 +808,7 @@ def DoMeteo(debug=False):
   if Meteo['lib'] == None: initMeteo(debug=debug)
   if (not Meteo['conf']['use']) or (not Meteo['enabled']): return mData
 
-  # Measure BME280/680: temp oC, rel hum %, pres pHa, gas Ohm, aqi %
+  # Measure BME280/680: temp oC, rel hum %, pres hPa, gas Ohm, aqi %
   if LED: LED.blink(3,0.1,0x002200,l=False); prev = 1
   try:
     prev = PinPower(atype=atype,on=True, debug=debug)
@@ -853,13 +853,13 @@ def DoMeteo(debug=False):
   # display results
   nl += 6  # oled spacing
   if Meteo['conf']['name'] == 'BME680':
-    title = "  C hum% pHa"
+    title = "  C hum% hPa"
     values = "% 2.1f %2d %4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES]))
     if mData[AQI] > 0:
       title += ' AQI'
       values += " %2d" % round(mData[AQI])
   elif Meteo['conf']['name'] == 'BME280':
-    title = "    C hum%  pHa"
+    title = "    C hum%  hPa"
     values = "% 3.1f  % 3d % 4d" % (round(mData[TEMP],1),round(mData[HUM]),round(mData[PRES]))
   else:
     title = "    C hum%"
