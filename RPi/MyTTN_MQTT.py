@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-mqtt-download.py,v 2.28 2019/08/05 09:27:18 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.2 2019/08/29 14:18:24 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -32,8 +32,8 @@
     Publish measurements as client to luftdaten.info and MySQL
     One may need to change payload and TTN record format!
 """
-modulename='$RCSfile: TTN-mqtt-download.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.28 $"[11:-2]
+modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
+__version__ = "0." + "$Revision: 1.2 $"[11:-2]
 
 try:
     import MyLogger
@@ -752,8 +752,8 @@ def PubOrSub(topic,option):
         waiting = False
         if 'fd' in Conf.keys():
             Conf['fd'] = None
-        mid = MiD
-        MyLogger.log(modulename,'DEBUG','Disconnect mid: ' + str(mid))
+        # mid = MiD
+        # MyLogger.log(modulename,'DEBUG','Disconnect mid: ' + str(mid))
         raise IOError("MQTTsub: disconnected")
 
     def reConnect():
@@ -842,6 +842,8 @@ cached = {
     # 'ident': collected meta info
     # },
 }
+# kits alive from previous TTN connection
+previous = []
 
 # show current status of nodes seen so far
 def SigUSR1handler(signum,frame):
@@ -1038,7 +1040,7 @@ def sendNotice(message,myID=None,debug=True):
             if (type(item[0]) is str) or (type(item[0]) is unicode):
                 item[0] = re.compile(item[0],re.I)
             if not item[0].match(myID.split('/')[1]): continue
-            for to in item[1].split(','):
+            for to in item[1:]:
                 to = to.strip()
                 one = to.split(':')
                 if not one[0] in sendTo.keys(): continue
@@ -1047,8 +1049,12 @@ def sendNotice(message,myID=None,debug=True):
                         sendTo[one[0]].append(one[1].strip())
                 except: continue
         except: continue
-    if len(sendTo['email']): email_message(message,sendTo['email'],debug=debug)
-    if len(sendTo['slack']): slack_message(message,sendTo['slack'],debug=debug)
+    if debug:
+        print("Send Notice to: %s" % str(sendTo))
+        print("     Message  : %s" % str(message))
+    else:
+        if len(sendTo['email']): email_message(message,sendTo['email'],debug=debug)
+        if len(sendTo['slack']): slack_message(message,sendTo['slack'],debug=debug)
     return True
 
 # search for minimal set of sensors covering all fields
@@ -1068,28 +1074,41 @@ def searchSensors(afields,candidates,keyList=None):
     if not fnd: return ['unknown']
     return minimal
 
+def AllowInterval(interval,now=None):
+    if not now: now = time()
+    return int( now - (4.5*interval + 7.5 + 0.5)*60)
+
 def cleanupCache(saveID,debug=False): # delete dead kits from cache
-    global cached
-    now = time()
+    global cached, previous
+    now = time(); items = []
     for item in cached.keys():
       # if debug:
       #   diff = int(now - cached[item]['last_seen'])
       #   print("Kit %s:\t interval %dm%ds,\tseen %dh:%dm:%ds ago." % (item.split('/')[1],cached[item]['interval']/60,cached[item]['interval']%60,diff/3600,(diff%3600)/60,(diff%(3600*60))%60))
       if saveID == item: continue
       try:
-        if (cached[item]['last_seen'] < (now-60*60*2)) or ((now-cached[item]['interval']*5) <= cached[item]['last_seen'] <= (now-cached[item]['interval']*4)):
-            MyLogger.log(modulename,'ATTENT',"Kit %s not seen longer as %d minutes." % (item,(now-cached[item]['last_seen'])/60))
-            try:
-                sendNotice("Kit %s not seen longer as %d minutes.\nKit seems to be disconnected." % (item,(now-cached[item]['last_seen'])/60),myID=item,debug=debug)
-            except Exception as e:
-                MyLogger.log(modulename,'ERROR',"Failed to send notice: %s" % str(e))
-            del cached[item]
+        if (cached[item]['last_seen'] < (now-60*60*2)) or (cached[item]['last_seen'] <= AllowInterval(cached[item]['interval'],now)):
+            items.append(item)
       except: pass
-        
+    if len(items):
+      if len(items) < 3:   #  len(cached)-1
+        for item in items:
+          MyLogger.log(modulename,'ATTENT',"Kit %s not seen longer as %d minutes." % (item,(now-cached[item]['last_seen'])/60))
+          try:
+              sendNotice("Kit %s not seen longer as %d minutes.\nKit seems to be disconnected.\nLast time seen: %s." % (item,(now-cached[item]['last_seen'])/60,datetime.datetime.fromtimestamp(cached[item]['last_seen']).strftime("%Y-%m-%d %H:%M")),myID=item,debug=debug)
+          except Exception as e:
+              MyLogger.log(modulename,'ERROR',"Failed to send notice: %s" % str(e))
+          del cached[item]
+      else:
+        MyLogger.log(modulename,'ATTENT',"Seems TTN server is down for a long period at %s" % datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"))
+        sendNotice("Seems TTN server is down for a long period at %s (kits with no measurements: %s)." % (datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"),', '.join(items[:3]) + '...' if len(items) > 3 else ''), myID='all/event', debug=debug)
+        for item in items:
+          del cached[item]
+          if not item in previous: previous.append(item)
 
 # convert MQTT structure to MySense ident,value structure
 def convert2MySense( data, **sensor):
-    global Conf, cached, dirtyCaches, startedCache, debug
+    global Conf, cached, previous, dirtyCaches, startedCache, debug
     def recordTranslate(arecord):
         new = {}
         for item in arecord.items():
@@ -1164,8 +1183,11 @@ def convert2MySense( data, **sensor):
             sendNotice('Unknown (new?) kit found: %s' % myID,myID=myID,debug=debug)
         raise ValueError('unknown kit %s' % myID)  # skip this record
     if (cached[myID]['count'] == 1) and (now > startedCache): # notice this clearly starting new kit
-        MyLogger.log(modulename,'ATTENT','Kit %s is (re)started.' % myID)
-        sendNotice('Kit %s is (re)started at time: %s' % (myID,datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M")),myID=myID,debug=debug)
+        if not myID in previous:
+            MyLogger.log(modulename,'ATTENT','Kit %s is (re)started.' % myID)
+            sendNotice('Kit %s is (re)started at time: %s' % (myID,datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M")),myID=myID,debug=debug)
+        else:
+            previous.remove(myID)
 
     gtwID = None  # gateway id
 
@@ -1426,7 +1448,7 @@ def convert2MySense( data, **sensor):
     # sendNotice('Got record ident: %s, data: %s' % (str(ident),str(values)), myID=myID, debug=debug)
     if debug:
         print("Got data from %s at %s, interval %dm%ds" % (myID.split('/')[1],datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),cached[myID]['interval']/60,cached[myID]['interval']%60))
-    return { 'ident': ident, 'data': values }
+    return { 'ident': ident, 'data': values, 'myID': myID }
 
 def getdata():
     global Conf, ErrorCnt
@@ -1508,11 +1530,11 @@ signal.signal(signal.SIGUSR2, SigUSR2handler)
 
 # next only for standalone testing
 if __name__ == '__main__':
-    Conf['adminfile'] = 'LoPy-Admin.conf.json' # meta identy data for sensor kits
+    #Conf['adminfile'] = 'LoPy-Admin.conf.json' # meta identy data for sensor kits
     Conf['all'] = False  # do not skip unknown sensors
-    #Conf['slack'] = 'https://hooks.slack.com/services/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'
-    Conf['from'] = 'Notice TTN data collector <mysense@behouddeparel.nl>'
-    Conf['SMTP'] = 'elx8.theunis.org'
+    #Conf['slack'] = 'https://hooks.slack.com/services/T1234512345/12345F12345/123451234512345123451234512345'
+    Conf['from'] = 'Notice TTN data collector <noreply@MyServer.edu>'
+    Conf['SMTP'] = 'smtp.server.domain'
 
     # one should use the MySense main script in stead of next statements
     Conf['input'] = True
@@ -1555,12 +1577,12 @@ if __name__ == '__main__':
         {   'name': 'Luftdaten data push', 'script': 'MyLUFTDATEN', 'module': None,
             'Conf': {
                 'output': True,
-                'id_prefix': "TTNMySense-", # prefix ID prepended to serial number of module
+                'id_prefix': "TTNMy-", # prefix ID prepended to serial number of module
                 'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
                 'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
                 # expression to identify serials to be subjected to be posted
-                'serials': '(30aea4505[89]88)', # pmsensor[1 .. 11] from pmsensors
-                'projects': '(HadM|VW2017|SAN)',  # expression to identify projects to be posted
+                'serials': '(3[89]88)', # pmsensor[1 .. 11] from pmsensors
+                'projects': '(7|SANx)',  # expression to identify projects to be posted
                 'active': True,        # output to luftdaten is also activated
                 # 'debug' : True,        # show what is sent and POST status
             }
@@ -1661,7 +1683,7 @@ if __name__ == '__main__':
               if OutputChannels[indx]['name'] != 'Console':
                 PublishMe = False ; cnt += 1
               else:
-                print("Kit with serial %s not activated. Skip other output." % record['ident']['serial'])
+                print("Kit MQTT %s with serial %s not activated. Skip other output." % (record['myID'],record['ident']['serial']))
             if OutputChannels[indx]['module'] and OutputChannels[indx]['Conf']['output']:
               if not 'active' in record['ident'].keys():
                 record['ident']['active'] = False
