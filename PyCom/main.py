@@ -1,8 +1,5 @@
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
-# $Id: main.py,v 1.13 2019/08/25 10:57:27 teus Exp teus $
-# work around deepsleep ESP wakeup problem
-from time import sleep_ms
-sleep_ms(500)
+# $Id: main.py,v 1.14 2019/09/01 10:37:30 teus Exp teus $
 
 def setWiFi():
   try:
@@ -32,8 +29,10 @@ else: # work around fake wakeup
     if nvs_get('AlarmSlp')*1000 < ticks_ms(): runMySense()
   except: pass
 
-# if True to force REPL mode. if False: on sleeppin and accu run MySense
-if True: print('No MySense start')
+# Use True to force REPL mode. use False: REPL depends on sleeppin and accu voltage
+if True:
+  print("No auto MySense start\nTo start MySense loop (reset config, cleanup nvs):")
+  print("import MySense\nMySense.runMe(reset=True)")
 else: # deepsleep pin set and no accu voltage: go into REPL mode
   try:
     from machine import Pin
