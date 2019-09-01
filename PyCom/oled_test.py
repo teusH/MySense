@@ -4,7 +4,7 @@ from time import sleep_ms
 from machine import I2C
 import sys
 
-__version__ = "0." + "$Revision: 5.9 $"[11:-2]
+__version__ = "0." + "$Revision: 5.10 $"[11:-2]
 __license__ = 'GPLV3'
 
 abus='i2c'
@@ -23,12 +23,18 @@ if config[abus]:
     print("%s: " % dev, config[abus][dev])
 
 import whichI2C
-if config[abus] and (atype in config[abus].keys()):
-  which = whichI2C.identification(identify=True,config=config[abus], debug=debug)
-else: # look for new devices
-  which =  whichI2C.identification(identify=True, debug=debug)
-  config[abus] = which.config
-  FndDevices = []
+try:
+  if config[abus] and (atype in config[abus].keys()):
+    which = whichI2C.identification(identify=True,config=config[abus], debug=debug)
+  else: # look for new devices
+    which =  whichI2C.identification(identify=True, debug=debug)
+    config[abus] = which.config
+    FndDevices = []
+except Exception as e:
+  print("I2C indentification error: %s" % str(e))
+  print("I2C configuration error in Config.py?")
+  sys.exit()
+
 # which.config =
 # {'updated': True, 'meteo': {'use': True, 'pins': ('P23', 'P22', 'P21'), 'name': 'BME680', 'address': 118}, 'display': {'address': 60, 'pins': ['P23', 'P22', 'P21'], 'use': True, 'name': 'SSD1306'}}
 for dev in config[abus].keys():

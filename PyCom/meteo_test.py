@@ -7,7 +7,7 @@ Enable P18 pin to allow updates of flash configf file.
 from time import sleep_ms
 import sys
 
-__version__ = "0." + "$Revision: 5.8 $"[11:-2]
+__version__ = "0." + "$Revision: 5.9 $"[11:-2]
 __license__ = 'GPLV3'
 
 abus = 'i2c'
@@ -26,12 +26,18 @@ if config[abus]:
     print("%s: " % dev, config[abus][dev])
 
 import whichI2C
-if config[abus] and (atype in config[abus].keys()):
-  which = whichI2C.identification(identify=True,config=config[abus], debug=debug)
-else: # look for new devices
-  which =  whichI2C.identification(identify=True, debug=debug)
-  config[abus] = which.config
-  FndDevices = []
+try:
+  if config[abus] and (atype in config[abus].keys()):
+    which = whichI2C.identification(identify=True,config=config[abus], debug=debug)
+  else: # look for new devices
+    which =  whichI2C.identification(identify=True, debug=debug)
+    config[abus] = which.config
+    FndDevices = []
+except Exception as e:
+  print("I2C indentification error: %s" % str(e))
+  print("I2C configuration error in Config.py?")
+  sys.exit()
+
 for dev in config[abus].keys():
   if not dev in FndDevices:
     if dev != 'updated':
