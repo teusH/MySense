@@ -6,7 +6,7 @@ Created on 24 Apr 2017
 # comes from https://github.com/rexfue/Feinstaub_LoPy
 # changes by teus license GPLV3
 # Frank Heuer wrote a better and more extensive script
-# $Id: SDS011.py,v 5.2 2019/04/27 12:52:15 teus Exp teus $
+# $Id: SDS011.py,v 5.3 2019/09/18 10:51:18 teus Exp teus $
 
 from time import sleep
 try:
@@ -197,9 +197,9 @@ class SDS011:
     # to do: allow sampling data to be done by sensor module
     StrtTime = ticks_ms(); LastTime = ticks_ms(); buff = []
     if self.mode == self.STANDBY: self.GoActive()
-    self.ser.readall()
+    self.ser.read()
     while True:
-      # self.ser.readall()
+      # self.ser.read()
       if self.mode != self.ACTIVE or self.mode != self.NORMAL:
         # in PASSIVE mode we wait one second per read
         if cnt:

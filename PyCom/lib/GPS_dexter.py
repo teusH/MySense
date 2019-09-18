@@ -1,7 +1,7 @@
 # from https://github.com/DexterInd/GrovePi
 # Software/Python/dexter_gps
 # changed for micropython
-# $Id: GPS_dexter.py,v 5.8 2019/06/07 15:52:57 teus Exp teus $
+# $Id: GPS_dexter.py,v 5.9 2019/09/18 10:51:18 teus Exp teus $
 
 import re
 try:
@@ -30,15 +30,15 @@ class GROVEGPS:
        import serial
        self.ser = serial.Serial(port, 9600, bytesize=8, parity='N', stopbits=1, timeout=20, xonxoff=0, rtscts=0)
        self.ser.any = self.in_waiting
-       self.ser.readall = self.ser.flushInput # reset_input_buffer
     elif type(port) is int:
       from machine import UART
       try:
         self.ser = UART(port,baudrate=baud,pins=pins)
       except:
         self.ser = UART(port,baudrate=baud)
-    else: self.ser = port
-    #self.ser.readall()
+    else:
+      self.ser = port
+    #self.ser.read()
     self.raw_line = ""
     self.gga = []
     self.validation =[] # contains compiled regex

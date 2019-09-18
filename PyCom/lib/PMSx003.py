@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: PMSx003.py,v 5.3 2019/05/01 19:27:18 teus Exp teus $
+# $Id: PMSx003.py,v 5.4 2019/09/18 10:51:18 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -71,7 +71,6 @@ class PMSx003:
         import serial
         self.ser = serial.Serial(port, 9600, bytesize=8, parity='N', stopbits=1, timeout=20, xonxoff=0, rtscts=0)
         self.ser.any = self.in_waiting
-        self.ser.readall = self.ser.flushInput # reset_input_buffer
       elif type(port) is int: # micro python case
         from machine import UART
         self.ser = UART(port,baudrate=9600,pins=pins,timeout_chars=10)
@@ -153,7 +152,7 @@ class PMSx003:
       print("Send command %s" % CMD)
     ChckSum = 0x42+0x4D+cmd+0x0+ON
     data = struct.pack('!BBBBBH',0x42,0x4D,cmd,0x0,ON,ChckSum)
-    while self.ser.any(): self.ser.readall()
+    while self.ser.any(): self.ser.read()
     try:
       self.ser.write(data)
       # print("Send command 0x%X 0x%X 0x%X 0x%X 0x%X 0x%x 0x%x" % struct.unpack('!BBBBBBB',data))
@@ -230,7 +229,7 @@ class PMSx003:
   def GoPassive(self):
     #print("Go Passive from 0X%X" % self.mode)
     if self.mode != self.PASSIVE:
-      self.ser.readall()
+      self.ser.read()
       return self.SendMode(0xE1,0)
     self.mode = self.PASSIVE
     return True
@@ -240,7 +239,7 @@ class PMSx003:
     if self.mode == self.STANDBY:
       self.Normal()
       for cnt in range(30):
-        self.ser.readall()
+        self.ser.read()
         sleep_ms(1000)    # wait 30 seconds to establish air flow
     if self.mode != self.PASSIVE: self.GoPassive()
     return self.SendMode(0xE2,0)
@@ -275,9 +274,9 @@ class PMSx003:
     StrtTime = ticks_ms(); LastTime = ticks_ms()
     buff = []; inStartup = 4
     if self.mode == self.STANDBY: self.GoActive()
-    self.ser.readall()
+    self.ser.read()
     while True:
-      # self.ser.readall()
+      # self.ser.read()
       if self.mode != self.ACTIVE or self.mode != self.NORMAL:
         # in PASSIVE mode we wait one second per read
         if cnt:
@@ -324,7 +323,7 @@ class PMSx003:
       # one measurement 200-800ms or every second in sample time
       if cnt and (LastTime+1000 > ticks_ms()):
         print("Skip %d dust measurement" % cnt)
-        self.ser.readall()
+        self.ser.read()
         continue   # skip measurement if time < 1 sec
       LastTime = ticks_ms()
 

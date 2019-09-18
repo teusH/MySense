@@ -3,7 +3,7 @@
 
 # standalone test loop
 
-__version__ = "0." + "$Revision: 5.11 $"[11:-2]
+__version__ = "0." + "$Revision: 5.12 $"[11:-2]
 __license__ = 'GPLV3'
 
 from time import time, sleep_ms
@@ -114,7 +114,7 @@ for cnt in range(max):
       if errors > 20: break
       errors += 1
       sleep_ms(30*1000)
-      sensor.ser.readall()
+      sensor.ser.read()
       continue
     errors = 0
     print("%s/%s record:" % (atype,name))
