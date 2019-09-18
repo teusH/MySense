@@ -3,7 +3,7 @@
 '''Simple test script for searching on TTL/UART channels for UART devices
 '''
 
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
 __license__ = 'GPLV3'
 
 from time import sleep
@@ -45,12 +45,12 @@ for i in range(len(TTL)):
     print("%s: pins %s connected to " % (ttl['name'],str(ttl['pins'])),end='')
   for baudrate in ttl['baud']+ttl['baud']:
     if serial:
-      if serial.any(): serial.readall()
+      if serial.any(): serial.read()
       serial.deinit(); del serial; serial = None; sleep(1)
     if fnd: break
     if verbose: print("Open serial %d on %s, baudrate %d" % (i,str(ttl['pins'][:2]),baudrate))
     serial = UART(i,baudrate=baudrate, pins=ttl['pins'][:2], timeout_chars=20)
-    if serial.any(): serial.readall()
+    if serial.any(): serial.read()
     if fnd: break
     for activate in activations:
       if activate[0]:
@@ -71,7 +71,7 @@ for i in range(len(TTL)):
         firmware = ''
         if verbose: print("Got %d bytes" % serial.any())
         fnd = ''
-        line = serial.readall()
+        line = serial.read()
         if verbose: print("TTL %s got: %s" % (ttl['name'],str(line)))
         if line.count(b'\x42\x4D') and (not 'PMSx003' in names):
           fnd = ('PMSx003','dust')
