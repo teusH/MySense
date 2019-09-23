@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.64 2019/08/29 14:04:52 teus Exp teus $
+# $Id: MySense.py,v 5.65 2019/09/21 11:06:49 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.64 $"[11:-2]
+__version__ = "0." + "$Revision: 5.65 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -1164,8 +1164,9 @@ def DoGPS(debug=False):
       if prev != time(): myTime = True
       print("%d GPS sats, time set" % Gps['lib'].satellites)
     else:
-      if fixate < 0: display('no GPS fixate')
-      else: print('no GPS fixate')
+      # if fixate < 0: display('no GPS fixate')
+      # else: print('no GPS fixate')
+      print("no GPS fixate")
       # return PinPowerRts(atype,prev,rts=[0,0,0],debug=debug)
       return myGPS # leave power on
     if myTime: # RTC is adjusted
@@ -1627,14 +1628,20 @@ def runMe(debug=False,reset=False):
       # will never arrive here
 
     MyMark(90)
+    try: ablink = nvs_get('gps') 
+    except: ablink = None
+    if ablink == None: ablink = 0x9533e0 # no gps
+    elif ablink < 0: ablink = 0x9f74c1 # no fixate
+    else: ablink = 0xebcf5b
     if not Power['i2c']:
-      if not ProgressBar(0,62,128,1,toSleep,0xebcf5b,10):
+      if not ProgressBar(0,62,128,1,toSleep,ablink,10):
         display('stopped SENSING', (0,0), clear=True)
         if LED: LED.blink(5,0.3,0xff0000,l=True)
     elif toSleep > 15:
       sleep_ms((toSleep-1)*1000)
       # restore config and LoRa
-      if LED: LED.blink(5,0.3,0x748ec1,l=False)
+      if ablink == 0xebcf5b: ablink = 0x748ec1
+      if LED: LED.blink(5,0.3,ablink,l=False)
     PinPower(atype=['display','meteo'],on=True,debug=debug)
     if Display and Display['enabled'] and (Power['display'] != None):
        Display['lib'].poweron()
