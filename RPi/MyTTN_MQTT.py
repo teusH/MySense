@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.2 2019/08/29 14:18:24 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.3 2019/10/21 15:17:08 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -33,7 +33,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
 
 try:
     import MyLogger
@@ -1430,7 +1430,7 @@ def convert2MySense( data, **sensor):
                     ident['geolocation'] = last_records[ident['serial']]['geolocation']
         else:
             record['geolocation'] = ident['geolocation']
-        if ('latitude' in values.keys()) and ('longitude' in value.keys()):
+        if ('latitude' in values.keys()) and ('longitude' in values.keys()):
             if GPSdistance(ident['geolocation'].split(','),(values['latitude'],values['longitude'])) < 100: # should be > 100 meter from std location
                 del values['latitude']; del values['longitude']
                 if 'altitude' in values.keys(): del values['altitude']
@@ -1532,9 +1532,9 @@ signal.signal(signal.SIGUSR2, SigUSR2handler)
 if __name__ == '__main__':
     #Conf['adminfile'] = 'LoPy-Admin.conf.json' # meta identy data for sensor kits
     Conf['all'] = False  # do not skip unknown sensors
-    #Conf['slack'] = 'https://hooks.slack.com/services/T1234512345/12345F12345/123451234512345123451234512345'
-    Conf['from'] = 'Notice TTN data collector <noreply@MyServer.edu>'
-    Conf['SMTP'] = 'smtp.server.domain'
+    #Conf['slack'] = 'https://hooks.slack.com/services/TGA112345123451234512345123451234512345ylWl0'
+    Conf['from'] = 'Notice TTN data collector <owner@some-address.somewhere>'
+    Conf['SMTP'] = 'my.host.nowhere'
 
     # one should use the MySense main script in stead of next statements
     Conf['input'] = True
@@ -1577,13 +1577,13 @@ if __name__ == '__main__':
         {   'name': 'Luftdaten data push', 'script': 'MyLUFTDATEN', 'module': None,
             'Conf': {
                 'output': True,
-                'id_prefix': "TTNMy-", # prefix ID prepended to serial number of module
+                'id_prefix': "TTNMySense-", # prefix ID prepended to serial number of module
                 'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
                 'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
                 # expression to identify serials to be subjected to be posted
-                'serials': '(3[89]88)', # pmsensor[1 .. 11] from pmsensors
-                'projects': '(7|SANx)',  # expression to identify projects to be posted
-                'active': True,        # output to luftdaten is also activated
+                'serials': '([0-9a-z]{8,12})', # pmsensor[1 .. 11] from pmsensors
+                'projects': '(XYZ|UTV)',  # expression to identify projects to be posted
+                'active': False,        # output to luftdaten is also activated
                 # 'debug' : True,        # show what is sent and POST status
             }
         },
