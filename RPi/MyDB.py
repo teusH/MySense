@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 1.3 2018/12/01 20:12:46 teus Exp teus $
+# $Id: MyDB.py,v 1.4 2019/10/24 13:31:17 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 
 try:
     import MyLogger
@@ -142,7 +142,7 @@ def db_registrate(ident):
 
     if not 'label' in [str(r[0]) for r in db_query("SELECT column_name FROM information_schema.columns WHERE  table_name = 'Sensors' AND table_schema = '%s'" % Conf['database'],True)]:
         if not db_query("""ALTER TABLE Sensors
-            ADD COLUMN coordinates VARCHAR(25) DEFAULT NULL,
+            ADD COLUMN coordinates VARCHAR(30) DEFAULT NULL,
             ADD COLUMN label VARCHAR(50) DEFAULT NULL,
             ADD COLUMN sensors VARCHAR(192) DEFAULT NULL,
             ADD COLUMN description VARCHAR(256) DEFAULT NULL,

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN_MQTT.py,v 1.3 2019/10/21 15:17:08 teus Exp teus $
+# $Id: MyTTN_MQTT.py,v 1.4 2019/10/24 13:34:16 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 
@@ -33,7 +33,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: MyTTN_MQTT.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 
 try:
     import MyLogger
@@ -639,7 +639,7 @@ def updateIdent( AppId, devAddr, ident, updateCache=False):
         cached[cacheKey]['ident'] = ident
     if not 'geolocation' in Conf['nodes'][devAddr].keys():
         if 'GPS' in Conf['nodes'][devAddr].keys():
-            Conf['nodes'][devAddr]['geolocation'] = str(Conf['nodes'][devAddr]['GPS']['longitude'])+','+str(Conf['nodes'][devAddr]['GPS']['latitude'])+','+str(Conf['nodes'][devAddr]['GPS']['altitude'])
+            Conf['nodes'][devAddr]['geolocation'] = str(round(Conf['nodes'][devAddr]['GPS']['longitude'],6))+','+str(round(Conf['nodes'][devAddr]['GPS']['latitude'],6))+','+str(round(Conf['nodes'][devAddr]['GPS']['altitude'],1))
     for item in ["geolocation",'label','village','street','pcode','province','municipality','active']:
         if item in Conf['nodes'][devAddr].keys():
             ident[item] = Conf['nodes'][devAddr][item]
