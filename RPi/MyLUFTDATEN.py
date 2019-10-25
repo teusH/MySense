@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 1.7 2018/09/01 13:30:26 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 1.1 2019/10/25 15:55:42 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__version__ = "0." + "$Revision: 1.1 $"[11:-2]
 
 try:
     import MyLogger
@@ -84,8 +84,10 @@ sense_table = {
         # X-Pin codes as id used by Luftdaten for meteo sensors
         # from airrohr-firmware/ext_def.h
         "types": {
-            'DHT22': 7,'BME280': 11, 'BME180': 11, 'BMP280': 3,
-            'BMP180': 3, 'DS18B20': 13, 'HTU21D': 7,
+            # 680 pin nr is a guess
+            'DHT22': 7, 'BME680': 11, 'BME280': 11, 'BME180': 11,
+            'BMP280': 3, 'BMP180': 3,
+            'DS18B20': 13, 'HTU21D': 7,
         },
         "temperature": ['temperature','temp','dtemp',],
         "humidity": ['humidity','hum','rv','rh',],
@@ -96,7 +98,8 @@ sense_table = {
         # TO DO: complete the ID codes used by Luftdaten
         "types": {
             'SDS011': 1, 'PMS3003': 1, 'PMS7003': 1, 'PMS5003': 1,
-            'HPM': 25, 'PPD42NS': 5, 'SHINEY': 5,
+            # SPS30 pin nr is a guess
+            'SPS30': 1, 'HPM': 25, 'PPD42NS': 5, 'SHINEY': 5,
         },
         "P1": ['pm10','pm10_atm',],  # should be P10
         "P2": ['pm2.5','pm25'],      # should be P25
