@@ -15,10 +15,14 @@
 # loaded on warm reboot (deepsleep wakeup)
 # Certain values e.g. lora keys and lora package counter is kept in nvs_ram.
 # These archived data is cleared/reset as follows:
-# delete detected configuration surviving reboots
+import MySense
+MySense.MyReset()
+# delete detected configuration surfiving reboots
 import os
 os.remove('/flash/MySenseConfig.json')
-# os.mkfs('/flash')   # remove all MySense firmware
+# os.uname()  # show version PyCom controller
+# os.fsformat('/flash')   # remove all MySense firmware >= LoPy V1.19
+# os.mkfs('/flash')       # remove all MySense firmware <= LoPy V1.19
 # 
 # delete frequently changed status variables
 from pycom import nvs_erase_all
@@ -28,13 +32,21 @@ nvs_erase_all()
 from network import LoRa
 lora = LoRa(mode=LoRa.LORAWAN, region=LoRa.EU868)
 lora.nvram_erase()
+# END of erase all MySense from LoPy
 
-##### flashed configuraion data
+##### flashed configuration data
 # HW configuration is maintained in config (may come from archive json file in flash mem
 # config dict: { (name,abus): value}, value is anything (reminder: json converts tuple to array)
 # name: eg dirty, accu(pin), sleep(pin)
 # reminder: accu disconnected and sleep is strapped: will auto remove archive in flash
 # abus (i2c,ttl): {(meteo,display,dust,gps,udated,calibrate): None or { (name,use,pins,baud,address): value}}
+
+# accu voltage mesurement. May change 0.5V in time
+accuPin = 'P17'
+# try: from Config import accuPin
+# except: pass
+from machine import ADC
+(ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB).value())*0.004271845
 
 # devices status is maintained in devs dict bus (i2c,ttl): dicts types (meteo,display,dust,gps)
 # The devs dict is not archived in flash mem.
@@ -266,17 +278,20 @@ import MySense
 MySense.runMe()
 # suggest to change wifi ssid and password of the wifi AP
 
-# post mortuum debugging variables, may fail if not (yet) set:
+# events from eg WatchDogTimer (similar to <cntrl>c key hit).
+# post mortum debugging variables, may fail if not (yet) set:
 from pycom import nvs_get
-nvs_get('AlarmWDT')	# point of last mark in loop
-nvs_get('AlarmSlp')     # last deepsleep in secs
-nvs_get('Vmax')/10.0	# maximum accu voltage
-nvs_get('Vmin')/10.0	# minimum accu voltage
-nvs_get('Accu')/10.0    # accu voltage if lower 10.8V
+nvs_get('AlarmWDT')	# point of last mark in loop, eg on WDT event
+nvs_get('AlarmSlp')     # last deepsleep in secs, dlft None
+nvs_get('myReset')      # secs of runMe loop or mark point in runMe() loop
+nvs_get('Vmax')/10.0	# maximum accu voltage, dflt None
+nvs_get('Vmin')/10.0	# minimum accu voltage, dflt None
+nvs_get('Accu')/10.0    # event accu voltage low (10.8V), dflt None
 nvs_get('count')	# number of measurements
-nvs_get('gps')	        # nr of satellites seen
-nvs_get('info_next')	# next sec for meta data to be sent
-nvs_get('gps_next')	# next sec to check gps location
+nvs_get('modus')        # Conf reset modus: 1 only devices, None/0 all on cold boot
+nvs_get('gps')	        # nr of satellites seen, -1 not set
+nvs_get('info_next')	# next time in sec for meta data to be sent, dflt once a day
+nvs_get('gps_next')	# next time in sec to check gps location, dflt once 4 hr
 nvs_get('LON')/1000000.0	# GPS longitude
 nvs_get('LAT')/1000000.0	# GPS latitude
 nvs_get('ALT')/10.0	# GPS altitude in meters
