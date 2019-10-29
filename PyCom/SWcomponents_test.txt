@@ -271,7 +271,8 @@ import lora
 lora = LORA()
 lora.clear
 # remove everything from flash mem:
-os.mkfs('/flash')
+os.mkfs('/flash') # LoPy firmware < V1.19
+# os.fsformat('/flash') # LoPy firmware >= V1.19
 # activate MySense:
 # main.py:
 import MySense
