@@ -7,7 +7,7 @@ Enable P18 pin to allow updates of flash configf file.
 from time import sleep_ms
 import sys
 
-__version__ = "0." + "$Revision: 5.9 $"[11:-2]
+__version__ = "0." + "$Revision: 5.10 $"[11:-2]
 __license__ = 'GPLV3'
 
 abus = 'i2c'
@@ -85,7 +85,7 @@ try:
 except ImportError:
     raise ValueError("SHT or BME library not installed")
 except Exception as e:
-    raise ValueError("Fatal: meteo module %s" % e)
+    raise ValueError("Fatal: meteo module %s" % str(e))
 # change this to match the location's pressure (hPa) at sea level
 device['fd'].sea_level_pressure = 1024.25 # 1013.25
 
