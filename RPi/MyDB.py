@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 1.4 2019/10/24 13:31:17 teus Exp teus $
+# $Id: MyDB.py,v 1.5 2019/11/03 14:10:02 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 
 try:
     import MyLogger
@@ -222,7 +222,7 @@ def db_registrate(ident):
 Retry = False
 def db_query(query,answer):
     """ communicate in sql to database """
-    global Conf, Retry
+    global Conf
     # testCnt = 0 # just for testing connectivity failures
     # if testCnt > 0: raise IOError
     MyLogger.log(modulename,'DEBUG',"Query: %s" % query)
@@ -250,7 +250,7 @@ def db_query(query,answer):
             return False
         Retry = True
         MyLogger.log(modulename,'INFO',"Retry the query")
-        if db_query(query,answer):
+        if dp_query(query,answer):
             Retry = False
             return True
         MyLogger.log(modulename,'ERROR','Failed to redo query.')
@@ -271,7 +271,8 @@ def db_table(ident,table):
         comment = 'Collection of sensor kits and locations'
         table_name = table
     else:
-        comment = 'Sensor located at: %s' % ident['geolocation']
+        try: comment = 'Sensor located at: %s' % ident['geolocation']
+        except: comment = 'unknown location'
         table_name = '%s_%s' % (ident['project'],ident['serial'])
     if not db_query("""CREATE TABLE %s (
         id TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -298,8 +299,8 @@ def publish(**args):
         if not key in args.keys():
             MyLogger.log(modulename,'FATAL',"Publish call missing argument %s." % key)
 
-    # translate MySense filed names into MySQL column field names
-    # TO DO: get the transaltion table from the MySense.conf file
+    # translate MySense field names into MySQL column field names
+    # TO DO: get the translation table from the MySense.conf file
     def db_name(my_name):
         DBnames = {
             'rh': 'rv',
@@ -328,12 +329,15 @@ def publish(**args):
             return True
         Sensor_fields = {
             'geo':         "VARCHAR(25) default NULL",
+            'TTNversion':  "VARCHAR(15) default NULL",
             'pa':          "INT(11) default NULL",
             'hpa':         "INT(11) default NULL",
             'wd':          "SMALLINT(4) default NULL",
             'pm1':         "DECIMAL(9,2) default NULL",
             'pm1_atm':     "DECIMAL(9,2) default NULL",
             'pm1_cnt':     "DECIMAL(9,2) default NULL",
+            'pm4_cnt':     "DECIMAL(9,2) default NULL",
+            'pm5_cnt':     "DECIMAL(9,2) default NULL",
             'pm03_cnt':    "DECIMAL(9,2) default NULL",
             'pm05_cnt':    "DECIMAL(9,2) default NULL",
             'rssi':        "SMALLINT(4) default NULL",
@@ -347,7 +351,7 @@ def publish(**args):
         }
         fields = my_ident['fields']
         units = my_ident['units']
-        add = []; flds = []
+        add = []
         # we rely on the fact that fields in ident denote all fields in data dict
         table_flds = db_query("SELECT column_name FROM information_schema.columns WHERE  table_name = '%s_%s' AND table_schema = '%s'" % (args['ident']['project'],args['ident']['serial'],Conf['database']),True)
         gotIts = []     # avoid doubles
@@ -363,11 +367,10 @@ def publish(**args):
                     Col = Sensor_fields[fields[i]]
                 add.append("ADD COLUMN %s %s COMMENT 'type: %s; added on %s'" % (Nme, Col, units[i], datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M")))
                 add.append("ADD COLUMN %s_valid %s COMMENT 'value validated'" % (Nme,Sensor_fields['_valid']))
-                flds.append(Nme)
         if len(add):
             try:
                 db_query("ALTER TABLE %s_%s %s" % (args['ident']['project'],args['ident']['serial'],','.join(add)),False)
-                MyLogger.log(modulename,'ATTENT',"Added new fields (%s) to table %s_%s" % (', '.join(flds),args['ident']['project'],args['ident']['serial']))
+                MyLogger.log(modulename,'ATTENT',"Added new field to table %s_%s" % (args['ident']['project'],args['ident']['serial']))
             except IOError:
                 raise IOError
             except:
