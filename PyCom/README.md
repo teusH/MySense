@@ -87,7 +87,23 @@ This plexiglas can be fixated within an PVC roof air outlet (length 300 mm diame
 One may locate the LoRa antenna in the pipe or on the outside attached to the PVC ring.
 Make sure to paint the housing white and avoid direct sun on the kit.
 
+<img src="images/MySense-LantaarnType-2019-11.png" align=right width=150>
 Another housing can be made with a V230 outdoor connector box e.g. OBO T100 box.
+
+A better housing can be made from PVC roof air outlet manufactured eg from BT Nyloplast Nld (€ 7.50).
+The components are mounted on a so called mother board from 3 mm plastic.
+To avoid solar heat use an internal PVC rain pipe.
+The motherboard can be fit in a 3D made socket.
+The oled display is fixed on the housing with a 3D printed container.
+The GPS antenna is placed on a small table (3D print).
+
+All 3D printed components and mother board are found in the images folder ( 3D .stl en dcx (FreeCAD) files):
+* GPS mounting table: images/GPS tafel a.stl
+* images/Motherboard-3DprintComponentsLanternHousing.png
+* oled display window: images/Oled  inw b.stl
+* oled display mounting: images/Oled buiten nieuw uitw c.stl
+* motherboard socket: images/houder mb i.stl
+* mother board mall: images/motherboard-SPS-PMS-insideantenna.dxf
 
 ### TTN gateway
 
@@ -341,6 +357,9 @@ There is a wealth of configuration possiblities. Not all have been tested. See t
 LoRa keys and package counter (important for ABP LoRa connectivity) are saved and maintained in nvs memory. As well last gps location and next meta info and next gps location check are kept in nvs memory.
 
 How To clear the configuration in flash memory: on a cold reboot with deepsleep pin enabled and no accu attached to accu load management pin the json configuration file (dflt: `MySenseConfig.json`) in flash memory will be cleared and a new configuration will be detected. Use this procedure when new keys of sensors are attached to the controller.
+
+*Deepsleep ESP problem?*
+In our experience we discovered with deepsleep: the LoPy would not wake up at a random deepsleep calls. This might be a bug in the ESP hardware or software. A work around seems to be delay for 500 msecs the ESP. This work around is under investigation.
 
 Question: how can I force a deepsleep without an accu attached to the kit? Answer: start without the deepsleep pin enabled. After trhe first interval install then the deepsleep pin.
 
