@@ -4,9 +4,10 @@
 
 Status: *rc1* 2019/02/25
 
-Copyright: 2019, Teus Hagen, Software license GPLV3. Improvements and additions should remain GPLV3 and be sent to authors.
+Copyright: 2019, Teus Hagen, Software license GPLV3. Improvements and additions should remain GPLV3 and be sent to the authors.
+To enable further developments is is common in the Open Source world to support a public domain project financially or otherwise. Certainly if your product is based on this type of public domain licensed software.
 
-Simple low cost (ca €120) satellites sensor kits.
+Goal: professional DIY durable simple low cost (ca €120) air quality sensor kits.
 
 ## description
 
@@ -95,15 +96,17 @@ The components are mounted on a so called mother board from 3 mm plastic.
 To avoid solar heat use an internal PVC rain pipe.
 The motherboard can be fit in a 3D made socket.
 The oled display is fixed on the housing with a 3D printed container.
-The GPS antenna is placed on a small table (3D print).
+The GPS antenna is glued inside the PVC pipe on a small table (3D print) and must point upwards.
+The LoRa antenna is fixated inside the PVC pipe as well.
 
+<img src="images/Motherboard-3DprintComponentsLanternHousing.png" align=right width=150>images/Motherboard-3DprintComponentsLanternHousing.png</img>
 All 3D printed components and mother board are found in the images folder ( 3D .stl en dcx (FreeCAD) files):
-* GPS mounting table: images/GPS tafel a.stl
-* images/Motherboard-3DprintComponentsLanternHousing.png
-* oled display window: images/Oled  inw b.stl
-* oled display mounting: images/Oled buiten nieuw uitw c.stl
-* motherboard socket: images/houder mb i.stl
-* mother board mall: images/motherboard-SPS-PMS-insideantenna.dxf
+* 3D print GPS mounting table: <a href="images/GPS tafel a.stl">images/GPS tafel a.stl</a>
+* 3D print oled display window: <a href="images/Oled  inw b.stl">images/Oled  inw b.stl</a>
+* 3D print oled display mounting: <a href="images/Oled buiten nieuw uitw c.stl">images/Oled buiten nieuw uitw c.stl</a>
+* 3D print motherboard socket: <a href="images/houder mb i.stl">images/houder mb i.stl</a>
+* CAD CAM mill mold: the mounting board: <a href="images/motherboard-SPS-PMS-insideantenna.dxf">images/motherboard-SPS-PMS-insideantenna.dxf</a>
+These stl and dxf files: Copyright 2019, Joan Marsman, the Netherlands licensed as GPL V3.
 
 ### TTN gateway
 
