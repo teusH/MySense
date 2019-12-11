@@ -160,6 +160,7 @@ To ease the calibration of dust sensor one is advised to use sensors which besid
 
 The MySense server will collect this information from the MQTT servers and formward these measurements and meta data to e.g. a MySQL database, spreadsheet or another data stream service.
 
+One may need to clean the fan, or even lenses, e.g. on the event on high unexpected values. See <a href="https://www.mistywest.com/posts/teardown-sensirion-particle-matter-sensor/" alt="how to teardown SPS30">how to teardown the Sensirion SPS30</a>.
 ### remote management
 The LoRa MySense part is supporting remote control via TTN. The following remote commands are supported yet:
 * '?': send version, configuration and location details to TTN MQTT server
