@@ -12,6 +12,7 @@ Goal: professional DIY durable simple low cost (ca €120) air quality sensor ki
 ## description
 
 Overview of wiring and modules using a PCB board with Grove connectors to avoid soldiering.
+Included are the 3D print files for the housing/case as well PCB board electronic design as well PCB board manufacturing instructions.
 
 <img src="images/LoPy-MySense-modules.png" align=center width=400>
 <img src="images/MySense-LoRa-lantern-outside.png" align=right width=150>
@@ -233,7 +234,7 @@ Push and keep it pushed the *user* button on the expansion board first and while
 
 In the PyCom folder you will see some main scripts. The libraries for the sensor modules are in the lib folder. Copy the main scripts to the 'LoRa/firmware' directory, as well the needed libraries (see the statement *import* in the used scripts) to the *lib* directory. Point *atom* as new project to the configured *firmware* directory and press 'sync' or 'reload' button to load the files into the PyCom controller.
 
-The PyCom board can be accessed to change the firmware either via WiFi (see the PyCom documentation) and/or USB of the PyCom expansion board.
+The PyCom board can be accessed to change the firmware either via WiFi (see the lopy-191228 PDF's and PCB manufacturer zip documentation; Contributed by Ad de Jong) and/or USB of the PyCom expansion board.
 * Debian: make sure you have access to `/dev/ttyACM0` or `/dev/ttyUSB0`. Use the Linux command `lsusb` and see if *Microchip Technology, Inc.* is present. If not see what the problem might be via `/var/log/syslog`. In one occation we had to do create the `/etc/udev/rules.d/49-micropython.rules` with the content:
 ```
 # idVendor=04d8, idProduct=ef98 PyCom
@@ -455,6 +456,10 @@ The console will print status as will the flashing led on the LoPy will flash di
 <img src="images/PyCom-wiring-BME-SDS-PMS-SSD-GPS.png" align=center height=250>
 
 See for examples of wiring the `README.LopY.md` (LoRaWan TTN, BME280, SDS011 and SSD1306) or `README.WiPy.md` (wifi MQTT, BME680, PMS7003, SSD1306) readme's.
+
+Its is handy to use a 'connector board': a simple PCB which has a row of say Grove connectors for the sensor devices and 'foot' for the LoPy controller. The electronic scheme using mosfets to power sensor devices and ready scheme to send to a board producer can be found in the documentation directory.
+
+ATTENTION: we discovered that the wifi beacon is causing in some circumstances a 2ms drop of the power to the ESP8266 controller below 3.3V every 100ms interval. Some dust laser sensors are influenced and produce unexpected high measurements because of this. Suggested is to use a good powerfull adapter, and/or apply a 1000 uF capacitor or configure MySense to switch off the wifi after one hour (see Config.py for a how to).
 
 ## To Do
 Add more sensor modules. The Shiney PPD42NS (unreliable and too much errors), DHT22 and DHT11 (too much peaks and outdoor time to live too short) meteo sensor are depricated. Sensirion SHT31 (only temperature and RH, not very precise).
