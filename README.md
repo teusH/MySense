@@ -483,6 +483,8 @@ Feedback of improvements, or extentions to the software are required.
 * Copyright: Teus Hagen, ver. Behoud de Parel, the Netherlands, 2017
 
 ## References
+At a Koppelting conference we explained how to build the measurment kit and how to visualize the data. A PDF of this presentation:  <a href=""http://behouddeparel.nl/sites/behouddeparel.nl/files/20200125-Koppelting-WAR-Amersfoort.pdf" alt="an How To build a kit and show trhe results">"Measuring Air Quality in an Agri Region: an How To"</a>.
+
 There is a huge list of literature available on the web. Some project were financed by the European Union. However we were not able to use there current developemnt due to the closed nature.
 A list of references for the documentation and/or code used in MySense.py:
 * Open Data Stuttgart ESP8266 controller oriented: https://github.com/opendata-stuttgart
