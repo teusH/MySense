@@ -1,3 +1,6 @@
+## An outline
+A description of the MySense PyCom based measurement kit, data collection and data visualisation is provided in a presentation at Meetkoppelting20 conference in Amersfoort, Jan 2020. The PDF slides can be found at <a href=""http://behouddeparel.nl/sites/behouddeparel.nl/files/20200125-Koppelting-WAR-Amersfoort.pdf" alt="an How To build a kit and show the results">"Measuring Air Quality in an Agri Region: an How To"</a> (PDF 3 MB).
+
 ## Handy info to access the MyCom (LoPy) controller
 
 The easiest way is to install Atom/PyMakr on your computer. See the PyCom documentation first.
@@ -132,18 +135,23 @@ Test your setup one by one before trying out the main wrapper `MySense.py` via *
 If everythings seems to work use the following to initiate a test loop:
 ```python
 import MySense
-MySense.runMe(debug=True)
+MySense.runMe(debug=True,reset=True)
 ```
 This will also forward the measurement data to the network.
 Allow to run this for several hours.
 This can be interrupted with a <cntrl>c. If needed to be followed by a soft reset <cntrl>d
+
+`debug=True` will switch on debugging mode. The configuration routine will become very versatile. Default: debug=False.
+
+`reset=True` will cause to clear nvs variables, e.g. marks, data telegram count, current values of eg GPS satellites, etc. As well it will clear the archived configuration in flash memory. Effectually clear the LoPy memory.
+Use rest argument on a clean restart to allow MySense to discover the configuration items as well (newly) attached devices/sensors..
 
 ## make it operational
 
 * on success try out `MySense.py` and finally install `main.py`:
 ```python
     import MySense
-    MySense.runMe() # or MySense.runMe(debug=True)
+    MySense.runMe() # or MySense.runMe(debug=True,reset=True)
 ```
 Some help scripts for testing hardware, connections and operational functions
 provided in the script `SWcomponents_test.txt` one can test via copy/paste and 'atom' REPL the hardware and software.

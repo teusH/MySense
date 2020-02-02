@@ -1,10 +1,13 @@
 <img src="RPi/images/MySense-logo.png" align=right width=100>
 
 # MySense
-Last update of the README on 4th of June 2019
+Last update of the README on 2nd of Februar 2020
 
 ## Description
 Software Infrastructure or framework for managing environmental sensors and data aquisition.
+
+### Outline
+A description of the MySense PyCom based measurement kit, data collection and data visualisation is provided in a presentation at Meetkoppelting20 conference in Amersfoort, Jan 2020. The PDF slides can be found at <a href=""http://behouddeparel.nl/sites/behouddeparel.nl/files/20200125-Koppelting-WAR-Amersfoort.pdf" alt="an How To build a kit and show the results">"Measuring Air Quality in an Agri Region: an How To"</a> (PDF 3 MB).
 
 ### MySense Raspberry Pi controller
 
@@ -483,7 +486,7 @@ Feedback of improvements, or extentions to the software are required.
 * Copyright: Teus Hagen, ver. Behoud de Parel, the Netherlands, 2017
 
 ## References
-At a Koppelting conference we explained how to build the measurment kit and how to visualize the data. A PDF of this presentation:  <a href=""http://behouddeparel.nl/sites/behouddeparel.nl/files/20200125-Koppelting-WAR-Amersfoort.pdf" alt="an How To build a kit and show trhe results">"Measuring Air Quality in an Agri Region: an How To"</a>.
+At a Koppelting conference we explained how to build the measurment kit and how to visualize the data. A PDF of this presentation:  <a href=""http://behouddeparel.nl/sites/behouddeparel.nl/files/20200125-Koppelting-WAR-Amersfoort.pdf" alt="an How To build a kit and show the results">"Measuring Air Quality in an Agri Region: an How To"</a>.
 
 There is a huge list of literature available on the web. Some project were financed by the European Union. However we were not able to use there current developemnt due to the closed nature.
 A list of references for the documentation and/or code used in MySense.py:
