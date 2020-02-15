@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.65 2019/09/21 11:06:49 teus Exp teus $
+# $Id: MySense.py,v 5.66 2020/02/15 15:05:16 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.65 $"[11:-2]
+__version__ = "0." + "$Revision: 5.66 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -330,7 +330,7 @@ def getPinsConfig(debug=False):
     #   Vmax = nvs_get('Vmax')/10.0
     # except: pass
     # if not Vmax: Vmax = 12.6
-    if volts[2] < 10.8: # 12V accu class 6%
+    if volts[2] < 11.4: # 12V accu class 6%
       nvs_set('Accu',int(volts[1]*10.0+0.5))
       from pycom import rgbled
       pycom.rgbled(0x990000); sleep_ms(1*1000)
