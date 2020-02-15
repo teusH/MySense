@@ -36,7 +36,7 @@ W_PASS = 'BehoudDeParel'
 # wifi on True: after 1 Hr wifi is turned off
 # 'sleep' True force deepsleep, dflt off
 # led: True rgb led is disabled, only ON on failure
-# Power = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': None, 'led': False, 'wifi': False }
+# Power = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': None, 'led': False, 'wifi': True }
 # less energy use next
 
 # define None if GPS is not used, detected start GPS is archived in nvs ram
