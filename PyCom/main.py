@@ -1,15 +1,19 @@
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
-# $Id: main.py,v 1.14 2019/09/01 10:37:30 teus Exp teus $
+# $Id: main.py,v 1.16 2020/02/15 14:59:49 teus Exp teus $
 
 def setWiFi():
   try:
     from machine import unique_id
     import binascii
-    SSID = 'MySense-' + binascii.hexlify(unique_id()).decode('utf-8')[-4:].lower()
-    PASS = 'www.pycom.io'
+    W_SSID =  'MySense-AAAA'
+    try: from Config import W_SSID
+    except: pass
+    if W_SSID[-4:] == 'AAAA':
+        W_SSID = W_SSID[:-4]+binascii.hexlify(unique_id()).decode('utf-8')[-4:].lower()
+    PASS = 'www.pycom.io' # to be changed later
     from network import WLAN
     wlan = WLAN()
-    wlan.init(mode=WLAN.AP,ssid=SSID, auth=(WLAN.WPA2,PASS), channel=7, antenna=WLAN.INT_ANT)
+    wlan.init(mode=WLAN.AP,ssid=W_SSID, auth=(WLAN.WPA2,PASS), channel=7, antenna=WLAN.INT_ANT)
   except: pass
 
 def runMySense():
@@ -29,11 +33,18 @@ else: # work around fake wakeup
     if nvs_get('AlarmSlp')*1000 < ticks_ms(): runMySense()
   except: pass
 
-# Use True to force REPL mode. use False: REPL depends on sleeppin and accu voltage
-if True:
+# Use True to force REPL mode. use False: REPL depends on replPin,
+#                        (for compatebility reasons) sleeppin and accu voltage
+REPL = True   # change this to False in operational modus
+try:
+  from Config import replPin # if not in config act in old style
+  from machine import Pin
+  if not Pin(repl,mode=Pin.IN).value(): REPL = False
+except: pass
+if REPL:
   print("No auto MySense start\nTo start MySense loop (reset config, cleanup nvs):")
   print("import MySense\nMySense.runMe(reset=True)")
-else: # deepsleep pin set and no accu voltage: go into REPL mode
+else: # deepsleep pin set and no accu voltage: go into REPL mode (subject to change)
   try:
     from machine import Pin
     sleepPin = 'P18'
