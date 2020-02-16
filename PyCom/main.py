@@ -1,5 +1,5 @@
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
-# $Id: main.py,v 1.16 2020/02/15 14:59:49 teus Exp teus $
+# $Id: main.py,v 1.17 2020/02/16 12:35:33 teus Exp teus $
 
 def setWiFi():
   try:
@@ -61,5 +61,10 @@ else: # deepsleep pin set and no accu voltage: go into REPL mode (subject to cha
       # WARNING: on PyCom expansion board sleeppin is low and accupin is high!
       if (ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB).value())*0.004271845 > 4.8:
         runMySense()
+      else:
+        from machine import wake_reason, RTC_WAKE, deepsleep
+        if wake_reason()[0] == RTC_WAKE:  # wokeup from deepsleep, too low power
+          # runMySense()
+          deepsleep(60*60*1000)
   except: pass
 # go into REPL mode
