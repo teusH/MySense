@@ -1,5 +1,5 @@
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
-# $Id: main.py,v 1.17 2020/02/16 12:35:33 teus Exp teus $
+# $Id: main.py,v 1.18 2020/02/16 15:58:02 teus Exp teus $
 
 def setWiFi():
   try:
@@ -39,7 +39,7 @@ REPL = True   # change this to False in operational modus
 try:
   from Config import replPin # if not in config act in old style
   from machine import Pin
-  if not Pin(repl,mode=Pin.IN).value(): REPL = False
+  if Pin(replPin,mode=Pin.IN).value(): REPL = False
 except: pass
 if REPL:
   print("No auto MySense start\nTo start MySense loop (reset config, cleanup nvs):")
