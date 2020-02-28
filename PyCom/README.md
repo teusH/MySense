@@ -49,7 +49,7 @@ Remark: better to create a UART/I2C connector shield with Grove sockets and conn
 See the SVG file (and the picture) of the alternative PCB LoPy expansion board designed by Fontys Venlo GreenTechLab as example.
 * assortiment thrink tubes (2.5 mm and bigger) (€ 3.45 Ben's Electronics)
 * V220 outdoor cablebox 10X12.5 cm, larger is better eg OBO T100 or T160. (electroshop.nl € 5.39)
-Or use PVC pipes and roof air outlet exhaust. Advised is to paint it white and use double pipes for heat isolation.
+Or use PVC pipes and roof air outlet exhaust. Advised is to paint it white and use double pipes for heat isolation. A double PVC pipe will lower the LoRa signal strength a bit. Make sure no wires are near the antenna.
 
 Energy V230 supply (ca € 4):
 * long USB adapter cable 2-3 meter (Action € 1.50)
@@ -83,7 +83,7 @@ Some fixing materials:
 One may need to extend those dust sensors without an inlet tube and inlet as well as ouytet on same side with some air separation guidence in order to avoid to measure only the dust circulating within the housing.
 
 ### LoPy kit casing
-A simple housing case is made with a piece of plexiglas 61 X 230 mm (see for thedril mask for 3 mm dril the SVG file in the images directory).
+A simple housing case is made with a piece of plexiglas 61 X 230 mm (see for the dril mask for 3 mm dril the SVG file in the images directory).
 <img src="images/PVC-luchtpijpcase.png" align=right height=200>
 This plexiglas can be fixated within an PVC roof air outlet (length 300 mm diameter 80 mm) and some mosquito bait with PVC ring (socket).
 One may locate the LoRa antenna in the pipe or on the outside attached to the PVC ring.
@@ -118,6 +118,7 @@ See for how-to instructions:
 * IC880a-SPI concentrator: https://github.com/ttn-zh/ic880a-gateway/wiki
 * https://github.com/Lora-net/lora_gateway#readme
 * RAK831 concentrator: https://www.thethingsnetwork.org/labs/story/rak831-lora-gateway-from-package-to-online
+* RAK7258 (TTN) gateway: cheap, complete, OpenWRT based for ca € 160.
 
 For MySense we changed the `/opt/ttn-gateway/bin/start.sh`, added WiFi access point for WEBMIN (use `INSTALL.sh WEBMIN` and Raspberry Pi OS configuration (see `INSTALL.sh help`), and to log concentraor log messages to the oled display via the filter `GatewayLogDisplay.py`. The scripts can be found in the map LoRa.
 See the map LoRa (or Google to The Things Network) for more details and functionality add-on's to build a DIY TTN gateway.
@@ -156,7 +157,7 @@ Datacommunication is done via WiFi (Mosquitto), or LoRa (TTN MQTT data concentra
 One may send data via MySense Pi server to RIVM in the Netherlands as well Luftdata in Germany.
 
 ### measurement data
-The MySense kit will collect measurements from dust (Nova SDS011, Plantower PMSn003 serie and Sensirion SPS30) sensors and meteo (BME280 or BME680 with air quality support) sensors and send this data either via wifi or LoRaWan (TTN) Mosquitto (MQTT) dataconcentrator. Dust measurements will be collected over a sample time (default 1 minute) and send to the data concentrator at interval (default 5 minutes) periods of time. Fan and laser of the dust sensors will be powered off in the idle periods of time.
+The MySense kit will collect measurements from dust (Nova SDS011, Plantower PMSn003 serie and Sensirion SPS30) sensors and meteo (BME280 or BME680 with air quality support) sensors and send this data either via wifi or LoRaWan (TTN) Mosquitto (MQTT) dataconcentrator, e.g. `TTN-datacollector.py` with different output backends. Dust measurements will be collected over a sample time (default 1 minute) and send to the data concentrator at interval (default 5 minutes) periods of time. Fan and laser of the dust sensors will be powered off in the idle periods of time.
 To ease the calibration of dust sensor one is advised to use sensors which beside the mass values also show the PM count values.
 
 The MySense server will collect this information from the MQTT servers and formward these measurements and meta data to e.g. a MySQL database, spreadsheet or another data stream service.
