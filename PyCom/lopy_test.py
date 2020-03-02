@@ -1,4 +1,4 @@
-__version__ = "0." + "$Revision: 5.8 $"[11:-2]
+__version__ = "0." + "$Revision: 5.9 $"[11:-2]
 __license__ = 'GPLV3'
 ''' basis PyCom LoPy controller and PCB test.
     if deepsleep pin not is enabled, no update of config file will be done.
@@ -72,6 +72,14 @@ if accu > 0.1:
   elif LED: LED.blink(5,0.1,0x00ff00,False)
 else: print("No accu (management pin %s) connected." % MyConfig.config['accuPin'])
 
+################ hall pin (force REPL modus)
+REPL = None
+try:
+  from Config import replPin # if not in config act in old style
+  from machine import Pin
+  print("Pin %s: REPL mode is %s" % (replPin,str(Pin(replPin,mode=Pin.IN).value() )) )
+except: print('No REPL mode pin (P13?) defined in Config.py')
+
 ################ sleep
 sleeping = None
 def sleepMode():
@@ -114,6 +122,27 @@ else:
 # found oled, try it and blow RGB led wissle
 
 ##################### LoRa
+def LoRaStatus(net): # print LoRa status
+   try:
+      if not net.lora.has_joined():
+          print("LoRa not joined!")
+          return
+      status = net.lora.stats()
+   except:
+      print("LoRa status error")
+      return
+   print('LoRaWan status:')
+   # status[0] last datagram time stamp msec
+   print("  RSSI           %d dBm" % status[1])
+   print("  SNR            %.1f dB" % status[2])
+   print("  Tx datarate    %d" % status[3])
+   print("  Rx datarate    %d" % status[4])
+   print("  Tx trials      %d" % status[5])
+   print("  Tx power       %d" % status[6])
+   print("  Tx time on air %d msec" % status[7])
+   print("  Tx count       %d" % status[8])
+   print("  Rx frequency   %.1f MHz" % (status[9]/1000000.0))
+
 if not wokeUp:
   Network = ''
   from Config import Network
@@ -191,6 +220,7 @@ if not wokeUp: # no need to send meta data again
   else:
     print('Info is sent')
     if LED: LED.blink(5,0.3,0x00ff00,False)
+    LoRaStatus(myLoRa)
 
 # send some data
 for cnt in range(3):
@@ -213,6 +243,7 @@ for cnt in range(3):
   else:
     print('Fake data nr %d of 3 is sent. Tx count %d. Joined: %s' % ((cnt+1),myLoRa.status,str(myLoRa.lora.has_joined())))
     if LED: LED.blink(5,0.3,0x00ff00,False)
+    LoRaStatus(myLoRa)
 
 if (not sleepMode()) or wokeUp: # woke up from deepsleep or no deepsleep pin strap
   print('Done')
