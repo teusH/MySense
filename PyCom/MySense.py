@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.67 2020/02/15 15:15:19 teus Exp teus $
+# $Id: MySense.py,v 5.68 2020/03/06 20:24:50 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.67 $"[11:-2]
+__version__ = "0." + "$Revision: 5.68 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -330,7 +330,7 @@ def getPinsConfig(debug=False):
     #   Vmax = nvs_get('Vmax')/10.0
     # except: pass
     # if not Vmax: Vmax = 12.6
-    if volts[2] < 11.4: # 12V accu class 6%
+    if volts[2] < 10.8: # 12V accu class 6%
       nvs_set('Accu',int(volts[1]*10.0+0.5))
       from pycom import rgbled
       pycom.rgbled(0x990000); sleep_ms(1*1000)
@@ -467,7 +467,7 @@ def getGlobals(debug=False):
       MyConfiguration['power'] = Power
     # deflt: no power mgt on ttl, i2c, display power mngt is used
     except:
-      MyConfiguration['power'] = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': None, 'led': False, 'wifi': True }
+      MyConfiguration['power'] = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': None, 'led': False, 'wifi': False }
     if not wokeUp: MyConfig.dump('power', MyConfiguration['power'])
   if deepsleepMode():
     MyConfiguration['power']['ttl'] = MyConfiguration['power']['i2c'] = True
@@ -991,7 +991,7 @@ def DoDust(debug=False):
       for cnt in range(10):
         if STOPPED: break
         STOP = True
-        print('waiting for thread')
+        print('Waiting for thread stop')
         if LED: LED.blink(5,0.2,0x175826,l=False)
         else: sleep_ms(1000)
         sleep_ms(1000)
@@ -1568,14 +1568,16 @@ def runMe(debug=False,reset=False):
     try:
       dData = DoDust(debug=debug)
       if Dust and Dust['conf']['use']:
-        Dust['lib'].Standby()   # switch off laser and fan
-        PinPower(atype='dust',on=False,debug=debug)
+        Dust['lib'].Standby(debug=False)   # switch off laser and fan
+        PinPower(atype='dust',on=False,debug=False)
     except Exception as e: print("dData except: %s" % str(e))
 
     MyMark(30)
+    print("Do meteo")
     try: mData = DoMeteo(debug=debug)
     except Exception as e: print("mData except: %s" % str(e))
 
+    print("Do accu")
     MyMark(40)
     try: aData = {}; aData = DoAccu(debug=debug)
     except Exception as e: print("aData except: %s" % str(e))
