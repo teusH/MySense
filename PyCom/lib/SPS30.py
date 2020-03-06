@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2019, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: SPS30.py,v 5.8 2019/05/27 14:51:43 teus Exp teus $
+# $Id: SPS30.py,v 5.9 2020/03/06 20:25:19 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -231,10 +231,13 @@ class SPS30:
   # get data from uart, return tuple(status,data[])
   def receive(self, cmd, debug=False):
     strt = True; buf = bytearray()
-    for cnt in range(15):
-      if self.ser.any(): break
+    for cnt in range(1,6):
+      if self.ser.any():
+        cnt = 0
+        break
       if debug: print("SPS wait...")
       sleep_ms(1000)
+    if cnt: return (0x2, [])
     while True:
       try: char = self.ser.read(1)
       except: return (0x2, [])
@@ -272,7 +275,7 @@ class SPS30:
      # to idle state
      if debug: print("Stop SPS")
      self.send(self.SPS_STOP,[], debug=debug)
-     return self.receive(self.SPS_STOP)[0]
+     return self.receive(self.SPS_STOP, debug=debug)[0]
 
   # mass ug/m3: PM1.0, PM2.5, PM4.0, PM10
   # count pcs/cm3: PM0.5, PM1.0, PM2.5, PM4.0, PM10
