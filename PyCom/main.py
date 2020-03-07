@@ -1,5 +1,5 @@
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
-# $Id: main.py,v 1.18 2020/02/16 15:58:02 teus Exp teus $
+# $Id: main.py,v 1.19 2020/03/07 15:33:13 teus Exp teus $
 
 def setWiFi():
   try:
@@ -35,16 +35,15 @@ else: # work around fake wakeup
 
 # Use True to force REPL mode. use False: REPL depends on replPin,
 #                        (for compatebility reasons) sleeppin and accu voltage
-REPL = True   # change this to False in operational modus
+REPL = False  # change this to False in operational modus
 try:
   from Config import replPin # if not in config act in old style
   from machine import Pin
-  if Pin(replPin,mode=Pin.IN).value(): REPL = False
-except: pass
-if REPL:
-  print("No auto MySense start\nTo start MySense loop (reset config, cleanup nvs):")
-  print("import MySense\nMySense.runMe(reset=True)")
-else: # deepsleep pin set and no accu voltage: go into REPL mode (subject to change)
+  if not Pin(replPin,mode=Pin.IN).value():
+      REPL = True
+except: REPL = True # change to False in operational mode
+
+if not REPL:
   try:
     from machine import Pin
     sleepPin = 'P18'
@@ -67,4 +66,16 @@ else: # deepsleep pin set and no accu voltage: go into REPL mode (subject to cha
           # runMySense()
           deepsleep(60*60*1000)
   except: pass
+
 # go into REPL mode
+print("No auto MySense start\nTo start MySense loop (reset config, cleanup nvs):")
+print("import MySense\nMySense.runMe(reset=True)")
+try:
+  from pycom import heartbeat, rgbled
+  from time import sleep
+  heartbeat(False)
+  for x in range(3):
+    rgbled(0xf96015); sleep(0.1)
+    rgbled(0x0); sleep(0.4)
+  heartbeat(True)
+except: pass
