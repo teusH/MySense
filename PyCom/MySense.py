@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.68 2020/03/06 20:24:50 teus Exp teus $
+# $Id: MySense.py,v 5.69 2020/03/07 14:00:19 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.68 $"[11:-2]
+__version__ = "0." + "$Revision: 5.69 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -188,7 +188,7 @@ def deepsleepMode():
   if not MyConfig: initConfig()
   atype = 'deepsleep'
   try:
-    if not 'sleepPin' in MyConfiguration.keys():
+    if not atype in MyConfiguration.keys():
       sleepPin = 'P18'
       try: from Config import sleepPin
       except: pass
@@ -198,7 +198,7 @@ def deepsleepMode():
     if not atype in MyDevices.keys():
       from machine import Pin
       MyTypes[atype] = MyDevices[atype] = { 'lib': Pin(sleepPin,mode=Pin.IN), 'type': atype}
-    return not MyDevices[atype]['lib'].value()
+    return MyDevices[atype]['lib'].value()
   except: return False
 
 def setWiFi(reset=False,debug=False):
@@ -312,13 +312,13 @@ def getPinsConfig(debug=False):
   global MyConfig
   if not MyConfig: initConfig()
   ## CONF accu
-  deepsleepMode() # pins init
+  deepsleepMode() # get deepsleep pin nr
   ## CONF clear
   volts = getVoltage()
-  if (not volts[0]) and deepsleepMode(): # reset config
-    if not wokeUp: # cold restart
-      print("Clear config disabled")
+  if (not volts[0]) and deepsleepMode():
+    if not wokeUp:
       # specal case: no accu & deepsleep pin present
+      print("Clear config disabled")
       # print("Clear config in flash")
       # MyConfig.clear; MyConfig = None; MyConfiguration = {}
       # initConfig(debug=debug)
@@ -1173,6 +1173,7 @@ def DoGPS(debug=False):
       now = localtime()
       if 3 < now[1] < 11: timezone(7200) # a very simple MET DST
       else: timezone(3600)
+      display('GPS time set:', (0,0), clear=True, ptr=False)
       display('%d/%d/%d %s' % (now[0],now[1],now[2],('mo','tu','we','th','fr','sa','su')[now[6]]))
       display('time %02d:%02d:%02d' % (now[3],now[4],now[5]))
     if Gps['lib'].longitude > 0:
