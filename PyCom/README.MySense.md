@@ -77,6 +77,8 @@ On the PyCom expansion board one can force the LoPy-4 to enter REPL modus so one
 Later PCB boards have a hall sensor so use a magnet to enforce REPL modus.
 Or set `REPL = True` in `Config.py` configuration file.
 
+MySense will inicate a REPL modus via a special RGBled flash sequence: 3X orange-blue followed by  heartbeat ON.
+
 WARNING: with MySense loaded even on a PyCom expansion board MySense may be started and use LoRa.
 So make sure the LoRa antenne is always connected!
 
