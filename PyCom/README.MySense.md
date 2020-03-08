@@ -11,7 +11,7 @@ MySense main will change the wifi AP SSID/PASS to MySense-HHHH/www.pycom.io. Whe
 You may need to (re)establish WiFi access often to secure access on your computer. WiFi password is `www.pycom.io`. For telnet or ftp use the default user `micro` with password `python`. Use ftp in passive mode.
 
 Helpfull Python command within REPL (the prompt >>>) are:
-* `import os; os.mkfs('/flash')` to clear all flash memory.
+* `import os; os.fsformat('/flash') or older firmware: os.mkfs('/flash')` to clear all flash memory.
 * `import sys; sys.exit()` act as soft reset, simalar to <cntrl>d
 * `import machine; machine.reset()` act has hard reset (you need to reestablish wifi)
 * `import os; os.uname()` gives release and version details.
@@ -22,6 +22,7 @@ uart = UART(1,baudrate=9600,pins=('P4','P3')) # pin Tx and Rx
 uart.any()
 uart.readline()
 ```
+One may need to set pin for powering device on some PCB boards with a mosfet.
 * test LoRa access OTAA
 ```python
 from machine import LoRa
@@ -71,11 +72,13 @@ MySense has provided several simple XYZ_test.py python scripts to test the senso
 Make sure to configure the right pin ID's in `Config.py` configuration file for the test scripts if you use other pins as the defaults.
 
 ### REPL modus
-On the PyCom expansion board one can force the LoPy-4 to enter REPL modus so one interact manually with the controller. See PyCom documentation how to achieve this (pin23 -> Gnd or save boot switch/reset).
-To enable REPL mode otherwise e.g. using PCB connector board, MySense main.py checksthe enabled deepsleep and accu voltage. The following scheme is used:
-* if deepsleep is enabled and accu voltage is higher as 4.8V REPL mode is entered.
+On the PyCom expansion board one can force the LoPy-4 to enter REPL modus so one interact manually with the controller and USB tty connection. See PyCom documentation how to achieve this (pin23 -> Gnd on elder PyCom expansion board or use a save boot switch & reset button simultaniously).
 
-WARNING: if MySense runMe() loop is used the LoRa antenna should be attached! On the PyCom expansion board MySense will see: deepsleep is enabled, but accu voltage (even without an accu is below 4.8 Volt. So REPL modus will be entered. A mistake will distroy the LoPy! so for security attach always the antenna!
+Later PCB boards have a hall sensor so use a magnet to enforce REPL modus.
+Or set `REPL = True` in `Config.py` configuration file.
+
+WARNING: with MySense loaded even on a PyCom expansion board MySense may be started and use LoRa.
+So make sure the LoRa antenne is always connected!
 
 #### TEST connected devices first
 E.g. start with testing the oled display:
@@ -179,11 +182,12 @@ An activated watchdog will sent an event on startup with a mark of the script lo
 
 ### MySense failure events
 
-If the main MySense measurement loop (routine MySense.runMe()) will exit for some extra ordenary reason the main.py will alarm this via RGB led warning signals and force a cold reboot if this event happens after some time. To avoid a reboot loop the controller will enter a permanant sleep with RGB warnings every 10 minutes.
+If the main MySense measurement loop (routine MySense.runMe()) will exit for some extra ordenary reason the main.py will alarm this via RGB led warning signals and force a cold reboot if this event happens after some time. To avoid a reboot loop the controller will enter a permanent sleep with RGB warnings every 10 minutes.
 
 ## accu watch dog
 
-If the accu is connected to Grn and ADC pin (board power pins: 5Vdc, Ground, Accu-Vcc, Accu-Gnd, s-reset on the PCB board), MySense will check via ADC the accu voltage. Will update the max/minimum value in nvs ram.
+If the accu is connected to Gnd and ADC pin (board power pins: 5Vdc, Ground, Accu-Vcc, Accu-Gnd, s-reset on the PCB board), MySense will check via ADC the accu voltage. Will update the max/minimum value in nvs ram.
 Initialy the maximum is set on cold boot to accu voltage level.
-If accu voltage is lower as 85% of maximum MySense will enter a 15 minute deepsleep loop till the accu voltage level of 85% is reached.
+If accu voltage is lower as 85% of maximum MySense will enter first a 15 minute and later a 60 minutes deepsleep loop till the accu voltage level of 85% is reached.
 An accu low event will be sent via LoRa every 15 minutes.
+To Do: do not wakeup on low accu at night till sunrise.

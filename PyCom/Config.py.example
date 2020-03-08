@@ -17,6 +17,9 @@ app_key = "7912341234123412341234123412345B"
 W_SSID = 'MySense-AAAA'  # will be completed with 4 S/N bytes
 W_PASS = 'BehoudDeParel'
 
+# force development mode?
+#REPL = False
+
 #  interval = { 'sample': 60,    # dust sample in secs
 #             'interval': 15,     # sample interval in minutes
 #             'gps':      3*60,  # location updates in minutes
