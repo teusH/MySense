@@ -1,15 +1,19 @@
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
-# $Id: main.py,v 1.20 2020/03/08 16:05:03 teus Exp teus $
+# $Id: main.py,v 1.21 2020/03/09 10:46:54 teus Exp teus $
 
 def setWiFi():
   try:
-    from machine import unique_id
-    import binascii
-    SSID = 'MySense-' + binascii.hexlify(unique_id()).decode('utf-8')[-4:].lower()
-    PASS = 'www.pycom.io'
+    W_SSID =  'MySense-AAAA'
+    try: from Config import W_SSID
+    except: pass
+    if W_SSID[-4:] == 'AAAA':
+        from machine import unique_id
+        import binascii
+        W_SSID = W_SSID[:-4]+binascii.hexlify(unique_id()).decode('utf-8')[-4:].lower()
+    PASS = 'www.pycom.io' # only for 1 hr, then powered off (dflt) or changed
     from network import WLAN
     wlan = WLAN()
-    wlan.init(mode=WLAN.AP,ssid=SSID, auth=(WLAN.WPA2,PASS), channel=7, antenna=WLAN.INT_ANT)
+    wlan.init(mode=WLAN.AP,ssid=W_SSID, auth=(WLAN.WPA2,PASS), channel=7, antenna=WLAN.INT_ANT)
   except: pass
 
 def runMySense():
@@ -53,10 +57,6 @@ try:
     REPL = True
     print("REPL enforced, pin %s" % str(REPL))
   else: REPL = False
-except: pass
-
-sleepPin = 'P18'
-try: from Config import sleepPin
 except: pass
 
 if not REPL:
