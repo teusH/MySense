@@ -6,7 +6,8 @@ A description of the MySense PyCom based measurement kit, data collection and da
 The easiest way is to install Atom/PyMakr on your computer. See the PyCom documentation first.
 Atom in fact will use a telnet and ftp approach to access the PyCom controller either via USB or WiFi.
 Without the MySense scripts loaded the wifi SSID/PASS is LoPy-wlan-HHHH/www.pycom.io.
-MySense main will change the wifi AP SSID/PASS to MySense-HHHH/www.pycom.io. Where HHH are the last 4 hex of the wifi mac address. You may change the SSID/PAAS within the MySense configuration file.
+MySense main will change the wifi AP SSID/PASS to MySense-HHHH/www.pycom.io. Where HHHH are the last 4 hex of the LoPy S/N address or SSID configuration from `Config.py`.
+Unless wifi power management is configured as False (dflt: True) the wifi will be powered off after one hour. This to avoid voltage dips caused by wifi beacon and/or a bad adapter.
 
 You may need to (re)establish WiFi access often to secure access on your computer. WiFi password is `www.pycom.io`. For telnet or ftp use the default user `micro` with password `python`. Use ftp in passive mode.
 
@@ -58,8 +59,9 @@ If there is no GPS fixate one is advised to use the lowest TTN gateway time as m
 
 ### WLAN access point
 Default WLAN AP is WPA2 as defined by PyCom firmware ('lopy-wlan-HEXN','www.pycom.io') and is overwritten via main.py with 'MySense-HEXN' SSID.
-This can be redefined by W_SSID/W_PASS in the configuration file (default: MySense-HEXN','BehoudDeParel'). The wifi AP name will be effectuated after ca 1 hour from a cold (re)boot.
-The WiFi will be switched off by defining 'wifi' (True) in 'power' config dictionary after 1 hour of measurements. Use this to save energy and security reasons.
+This can be redefined by W_SSID/W_PASS in the configuration file (default: MySense-HEXN','BehoudDeParel'). Unless wifi power management is switched on the wifi AP name will be effectuated after ca 1 hour from a cold (re)boot.
+By default the WiFi will be switched off by defining 'wifi' (True) in 'power' config dictionary after 1 hour of measurements. Use this to save energy and security reasons.
+WiFi AP can also be switched on via the remote LoRa command `W`.
 
 ### OVER The AIR (OTA) update
 Via LoRaWan one can send the command 'W' to the MySense node. If the WiFi AP was turned off the WiFi AP will be enabled with the initial `MySense-HEXn`/`www.pycom.io` credentials for one hour.

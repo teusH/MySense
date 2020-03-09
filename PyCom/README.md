@@ -350,9 +350,13 @@ The json configuration will be updated if via remote command the configuration i
 Configuration item `power` will define if between deepsleeps de bus will be unpowered. E.g. deactivate GPS device fully. The kit will go into deepsleep if AND deepsleep pin is enabled AND `power` attribute `sleep` is True. On a cold boot with deepsleep pin enabled the default startup `power` configuration will be with `ttl`, `i2c` and `sleep` defined as *True*.
 
 Configuration dictionary `interval` will define e.g. sample times ('sample': dflt 1 minute), and interval timings ('interval': dflt 15 minutes). As well next time meta information ('gps': 'gps_next', 'info': 'info_next': xyz_next values will be stored in nvs ram to survive a reboot) will be sent or GPS will be tried to find GPS location and set day time. 
-Configuration dictionary 'power' will define, True is power off, to enable/disable power on 'ttl', 'i2c', 'led' (rgb led), 'wifi' and 'display'. As well 'sleep' to enable a soft deepsleep (without sleep pin use).
+Configuration dictionary 'power' will define, True is power off, to enable/disable power on 'ttl' (dflt: False), 'i2c' (dflt: False), 'led' (rgb led) (dflt: False), 'wifi' (dflt: True) and 'display' (dflt: False). As well 'sleep' to enable (dflt: False) a soft deepsleep (without sleep pin use).
+Using remote LoRa commands one may change this at run time (see MySense.py CallBack routine for details).
 
-WiFi AP will be configured with SSID/PASS as defined in Config.py after 15 measurements after a cold reboot. Unless 'power' item 'wifi' is defined as True. In which case the WiFi will be turned off after 15 measurements.
+Alternate WiFi AP SSID and PASS can be configured via Config.py configuration file.
+Default SSID `MySense-HHHH` with PASS `www.pycom.io`.
+With a cold reboot (power cycle) and with WiFi power management off (False) the configured password will be effectuated after 1 hour.
+Unless 'power' item 'wifi' is defined as True. In which case the WiFi will be turned off.
 
 Configuration dictionary 'calibration' will define Taylor calibration rules for corection of 'temperatue', 'humidity', 'pressure', 'gas', 'pm1', 'pm25', pm10', and define 'gas_base' for AQI calculations.
 

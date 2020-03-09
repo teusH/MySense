@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.69 2020/03/07 14:00:19 teus Exp teus $
+# $Id: MySense.py,v 5.70 2020/03/09 10:09:05 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.69 $"[11:-2]
+__version__ = "0." + "$Revision: 5.70 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -467,7 +467,7 @@ def getGlobals(debug=False):
       MyConfiguration['power'] = Power
     # deflt: no power mgt on ttl, i2c, display power mngt is used
     except:
-      MyConfiguration['power'] = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': None, 'led': False, 'wifi': False }
+      MyConfiguration['power'] = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': None, 'led': False, 'wifi': True }
     if not wokeUp: MyConfig.dump('power', MyConfiguration['power'])
   if deepsleepMode():
     MyConfiguration['power']['ttl'] = MyConfiguration['power']['i2c'] = True
