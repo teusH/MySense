@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.70 2020/03/09 10:09:05 teus Exp teus $
+# $Id: MySense.py,v 5.72 2020/03/11 20:05:19 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.70 $"[11:-2]
+__version__ = "0." + "$Revision: 5.72 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -182,13 +182,13 @@ def getVoltage(debug=False): # range 0 (None) and 11.4 (88% low) - 12.5 (high)
 #    pin set & power sleep True: deepsleep, while active: no rgb led, wifi off
 # clear config in flash on: cold start & no accu attached & no sleep pin
 
-# get deepsleep pin value
+# deepsleep pin set?
 def deepsleepMode():
   global MyDevices, MyConfig, MyConfiguration, MyTypes
   if not MyConfig: initConfig()
   atype = 'deepsleep'
   try:
-    if not atype in MyConfiguration.keys():
+    if not 'sleepPin' in MyConfiguration.keys():
       sleepPin = 'P18'
       try: from Config import sleepPin
       except: pass
@@ -198,12 +198,12 @@ def deepsleepMode():
     if not atype in MyDevices.keys():
       from machine import Pin
       MyTypes[atype] = MyDevices[atype] = { 'lib': Pin(sleepPin,mode=Pin.IN), 'type': atype}
-    return MyDevices[atype]['lib'].value()
+    return (True if MyDevices[atype]['lib'].value() else False)
   except: return False
 
 def setWiFi(reset=False,debug=False):
   global MyConfiguration
-  cnt = None
+  cnt = 0
   try: cnt = nvs_get('count')
   except: pass
   if not cnt: cnt = 0
@@ -212,25 +212,25 @@ def setWiFi(reset=False,debug=False):
   except: pass
   if reset:
     nvs_set('count',0)
-    if cnt > cntHour: cnt == cntHour # enable wifi
+    if cnt > cntHour: cnt = cntHour # enable wifi
     else: cnt = 0
   else: nvs_set('count',cnt+1)
   if cnt == cntHour: # after ca 1 Hr turn wifi off or give it new ssid/pass
+    from network import WLAN
+    wlan = WLAN()
     try:
       W_SSID = 'MySense-AAAA'; W_PASS = 'www.mycom.io'
       if not reset:
         if MyConfiguration['power']['wifi']:
           wlan.deinit() # switch wifi off
-          display("WiFi AP: off")
+          display("WiFi AP: off",(0,0))
           return False
         try: from Config import W_SSID
         except: pass
         try: from Config import W_PASS
         except: pass
       if W_SSID[-4:] == 'AAAA': W_SSID = W_SSID[:-4]+getSN()[-4:].lower()
-      from network import WLAN
-      wlan = WLAN()
-      display("WiFi AP: %s" % W_SSID)
+      display("WiFi AP: %s" % W_SSID,(0,0))
       display("pass: %s" % W_PASS)
       sleep_ms(5*1000)
       wlan.init(mode=WLAN.AP,ssid=W_SSID, auth=(WLAN.WPA2,W_PASS), channel=7, antenna=WLAN.INT_ANT)
@@ -311,19 +311,9 @@ def getPinsConfig(debug=False):
   global MyConfiguration, MyConfiguration, wokeUp
   global MyConfig
   if not MyConfig: initConfig()
-  ## CONF accu
-  deepsleepMode() # get deepsleep pin nr
-  ## CONF clear
+  deepsleepMode() # deepsleep pin conf
+  ## accu? too low?
   volts = getVoltage()
-  if (not volts[0]) and deepsleepMode():
-    if not wokeUp:
-      # specal case: no accu & deepsleep pin present
-      print("Clear config disabled")
-      # print("Clear config in flash")
-      # MyConfig.clear; MyConfig = None; MyConfiguration = {}
-      # initConfig(debug=debug)
-      # MyDevices = {}
-      # getVoltage(); deepsleepMode();
   if volts[0] and (volts[0] > 1.0):
     # Vmax = None
     # try:
@@ -407,12 +397,12 @@ def getNetConfig(debug=False):
         try: # OTAA keys preceeds ABP
           from Config import dev_eui, app_eui, app_key
           MyDevices[atype]['method']['OTAA'] = (dev_eui, app_eui, app_key)
-          MyConfig.dump('LoRa','OTAA')
+          MyConfig.dump('LoRa','TTN')
         except: pass
         try: # ABP keys
           from Config import dev_addr, nwk_swkey, app_swkey
           MyDevices[atype]['method']['ABP'] = (dev_addr, nwk_swkey, app_swkey)
-          MyConfig.dump('LoRa','ABP')
+          MyConfig.dump('LoRa','TTN')
         except: pass
         if not len(MyDevices[atype]['method']):
           raise ValueError("No LoRa keys configured or LoRa config error")
@@ -470,7 +460,7 @@ def getGlobals(debug=False):
       MyConfiguration['power'] = { 'ttl': False, 'i2c': False, 'sleep': False, 'display': None, 'led': False, 'wifi': True }
     if not wokeUp: MyConfig.dump('power', MyConfiguration['power'])
   if deepsleepMode():
-    MyConfiguration['power']['ttl'] = MyConfiguration['power']['i2c'] = True
+    for i in ['ttl','i2c']: MyConfiguration['power'][i] = True
   # sleep dflt True: listen to pin mode
 
   ## CONF calibrate
@@ -688,26 +678,6 @@ def initDisplay(debug=False):
                              Display['i2c'], addr=Display['conf']['address'])
         if debug:
           print('Oled %s: (SDA,SCL,Pwr)=%s pwr is %s' % (Display['conf']['name'],str(Display['conf']['pins'][:3]),PinPower('display')))
-      #elif 'spi' in Display.keys(): # for fast display This needs rework for I2C style
-      #  global spi, spiPINS
-      #  try:
-      #    from Config import S_CLKI, S_MOSI, S_MISO  # SPI pins config
-      #  except:
-      #    S_SCKI = 'P10'; S_MOSI = 'P11'; S_MISO = 'P14'  # SPI defaults
-      #  if not len(spi): from machine import SPI
-      #  try:
-      #    from Config import S_DC, S_RES, S_CS      # GPIO SSD pins
-      #  except:
-      #    S_DC = 'P5'; S_RES = 'P6'; S_CS = 'P7'    # SSD defaults
-      #  nr = SPIdevs(spiPINs,(S_DC,S_CS,S_RES,S_MOSI,S_CLKI))
-      #  if spi[nr] == None:
-      #    spi[nr] = SPI(nr,SPI.MASTER, baudrate=100000,
-      #                  pins=(S_CLKI, S_MOSI, S_MISO))
-      #  Display['lib'] = DISPLAY.SSD1306_SPI(width,height,spi[nr],
-      #                  S_DC, S_RES, S_CS)
-      #  if debug: print('Oled SPI %d: ' % nr + 'DC ~> %s, CS ~> %s, RES ~> %s,
-      #                   MOSI/D1 ~> %s,
-      #                   CLK/D0 ~> %s ' % spiPINs[nr] + 'MISO ~> %s' % S_MISO)
       else:
         Display['lib'] = None; Display['conf']['use'] = False
         if not wokeUp: print("No SSD display or bus found")
@@ -844,7 +814,7 @@ def DoMeteo(debug=False):
     sleep_ms(500)
     rectangle(0,nl,128,LF,0)
   except Exception as e:
-    display("%s ERROR: " % Meteo['conf']['name'])
+    display("%s ERROR: " % Meteo['conf']['name'],(0,0))
     print(e)
     if LED: LED.blink(5,0.1,0xff00ff,l=True,force=True)
     return [None,None,None,None,None]
@@ -911,13 +881,13 @@ def initDust(debug=False):
             if item == 'Dext': from Config import Dext as value
             elif item == 'explicit': from Config import Dexplicit as value
             else: continue
-            MyConfig.dump('explicit',value)
             MyConfiguration['explicit'] = value
+            MyConfig.dump('explicit',value)
             break
           except: pass
-      if value == None: # dflt
-        MyConfiguration['explicit'] = False
-        MyConfig.dump('explicit',False)
+      if value == None: value = False # dflt
+      MyConfiguration['explicit'] = False
+      MyConfig.dump('explicit',False)
       # #pcs=range(PM0.3-PM) + average grain size, True #pcs>PM
       if Dust[abus] == None: return False
       Dust['lib'] = senseDust(port=Dust[abus], debug=debug, sample=sample, interval=0, pins=Dust['conf']['pins'][:2], calibrate=MyConfiguration['calibrate'], explicit=MyConfiguration['explicit'])
@@ -997,7 +967,7 @@ def DoDust(debug=False):
         sleep_ms(1000)
       STOP = False
     except Exception as e:
-      display("%s ERROR" % Dust['conf']['name'])
+      display("%s ERROR" % Dust['conf']['name'],(0,0))
       print(e)
       if LED: LED.blink(3,0.1,0xff0000)
       dData = {}
@@ -1164,10 +1134,7 @@ def DoGPS(debug=False):
       if prev != time(): myTime = True
       print("%d GPS sats, time set" % Gps['lib'].satellites)
     else:
-      # if fixate < 0: display('no GPS fixate')
-      # else: print('no GPS fixate')
       print("no GPS fixate")
-      # return PinPowerRts(atype,prev,rts=[0,0,0],debug=debug)
       return myGPS # leave power on
     if myTime: # RTC is adjusted
       now = localtime()
@@ -1188,9 +1155,10 @@ def DoGPS(debug=False):
       fixate = True; nvs_set(atype,Gps['lib'].satellites)
     if debug and myGPS[0]:
       print("GPS: lon %.5f, lat %.5f, alt %.2f" % (myGPS[LON],myGPS[LAT],myGPS[ALT]))
-  except:
+  except Exception as e:
     Gps['enabled'] = False; Gps['lib'].ser.deinit(); Gps['lib'] = None
-    display('GPS error')
+    display('GPS error',(0,0))
+    print("GPS exception: %s" % str(e))
     return PinPowerRts(atype,False,rts=myGPS,debug=debug)
   nvs_set('gps_next',ticks()+interval[atype])
   # Pwr on till fixate
@@ -1522,13 +1490,13 @@ def runMe(debug=False,reset=False):
   # short cuts
   interval = MyConfiguration['interval']
   Power = MyConfiguration['power']
-  Dust = None
+  Dust = {}
   try: Dust = MyTypes['dust']
   except: pass
-  Network = None
+  Network = {}
   try: Network = MyTypes['network']
   except: pass
-  Display = None
+  Display = {}
   try: Display = MyTypes['display']
   except: pass
 
@@ -1538,7 +1506,8 @@ def runMe(debug=False,reset=False):
     display("MySense %s" % __version__[:8], (0,0), clear=True)
     display("s/n " + getSN())
     if not wokeUp:
-      if deepsleepMode(): display("energy saving")
+      if deepsleepMode() or MyConfiguration['power']['sleep']:
+        display("energy saving")
       else: display("active mode")
     display("probes: %ds/%dm" % (interval['sample'], interval['interval']/60))
   elif wokeUp and LED:
@@ -1566,6 +1535,7 @@ def runMe(debug=False,reset=False):
     except: pass
 
     MyMark(20)
+    dData = {}
     try:
       dData = DoDust(debug=debug)
       if Dust and Dust['conf']['use']:
@@ -1575,12 +1545,14 @@ def runMe(debug=False,reset=False):
 
     MyMark(30)
     print("Do meteo")
+    mData = {}
     try: mData = DoMeteo(debug=debug)
     except Exception as e: print("mData except: %s" % str(e))
 
     print("Do accu")
     MyMark(40)
-    try: aData = {}; aData = DoAccu(debug=debug)
+    aData = {}
+    try: aData = DoAccu(debug=debug)
     except Exception as e: print("aData except: %s" % str(e))
 
     MyMark(50)
@@ -1625,7 +1597,7 @@ def runMe(debug=False,reset=False):
     # LoRa nvram done via send routine
 
     MyMark(80)
-    if Power['sleep'] or deepsleepMode():
+    if deepsleepMode() or Power['sleep']:
       toSleep -= 1
       DEEPSLEEP(toSleep,debug=debug) # deep sleep
       # will never arrive here
