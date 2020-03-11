@@ -1,6 +1,6 @@
 # Copyright 2019, Teus Hagen, GPLV3
 # search for I2C devices and get supporting libraries loaded
-__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 __license__ = 'GPLV3'
 
 import ujson
@@ -16,7 +16,14 @@ class MyConfig:
     self.debug = debug
     self.stored = 0 # count as safeguard
     self.doArchive = archive
+    self.check = None
     return None
+
+  # checksum of string
+  def checksum(self,msg):
+    v = 21
+    for c in msg: v ^= ord(c)
+    return v
 
   # import json config file
   def getConfig(self,atype=None, abus=None):
@@ -26,6 +33,7 @@ class MyConfig:
       try:
         with open(self.file, 'r') as config_file:
           self.config = ujson.loads(config_file.read())
+        if self.debug: print("config read: ", self.config)
         if self.config['Version'] != self.version:
           raise ValueError("version %s" % self.config['Version'])
       except OSError:
@@ -33,7 +41,9 @@ class MyConfig:
         return {}
       except Exception as e:
         print("Json config error: %s. File deleted." % e)
-        self.remove
+        #with open(self.file, 'r') as config_file:
+        #  print("File content error: ", config_file.read())
+        if not self.debug: self.remove
         return {}
       if self.debug: print("Found config file: %s" % self.file, self.config)
     if (abus == None) and (atype == None): return self.config
@@ -64,6 +74,8 @@ class MyConfig:
        value = avalue[:]
     else: value = avalue
     if abus != None:
+      if not type(self.config) is dict:
+        print("dump(%s,%s,%s): type: " % (str(atype),str(avalue),str(abus)), type(self.config),"\ncontent:\n",self.config)
       if not abus in self.config.keys(): self.config[abus] = {'updated': True}
       self.config[abus][atype] = value # is probably dict
       if ('updated' in self.config[abus].keys()):
@@ -79,6 +91,20 @@ class MyConfig:
       self.dirty = True # maybe still not changed
     return self.dirty
 
+  def DiffDict(self, a, b):
+    eq = (a == b)
+    if not self.debug: return eq
+    print("a == b? ", eq)
+    if eq: return eq
+    if (not type(a) is dict) or (not type(b) is dict):
+      print("a or b is not dict")
+      return eq
+    for item in list(set(a).intersection(set(b))):
+        if a[item] != b[item]:
+          print("item %s value a(%s) != b(%s)", (item,str(a[item]),str(b[item])) )
+    print("keys a-b: ",set(a).difference(set(b))," keys b-a: ", set(b).difference(set(a)))
+    return eq
+
   # dump to json config file in flash mem
   def export(self,force=False):
     for bus in ['i2c','ttl']:
@@ -86,21 +112,30 @@ class MyConfig:
        if 'update' in self.config[bus]:
          if self.config[bus]['update']: self.dirty = True
          del self.config[bus]['update']
-    self.config['version'] = self.version
+    if not 'Version' in self.config.keys():
+      self.config['Version'] = self.version
     if not force:
       if not self.dirty: return True
-    print("Flash configuration")
+    # add explicit flg if present in dust
+    if not 'explicit' in self.config.keys():
+      try: self.config['explicit'] = self.config['ttl']['dust']['explicit']
+      except: pass
+    self.dirty = False
+    if not self.check and self.DiffDict(self.config,self.check):
+      print("MyConfig is not dirty")
+      return False
+    if self.stored > 5: # safeguard
+      print("Too many writes on %s" % self.file)
+      return False
     self.stored += 1
+    self.check = self.config.copy()
     try:
-      if self.stored > 5: # safeguard
-        raise OSError("Too many writes on %s" % self.file)
       with open(self.file,'w') as config_file:
-        config_file.write(ujson.dumps(self.config))
-      if self.debug: print("Updated config in flash file %s" % self.file)
+        c = config_file.write(ujson.dumps(self.config))
+      print("Flashed config %d bytes to %s" % (c,self.file))
     except Exception as e:
       print("Json flash file dump failed: %s" % e)
       return False
-    self.dirty = False
     return True
 
   @property
