@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.72 2020/03/11 20:05:19 teus Exp teus $
+# $Id: MySense.py,v 5.73 2020/03/12 13:26:35 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.72 $"[11:-2]
+__version__ = "0." + "$Revision: 5.73 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -223,14 +223,14 @@ def setWiFi(reset=False,debug=False):
       if not reset:
         if MyConfiguration['power']['wifi']:
           wlan.deinit() # switch wifi off
-          display("WiFi AP: off",(0,0))
+          display("WiFi AP: off",xy=(0,0))
           return False
         try: from Config import W_SSID
         except: pass
         try: from Config import W_PASS
         except: pass
       if W_SSID[-4:] == 'AAAA': W_SSID = W_SSID[:-4]+getSN()[-4:].lower()
-      display("WiFi AP: %s" % W_SSID,(0,0))
+      display("WiFi AP: %s" % W_SSID,xy=(0,0))
       display("pass: %s" % W_PASS)
       sleep_ms(5*1000)
       wlan.init(mode=WLAN.AP,ssid=W_SSID, auth=(WLAN.WPA2,W_PASS), channel=7, antenna=WLAN.INT_ANT)
@@ -693,7 +693,7 @@ def initDisplay(debug=False):
 
 ## METEO
 # oled on SPI creates I2C bus errors
-#  display('BME280 -> OFF', (0,0),True)
+#  display('BME280 -> OFF', xy=(0,0),True)
 
 # start meteo sensor
 def initMeteo(debug=False):
@@ -749,7 +749,7 @@ def initMeteo(debug=False):
       print('Meteo %s: (SDA,SCL,Pwr)=%s, Pwr %s' % (Meteo['conf']['name'],Meteo['conf']['pins'][:3], PinPower(atype=atype)))
   except Exception as e:
     Meteo['conf']['use'] = False
-    display("meteo %s failure" % Meteo['conf']['name'], (0,0), clear=True)
+    display("meteo %s failure" % Meteo['conf']['name'], xy=(0,0), clear=True)
     print(e)
   if (not Meteo['enabled']) or (not Meteo['conf']['use']):
     if not wokeUp: display("No meteo in use")
@@ -814,7 +814,7 @@ def DoMeteo(debug=False):
     sleep_ms(500)
     rectangle(0,nl,128,LF,0)
   except Exception as e:
-    display("%s ERROR: " % Meteo['conf']['name'],(0,0))
+    display("%s ERROR: " % Meteo['conf']['name'],xy=(0,0))
     print(e)
     if LED: LED.blink(5,0.1,0xff00ff,l=True,force=True)
     return [None,None,None,None,None]
@@ -894,7 +894,7 @@ def initDust(debug=False):
       if debug:
         print('Dust %s: (Tx,Rx,Pwr)=%s, Pwr %s' % (Dust['conf']['name'],Dust['conf']['pins'][:3], PinPower(atype=atype)))
     except Exception as e:
-      display("%s failure" % Dust['conf']['name'], (0,0), clear=True)
+      display("%s failure" % Dust['conf']['name'], xy=(0,0), clear=True)
       print(e)
       Dust['conf']['name'] = ''
     if debug: print('dust: %s' % Dust['conf']['name'])
@@ -928,7 +928,7 @@ def DoDust(debug=False):
   if Dust['lib'] == None: initDust(debug=debug)
   if (not Dust['conf']['use']) or (not Dust['enabled']): return rData
 
-  display('PM sensing',(0,0),clear=True,prt=False)
+  display('PM sensing',xy=(0,0),clear=True,prt=False)
   prev = False
   if Dust['enabled']:
     prev = PinPower(atype=atype,on=True, debug=debug)
@@ -938,7 +938,7 @@ def DoDust(debug=False):
     if Dust['lib'].mode != Dust['lib'].NORMAL:
       Dust['lib'].Normal()
       if not showSleep(secs=15,text='starting up fan'):
-        display('stopped SENSING', (0,0), clear=True)
+        display('stopped SENSING', xy=(0,0), clear=True)
         if LED: LED.blink(5,0.3,0xff0000,l=True,force=True)
         return rData
       else:
@@ -967,7 +967,7 @@ def DoDust(debug=False):
         sleep_ms(1000)
       STOP = False
     except Exception as e:
-      display("%s ERROR" % Dust['conf']['name'],(0,0))
+      display("%s ERROR" % Dust['conf']['name'],xy=(0,0))
       print(e)
       if LED: LED.blink(3,0.1,0xff0000)
       dData = {}
@@ -982,10 +982,10 @@ def DoDust(debug=False):
         if dData[k] == None: dData[k] = 0
     try:
       if 'pm1' in dData.keys():   #  and dData['pm1'] > 0:
-        display(" PM1 PM2.5 PM10", (0,0), clear=True)
+        display(" PM1 PM2.5 PM10", xy=(0,0), clear=True)
         display("% 2.1f % 5.1f% 5.1f" % (dData['pm1'],dData['pm25'],dData['pm10']))
       else:
-        display("ug/m3 PM2.5 PM10", (0,0), clear=True)
+        display("ug/m3 PM2.5 PM10", xy=(0,0), clear=True)
         display("     % 5.1f % 5.1f" % (dData['pm25'],dData['pm10']))
         dData['pm1'] = 0
     except:
@@ -1043,7 +1043,7 @@ def initGPS(debug=False):
       # if myGPS and myGPS[0]: lastGPS = myGPS[0:]
       # Gps['rtc'] = None
   except Exception as e:
-      display('GPS failure', (0,0), clear=True)
+      display('GPS failure', xy=(0,0), clear=True)
       print(e)
       Gps['enabled'] = False; Gps[abus].ser.deinit(); Gps['lib'] = None
   PinPower(atype=atype,on=prev,debug=debug)
@@ -1140,7 +1140,7 @@ def DoGPS(debug=False):
       now = localtime()
       if 3 < now[1] < 11: timezone(7200) # a very simple MET DST
       else: timezone(3600)
-      display('GPS time set:', (0,0), clear=True, ptr=False)
+      display('GPS time set:', xy=(0,0), clear=True)
       display('%d/%d/%d %s' % (now[0],now[1],now[2],('mo','tu','we','th','fr','sa','su')[now[6]]))
       display('time %02d:%02d:%02d' % (now[3],now[4],now[5]))
     if Gps['lib'].longitude > 0:
@@ -1157,7 +1157,7 @@ def DoGPS(debug=False):
       print("GPS: lon %.5f, lat %.5f, alt %.2f" % (myGPS[LON],myGPS[LAT],myGPS[ALT]))
   except Exception as e:
     Gps['enabled'] = False; Gps['lib'].ser.deinit(); Gps['lib'] = None
-    display('GPS error',(0,0))
+    display('GPS error',xy=(0,0))
     print("GPS exception: %s" % str(e))
     return PinPowerRts(atype,False,rts=myGPS,debug=debug)
   nvs_set('gps_next',ticks()+interval[atype])
@@ -1502,8 +1502,8 @@ def runMe(debug=False,reset=False):
 
   if not wokeUp: # cold restart
     import os
-    display('%s' % PyCom, (0,0),clear=True)
-    display("MySense %s" % __version__[:8], (0,0), clear=True)
+    display('%s' % PyCom, xy=(0,0),clear=True)
+    display("MySense %s" % __version__[:8], xy=(0,0), clear=True)
     display("s/n " + getSN())
     if not wokeUp:
       if deepsleepMode() or MyConfiguration['power']['sleep']:
@@ -1610,7 +1610,7 @@ def runMe(debug=False,reset=False):
     else: ablink = 0xebcf5b
     if not Power['i2c']:
       if not ProgressBar(0,62,128,1,toSleep,ablink,10):
-        display('stopped SENSING', (0,0), clear=True)
+        display('stopped SENSING', xy=(0,0), clear=True)
         if LED: LED.blink(5,0.3,0xff0000,l=True)
     elif toSleep > 15:
       sleep_ms((toSleep-1)*1000)
