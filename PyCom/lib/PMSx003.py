@@ -1,6 +1,6 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
-# $Id: PMSx003.py,v 5.4 2019/09/18 10:51:18 teus Exp teus $
+# $Id: PMSx003.py,v 5.5 2020/03/12 19:50:27 teus Exp teus $
 # the GNU General Public License the Free Software Foundation version 3
 
 # Defeat: output (moving) average PM count in period sample time seconds (dflt 60 secs)
@@ -193,8 +193,8 @@ class PMSx003:
     return False
 
     # passive mode, go into standby state / sleep: fan OFF
-  def Standby(self):
-    #print("Go standby from 0X%X" % self.mode)
+  def Standby(self, debug=False):
+    if debug: print("Go standby from 0X%X" % self.mode)
     if self.mode != self.STANDBY:
       if self.mode == self.ACTIVE: self.GoPassive()
       self.mode = self.STANDBY
@@ -202,8 +202,8 @@ class PMSx003:
     return True
 
   # passive mode, go into normal state: fan ON, allow data telegrams reading
-  def Normal(self):
-    #print("Go normal from 0x%X" % self.mode)
+  def Normal(self, debug=False):
+    if debug: print("Go normal from 0x%X" % self.mode)
     if self.mode != self.NORMAL:
       if self.mode == self.ACTIVE: self.GoPassive()
       if self.mode != self.NORMAL:
@@ -212,8 +212,8 @@ class PMSx003:
     return True
 
   # from passive mode go in active mode (same as with power on)
-  def GoActive(self):
-    #print("Go active from 0X%X" % self.mode)
+  def GoActive(self, debug=False):
+    if debug: print("Go active from 0X%X" % self.mode)
     if self.mode == self.STANDBY:
       self.Normal()
       if self.debug: print("wait 30 secs")
@@ -226,8 +226,8 @@ class PMSx003:
       return self.SendMode(0xE1,1)
 
   # from active mode go into passive mode (passive normal state ?)
-  def GoPassive(self):
-    #print("Go Passive from 0X%X" % self.mode)
+  def GoPassive(self, debug=False):
+    if debug: print("Go Passive from 0X%X" % self.mode)
     if self.mode != self.PASSIVE:
       self.ser.read()
       return self.SendMode(0xE1,0)
