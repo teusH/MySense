@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.73 2020/03/12 13:26:35 teus Exp teus $
+# $Id: MySense.py,v 5.74 2020/03/13 08:35:31 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.73 $"[11:-2]
+__version__ = "0." + "$Revision: 5.74 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -168,7 +168,7 @@ def getVoltage(debug=False): # range 0 (None) and 11.4 (88% low) - 12.5 (high)
         nvs_set('Vmin', int(volts[1]*10.0-0.5))
       if debug: print("Accu V: %.2f [%.2f - %.2f]" % (volts[1],mmin,mmax))
 
-      if volts[1] < 10.9:
+      if 0.0 < volts[1] < 10.9:
         global Alarm, AlarmAccu
         Alarm = (AlarmAccu,int(volts[1]*10))
       return volts
