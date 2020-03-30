@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 1.3 2020/02/25 15:31:58 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.1 2020/03/30 18:45:02 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 3.1 $"[11:-2]
 
 try:
     import MyLogger
@@ -55,7 +55,7 @@ Conf = {
     'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
     'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
     # expression to identify serials to be subjected to be posted
-    'serials': '(123456abcdf|[0-9][a-fA-F]{12})', # pmsensor[1 .. 11] from pmsensors
+    'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from pmsensors
     'projects': 'VW2017',  # expression to identify projects to be posted
     'active': True,      # output to luftdaten maps is also activated
     'registrated': None, # has done initial setup
@@ -246,7 +246,7 @@ if __name__ == '__main__':
     net = { 'module': True, 'connected': True }
     # Conf['debug'] = True        # e.g. print Posts
     Output_test_data = [
-        {   'ident': {'geolocation': '?',
+        {   'ident': {'geolocation': '0,0,0',
               'luftdaten': False,
               'description': 'MQTT AppID=pmsensors MQTT DeviceID=pmsensor11',
               'fields': ['time', 'pm25', 'pm10', 'temp', 'rv'],

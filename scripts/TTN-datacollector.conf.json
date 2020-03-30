@@ -1,0 +1,231 @@
+{
+"project": "MyOwn", // default project
+"LoRa": {
+        "hostname": "eu.thethings.network",
+        "port": 1883,
+        "devices": "201159az",
+        "account": "ttn-account-v2.GW3ms6a0jx4akBNZsXYC6r0q9icbPaKSfZjIOB2Ixts"
+       },
+// send notices node pattern, to...
+// more dynamic way to get notice addresses periodically
+// "noticefile": "TTN-datacollector.notices.json",
+"notice": [
+        [".*", "email:<ts+TTN@tnis.rog>"],
+        [".*event.*", "email:<te+TTNevent@tnis.rog>"],
+        // , "slack:hooks.slack.com/services/TGAH/BG8DFG1TNDP7CZ/QpNRRkAOJK1KxdYBwufylWl0", "slack:hooks.slack.com/services/T9W3RBL45EGNM/K730A/WkLjhxCj8urLQPN6G5eaBeSQ" ],
+        ["test.*", "email:<tes+TTNtest@tnis.rog>" ],
+    ],
+"from": "Notice from TTN data collector <noreply@arel.ln>",
+"SMTP": "lar.tnis.rog",
+// json file with nodes info, maybe overwritten via web admin
+"adminfile": "TTN-datacollector.nodes.json",
+// database info for nodes info handling via MySQL, here via CMS Drupal admin pages
+// probably supplied via process environment
+"adminDB": {
+    "host": "WEBHOST", "user": "WEBUSER", "pass": "WEBPASS", "db": "WEBDB"
+    },
+// the sensor products
+// DB dictionary with different sensors: type, producer, sensors/units
+// should go to a json file
+// types need to be capitalized
+// group classification is not used yet
+    "sensors": [
+            {  "type":"SDS011",
+                "producer":"Nova","group":"dust",
+                "fields":["pm25","pm10"],
+                "units":["ug/m3","ug/m3"],
+                "calibrations": [[0,1.0],[0,1.0]]},
+            // Sensirion standard ug/m3 measurements
+            {  "type":"SPS30",
+                "producer":"Sensirion","group":"dust",
+                "fields":["pm1","pm25","pm10","pm05_cnt","pm1_cnt","pm25_cnt","pm4_cnt","pm10_cnt","grain"],
+                "units":["ug/m3","ug/m3","ug/m3","pcs/cm3","pcs/cm3","pcs/cm3","pcs/cm3","pcs/cm3","um"],
+                "calibrations": [null,[0,1.0],[0,1.0]]}, // null is [0,1.0]
+            // Plantower standard ug/m3 measurements
+            {  "type":"PMS7003",
+                "producer":"Plantower","group":"dust",
+                "fields":["pm1","pm25","pm10","pm03_cnt","pm05_cnt","pm1_cnt","pm25_cnt","pm5_cnt","pm10_cnt","grain"],
+                "units":["ug/m3","ug/m3","ug/m3","pcs/dm3","pcs/dm3","pcs/dm3","pcs/dm3","pcs/dm3","pcs/dm3","um"],
+                "calibrations": [null,[0,1.0],[0,1.0]]}, // null is [0,1.0]
+            // Plantower the atmosphere ug/m3 measurements
+            {  "type":"PMS7003_ATM",
+                "producer":"Plantower","group":"dust",
+                "fields":["pm1_atm","pm25_atm","pm10_atm"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0]],
+                "units":["ug/m3","ug/m3","ug/m3"]
+                },
+            // Plantower the count particulates measurements
+            {  "type":"PMS7003_PCS",
+                "producer":"Plantower","group":"dust",
+                "fields":["pm03_pcs","pm05_pcs","pm1_pcs","pm25_pcs","pm5_pcs","pm10_pcs","grain"],
+                "units":["pcs/0.1dm3","pcs/0.1dm3","pcs/0.1dm3","pcs/0.1dm3","pcs/0.1dm3","pcs/0.1dm3","um"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0],[0,1.0],[0,1.0],[0,1.0],null]},
+            //{  "type": "PPD42NS",
+            //    "producer":"Shiney","group":"dust",
+            //    "fields":["pm25","pm10"],
+            //    "units":["pcs/0.01qft","pcs/0.01qft"],
+            //    "calibrations": [[0,1.0],[0,1.0]]},
+            //{  "type": "DC1100PRO",
+            //    "producer":"Dylos","group":"dust",
+            //    "fields":["pm25","pm10"],
+            //    "units":["pcs/0.01qft","pcs/0.01qft"],
+            //    "calibrations": [[0,1.0],[0,1.0]]},
+            //{  "type": "DHT22",
+            //    "producer":"Adafruit","group":"meteo",
+            //    "fields":["temp","rv"],"units":["C","%"],
+            //    "calibrations": [[0,1.0],[0,1.0]]},
+            {  "type": "BME280",
+                "producer":"Bosch","group":"meteo",
+                "fields":["temp","rv","luchtdruk"],
+                "units":["C","%","hPa"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0]]},
+            {  "type": "BME680",
+                "producer":"Bosch","group":"meteo",
+                "fields":["temp","rv","luchtdruk","gas", "aqi"],
+                "units":["C","%","hPa","kOhm","%"],
+                "calibrations": [[0,1],[0,1],[0,1],[0,1],[0,1]]},
+            {  "type": "TTN NODE",
+                "producer":"TTN","group":"LoRa",
+                "fields":["accu","light","temp"],
+                "units":["mV","lux","C"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0]]},
+            {  "type": "TTN EVENT",
+                "producer":"TTN","group":"LoRa",
+                "fields":["event","value"],
+                "units": ["id"],"calibrations": [null]},
+            {  "type": "NEO",
+                "producer":"NEO-6","group":"GPS",
+                "fields":["longitude","latitude","altitude","gps"],
+                "units": ["degrees","degrees","m","lon,lat,alt"],
+                "calibrations": [[0,1],[0,1],[0,1],null]},
+            {  "type": "PYCOM",
+                "producer": "ESP", "group":"controller",
+                "fields":["time"], "units":["sec"],"calibrations":[null]},
+            {  "type": "MYSENSE",
+                "producer": "BdP", "group": "IoS",
+                "fields": ["version","meteo","dust"],
+                "units": ["nr","type","type"],
+                "calibrations": [null,null,null,null,null]},
+            // not yet activated
+            { "type":"ToDo",
+                "producer":"Spect", "group":"gas",
+                "fields":["NO2","CO2","O3","NH3"],
+                "units":["ppm","ppm","ppm","ppm"],
+                "calibrations": [[0,1.0],[0,1.0],[0,1.0],[0,1.0]]},
+            { "type": "ENERGY",
+                "producer":"unknown", "group":"energy",
+                "fields":["accu"], "units": ["V"],"calibrations":[null]},
+            { "type": "WASPMOTE",
+              "producer":"Libelium", "group":"meteo",
+              "fields":["accu","temp","rv","luchtdruk","rain","prevrain","dayrain","wr","ws"],
+              "units":["%","C","%","hPa","mm","mm","mm","degrees","m/sec"],
+              "calibrations":[[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1]]}
+        ],
+// if only as payload in packed format
+// To Do: use reg exp, classID gives pointer to payload for a device
+    "classes": [
+        { "classID": "VW2017",    "regexp": "pmsensors/pmsensor[0-9]+(/[0-9])?"},
+        { "classID": "TTode",  "regexp": "202759az/2018[0-9a-zA-Z]+/[1-4]"},
+        { "classID": "LoNode", "regexp": "202159az/(lopyprototype20[12][0-9]{5}|(gl)-(ter)-(k[0-9]{1,3}|weersion|test)|lroto[0-9]*er[0-9]{8}|sk-20[21][0-9]{5}|(ps|lvc|mysense)-[a-f0-9]{4})"}
+        ],
+// To Do: create a handle from application/device to device config
+// appId eui, Dev eui and fport define the algorithm firmware to be used
+    "firmware": [
+        {
+          "id":      "V2017",       // size of payload as ident
+          "port2": {
+              "packing": ">HHHH",   // how it is packed, here 4 X unsigned int16/short
+              "adjust":  [[0,0.1],[0,0.1],[-20,0.1],[0,0.1]],  // unpack algorithm
+              "fields":  ["pm25","pm10","temp","rv"],          // fields
+              "sensors": ["SDS011","DHT22"]                  // use upper cased names
+            }
+        },
+        {
+          "id":      "Tnode",     // size of payload as ident
+          "port2": {
+              "packing": ">HHH",    // how it is packed, here 4 X unsigned int16/short
+              "fields":  ["battery","light","temp"],          // fields
+              "adjust":  [[0,1],[0,1],[0,0.01]], // unpack algorithm
+              "sensors": ["TTN node","TTN node","TTN node"] // use upper cased names
+            },
+          "port3": { "packing": ">B", "fields": ["interval"], "adjust": [[0,1]]  },
+          "port4": { "packing": ">B", "fields": ["motion"], "adjust": [[0,1]]  },
+          "port5": { "packing": ">B", "fields": ["button"], "adjust": [[0,1]]  }
+        },
+        {
+          "id": "LoPyNode",
+          "port2": {
+              // "packing": ">HHHHHHHHl", // [">HHHHHHHHl",">HHHHHHHHllll"]
+              "packing": [">HHHHHHHHl",">HHHHHHHHlll",">HHHHHHHHllll"], // [">HHHHHHHHl",">HHHHHHHHllll"]
+              // "fields": ["pm1","pm25","pm10","temperature","humidity","pressure","gas","aqi","time"],
+              "fields": ["pm1","pm25","pm10","temperature","humidity","pressure","gas","aqi","time","latitude","longitude","altitude"],
+              "adjust": [[0,0.1],[0,0.1],[0,0.1],[-30,0.1],[0,0.1],[0,1],[0,1],[0,0.1],[0,1]],
+              "sensors": ["PMS7003","SDS011","BME680","SPS30","BME280","NEO","PYCOM"]
+            },
+          "port4": {
+              // needs to be corrected
+              "packing": [">HHHHHHHHl",">HHHHHHHHlll",">HHHHHHHHllll"], // [">HHHHHHHHl",">HHHHHHHHllll"]
+              // "fields": ["pm1","pm25","pm10","temperature","humidity","pressure","gas","aqi","time"],
+              "fields": ["pm1","pm25","pm10","temperature","humidity","pressure","gas","aqi","time","latitude","longitude","altitude"],
+              "adjust": [[0,0.1],[0,0.1],[0,0.1],[-30,0.1],[0,0.1],[0,1],[0,1],[0,0.1],[0,1]],
+              "sensors": ["PMS7003","SDS011","SPS30","BME680","BME280","NEO","PYCOM","ENERGY"]
+            },
+          "port3": {
+               "packing": ">BBlll",
+                "fields": ["version","gps","meteo","dust","latitude","longitude","altitude","event","value"],
+                "adjust": [[0,0.1],null,null,null,[0,0.000001],[0,0.00001],[0,0.1],null,null],
+                "sensors": ["MYSENSE","NEO","TTN EVENT"],
+                "gps": ["unknown","NEO"],
+                "meteo": ["unknown","PPD42NS","SDS011","PMS7003","SPS30"],
+                "dust": ["unknown","DHT11","DHT22","BME280","BME680"]
+          },
+          "port10": {
+              // Libelium Wasnodes void,id,void,accu,temp,...
+              //"packing": ["<B11sB7sBBBBBfBfBfBfBfBfBBBf"],
+              "packing": ["<B11sB7sBBBBBfBfBfBfBfBfBBBf"], // (id,value),...
+              // every field has sensor id one byte
+              "nr2field": {"35": null, "239": "node", "60": null, "52": "accu", "74": "temp", "76": "rv","77":"luchtdruk","158":"rain","159":"prevrain","160":"dayrain","157":"wr","156":"ws"},
+              "fields": ["accu","temp","rv","luchtdruk","rain","prevrain","dayrain","wr","ws"],
+              "adjust": [[0,1],[0,1],[0,1],[0,0.01],[0,1],[0,1],[0,1],[0,1],[0,1]],
+              "sensors": ["WASPMOTE"],
+              "meteo": ["unknown"]
+          }
+        }
+    ],
+    "translate": {      // defs of used fields by MySense, do not change the keys
+        "pm03": ["pm0.3","PM0.3"],
+        "pm05": ["pm0.5","PM0.5"],
+        "pm1":  ["roet","soot"],
+        "pm25": ["pm2.5","PM2.5"],
+        "pm4":  ["pm4.0","PM4.0"],
+        "pm5":  ["pm5.0","PM5.0"],
+        "pm10": ["pm","PM"],
+        "O3":   ["ozon"],
+        "NH3":  ["ammoniak","ammonium"],
+        "NO2":  ["stikstof","stikstofdioxide","nitrogendioxide"],
+        "NO":   ["stikstof","stikstofoxide","nitrogenoxide"],
+        "CO2":  ["koolstofdioxide","carbondioxide"],
+        "CO":   ["koolstofmonoxide","carbonoxide"],
+        "temp": ["temperature"],
+        "luchtdruk": ["pressure","pres","pha","pHa"],
+        "rv":   ["humidity","hum","vochtigheid","vocht"],
+        "ws":   ["windspeed","windsnelheid"],
+        "wr":   ["windrichting","winddirection","direction","winddir"],
+        "altitude":  ["alt","hoogte","height"],
+        "longitude":  ["long","lon","lengte graad"],
+        "latitude":  ["lat","breedte graad"],
+        "gps": ["GPS","coordinates","geo","geolocation"],
+        "gas":  ["air"],
+        "aqi":  ["air quality","luchtkwaliteit","lki"],
+        "version": ["versie","release"],
+        "meteo": ["weer"],
+        "dust": ["fijnstof"],
+        "grain": ["korrel"],
+        "accu": ["accu","battery"],
+        "rain": ["regen","rain"],
+        "dayrain": ["dayrain"],
+        "prevrain": ["prevrain"],
+        "event": ["alarm"], "value": ["waarde"],
+        "time": ["utime","timestamp"]
+    }
+}

@@ -1,0 +1,25 @@
+{
+    // example not all entries are needed
+    "test-1": {
+        "project": "TEST", // to be defined
+        "serial": "08D7A33900", // to be defined
+        "GPS": { "altitude":16.9,"latitude":51.33815,"longitude":6.546818}, // home geo location
+        // optional:
+        "label":"LoPy adapt test",
+        "first": "25-4-2019", // date installed
+        "comment": "K10 MySense 5.60",
+        "meteo": "BME680", "dust": "PMSx003", "gps": "NEO",
+        // location details optional
+        "street": "K10", "pcode":"5192 GB",
+        "municipality": "Enlo", "village":"Egelen",
+        "province": "Burg",
+        // lora TTN keys optional
+        "DevEui":"00537FB02A9D77EF",
+        "AppSKEY":"AAEA57F8F634ADDB26AA703ACF3314BA",
+        "AppEui":"D70BD357E0D00A43",
+        "notice": "email:us@tis.org", // event notices to address slack or email
+        // output to channel:
+        "active": false, // no DB output
+        "luftdaten.info": false // no POST to Luftdaten
+        }
+}

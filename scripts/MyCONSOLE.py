@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyCONSOLE.py,v 2.11 2018/10/02 13:47:58 teus Exp teus $
+# $Id: MyCONSOLE.py,v 3.1 2020/03/30 18:45:02 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,7 +26,7 @@
     Relies on Conf setting biy main program
 """
 modulename='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.11 $"[11:-2]
+__version__ = "0." + "$Revision: 3.1 $"[11:-2]
 
 try:
     import MyLogger
@@ -51,32 +51,49 @@ Conf = {
 
 }
 
+colored = True
+try: from xtermcolor import colorize
+except: colored = False
+def printc(text, ansi=4):
+    global colored
+    try:
+        if colored: print(colorize(text,ansi=ansi))
+        return
+    except: pass
+    print(text)
+
 IdentSeen = {}
 def registrate(ident):
     global Conf
     fnd = None ; new = False
-    for Id in ("serial","label","geolocation","street",'apikey','intern_ip'):
-        if not ident[Id]:
+    # should be unique
+    for Id in ("serial","geolocation","street","label",'apikey','intern_ip'):
+        if not Id in ident.keys():
             continue
-        if ident[Id] in IdentSeen.keys():
-            fnd = ident[Id]
-            break
-        fnd = ident[Id]; new = True
+        else: fnd = ident[Id]
+        if (Id == "serial") and ('project' in ident.keys()):
+            fnd = '%s_%s' % (ident['project'],fnd)
+        if not fnd in IdentSeen.keys():
+            IdentSeen[fnd] = new = True
         break
     if not fnd:
         fnd = hash(ident)
-        if not fnd in IdentSeen.keys(): new = True
-    print 'ID: %s at %s' % (str(fnd),datetime.datetime.fromtimestamp(time()).strftime('%b %d %Y %H:%M:%S'))
-    if (not new) and (cmp(IdentSeen[fnd],ident) == 0): return  # ident is simular as previous
-    else: IdentSeen[fnd] = ident.copy()
-    fnd = True
-    for Id in ("project","serial","geolocation"):
-        if not Id in ident.keys():
-            print "Info: in ident record %s field is missing." % Id
-            fnd = False
-    if fnd:
-        print "%s registration of project %s, S/N %s, location %s:" % ('New' if new else 'Updated',ident['project'], ident['serial'],ident['geolocation'])
-    for Id in ("label","serial","description","street","village","province","municipality",'fields','units','calibrations','types','apikey','intern_ip','extern_ip','version'):
+        if not fnd in IdentSeen.keys():
+            IdentSeen[fnd] = new = True
+    try:
+        if ident['count'] == 1:
+            new = True
+        count = str(ident['count'])
+    except: count = '?'
+        
+    printc('ID: %s (#%s) at %s' % (str(fnd),count,datetime.datetime.fromtimestamp(time()).strftime('%b %d %Y %H:%M:%S')),18)
+    if not new: return  # ident is similar as previous
+    try:
+        printc("    Identity info of project %s S/N %s at geo location %s:" % (ident['project'], ident['serial'],ident['geolocation']),4)
+    except: pass
+    for Id in ("label","project","serial","description","comment","geolocation","coordinates","street","village","province","municipality",'fields','units','calibrations','types','apikey','intern_ip','extern_ip','version'):
+        if Id == 'geolocation': printc('    location details:',4)
+        elif Id == 'fields': printc('    sensor details:',4)
         if (Id in ident.keys() and (ident[Id] != None)):
             print "%15s: " % Id, ident[Id]
     print ''
@@ -125,8 +142,8 @@ def findInfo(ident,field):
     UT = ['','']   # (unit,sensor type)
     try:
         indx = ident['fields'].index(translate(field))
-        UT[0] = ('' if ident['units'][indx] == '%' else ' ') + ident['units'][indx] 
-        UT[1] = ' ' + ident['types'][indx]
+        UT[0] = ('' if ident['units'][indx] == '%' else '') + ident['units'][indx] 
+        UT[1] = '' + ident['types'][indx]
     except:
         pass
     finally:
@@ -154,11 +171,12 @@ def publish(**args):
         if not key in args.keys():
             MyLogger.log(modulename,'FATAL',"publish call missing argument %s." % key)
     registrate(args['ident'])
-    print "    %-14s: %s (%s)" % ('time',args['data']['time'],datetime.datetime.fromtimestamp(args['data']['time']).strftime("%Y-%m-%d %H:%M:%S"))
+    # printc('    sensor data:',4)
+    printc("    %-14s: %s (%s)" % ('time',args['data']['time'],datetime.datetime.fromtimestamp(args['data']['time']).strftime("%Y-%m-%d %H:%M:%S")),4)
     for item in sorted(args['data'].iterkeys()):
         if item != 'time':
             Unit,Type = findInfo(args['ident'],item)
-            print "\t%-10s: %s%s%s" % (item,args['data'][item],trans(Unit),Type)
+            print "\t%-10s: %-10.10s%-8.8s%s" % (item,args['data'][item],trans(Unit),Type)
 
 # test main loop
 if __name__ == '__main__':

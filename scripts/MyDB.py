@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 1.2 2019/11/27 10:10:55 teus Exp teus $
+# $Id: MyDB.py,v 3.1 2020/03/30 18:45:02 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 3.1 $"[11:-2]
 
 try:
     import MyLogger
@@ -51,7 +51,7 @@ Conf = {
     'database': None,    # MySQL database name
     'port': 3306,        # default mysql port number
     'fd': None,           # have sent to db: current fd descriptor, 0 on IO error
-    'omit' : ['time','geolocation','version','meteo','dust','gwlocation']        # fields not archived
+    'omit' : ['time','geolocation','coordinates','version','gps','meteo','dust','gwlocation']        # fields not archived
 }
 # ========================================================
 # write data directly to a database
@@ -63,7 +63,7 @@ def attributes(**t):
     Conf.update(t)
 
 # connect to db and keep connection as long as possible
-def db_connect(net):
+def db_connect(net = { 'module': True, 'connected': True }):
     """ Connect to MYsql database and save filehandler """
     global Conf
     if not 'fd' in Conf.keys(): Conf['fd'] = None
@@ -115,117 +115,118 @@ def db_connect(net):
     else:
         return Conf['output']
 
+# create table Sensors
+def CreateSensors():
+    try:
+        if db_query("""ALTER TABLE Sensors
+          ADD COLUMN coordinates VARCHAR(30) DEFAULT NULL COMMENT 'latitude,longitude[,altitude]',
+          ADD COLUMN label VARCHAR(50) DEFAULT NULL,
+          ADD COLUMN sensors VARCHAR(192) DEFAULT NULL COMMENT 'sensor types',
+          ADD COLUMN description VARCHAR(256) DEFAULT NULL COMMENT 'sensor value types',
+          ADD COLUMN comment VARCHAR(128) DEFAULT NULL,
+          ADD COLUMN first DATETIME DEFAULT '2001-01-01 00:00:00' COMMENT 'installation date',
+          ADD COLUMN active BOOL DEFAULT 1,
+          ADD COLUMN project VARCHAR(10) DEFAULT NULL,
+          ADD COLUMN serial VARCHAR(15) DEFAULT NULL,
+          ADD COLUMN notice VARCHAR(128) DEFAULT NULL,
+          ADD COLUMN street VARCHAR(50) DEFAULT NULL,
+          ADD COLUMN village VARCHAR(50) DEFAULT NULL,
+          ADD COLUMN pcode VARCHAR(10) DEFAULT NULL,
+          ADD COLUMN province VARCHAR(50) DEFAULT NULL,
+          ADD COLUMN municipality VARCHAR(50) DEFAULT NULL,
+          ADD COLUMN last_check DATETIME DEFAULT CURRENT_TIMESTAMP,
+          CHANGE datum datum datetime DEFAULT current_timestamp ON UPDATE current_timestamp
+        """, False):
+            return True
+    except: pass
+    return False
+
+
 # registrate the sensor to the Sensors table and update location/activity
 serials = {}     # remember serials of sensor kits checked in into table Sensors
 def db_registrate(ident):
     """ create or update identification inf to Sensors table in database """
     global Conf
-    if not 'serial' in ident.keys():
-        MyLogger.log(modulename,'DEBUG','serial missing in identification record')
+    try: tableID = '%s_%s' % (ident['project'],ident['serial'])
+    except:
+        MyLogger.log(modulename,'DEBUG','project or serial missing in identification record')
         return False
-    if ident['serial'] in serials.keys():
-        if cmp(ident,serials[ident['serial']]) == 0: return True
-        del serials[ident['serial']]
-    if len(ident['fields']) == 0:
-        return False
-    if not db_table(ident,'Sensors'):
-        return False
+    try: # new identity?
+        if ident['count'] == 1: del serials[tableID]
+    except: pass
+    if tableID in serials.keys(): return True
+    if len(ident['fields']) == 0: return False
+
+    if not db_table('Sensors') and not CreateSensors():
+        MyLogger.log(modulename,'FATAL','Unable to access Sensors table in DB')
+        exit(1)
+
     def db_WhereAmI(ident,desc=True):
         query = []
-        for fld in ("label","description","street","village","province","municipality"):
+        # [str(r[0]) for r in db_query("SELECT column_name FROM information_schema.columns WHERE  table_name = 'Sensors' AND table_schema = '%s'" % Conf['database'],True)]
+        for fld in ("label","description","street","village","province","municipality","coordinates"):
             if (fld == "description") and (not desc): continue
             if (fld in ident.keys()) and (ident[fld] != None):
                 query.append("%s = '%s'" % (fld,ident[fld]))
         if not len(query): return
-        db_query("UPDATE Sensors SET %s WHERE project = '%s' AND serial = '%s' AND active" % (','.join(query),ident['project'],ident['serial']),False)
+        try:
+            db_query("UPDATE Sensors SET %s WHERE project = '%s' AND serial = '%s' AND active" % (','.join(query),ident['project'],ident['serial']),False)
+        except: pass
         return
 
-    if not 'label' in [str(r[0]) for r in db_query("SELECT column_name FROM information_schema.columns WHERE  table_name = 'Sensors' AND table_schema = '%s'" % Conf['database'],True)]:
-        if not db_query("""ALTER TABLE Sensors
-            ADD COLUMN coordinates VARCHAR(30) DEFAULT NULL,
-            ADD COLUMN label VARCHAR(50) DEFAULT NULL,
-            ADD COLUMN sensors VARCHAR(192) DEFAULT NULL,
-            ADD COLUMN description VARCHAR(256) DEFAULT NULL,
-            ADD COLUMN first DATETIME DEFAULT '2001-01-01 00:00:00',
-            ADD COLUMN active BOOL DEFAULT 1,
-            ADD COLUMN project VARCHAR(10) DEFAULT NULL,
-            ADD COLUMN serial VARCHAR(15) DEFAULT NULL,
-            ADD COLUMN street VARCHAR(50) DEFAULT NULL,
-            ADD COLUMN village VARCHAR(50) DEFAULT NULL,
-            ADD COLUMN province VARCHAR(50) DEFAULT NULL,
-            ADD COLUMN municipality VARCHAR(50) DEFAULT NULL,
-            ADD COLUMN last_check DATETIME DEFAULT CURRENT_TIMESTAMP,
-            CHANGE datum datum datetime DEFAULT current_timestamp ON UPDATE current_timestamp
-        """, False):
-            return False
-    Rslt =  db_query("SELECT first,coordinates,datum,active FROM Sensors WHERE project = '%s' AND serial = '%s' ORDER BY datum DESC" % (ident['project'],ident['serial']), True)
-    if not type(Rslt) is list:
-        return False
-    serials[ident['serial']] = ident       # remember we know this one
-    first = 'now()'
-    fld_types = []
-    try:
-        ident['description'].index('hw:')
-        flds = ident['description'].split(';')
-        temp = []
-        for i in range(0,len(flds)):
-            if flds[i].find('hw:') >= 0:
-                flds[i] = flds[i].replace('hw:','').upper()
-                flds[i] = flds[i].replace(' ','')
-                temp += flds[i].split(',')
-        for i in temp:
-            if not i in fld_types: fld_types.append(i)
-    except: pass
-    try:
-        for i in ident['types']:
-            if not i.upper() in fld_types: fld_types.append(i.upper())
-    except: pass
-    if len(fld_types):
-        fld_types.sort()
-        fld_types  = "'"+ ";hw: %s" % ','.join(fld_types) + "'"
-    else:
-        fld_types = 'NULL'
-    fld_units = '' ; gotIts = []
-    for i in range(0,len(ident['fields'])):
-        if (ident['fields'][i] in Conf['omit']) or (ident['fields'][i] in gotIts):
-            continue
-        gotIts.append(ident['fields'][i])
-        if len(fld_units): fld_units += ','
-        fld_units += "%s(%s)" %(ident['fields'][i],ident['units'][i])
-    if len(fld_units):
-        fld_units ="'"+fld_units+"'"
-    else:
-        fld_units = 'NULL'
+    if not db_table(tableID): return False
+    serials[tableID] = True
+    # serials[tableID] = {}       # remember we know this one
+    # for item in ['fields','units','calibrations','types']: # no need to maintain this one
+    #     try: serials[tableID][item] = ident[item]
+    #     except: pass
 
-    if len(Rslt):
-        first = "'%s'" % Rslt[0][0]
-        for item in Rslt:
-            if item[1] == ident['geolocation']: # same location, update info
-                db_query("UPDATE Sensors SET last_check = now(), active = 1, sensors = %s, description = %s WHERE coordinates like '%s%%'  AND serial = '%s' AND datum = '%s'" % (fld_units,fld_types,','.join(ident['geolocation'].split(',')[0:2]),ident['serial'],item[2]) , False)
-                # MyLogger.log(modulename,'ATTENT',"Registrated (renew last access) %s  to database table Sensors." % ident['serial'])
-                db_WhereAmI(ident,desc=False)
-                Conf["registrated"] = True
-                return True
-            elif item[3]:  # deactivate this one
-                db_query("UPDATE Sensors SET active = 0 WHERE serial = '%s' AND datum = '%s' and active" % (ident['serial'],item[2]) , False)
-    # new entry or sensor kit moved
-    db_query("UPDATE Sensors SET active = 0 WHERE project = '%s' AND serial = '%s'" % (ident['project'],ident['serial']),False)
-    try:
-        db_query("INSERT INTO Sensors (project,serial,coordinates,sensors,description,last_check,first) VALUES ('%s','%s','%s',%s,%s,now(),%s)" % (ident['project'],ident['serial'],ident['geolocation'],fld_units,fld_types,first),False)
-    except:
-        pass
-    MyLogger.log(modulename,'ATTENT',"New registration to database table Sensors.")
-    db_WhereAmI(ident,True)
+    # may need to update in Sensors table from ident:
+    # first, coordinates, description ?
+    mayUpdate = ['first','coordinates','active','description','sensors']
+    Rslt = getNodeFields(None,mayUpdate,table='Sensors',project=ident['project'],serial=ident['serial'])
+    if not type(Rslt) is dict: return True
+    # collect description of sensors if new in this run
+    gotIts = [] # data fields to store in DB sensor table on column sensors
+    fld_units = ''
+    if ('fields' in ident.keys()) and ('units' in ident.keys()):
+        for i in range(len(ident['fields'])):
+            if (ident['fields'][i] in Conf['omit']) or (ident['fields'][i] in gotIts):
+                continue
+            gotIts.append(ident['fields'][i])
+            if len(fld_units): fld_units += ','
+            fld_units += "%s(%s)" %(ident['fields'][i],ident['units'][i])
+    ident['sensors'] = (fld_units if len(fld_units) else 'NULL')
+    if ('geolocation' in ident.keys()) and (not 'coordinates' in ident.keys()): # naming clash
+        ident['coordinates'] = ident['geolocation']
+
+    for item in mayUpdate:
+        try:
+            if not item in Rslt.keys(): Rslt[item] = ident[item]
+            elif Rslt[item] != ident[item]: Rslt[item] = ident[item]
+            else: del Rslt[item]
+        except: pass
+
+    # Sensors entry diffs from ident info on keys
+    mayUpdate = []; values = []
+    for item in Rslt.keys():
+        if len(str(Rslt[item])):
+            mayUpdate.append(item); values.append(Rslt[item])
+    if len(mayUpdate):
+        mayUpdate.append('last_check'); values.append('now()')
+        setNodeFields(None,mayUpdate,values,table='Sensors',project=ident['project'],serial=ident['serial'])
+        MyLogger.log(modulename,'INFO',"Updated registration proj %s: SN %s in database table 'Sensors'." % (ident['project'],ident['serial']))
     return True
 
 # do a query
 Retry = False
+# returns either True/False or an array of tuples
 def db_query(query,answer):
     """ communicate in sql to database """
-    global Conf
+    global Conf, Retry
     # testCnt = 0 # just for testing connectivity failures
     # if testCnt > 0: raise IOError
-    MyLogger.log(modulename,'DEBUG',"Query: %s" % query)
+    MyLogger.log(modulename,'DEBUG',"MySQL query: %s" % query)
     try:
         c = Conf['fd'].cursor()
         c.execute (query)
@@ -250,29 +251,251 @@ def db_query(query,answer):
             return False
         Retry = True
         MyLogger.log(modulename,'INFO',"Retry the query")
-        if dp_query(query,answer):
+        if db_query(query,answer):
             Retry = False
             return True
         MyLogger.log(modulename,'ERROR','Failed to redo query.')
         return False
     return True
 
+# create LoRa info table
+def CreateLoRaTable(table):
+    if not db_query("""CREATE TABLE %s (
+        id datetime UNIQUE  DEFAULT CURRENT_TIMESTAMP COMMENT 'date/time creation',
+        project VARCHAR(16) DEFAULT NULL COMMENT 'project id',
+        serial  VARCHAR(16) DEFAULT NULL COMMENT 'serial kit hex',
+        TTN_id  VARCHAR(32) DEFAULT NULL COMMENT 'TTN device topic name',
+        active  BOOLEAN     DEFAULT 0    COMMENT 'DB values enabled',
+        luftdatenID VARCHAR(16) DEFAULT NULL COMMENT 'if null use TTN-serial',
+        luftdaten BOOLEAN   DEFAULT 0    COMMENT 'POST to luftdaten',
+        datum   TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
+            ON UPDATE CURRENT_TIMESTAMP COMMENT 'last time changed',
+        DevAdd  VARCHAR(10) DEFAULT NULL COMMENT 'ABP device id Hex',
+        NwkSKEY VARCHAR(32) DEFAULT NULL COMMENT 'ABP network secret key Hex',
+        AppEui  VARCHAR(16) DEFAULT NULL COMMENT 'OTAA application id TTN',
+        DevEui  VARCHAR(16) DEFAULT NULL COMMENT 'OTAA device eui Hex',
+        AppSKEY VARCHAR(32) DEFAULT NULL COMMENT 'OTAA/ABP secret key Hex',
+        UNIQUE kit_id (project,serial)
+        ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='TTN info input table, output'""" % table,False):
+        MyLogger.log(modulename,'ERROR', 'Failed to create LoRa node table %s' % table)
+        return False
+    return True
+
+# table columns cache for global tables eg Sensors, TTNtable
+def TableColumns(table):
+    global Conf
+    if not table in Conf.keys(): return []
+    if not 'columns' in TableColumns.__dict__: TableColumns.columns = {}
+    if not table in TableColumns.columns.keys():
+        TableColumns.columns[table] = [str(r[0]) for r in db_query("DESCRIBE %s" % table, True)]
+    return TableColumns.columns[table]
+
+# push info dict into tables of DB: Sensors (Sensor kit location info) and TTN LoRa info
+# only used once to ship json info to database
+def putNodeInfo(info):
+    global Conf
+    if Conf['fd'] == None and not db_connect():
+        MyLogger.log(modulename,'FATAL','Unable to connect to DB')
+        exit(1)
+    for item in ['project','serial']:
+        if not item in info.keys():
+            MyLogger.log(modulename,'ERROR','Node info has no key item %s: %s' % (item,str(info)))
+            return False
+
+    # convert special cases
+    from dateutil.parser import parse
+    from time import mktime, sleep
+    for item in ('first','datum'): # convert human timestamp to POSIX timestamp
+        if item in info.keys():
+          try:
+            info[item] = int(mktime(parse(info[item], dayfirst=True, yearfirst=False).timetuple()))
+          except ValueError:
+            MyLogger.log(modulename,'ERROR', 'Unable to parse date %s from node info: %s. SKIPPED.' % (info[item],str(info)))
+            return False
+    if 'GPS' in info.keys():       # convert GPS to coordinates string
+        info['coordinates'] = ["0","0","0"]
+        for oord in info['GPS'].keys():
+            if oord.lower().find('lon'): info['coordinates'][0] = str(info['GPS'][oord])
+            elif oord.lower().find('lat'): info['coordinates'][1] = str(info['GPS'][oord])
+            elif oord.lower().find('alt'): info['coordinates'][2] = str(info['GPS'][oord])
+        info['coordinates'] = ','.join(info['coordinates'])
+    sensors = []                   # convert sensor types to ;hw: string
+    for item in ('dust','meteo','gps'):
+        try: sensors.append(info[item])
+        except: pass
+    if len(sensors): info['sensors'] = ';hw: ' + ','.join(sensors)
+    if 'luftdaten.info' in info.keys(): # convert to newer handling
+        if info['luftdaten.info']:
+            info['luftdaten'] = True
+            if type(info['luftdaten']) is str: info['luftdatenID'] = info['luftdaten.info']
+        else: info['luftdaten'] = False
+
+    # export info dict to DB tables update, if table not exists create it
+    for table in ['Sensors','TTNtable']:
+        if not db_table(table): continue
+        rts = db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % (table,info['project'],info['serial']), True)
+        if not len(rts): # insert a new row
+            sleep(2) # make sure id timestamp is unique
+            if not db_query("INSERT INTO %s (datum, project, serial) VALUES (now(),'%s','%s')" % (table,info['project'],info['serial']), False):
+                MyLogger.log(modulename,'ERROR','Cannot insert new row in table %s for project %s, serial %s' % (table,info['project'],info['serial']))
+                continue
+            rts = db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % (table,info['project'],info['serial']), True)
+        qry = []
+        for item in (set(TableColumns(table)) & set(info.keys())) - set(['project','serial','id']):
+            if item in ('first','datum'):
+                qry.append("%s = FROM_UNIXTIME(%d)" % (item,info[item]))
+            elif type(info[item]) is int:
+              qry.append( "%s = %d" % (item,info[item]))
+            elif type(info[item]) is bool:
+              qry.append( "%s = %d" % (item, (1 if info[item] else 0)))
+            else: qry.append("%s = '%s'" % (item,info[item]))
+        if not len(qry): continue
+        if not db_query("UPDATE %s SET %s WHERE UNIX_TIMESTAMP(id) = %d" % (table,', '.join(qry),rts[0][0]), False):
+            MyLogger.log(modulename,'ERROR','Updating node info for %s SN %s' % (info['project'],info['serial']))
+    return True
+    
+# get TTN_id's with changes later then timestamp in tables Sensors and TTNtable
+def UpdatedIDs(timestamp, field='TTN_id', table='TTNtable'):
+    global Conf
+    if Conf['fd'] == None and not db_connect():
+        MyLogger.log(modulename,'FATAL','Unable to connect to DB')
+        exit(1)
+    if not db_table('TTNtable') or not db_table('Sensors'):
+        MyLogger.log(modulename,'FATAL','Missing Sensors or TTNtable in DB')
+        exit(1)
+    rts = []
+    try:
+        qry = db_query('SELECT project, serial FROM %s WHERE UNIX_TIMESTAMP(datum) > %d' % (('Sensors' if table == 'TTNtable' else 'Sensors'),int(timestamp)), True)
+        sql = []
+        for one in qry:
+            sql.append("(project = '%s' and serial = '%s')")
+        sql = ' or '.join(sql)+' or '        
+        qry = db_query('SELECT DISTINCT %s FROM %s WHERE %s UNIX_TIMESTAMP(datum) > %d' % (field,table,int(timestamp)), True)
+        for one in qry: rts.append(one[0])
+    except: pass
+    return rts
+
+# get TTNtable id for a node
+def Topic2IDs(topic, active=None):
+    global Conf
+    if Conf['fd'] == None and not db_connect():
+        MyLogger.log(modulename,'FATAL','Unable to connect to DB')
+        exit(1)
+    if not db_table('TTNtable') or not db_table('Sensors'):
+        MyLogger.log(modulename,'FATAL','Missing Sensors or TTNtable in DB')
+        exit(1)
+    if active == None: active = ''
+    elif active: active = 'AND TTNtable.active'
+    else: active = 'AND not TTNtable.active'
+    indx = 0
+    try: indx = topic.index('/')+1
+    except: pass
+    # [SensorsTbl id,TTNtable id,POSIX time last measurement,measurements DB table]
+    rts = [0,0,0,'']
+    try:
+        qry = db_query("SELECT UNIX_TIMESTAMP(id) FROM TTNtable WHERE TTN_id = '%s' %s ORDER BY id DESC LIMIT 1" % (topic[indx:],active), True)
+        if len(qry) and qry[0][0]:
+            rts[1] = qry[0][0]
+            qry = db_query("SELECT UNIX_TIMESTAMP(Sensors.id), concat(TTNtable.project,'_',TTNtable.serial) FROM Sensors, TTNtable WHERE Sensors.project = TTNtable.project AND Sensors.serial = TTNtable.serial AND UNIX_TIMESTAMP(TTNtable.id) = %d %s ORDER BY Sensors.datum DESC, Sensors.active DESC LIMIT 1" % (rts[1],active), True)
+            if len(qry) and qry[0][0]: rts[0] = qry[0][0]
+            if len(qry) and len(qry[0][1]): # last datum measurements
+                qry = db_query("SELECT UNIX_TIMESTAMP(datum),'%s' FROM %s ORDER BY datum DESC LIMIT 1" % (qry[0][1],qry[0][1]), True)
+                if len(qry) and qry[0][0]:
+                    rts[2] = qry[0][0]
+                    rts[3] = qry[0][1]
+    except: pass
+    # UNIX timestamp Sensors id, UNIX timestamp TTNtable id, UNIX timestamp last measurement
+    return tuple(rts)
+
+# get a field/column value from a table. Fields maybe (prefeable) be a list
+def getNodeFields(id,fields,table='Sensors',project=None,serial=None):
+    if project and serial:
+        try:
+            qry = db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' AND active ORDER BY active DESC, datum DESC LIMIT 1" % (table,project,serial), True)
+        except: pass
+        if not len(qry): return None
+        id = qry[0][0]
+    if (type(fields) is str) and (fields == '*'): # wild card: all available
+        fields = TableColumns(table)
+    else: 
+        if not type(fields) is list:
+            fields = fields.split(',')
+        for item in fields:
+            item = item.strip()
+            if not item in TableColumns(table):
+                raise ValueError("DB table %s has no column %s" % (table,item))
+    values = []
+    for i in range(0,len(fields)):
+        if fields[i] in ['id','datum','first','last_check']: values.append('UNIX_TIMESTAMP(%s)' % fields[i])
+        else: values.append(fields[i])
+    qry = db_query("SELECT %s FROM %s WHERE UNIX_TIMESTAMP(id) = %d LIMIT 1" % (','.join(values),table,id),True)
+    if not len(qry): raise ValueError("No value for field %s in table %s found." % (','.join(fields),table))
+    elif len(qry[0]) == 1: return qry[0][0]
+    else:
+        rts = {}
+        for i in range(0,len(fields)): # check for Null, bool, number ???
+            if qry[0][i] != None:
+                rts[fields[i]] = qry[0][i]
+        return rts
+
+# update a list of fields and values in a DB table
+def setNodeFields(id,fields,values,table='Sensors',project=None,serial=None):
+    if project and serial:
+        try:
+            qry = db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' AND active ORDER BY datum DESC LIMIT 1" % (table,project,serial), True)
+        except: pass
+        if not len(qry): return None
+        id = qry[0][0]
+    if not type(fields) is list: fields = fields.split(',')
+    if not type(values) is list: values = fields.split(',')
+    if len(fields) != len(values):
+        raise ValueError("Set fields/values not same size for table %s." % table)
+    import re
+    Exp = re.compile('^([0-9]+(\.[0-9]+)?|(FROM_UNIXTIME|from_unixtime|now|NOW)\(.*\))', re.I)
+    qry = []
+    for i in range(len(values)):
+        if not fields[i] in TableColumns(table):
+            MyLogger.log(modulename,'ERROR','Set field %s not in table %s. SKIPPED.' % (fields[i],table))
+            continue
+        if type(values[i]) is bool: values[i] = ('1' if values[i] else '0')
+        elif values[i] == None: values[i] = 'NULL'
+        elif not Exp.match(values[i]): values[i] = "'%s'" % values[i]
+        qry.append('%s = %s' % (fields[i],values[i]))
+    if not len(qry): return True
+    try:
+        return(db_query('UPDATE %s SET %s WHERE UNIX_TIMESTAMP(id) = %d' % (table, ', '.join(qry), id),False))
+    except Exception as e:
+        MyLogger.log(modulename,'ERROR','Unable to update table %s. Error %s.' % (table,str(e)))
+        return False
+
 # check if table exists if not create it
-def db_table(ident,table):
+def db_table(table,create=True):
     """ check if table exists in the database if not create it """
     global Conf
+    if (not 'fd' in Conf.keys()) and not Conf['fd']:
+        try: db_connect()
+        except:
+            MyLogger.log(modulename,'FATAL','No MySQL connection available')
+            return False
     if (table) in Conf.keys():
         return True
     if table in [str(r[0]) for r in db_query("SHOW TABLES",True)]:
         Conf[table] = True
         return True
+    if not create: return False
     # create database: CREATE DATABASE  IF NOT EXISTS mydb; by super user
     if table in ('Sensors'):
         comment = 'Collection of sensor kits and locations'
         table_name = table
+    elif table == 'TTNtable':
+        Conf[table] = CreateLoRaTable(table); return Conf[table]
     else:
-        try: comment = 'Sensor located at: %s' % ident['geolocation']
-        except: comment = 'unknown location'
+        comment = 'unknown location'
+        ######## needs some work
+        for ordinates in ['geolocation','GPS','gps','coordinates']:
+            if ordinates in ident.keys():
+                comment = 'Sensor located at: %s' % str(ident[ordinates])
+                break
         table_name = '%s_%s' % (ident['project'],ident['serial'])
     if not db_query("""CREATE TABLE %s (
         id TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -349,6 +572,7 @@ def publish(**args):
             'default':     "DECIMAL(7,2) default NULL",
             "_valid":      "BOOL default 1"
         }
+
         fields = my_ident['fields']
         units = my_ident['units']
         add = []
@@ -380,16 +604,57 @@ def publish(**args):
         Conf["fields"][table] = fields
         return True
 
-    if not db_connect(args['internet']):
-        return False
+    # returns distance in meters between two GPS coodinates
+    # hypothetical sphere radius 6372795 meter
+    # courtesy of TinyGPS and Maarten Lamers
+    # should return 208 meter 5 decimals is diff of 11 meter
+    # GPSdistance((51.419563,6.14741),(51.420473,6.144795))
+    LAT = 0
+    LON = 1
+    ALT = 2
+    def GPSdistance(gps1,gps2):
+        from math import sin, cos, radians, pow, sqrt, atan2
+        delta = radians(float(gps1[LON])-float(gps2[LON]))
+        sdlon = sin(delta)
+        cdlon = cos(delta)
+        lat = radians(float(gps1[LAT]))
+        slat1 = sin(lat); clat1 = cos(lat)
+        lat = radians(float(gps2[LAT]))
+        slat2 = sin(lat); clat2 = cos(lat)
+     
+        delta = pow((clat1 * slat2) - (slat1 * clat2 * cdlon),2)
+        delta += pow(clat2 * sdlon,2)
+        delta = sqrt(delta)
+        denom = (slat1 * slat2) + (clat1 * clat2 * cdlon)
+        return int(round(6372795 * atan2(delta, denom)))
+
+    try: kitTableName = args['ident']['project']+'_'+args['ident']['serial']
+    except: return False
+    if not db_connect(args['internet']): return False
     if not db_registrate(args['ident']):
         MyLogger.log(modulename,'WARNING',"Unable to registrate the sensor.")
         return False
    
-    if not db_table(args['ident'],args['ident']["project"]+'_'+args['ident']["serial"]) or \
-        not db_fields(args['ident']):
+    if not db_table(kitTableName) or not db_fields(args['ident']):
         return False
-    query = "INSERT INTO %s_%s " % (args['ident']['project'],args['ident']['serial'])
+
+    try: # save on same ordinates in sensed GPS, most kits are static
+        geolocation = []
+        for item in ['geolocation','coordinates']:
+            if item in args['ident'].keys():
+                geolocation = args['ident'][item].split(',')
+                break
+        ordinates = ['latitude','longitude','altitude']
+        ordVal = []
+        for i in range(len(ordinates)):
+            try: ordVal.append(args['data'][ordinates[i]])
+            except: break
+        # static is less 100m
+        if (len(ordinates) == len(geolocation)) and (GPSdistance(geolocation,ordinates) < 100):
+            for item in ordinates: args['data'][item] = None
+    except: pass
+
+    query = "INSERT INTO %s " % kitTableName
     cols = ['datum']
     vals = ["FROM_UNIXTIME(%s)" % args['data']["time"]]
     gotIts = []
@@ -421,9 +686,9 @@ def publish(**args):
     query += "(%s) " % ','.join(cols)
     query += "VALUES (%s)" % ','.join(vals)
     try:
-        (cnt,) = db_query("SELECT count(*) FROM %s_%s WHERE datum = from_unixtime(%s)" % (args['ident']['project'],args['ident']['serial'],args['data']["time"]),True)
+        (cnt,) = db_query("SELECT count(*) FROM %s WHERE datum = from_unixtime(%s)" % (kitTableName,args['data']["time"]),True)
         if cnt[0] > 0: # overwrite old values
-            db_query("DELETE FROM %s_%s where datum = from_unixtime(%s)" % (args['ident']['project'],args['ident']['serial'],args['data']["time"]), False)
+            db_query("DELETE FROM %s where datum = from_unixtime(%s)" % (kitTableName,args['data']["time"]), False)
         if db_query(query,False): ErrorCnt = 0
         else: ErrorCnt += 1
     except IOError:
@@ -443,44 +708,80 @@ if __name__ == '__main__':
     Conf['database'] = 'luchtmetingen' # the MySql db for test usage, must exists
     Conf['user'] = 'IoS'              # user with insert permission of InFlux DB
     Conf['password'] = 'acacadabra'     # DB credential secret to use InFlux DB
-    net = { 'module': True, 'connected': True }
-    Output_test_data = [
-        { 'ident': {'geolocation': '?', 'description': 'MQTT AppID=pmsensors MQTT DeviceID=pmsensor2', 'fields': ['time', 'pm25', 'pm10', 'temp', 'rv'], 'project': 'VW2017', 'units': ['s', 'ug/m3', 'ug/m3', 'C', '%'], 'serial': 'XXXXXXX', 'types': ['time', u'SDS011', u'SDS011', 'DHT22', 'DHT22']},
-           'data': {'pm10': 3.6, 'rv': 39.8, 'pm25': 1.4, 'temp': 25, 'time': int(time())-24*60*60}},
-        { 'ident': {'description': 'MQTT AppID=pmsensors MQTT DeviceID=pmsensor1', 'fields': ['time', 'pm25', 'pm10', 'temp', 'rv'], 'project': 'VW2017', 'units': ['s', 'ug/m3', 'ug/m3', 'C', '%'], 'serial': 'XXXXXXX', 'types': ['time', u'SDS011', u'SDS011', 'DHT22', 'DHT22']},
-           'data': {'pm10': 3.6, 'rv': 39.8, 'pm25': 1.6, 'temp': 24, 'time': int(time())-23*60*60}},
-        { 'ident': { 'geolocation': '51.420635,6.1356117,22.9',
-            'version': '0.2.28', 'serial': 'test_sense',
-            'fields': ['time', 'pm_25', 'pm_10', 'dtemp', 'drh', 'temp', 'rh', 'hpa'],
-            'extern_ip': ['83.161.151.250'], 'label': 'alphaTest', 'project': 'BdP',
-            'units': ['s', 'pcs/qf', u'pcs/qf', 'C', '%', 'C', '%', 'hPa'],
-            'intern_ip': ['192.168.178.49', '2001:980:ac6a:1:83c2:7b8d:90b7:8750', '2001:980:ac6a:1:17bf:6b65:17d2:dd7a'],
-            'types': ['time','Dylos DC1100', 'Dylos DC1100', 'DHT22', 'DHT22', 'BME280', 'BME280', 'BME280'],
-            },
-        'data': {'drh': 29.3, 'pm_25': 318.0, 'temp': 28.75,
-            'time': 1494777772, 'hpa': 712.0, 'dtemp': 27.8,
-            'rh': 25.0, 'pm_10': 62.0 },
-        },
-        ]
-    #try:
-    #    import Output_test_data
-    #except:
-    #    print("Please provide input test data: ident and data.")
-    #    exit(1)
 
-    for cnt in range(0,len(Output_test_data)):
-        timings = time()
+    if not len(sys.argv) > 1: exit(0)
+    # get nodes info from a json file and update node info to DB
+    if  sys.argv[1:] != 'test':
+        MyLogger.Conf['level'] = 'INFO'
+        import json
+        from jsmin import jsmin     # tool to delete comments and compress json
         try:
-            publish(
-                ident = Output_test_data[cnt]['ident'],
-                data  = Output_test_data[cnt]['data'],
-                internet = net
-            )
-        except Exception as e:
-            print("output channel error was raised as %s" % e)
-            break
-        timings = 30 - (time()-timings)
-        if timings > 0:
-            print("Sleep for %d seconds" % timings)
-            sleep(timings)
+            new = {}
+            with open(sys.argv[1:][0]) as _typeOfJSON:
+                print('Importing nodes from json file %s' % sys.argv[1:][0])
+                new = jsmin(_typeOfJSON.read())
+            new = json.loads(new)
+        except IOError:
+            print('WARNING No node json file %s found' % sys.argv[1:][0])
+            exit(1)
+        except ValueError as e:
+            print('ERROR Json error in admin nodes file %s: %s' % (sys.argv[1:][0],e))
+            exit(1)
+        # if not db_connect():
+        #     print('ERROR Unable to connect to DB via Conf: %s' % str(Conf))
+        #     exit(1)
+        for item in new.items():
+            print('Importing node info for node %s' % item[0])
+            item[1]['TTN_id'] = item[0]
+            if not putNodeInfo(item[1]):
+                print('ERROR importing node %s info to DB' % item[0])
+        exit(0)
 
+    print("TEST modus with test measurement data.")
+
+    for i in range(1,len(sys.argv)):
+        if sys.argv[i] == 'TTN':
+            print(Topic2IDs("applicaties/gtl-kipster-k1"))
+            continue
+        if sys.argv[i] == 'Sensors':
+            print(getNodeFields(0,['street','municipality'], project="KIP", serial="788d27294ac5"))
+            print(getNodeFields(0,['TTN_id','datum'], table='TTNtable', project="KIP", serial="788d27294ac5"))
+            continue
+        #try:
+        #    import Output_test_data
+        #except:
+        #    print("Please provide input test data: ident and data.")
+        #    exit(1)
+        Output_test_data = [
+            { 'ident': {'coordinates': '0,0,0', 'description': 'MQTT AppID=pmsensors MQTT DeviceID=pmsensor2', 'fields': ['time', 'pm25', 'pm10', 'temp', 'rv'], 'DB': { 'kitTable': 'VW2017_XXXXXX' }, 'units': ['s', 'ug/m3', 'ug/m3', 'C', '%'], 'serial': 'XXXXXXX', 'types': ['time', u'SDS011', u'SDS011', 'DHT22', 'DHT22']},
+               'data': {'pm10': 3.6, 'rv': 39.8, 'pm25': 1.4, 'temp': 25, 'time': int(time())-24*60*60}},
+            { 'ident': {'description': 'MQTT AppID=pmsensors MQTT DeviceID=pmsensor1', 'fields': ['time', 'pm25', 'pm10', 'temp', 'rv'], 'DB': { 'kitTable': 'VW2017_XXXXXXX'}, 'units': ['s', 'ug/m3', 'ug/m3', 'C', '%'], 'serial': 'XXXXXXX', 'types': ['time', u'SDS011', u'SDS011', 'DHT22', 'DHT22']},
+               'data': {'pm10': 3.6, 'rv': 39.8, 'pm25': 1.6, 'temp': 24, 'time': int(time())-23*60*60}},
+            { 'ident': { 'coordinates': '6.1356117,51.420635,22.9',
+                'version': '0.2.28', 'DB': { 'kitTable': 'test_sense'},
+                'fields': ['time', 'pm_25', 'pm_10', 'dtemp', 'drh', 'temp', 'rh', 'hpa'],
+                'extern_ip': ['83.161.151.250'], 'label': 'alphaTest', 'project': 'BdP',
+                'units': ['s', 'pcs/qf', u'pcs/qf', 'C', '%', 'C', '%', 'hPa'],
+                'types': ['time','Dylos DC1100', 'Dylos DC1100', 'DHT22', 'DHT22', 'BME280', 'BME280', 'BME280'],
+                },
+            'data': {'drh': 29.3, 'pm_25': 318.0, 'temp': 28.75,
+                'time': 1494777772, 'hpa': 712.0, 'dtemp': 27.8,
+                'rh': 25.0, 'pm_10': 62.0 },
+            },
+            ]
+        for cnt in range(0,len(Output_test_data)):
+            timings = time()
+            try:
+                publish(
+                    ident = Output_test_data[cnt]['ident'],
+                    data  = Output_test_data[cnt]['data'],
+                    internet = net
+                )
+            except Exception as e:
+                print("output channel error was raised as %s" % e)
+                break
+            timings = 30 - (time()-timings)
+            if timings > 0:
+                print("Sleep for %d seconds" % timings)
+                sleep(timings)
+    
