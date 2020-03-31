@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.1 2020/03/30 18:45:02 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.2 2020/03/31 18:53:27 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.1 $"[11:-2]
+__version__ = "0." + "$Revision: 3.2 $"[11:-2]
 
 try:
     import MyLogger
@@ -187,6 +187,7 @@ def post2Luftdaten(headers,postdata,postTo):
         # print("Luftdaten POST to %s" % url)
         # print("Post headers: %s" % str(headers))
         # print("Post data   : %s" % str(postdata))
+        # continue
         prev = watchOn(url)
         try:
             r = requests.post(url, json=postdata, headers=headers)

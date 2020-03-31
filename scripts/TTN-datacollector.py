@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.1 2020/03/30 18:45:02 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.2 2020/03/31 18:53:27 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -35,7 +35,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.1 $"[11:-2]
+__version__ = "0." + "$Revision: 3.2 $"[11:-2]
 
 try:
     import MyLogger
@@ -58,7 +58,9 @@ except ImportError as e:
     exit(1)
 
 debug = False   # output only for debugging reasons, no export of data
-monitor = False # output monitoring info, no export of data
+monitor = None  # output monitoring info via proj/serial pattern, no export of data
+notices = True  # send notices of events
+ProcessStart = time()  # time of startup
 
 waiting = False          # waiting for telegram
 mid = None               # for logging: message ID
@@ -105,11 +107,12 @@ __options__ = [
         'classes',     # map appl/device to class of sensor kit config
         'sensors',     # sensor module types for 'dust', 'meteo' ...
         'timeout',     # timeout for no server active
-        'rate',        # expected rate of telegrams received
+        'rate',        # expected mininimal secs between telegrams per kit received
         'file',        # data input json records from file iso MQTT server
         'initfile',    # initialisation file with conf. info
         'nodesfile',   # nodes info mfile to be exported to DB
         'check',       # list of sensor fields to check for fluctuation faults
+        'monitor',     # pattern for project_serial to monitor for. '.*' (all)
         ]
 
 Conf = {
@@ -118,7 +121,7 @@ Conf = {
     'port': 1883,        # default MQTT port
     'user': 'account_name', 'password': 'ttn-account-v2.acacadabra',
     # credentials to access broker
-    'qos' : 0,           # dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
+    'qos' : 0,           # MQTT dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
     'cert' : None,       # X.509 encryption
     'project': 'XYZ',    # default prefix to unique device/serial number
     # + is a wild card in TTN
@@ -126,10 +129,12 @@ Conf = {
     'AppId': '+',        # to be fixed regular expression to accept AppId to subscribe to
     'DevAddr': '+',      # to be fixed regular expression to accept DevAddr numbers
     'timeout': 2*60*60,  # timeout for this broker
-    'rate':    7*60,     # expected time(out) between telegrams published
-                         # if data arrived < 1/5 of expected rate, to throttle?
+    'rate':    3*60,     # expected time(out) between telegrams published
+                         # if data arrived < expected rate, throttling
+                         # *2 is wait time to try to reconnect with MQTT server
     'check': ['temp','rv','pm10','pm25'], # sensor fields for fluctuation faults
                          # if measurement values do not fluctuate send notice sensor is broken
+    'monitor': '',       # do not monitor 
 
     # defines nodes, LoRa, firmware, classes, etc. for Configure info
     # this will read from a dump MQTT file, can be defined from command line file=..
@@ -913,12 +918,13 @@ def PubOrSub(topic,option):
                 break
             if time() > timeout: # give up
                 break
-            if time() > (tryAgain + Conf['rate']):
+            if time() > (tryAgain + Conf['rate']*2):
                 reConnect()
                 tryAgain = time()
                 MyLogger.log(modulename,'ATTENT','Try to reconnect with TTN MQTT broker')
             else: sleep(30)   # slow down
     except:
+        if str(sys.exc_info()[0]).find('KeyboardInterrupt') > 0: exit(1)
         MyLogger.log(modulename,'ERROR','Failure type: %s; value: %s. MQTT broker aborted.' % (sys.exc_info()[0],sys.exc_info()[1]) )
         Conf['input'] = False
         del Conf['fd']
@@ -1167,7 +1173,7 @@ def sendNotice(message,myID=None):
                         sendTo[one[0]].append(one[1].strip())
                 except: continue
         except: continue
-    if debug or monitor:
+    if debug:
         print("Send Notice to: %s" % str(sendTo))
         print("     Message  : %s" % str(message))
         if info: print("     Info: %s" % info)
@@ -1263,11 +1269,12 @@ def FluctCheck(myID,afld,avalue):
         return False
     MyLogger.log(modulename,'ERROR','kit %s has (malfunctioning) sensor field %s, which gives static value of %.2f.' (myID,afld,avalue))
     sendNotice('%s: kit %s has (malfunctioning) sensor field %s, which gives static value of %.2f.' % (datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"),myID,afld,avalue),myID=myID)
+    return False
 
 
 # convert MQTT structure to MySense ident,value structure
 def convert2MySense( data, **sensor):
-    global Conf, cached, previous, dirtyCaches, startedCache, debug
+    global Conf, cached, previous, dirtyCaches, startedCache, debug, ProcessStart
     global DB, WRSSI, WSNR
     def recordTranslate(arecord):
         new = {}
@@ -1342,17 +1349,19 @@ def convert2MySense( data, **sensor):
     now = time()
     # seen the kit before? If so need to throttle the kit?
     if cached[myID]['last_seen']: # update datagram frequency and throttle if needed so
-        if (not 'file' in Conf.keys()) and ((now - cached[myID]['last_seen']) < (Conf['rate']/5)):
+        if (not 'file' in Conf.keys()) and (cached[myID]['count'] > 2) and ((now - cached[myID]['last_seen']) < (Conf['rate'])):
+            cached[myID]['count'] += 1
             if not 'throttling' in cached[myID].keys():
                 cached[myID]['throttling'] = now
-                if monitor: print('%s Start throttling kit: %s\n' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),myID))
+                MyLogger.log(modulename,'ERROR','%s (re)start throttling kit: %s' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),myID))
                 raise ValueError('Start throttling kit: %s' % myID) # kit on drift
-            if debug: print('%s Throddling kit: %s\n' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),myID))
+            MyLogger.log(modulename,'DEBUG','%s Throddling kit: %s\n' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),myID))
             raise ValueError('Skip throttling kit: %s' % myID)       # still on drift
-        cached[myID]['interval'] = (cached[myID]['interval']*cached[myID]['count']+(max(now - cached[myID]['last_seen'],5*60)))/(cached[myID]['count']+1)
+        cached[myID]['interval'] = min((cached[myID]['interval']*cached[myID]['count']+(max(now - cached[myID]['last_seen'],5*60)))/(cached[myID]['count']+1),60*60)
     cached[myID]['count'] += 1
     if ('throttling' in cached[myID].keys()) and ((now - cached[myID]['throttling']) > 4*60*60):
-        if monitor: print('%s Reset throttling kit: %s\n' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),myID))
+        if monitor:
+            print('%s Reset throttling kit: %s\n' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),myID))
         del cached[myID]['throttling'] # reset throttling after 4 hours
 
     # maybe a datagram from unknown wild kit
@@ -1364,9 +1373,11 @@ def convert2MySense( data, **sensor):
         raise ValueError('unknown kit %s' % myID)  # skip this record
 
     # is this kit interrupted?
-    tstamp = 0
-    if cached[myID]['last_seen']: tstamp = time() - cached[myID]['last_seen']
+    tstamp = ProcessStart
     if (cached[myID]['count'] == 1):
+        tstamp = 0
+        if cached[myID]['last_seen']:
+            tstamp = time() - (cached[myID]['last_seen'] if cached[myID]['last_seen'] > ProcessStart else ProcessStart) 
         if not tstamp:
             MyLogger.log(modulename,'ATTENT','Kit %s is newly started.' % myID)
             sendNotice('Kit %s is newly started at time: %s' % (myID,datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M")),myID=myID)
@@ -1583,6 +1594,11 @@ def convert2MySense( data, **sensor):
     # to do limit wild card
     if not cached[myID]['identified']:
         Info['info'] = DB.getNodeFields(cached[myID]['DB']['SensorsID'],'*',table='Sensors')
+        if not len(Info['info']):  # unknown kit
+            if not (cached[myID]['count'] % 10):
+                MyLogger.log(modulename,'ATTENT','Unknown MySense kit %s. Skipped.' % myID)
+            cached[myID]['count'] += 1
+            return {}
         try: cached[myID]['active'] = Info['info']['active']
         except: pass
         for item in ['project','serial']:
@@ -1618,7 +1634,7 @@ def convert2MySense( data, **sensor):
         elif not cached[myID]['active'] and cached[myID]['count'] <= 1:
            MyLogger.log(modulename,'ATTENT','Record from not activated kit: %s_%s' % (ident['project'],ident['serial']))
            MyLogger.log(modulename,'DEBUG','Record from not activated kit: ident: %s, values: %s' % (str(ident),str(values)))
-           sendNotice('Not active (in test?) kit found: %s, project: %s, serial: %s' % (myID,ident['projerct'],ident['serial']),myID=myID)
+           sendNotice('Not active (in test?) kit found: %s, project: %s, serial: %s' % (myID,ident['project'],ident['serial']),myID=myID)
            # gotMetaInfo = True
         if not cached[myID]['active']: return {}
     except Exception as e:
@@ -1627,10 +1643,19 @@ def convert2MySense( data, **sensor):
     # assert len(values) > 0, len(ident) > 6
     # sendNotice('Got record ident: %s, data: %s' % (str(ident),str(values)), myID=myID)
     if monitor:
-        print("%s data from %s project %s, kit S/N-%s:\tcache count %d, interval %dm%ds" % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),myID.split('/')[1], ident['project'], ident['serial'],cached['count'],cached[myID]['interval']/60,cached[myID]['interval']%60))
+        if monitor.match(ident['project']+'_'+ident['serial']):
+            print("%s data from %s (%s_%s):\tcount %d%s" % (
+                datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),
+                myID.split('/')[1],
+                ident['project'],
+                ident['serial'],
+                cached[myID]['count'],
+                (', interval %dm%ds' % (cached[myID]['interval']/60,cached[myID]['interval']%60) if cached[myID]['interval'] < 60*60 else '')
+            ))
     elif ('check' in Conf.keys()) and (type(Conf['check']) is list):
         for item in Conf['check']:
-            try: FluctCheck(myID,item,value[item])
+            try:
+                if not FluctCheck(myID,item,values[item]): del values[item]
             except: pass
     return { 'ident': ident, 'data': values, 'myID': myID}
 
@@ -1733,7 +1758,10 @@ if __name__ == '__main__':
         sys.stderr.write("No initialisation file defined, use internal definitions.\n")
     # Conf['debug'] = True  # print output channel actions
     # allow: cmd file=abc user=xyz password=acacadabra
+    #            debug nonotices monitor or monitor=test.*
+    # and other Conf options
     #        cmd nodesfile=filename.json will only export nodes info to database
+    console = True; database = True; luftdaten = True
     for arg in sys.argv[1:]:
         indx = arg.find('=')
         if indx > 0:
@@ -1741,10 +1769,16 @@ if __name__ == '__main__':
             elif arg[indx+1:].lower() == 'true': Conf[arg[:indx].lower()] = True
             elif arg[indx+1:].isdigit(): Conf[arg[:indx].lower()] = int(arg[indx+1:])
             else: Conf[arg[:indx].lower()] = arg[indx+1:]
-        elif (arg.lower() == 'debug'):
-            debug = True
-        elif (arg.lower() == 'monitor'):
-            monitor = True
+        elif arg.lower() == 'debug': debug = True
+        elif arg.lower() == 'monitor': Conf['monitor'] = '.*'
+        elif arg.lower()[:6] == 'notice': notices = True
+        elif arg.lower()[:3] == 'no ':
+            if arg.lower()[3:9] == 'notice': notices = False
+            if arg.lower()[3:10] == 'console': console = False
+            if arg.lower()[3:11] == 'database': database = False
+            if arg.lower()[3:12] == 'luftdaten': luftdaten = False
+    if Conf['monitor']: monitor = re.compile(Conf['monitor'], re.I)
+    else: monitor = None
 
     error_cnt = 0
     # module: None load module on output True, 0 load module, other: module loaded
@@ -1752,13 +1786,13 @@ if __name__ == '__main__':
         {   'name': 'Console', 'script': 'MyCONSOLE', 'module': None,
             'timeout': time()-1,
             'Conf': {
-                'output': True, 'timeout': time()-1,
+                'output': console, 'timeout': time()-1,
             }
         },
         {   'name': 'MySQL DB', 'script': 'MyDB', 'module': 0, # 0 enable nodes info export to DB
             'timeout': time()-1,
             'Conf': {
-                'output': True,
+                'output': database,
                 # use credentials from environment
                 'hostname': None, 'database': 'luchtmetingen',
                 'user': None, 'password': None,
@@ -1767,7 +1801,7 @@ if __name__ == '__main__':
         {   'name': 'Luftdaten', 'script': 'MyLUFTDATEN', 'module': None,
             'timeout': time()-1,
             'Conf': {
-                'output': False,
+                'output': luftdaten,
                 'id_prefix': "TTN-", # prefix ID prepended to serial number of module
                 'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
                 'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
@@ -1804,7 +1838,7 @@ if __name__ == '__main__':
     if not Initialize():
         MyLogger.log(modulename,'FATAL','FATAL error on initialisation.')
         exit(1)
-    Conf['notice'][0] = [] # ########### turned off in test phase
+    if not notices: Conf['notice'][0] = [] # notices turned off in eg test phase
 
     # input from file or from MQTT LoRa TTN broker
     if not 'registrated' in Conf.keys(): Conf['registrated'] = None
@@ -1883,9 +1917,12 @@ if __name__ == '__main__':
             MyLogger.log(modulename,'INFO','Get data failed with %s' % e)
             print("FAILED record: ", record)
             continue
-        if (not type(record) is dict) or (len(record) < 2):
+        if (not type(record) is dict):
             MyLogger.log(modulename,'ATTENT','Data failure from LoRaWan data concentrator')
             error_cnt += 1
+            continue
+        elif not 'ident' in record.keys():
+            MyLogger.log(modulename,'DEBUG','Undefined record from LoRaWan data concentrator')
             continue
         cnt = 0
         if 'description' in record['ident'].keys():

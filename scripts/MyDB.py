@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.1 2020/03/30 18:45:02 teus Exp teus $
+# $Id: MyDB.py,v 3.2 2020/03/31 18:53:27 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.1 $"[11:-2]
+__version__ = "0." + "$Revision: 3.2 $"[11:-2]
 
 try:
     import MyLogger
@@ -429,7 +429,9 @@ def getNodeFields(id,fields,table='Sensors',project=None,serial=None):
         if fields[i] in ['id','datum','first','last_check']: values.append('UNIX_TIMESTAMP(%s)' % fields[i])
         else: values.append(fields[i])
     qry = db_query("SELECT %s FROM %s WHERE UNIX_TIMESTAMP(id) = %d LIMIT 1" % (','.join(values),table,id),True)
-    if not len(qry): raise ValueError("No value for field %s in table %s found." % (','.join(fields),table))
+    if not len(qry):
+       return {}
+       # raise ValueError("No value for field %s in table %s found." % (','.join(fields),table))
     elif len(qry[0]) == 1: return qry[0][0]
     else:
         rts = {}
