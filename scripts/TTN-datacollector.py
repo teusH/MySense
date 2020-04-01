@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.3 2020/04/01 11:17:30 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.6 2020/04/01 11:59:53 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -35,7 +35,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.3 $"[11:-2]
+__version__ = "0." + "$Revision: 3.6 $"[11:-2]
 
 try:
     import MyLogger
@@ -1248,19 +1248,19 @@ def TTNtopic2IDs(topic):
 InvalidSensed = {
     'accu':     [0,120],
     'aqi':      [0,100],
-    'gas':      [0,2000],
+    'gas':      [0,4000],
     'grain':    [0,100],
     'altitude': [-300,500],
     'latitude': [-90,90],
     'longitude':[-180,180],
-    'pm05_cnt': [0,10000],
+    'pm05_cnt': [0,25000],
     'pm1':      [0,1000],
     'pm10':     [0,1000],
-    'pm10_cnt': [0,10000],
-    'pm1_cnt':  [0,10000],
+    'pm10_cnt': [0,25000],
+    'pm1_cnt':  [0,25000],
     'pm25':     [0,1000],
-    'pm25_cnt': [0,10000],
-    'pm5_cnt':  [0,10000],
+    'pm25_cnt': [0,25000],
+    'pm5_cnt':  [0,25000],
     'luchtdruk':[500,1500],
     'rv':       [0,100],
     'temp':     [-50,80],
@@ -1281,7 +1281,7 @@ def ValidValue(myID,afld,avalue):
         if cached[myID]['invalids'][afld] > 100: del cached[myID]['invalids'][afld]
     except:
         cached[myID]['invalids'][afld] = 0
-        MyLogger.log(modulename,'ATTENT','Kit %s generates for sensor %s out of band values.' % (myID,afld))
+        MyLogger.log(modulename,'ATTENT','Kit %s generates for sensor %s(5.2f) out of band values.' % (myID.split('/')[1],afld,avalue))
     return False
 
 # check for sensor field value fluctuation, no fluctuation give notice
