@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.2 2020/03/31 18:53:27 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.3 2020/04/01 11:17:30 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -35,7 +35,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.2 $"[11:-2]
+__version__ = "0." + "$Revision: 3.3 $"[11:-2]
 
 try:
     import MyLogger
@@ -132,7 +132,7 @@ Conf = {
     'rate':    3*60,     # expected time(out) between telegrams published
                          # if data arrived < expected rate, throttling
                          # *2 is wait time to try to reconnect with MQTT server
-    'check': ['temp','rv','pm10','pm25'], # sensor fields for fluctuation faults
+    'check': ['luchtdruk','temp','rv','pm10','pm25'], # sensor fields for fluctuation faults
                          # if measurement values do not fluctuate send notice sensor is broken
     'monitor': '',       # do not monitor 
 
@@ -1244,6 +1244,46 @@ def TTNtopic2IDs(topic):
     except: MyLogger.log(modulename,'FATAL','No database connection')
     return (None,None,'') # (SensorsID,TTNtableID,project_serial)
     
+# invalid sensor value: name [min,max]
+InvalidSensed = {
+    'accu':     [0,120],
+    'aqi':      [0,100],
+    'gas':      [0,2000],
+    'grain':    [0,100],
+    'altitude': [-300,500],
+    'latitude': [-90,90],
+    'longitude':[-180,180],
+    'pm05_cnt': [0,10000],
+    'pm1':      [0,1000],
+    'pm10':     [0,1000],
+    'pm10_cnt': [0,10000],
+    'pm1_cnt':  [0,10000],
+    'pm25':     [0,1000],
+    'pm25_cnt': [0,10000],
+    'pm5_cnt':  [0,10000],
+    'luchtdruk':[500,1500],
+    'rv':       [0,100],
+    'temp':     [-50,80],
+    'wr':       [0,360],
+    'ws':       [0,50],
+    'rain':     [0,100],
+}
+# check for valid value of sensed data
+def ValidValue(myID,afld,avalue):
+    global cached
+    try:
+        if InvalidSensed[afld][0] <=  avalue <= InvalidSensed[afld][1]:
+            return True
+    except: return True
+    if not 'invalids' in cached[myID]: cached[myID]['invalids'] = {}
+    try:
+        cached[myID]['invalids'][afld] += 1
+        if cached[myID]['invalids'][afld] > 100: del cached[myID]['invalids'][afld]
+    except:
+        cached[myID]['invalids'][afld] = 0
+        MyLogger.log(modulename,'ATTENT','Kit %s generates for sensor %s out of band values.' % (myID,afld))
+    return False
+
 # check for sensor field value fluctuation, no fluctuation give notice
 # if not present initialize cache entry
 # reset after 100, notice once after 20 times same value. To do: use interval timings
@@ -1653,7 +1693,9 @@ def convert2MySense( data, **sensor):
                 (', interval %dm%ds' % (cached[myID]['interval']/60,cached[myID]['interval']%60) if cached[myID]['interval'] < 60*60 else '')
             ))
     elif ('check' in Conf.keys()) and (type(Conf['check']) is list):
-        for item in Conf['check']:
+        for item in values.keys(): # out of band values
+            if not ValidValue(myID,item,values[item]): del values[item]
+        for item in Conf['check']: # malfunctioning sensors
             try:
                 if not FluctCheck(myID,item,values[item]): del values[item]
             except: pass
