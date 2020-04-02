@@ -1,5 +1,5 @@
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
-# $Id: main.py,v 1.21 2020/03/09 10:46:54 teus Exp teus $
+# $Id: main.py,v 1.22 2020/04/02 15:38:42 teus Exp teus $
 
 def setWiFi():
   try:
@@ -16,13 +16,17 @@ def setWiFi():
     wlan.init(mode=WLAN.AP,ssid=W_SSID, auth=(WLAN.WPA2,PASS), channel=7, antenna=WLAN.INT_ANT)
   except: pass
 
+from machine import wake_reason, PWRON_WAKE, RTC_WAKE
+from pycom import wifi_on_boot
+if (not wifi_on_boot()) and (wake_reason()[0] == PWRON_WAKE):
+    wifi_on_boot(True) # wokeup from power cycle, reset wifi
+if wifi_on_boot(): setWiFi() # might be switched off after 60 min
+
 def runMySense():
   import MySense
   MySense.runMe()  # should never return
   import myReset   # cold reboot or sleep forever
   myReset.myEnd()
-
-setWiFi() # will be switched off after 60 min
 
 from machine import wake_reason, PWRON_WAKE, RTC_WAKE
 if wake_reason()[0] == RTC_WAKE:  # wokeup from deepsleep

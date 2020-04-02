@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.74 2020/03/13 08:35:31 teus Exp teus $
+# $Id: MySense.py,v 5.75 2020/04/02 15:38:42 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.74 $"[11:-2]
+__version__ = "0." + "$Revision: 5.75 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -295,6 +295,7 @@ def initConfig(debug=False):
     nvs_set('count',0)
 
 def DEEPSLEEP(secs,debug=False):
+   global MyConfiguration
    print('Deepsleep of %d secs' % secs)
    MyMark(82)
    PinPower(atype=['gps','dust'],on=False ,debug=debug) # cure RTC fail?
@@ -302,6 +303,11 @@ def DEEPSLEEP(secs,debug=False):
    if secs <= 30:
      print("May not happen")
      return
+   try: 
+     if MyConfiguration['power']['wifi']: # no wifi during boot
+       from pycom import wifi_on_boot
+       if wifi_on_boot(): wifi_on_boot(False)
+   except: pass
    from machine import deepsleep
    deepsleep(secs*1000)
    # never arrive here: warm reboot
