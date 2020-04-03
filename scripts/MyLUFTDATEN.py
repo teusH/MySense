@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.2 2020/03/31 18:53:27 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.3 2020/04/03 18:38:01 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.2 $"[11:-2]
+__version__ = "0." + "$Revision: 3.3 $"[11:-2]
 
 try:
     import MyLogger
@@ -113,9 +113,9 @@ def sendLuftdaten(ident,values):
     global __version__, Conf
     # the Luftdaten API json template
     # suggest to limit posts and allow one post with multiple measurements
-    if ('luftdaten' in ident.keys()) and (not type(ident['luftdaten']) is bool): # use non default Luftdaten ID
+    if 'luftdaten.info' in ident.keys():
         headers = {
-            'X-Sensor': Conf['id_prefix'] + str(ident['luftdaten']),
+            'X-Sensor': Conf['id_prefix'] + str(ident['luftdaten.info']),
         }
     else:
         headers = {
@@ -194,7 +194,10 @@ def post2Luftdaten(headers,postdata,postTo):
             # MyLogger.log(modulename,'INFO','Post to: %s' % url)
             MyLogger.log(modulename,'DEBUG','Post returned status: %d' % r.status_code)
             if not r.ok:
-                MyLogger.log(modulename,'ERROR','Post to %s with status code: %d' % (headers['X-Sensor'],r.status_code))
+                if r.status_code == 403:
+                  MyLogger.log(modulename,'ERROR','Post to %s with status code: forbidden (%d)' % (headers['X-Sensor'],r.status_code))
+                else:
+                  MyLogger.log(modulename,'ATTENT','Post to %s with status code: %d' % (headers['X-Sensor'],r.status_code))
         except requests.ConnectionError as e:
             MyLogger.log(modulename,'ERROR','Connection error: ' + str(e))
             rts = False

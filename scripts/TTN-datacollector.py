@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.6 2020/04/01 11:59:53 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.7 2020/04/03 18:38:01 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -35,7 +35,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.6 $"[11:-2]
+__version__ = "0." + "$Revision: 3.7 $"[11:-2]
 
 try:
     import MyLogger
@@ -765,9 +765,12 @@ def getIdent(info,Cached):
     if not 'exports' in Cached.keys():
         Cached['exports'] = {}
         for one in OutputChannels: Cached['exports'][one['name']] = None
-    try: Cached['exports']['Luftdaten'] = info['output']['luftdaten']
-    except: Cached['exports']['Luftdaten'] = None # also not to madavi
-    try: Cached['exports']['Luftdaten'] = info['output']['luftdaten.info']
+    try:
+        Cached['exports']['Luftdaten'] = (True if info['output']['luftdaten'] else False)
+    except: Cached['exports']['Luftdaten'] = None
+    try: Cached['exports']['Luftdaten.info'] = info['output']['luftdaten.info']
+    except: pass
+    try: ident['luftdaten.info'] = Cached['exports']['Luftdaten.info']
     except: pass
     ident['luftdaten'] = Cached['exports']['Luftdaten']
     # next: ident/active: activated, ident/activeDB: export to DB
@@ -1248,7 +1251,7 @@ def TTNtopic2IDs(topic):
 InvalidSensed = {
     'accu':     [0,120],
     'aqi':      [0,100],
-    'gas':      [0,4000],
+    'gas':      [0,6000],
     'grain':    [0,100],
     'altitude': [-300,500],
     'latitude': [-90,90],
@@ -1281,7 +1284,7 @@ def ValidValue(myID,afld,avalue):
         if cached[myID]['invalids'][afld] > 100: del cached[myID]['invalids'][afld]
     except:
         cached[myID]['invalids'][afld] = 0
-        MyLogger.log(modulename,'ATTENT','Kit %s generates for sensor %s(5.2f) out of band values.' % (myID.split('/')[1],afld,avalue))
+        MyLogger.log(modulename,'ATTENT','Kit %s generates for sensor %s(%5.2f) out of band values.' % (myID.split('/')[1],afld,avalue))
     return False
 
 # check for sensor field value fluctuation, no fluctuation give notice
@@ -1393,7 +1396,7 @@ def convert2MySense( data, **sensor):
             cached[myID]['count'] += 1
             if not 'throttling' in cached[myID].keys():
                 cached[myID]['throttling'] = now
-                MyLogger.log(modulename,'ERROR','%s (re)start throttling kit: %s' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),myID))
+                MyLogger.log(modulename,'ERROR','%s (re)start throttling kit: %s (rate %d < throttle %d secs).' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),myID.split('/')[1],now - cached[myID]['last_seen'],Conf['rate']))
                 raise ValueError('Start throttling kit: %s' % myID) # kit on drift
             MyLogger.log(modulename,'DEBUG','%s Throddling kit: %s\n' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),myID))
             raise ValueError('Skip throttling kit: %s' % myID)       # still on drift
@@ -1925,6 +1928,7 @@ if __name__ == '__main__':
             MyLogger.log(modulename,'FATAL','To many input errors. Stopped broker')
             sendNotice('Too many TTN MQTT server input errors. Try to restart the data collecting server %s' % socket.getfqdn(),myID='all/event')
             exit(1)
+        record = {}
         try:
             record = getdata()
         except ValueError as e:
