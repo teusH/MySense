@@ -1,5 +1,5 @@
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
-# $Id: main.py,v 1.22 2020/04/02 15:38:42 teus Exp teus $
+# $Id: main.py,v 1.23 2020/04/03 18:41:56 teus Exp teus $
 
 def setWiFi():
   try:
@@ -16,11 +16,29 @@ def setWiFi():
     wlan.init(mode=WLAN.AP,ssid=W_SSID, auth=(WLAN.WPA2,PASS), channel=7, antenna=WLAN.INT_ANT)
   except: pass
 
+def ReplMode():
+  REPL = False
+  from machine import Pin
+  # change next to False in operational modus
+  try:
+    from Config import REPL
+  except: pass
+  try:
+    from Config import replPin # if not in config act in old style
+    if not Pin(replPin,mode=Pin.IN).value():
+      print("REPL enforced, pin %s" % str(REPL))
+      return True
+  except: pass
+  return REPL
+
+
 from machine import wake_reason, PWRON_WAKE, RTC_WAKE
-from pycom import wifi_on_boot
-if (not wifi_on_boot()) and (wake_reason()[0] == PWRON_WAKE):
-    wifi_on_boot(True) # wokeup from power cycle, reset wifi
-if wifi_on_boot(): setWiFi() # might be switched off after 60 min
+try:
+    from pycom import wifi_on_boot
+    if (not wifi_on_boot()) and (wake_reason()[0] == PWRON_WAKE):
+        wifi_on_boot(True) # wokeup from power cycle, reset wifi
+    if ReplMode() or wifi_on_boot(): setWiFi() # might be switched off after 60 min
+except: setWiFi()
 
 def runMySense():
   import MySense
@@ -29,44 +47,30 @@ def runMySense():
   myReset.myEnd()
 
 from machine import wake_reason, PWRON_WAKE, RTC_WAKE
-if wake_reason()[0] == RTC_WAKE:  # wokeup from deepsleep
-  from machine import ADC, Pin
-  accuPin = 'P17'
-  try: from Config import accuPin
-  except: pass
-  volt = (ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB).value())*0.004271845
-  if 1.0 < volt < 10.0: # wait for sun
-    from machine import deepsleep
-    deepsleep(60*60*1000) # one hour
-if wake_reason()[0] != PWRON_WAKE:
-  runMySense()
-else: # work around fake wakeup
-  try:
-    from pycom import nvs_get
-    from time import ticks_ms
-    if nvs_get('AlarmSlp')*1000 < ticks_ms():
-      runMySense() # reboot from deepsleep
-  except: pass
+if not ReplMode():
+  if wake_reason()[0] == RTC_WAKE:  # wokeup from deepsleep
+    from machine import ADC, Pin
+    accuPin = 'P17'
+    try: from Config import accuPin
+    except: pass
+    volt = (ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB).value())*0.004271845
+    if 1.0 < volt < 10.0: # wait for sun
+      from machine import deepsleep
+      deepsleep(60*60*1000) # one hour
+  if wake_reason()[0] != PWRON_WAKE:
+    runMySense()
+  else: # work around fake wakeup
+    try:
+      from pycom import nvs_get
+      from time import ticks_ms
+      if nvs_get('AlarmSlp')*1000 < ticks_ms():
+        runMySense() # reboot from deepsleep
+    except: pass
 
-# arrived from power cycle
-from machine import Pin
-# change next to False in operational modus
-REPL = False
-try:
-  from Config import REPL
-except: pass
-try:
-  from Config import replPin # if not in config act in old style
-  if not Pin(replPin,mode=Pin.IN).value():
-    REPL = True
-    print("REPL enforced, pin %s" % str(REPL))
-  else: REPL = False
-except: pass
-
-if not REPL:
+  # arrived from power cycle
   runMySense()
 
-# go into REPL mode
+# go into REPL mode, wifi On
 print("No auto MySense start\nTo start MySense loop (reset config, cleanup nvs):")
 print("  import MySense; MySense.runMe(debug=False,reset=True)")
 try:
