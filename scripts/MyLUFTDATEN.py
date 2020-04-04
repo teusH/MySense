@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.3 2020/04/03 18:38:01 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.4 2020/04/04 12:35:17 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.3 $"[11:-2]
+__version__ = "0." + "$Revision: 3.4 $"[11:-2]
 
 try:
     import MyLogger
@@ -113,9 +113,9 @@ def sendLuftdaten(ident,values):
     global __version__, Conf
     # the Luftdaten API json template
     # suggest to limit posts and allow one post with multiple measurements
-    if 'luftdaten.info' in ident.keys():
+    if 'luftdatenID' in ident.keys():
         headers = {
-            'X-Sensor': Conf['id_prefix'] + str(ident['luftdaten.info']),
+            'X-Sensor': Conf['id_prefix'] + str(ident['luftdatenID']),
         }
     else:
         headers = {

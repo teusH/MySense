@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.7 2020/04/03 18:38:01 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.9 2020/04/04 14:26:02 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -35,7 +35,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.7 $"[11:-2]
+__version__ = "0." + "$Revision: 3.9 $"[11:-2]
 
 try:
     import MyLogger
@@ -530,7 +530,7 @@ def Initialize():
                     'meteo': 'BME280',   # meteo sensor type
                     'dust': 'SDS011',    # dust sensor type
                     'gps': 'NEO-6',      # GPS sensor
-                    'luftdaten.info': False,     # forward to Open Data Germany?
+                    'luftdaten': False,     # forward to Open Data Germany?
                     'active': False,
                 }
             }
@@ -739,7 +739,7 @@ def payload2fields(payload, firmware, portNr):
 # (Pdb) p Info['info'].keys()
 # ['province','description','municipality','datum','coordinates','label','project','street','village','active','sensors','last_check','id','comment','serial','first']
 # (Pdb) p ident['output'].keys()
-# ['AppEui','AppSKEY','datum','id','project','active','DevEui','TTN_id','serial','luftdaten','luftdaten.info'}
+# ['AppEui','AppSKEY','datum','id','project','active','DevEui','TTN_id','serial','luftdaten','luftdatenID'}
 # 
 # (Pdb) p ident.keys()
 # ['province','geolocation','description','luftdaten','municipality','street','village','active','sensors','serial','types','fields','label','project','pcode','units','calibrations']
@@ -768,13 +768,15 @@ def getIdent(info,Cached):
     try:
         Cached['exports']['Luftdaten'] = (True if info['output']['luftdaten'] else False)
     except: Cached['exports']['Luftdaten'] = None
-    try: Cached['exports']['Luftdaten.info'] = info['output']['luftdaten.info']
+    try: Cached['exports']['LuftdatenID'] = info['output']['luftdatenID']
     except: pass
-    try: ident['luftdaten.info'] = Cached['exports']['Luftdaten.info']
+    try: ident['luftdatenID'] = Cached['exports']['LuftdatenID']
     except: pass
     ident['luftdaten'] = Cached['exports']['Luftdaten']
     # next: ident/active: activated, ident/activeDB: export to DB
     try: Cached['exports']['MySQL DB'] = info['output']['active']
+    except: pass
+    try: ident['active'] =  Cached['exports']['MySQL DB']
     except: pass
     
     return ident
@@ -1655,6 +1657,7 @@ def convert2MySense( data, **sensor):
                 Info['info']['coordinates'] = '%.6f,%.6f,%.1f' % (values['latitude'],values['longitude'],values['altitude'])
                 # update Sensors table
                 DB.setNodeFields(cached[myID]['DB']['SensorsID'],'coordinates',Info['info']['coordinates'])
+                MyLogger.log(modulename,'ATTENT','Update home location coordinates (%s) for kit (%s) in Sensors DB table.' % (Info['info']['coordinates'],myID.split('/')[1]))
             elif ('latitude' in values.keys()) and ('longitude' in values.keys()):
                 # delete small changes from home location in GPS measurement
                 if GPSdistance(coordinates,(values['latitude'],values['longitude'])) < 100: # should be > 100 meter from std location
