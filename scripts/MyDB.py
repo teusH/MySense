@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.2 2020/03/31 18:53:27 teus Exp teus $
+# $Id: MyDB.py,v 3.3 2020/04/11 11:33:37 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,10 +27,9 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.2 $"[11:-2]
+__version__ = "0." + "$Revision: 3.3 $"[11:-2]
 
 try:
-    import MyLogger
     import sys
     import os
     import mysql
@@ -38,7 +37,7 @@ try:
     import datetime
     from time import time
 except ImportError as e:
-    MyLogger.log(modulename,'FATAL',"One of the import modules not found: %s"% e)
+    sys.exit("FATAL: One of the import modules not found: %s"% e)
 
 # configurable options
 __options__ = ['output','hostname','port','database','user','password']
@@ -50,7 +49,8 @@ Conf = {
     'password': None,    # DB credential secret to use MySQL DB
     'database': None,    # MySQL database name
     'port': 3306,        # default mysql port number
-    'fd': None,           # have sent to db: current fd descriptor, 0 on IO error
+    'fd': None,          # have sent to db: current fd descriptor, 0 on IO error
+    'log': None,         # MyLogger log routiune
     'omit' : ['time','geolocation','coordinates','version','gps','meteo','dust','gwlocation']        # fields not archived
 }
 # ========================================================
@@ -66,6 +66,9 @@ def attributes(**t):
 def db_connect(net = { 'module': True, 'connected': True }):
     """ Connect to MYsql database and save filehandler """
     global Conf
+    if not Conf['log']:
+        import MyLogger
+        Conf['log'] = MyLogger.log
     if not 'fd' in Conf.keys(): Conf['fd'] = None
     if not 'last' in Conf.keys():
         Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
@@ -79,14 +82,14 @@ def db_connect(net = { 'module': True, 'connected': True }):
                 Conf[credit] = os.getenv('DB'+credit[0:4].upper(),Conf[credit])
             except:
                 pass
-        MyLogger.log(modulename,'INFO','Using database %s on host %s, user %s credits.' % (Conf['database'],Conf['hostname'],Conf['user']))
+        Conf['log'](modulename,'INFO','Using database %s on host %s, user %s credits.' % (Conf['database'],Conf['hostname'],Conf['user']))
         if (Conf['hostname'] != 'localhost') and ((not net['module']) or (not net['connected'])):
-            MyLogger.log(modulename,'ERROR',"Access database %s / %s."  % (Conf['hostname'], Conf['database']))      
+            Conf['log'](modulename,'ERROR',"Access database %s / %s."  % (Conf['hostname'], Conf['database']))      
             Conf['output'] = False
             return False
         for M in ('user','password','hostname','database'):
             if (not M in Conf.keys()) or not Conf[M]:
-                MyLogger.log(modulename,'ERROR',"Define DB details and credentials.")
+                Conf['log'](modulename,'ERROR',"Define DB details and credentials.")
                 Conf['output'] = False
                 return False
         if (Conf['fd'] != None) and (not Conf['fd']):
@@ -110,7 +113,7 @@ def db_connect(net = { 'module': True, 'connected': True }):
             raise IOError
         except:
             Conf['output'] = False; del Conf['fd']
-            MyLogger.log(modulename,'ERROR',"MySQL Connection failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
+            Conf['log'](modulename,'ERROR',"MySQL Connection failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
             return False
     else:
         return Conf['output']
@@ -149,7 +152,7 @@ def db_registrate(ident):
     global Conf
     try: tableID = '%s_%s' % (ident['project'],ident['serial'])
     except:
-        MyLogger.log(modulename,'DEBUG','project or serial missing in identification record')
+        Conf['log'](modulename,'DEBUG','project or serial missing in identification record')
         return False
     try: # new identity?
         if ident['count'] == 1: del serials[tableID]
@@ -158,7 +161,7 @@ def db_registrate(ident):
     if len(ident['fields']) == 0: return False
 
     if not db_table('Sensors') and not CreateSensors():
-        MyLogger.log(modulename,'FATAL','Unable to access Sensors table in DB')
+        Conf['log'](modulename,'FATAL','Unable to access Sensors table in DB')
         exit(1)
 
     def db_WhereAmI(ident,desc=True):
@@ -215,7 +218,7 @@ def db_registrate(ident):
     if len(mayUpdate):
         mayUpdate.append('last_check'); values.append('now()')
         setNodeFields(None,mayUpdate,values,table='Sensors',project=ident['project'],serial=ident['serial'])
-        MyLogger.log(modulename,'INFO',"Updated registration proj %s: SN %s in database table 'Sensors'." % (ident['project'],ident['serial']))
+        Conf['log'](modulename,'INFO',"Updated registration proj %s: SN %s in database table 'Sensors'." % (ident['project'],ident['serial']))
     return True
 
 # do a query
@@ -226,7 +229,7 @@ def db_query(query,answer):
     global Conf, Retry
     # testCnt = 0 # just for testing connectivity failures
     # if testCnt > 0: raise IOError
-    MyLogger.log(modulename,'DEBUG',"MySQL query: %s" % query)
+    Conf['log'](modulename,'DEBUG',"MySQL query: %s" % query)
     try:
         c = Conf['fd'].cursor()
         c.execute (query)
@@ -237,24 +240,24 @@ def db_query(query,answer):
     except IOError:
         raise IOError
     except:
-        MyLogger.log(modulename,'ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
-        MyLogger.log(modulename,'ERROR',"On query: %s" % query)
+        Conf['log'](modulename,'ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
+        Conf['log'](modulename,'ERROR',"On query: %s" % query)
         # try once to reconnect
         try:
             Conf['fd'].close
             Conf['fd'] = None
             db_connect(Conf['net'])
         except:
-            MyLogger.log(modulename,'ERROR','Failed to reconnect to MySQL DB.')
+            Conf['log'](modulename,'ERROR','Failed to reconnect to MySQL DB.')
             return False
         if Retry:
             return False
         Retry = True
-        MyLogger.log(modulename,'INFO',"Retry the query")
+        Conf['log'](modulename,'INFO',"Retry the query")
         if db_query(query,answer):
             Retry = False
             return True
-        MyLogger.log(modulename,'ERROR','Failed to redo query.')
+        Conf['log'](modulename,'ERROR','Failed to redo query.')
         return False
     return True
 
@@ -277,7 +280,7 @@ def CreateLoRaTable(table):
         AppSKEY VARCHAR(32) DEFAULT NULL COMMENT 'OTAA/ABP secret key Hex',
         UNIQUE kit_id (project,serial)
         ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='TTN info input table, output'""" % table,False):
-        MyLogger.log(modulename,'ERROR', 'Failed to create LoRa node table %s' % table)
+        Conf['log'](modulename,'ERROR', 'Failed to create LoRa node table %s' % table)
         return False
     return True
 
@@ -295,11 +298,11 @@ def TableColumns(table):
 def putNodeInfo(info):
     global Conf
     if Conf['fd'] == None and not db_connect():
-        MyLogger.log(modulename,'FATAL','Unable to connect to DB')
+        Conf['log'](modulename,'FATAL','Unable to connect to DB')
         exit(1)
     for item in ['project','serial']:
         if not item in info.keys():
-            MyLogger.log(modulename,'ERROR','Node info has no key item %s: %s' % (item,str(info)))
+            Conf['log'](modulename,'ERROR','Node info has no key item %s: %s' % (item,str(info)))
             return False
 
     # convert special cases
@@ -310,7 +313,7 @@ def putNodeInfo(info):
           try:
             info[item] = int(mktime(parse(info[item], dayfirst=True, yearfirst=False).timetuple()))
           except ValueError:
-            MyLogger.log(modulename,'ERROR', 'Unable to parse date %s from node info: %s. SKIPPED.' % (info[item],str(info)))
+            Conf['log'](modulename,'ERROR', 'Unable to parse date %s from node info: %s. SKIPPED.' % (info[item],str(info)))
             return False
     if 'GPS' in info.keys():       # convert GPS to coordinates string
         info['coordinates'] = ["0","0","0"]
@@ -337,7 +340,7 @@ def putNodeInfo(info):
         if not len(rts): # insert a new row
             sleep(2) # make sure id timestamp is unique
             if not db_query("INSERT INTO %s (datum, project, serial) VALUES (now(),'%s','%s')" % (table,info['project'],info['serial']), False):
-                MyLogger.log(modulename,'ERROR','Cannot insert new row in table %s for project %s, serial %s' % (table,info['project'],info['serial']))
+                Conf['log'](modulename,'ERROR','Cannot insert new row in table %s for project %s, serial %s' % (table,info['project'],info['serial']))
                 continue
             rts = db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % (table,info['project'],info['serial']), True)
         qry = []
@@ -351,17 +354,17 @@ def putNodeInfo(info):
             else: qry.append("%s = '%s'" % (item,info[item]))
         if not len(qry): continue
         if not db_query("UPDATE %s SET %s WHERE UNIX_TIMESTAMP(id) = %d" % (table,', '.join(qry),rts[0][0]), False):
-            MyLogger.log(modulename,'ERROR','Updating node info for %s SN %s' % (info['project'],info['serial']))
+            Conf['log'](modulename,'ERROR','Updating node info for %s SN %s' % (info['project'],info['serial']))
     return True
     
 # get TTN_id's with changes later then timestamp in tables Sensors and TTNtable
 def UpdatedIDs(timestamp, field='TTN_id', table='TTNtable'):
     global Conf
     if Conf['fd'] == None and not db_connect():
-        MyLogger.log(modulename,'FATAL','Unable to connect to DB')
+        Conf['log'](modulename,'FATAL','Unable to connect to DB')
         exit(1)
     if not db_table('TTNtable') or not db_table('Sensors'):
-        MyLogger.log(modulename,'FATAL','Missing Sensors or TTNtable in DB')
+        Conf['log'](modulename,'FATAL','Missing Sensors or TTNtable in DB')
         exit(1)
     rts = []
     try:
@@ -379,10 +382,10 @@ def UpdatedIDs(timestamp, field='TTN_id', table='TTNtable'):
 def Topic2IDs(topic, active=None):
     global Conf
     if Conf['fd'] == None and not db_connect():
-        MyLogger.log(modulename,'FATAL','Unable to connect to DB')
+        Conf['log'](modulename,'FATAL','Unable to connect to DB')
         exit(1)
     if not db_table('TTNtable') or not db_table('Sensors'):
-        MyLogger.log(modulename,'FATAL','Missing Sensors or TTNtable in DB')
+        Conf['log'](modulename,'FATAL','Missing Sensors or TTNtable in DB')
         exit(1)
     if active == None: active = ''
     elif active: active = 'AND TTNtable.active'
@@ -457,7 +460,7 @@ def setNodeFields(id,fields,values,table='Sensors',project=None,serial=None):
     qry = []
     for i in range(len(values)):
         if not fields[i] in TableColumns(table):
-            MyLogger.log(modulename,'ERROR','Set field %s not in table %s. SKIPPED.' % (fields[i],table))
+            Conf['log'](modulename,'ERROR','Set field %s not in table %s. SKIPPED.' % (fields[i],table))
             continue
         if type(values[i]) is bool: values[i] = ('1' if values[i] else '0')
         elif values[i] == None: values[i] = 'NULL'
@@ -467,7 +470,7 @@ def setNodeFields(id,fields,values,table='Sensors',project=None,serial=None):
     try:
         return(db_query('UPDATE %s SET %s WHERE UNIX_TIMESTAMP(id) = %d' % (table, ', '.join(qry), id),False))
     except Exception as e:
-        MyLogger.log(modulename,'ERROR','Unable to update table %s. Error %s.' % (table,str(e)))
+        Conf['log'](modulename,'ERROR','Unable to update table %s. Error %s.' % (table,str(e)))
         return False
 
 # check if table exists if not create it
@@ -477,7 +480,7 @@ def db_table(table,create=True):
     if (not 'fd' in Conf.keys()) and not Conf['fd']:
         try: db_connect()
         except:
-            MyLogger.log(modulename,'FATAL','No MySQL connection available')
+            Conf['log'](modulename,'FATAL','No MySQL connection available')
             return False
     if (table) in Conf.keys():
         return True
@@ -507,9 +510,9 @@ def db_table(table,create=True):
         ) ENGINE=InnoDB DEFAULT CHARSET=latin1
             COMMENT='%s'""" % (table_name,comment),False):
         Conf[table] = False
-        MyLogger.log(modulename,'ERROR',"Unable to create sensor table %s in database." % table_name)
+        Conf['log'](modulename,'ERROR',"Unable to create sensor table %s in database." % table_name)
     else:
-        MyLogger.log(modulename,'ATTENT',"Created table %s" % table_name)
+        Conf['log'](modulename,'ATTENT',"Created table %s" % table_name)
     Conf[table] = True
     return Conf[table]
 
@@ -522,7 +525,7 @@ def publish(**args):
         return
     for key in ['data','internet','ident']:
         if not key in args.keys():
-            MyLogger.log(modulename,'FATAL',"Publish call missing argument %s." % key)
+            Conf['log'](modulename,'FATAL',"Publish call missing argument %s." % key)
 
     # translate MySense field names into MySQL column field names
     # TO DO: get the translation table from the MySense.conf file
@@ -596,11 +599,11 @@ def publish(**args):
         if len(add):
             try:
                 db_query("ALTER TABLE %s_%s %s" % (args['ident']['project'],args['ident']['serial'],','.join(add)),False)
-                MyLogger.log(modulename,'ATTENT',"Added new field to table %s_%s" % (args['ident']['project'],args['ident']['serial']))
+                Conf['log'](modulename,'ATTENT',"Added new field to table %s_%s" % (args['ident']['project'],args['ident']['serial']))
             except IOError:
                 raise IOError
             except:
-                MyLogger.log(modulename,'FATAL',"Unable to add columns: %s" % ', '.join(add))
+                Conf['log'](modulename,'FATAL',"Unable to add columns: %s" % ', '.join(add))
                 Conf['output'] = False
                 return False
         Conf["fields"][table] = fields
@@ -634,7 +637,7 @@ def publish(**args):
     except: return False
     if not db_connect(args['internet']): return False
     if not db_registrate(args['ident']):
-        MyLogger.log(modulename,'WARNING',"Unable to registrate the sensor.")
+        Conf['log'](modulename,'WARNING',"Unable to registrate the sensor.")
         return False
    
     if not db_table(kitTableName) or not db_fields(args['ident']):
@@ -671,7 +674,7 @@ def publish(**args):
             cols.append(Nm); vals.append("'%s'" % args['data'][Fld])
         elif type(args['data'][Fld]) is list:
             # TO DO: this needs more thought
-            MyLogger.log(modulename,'WARNING',"Found list for sensor %s." % Fld)
+            Conf['log'](modulename,'WARNING',"Found list for sensor %s." % Fld)
             for i in range(0,len(args['data'][Fld])):
                 nwe = "%s_%d" % (Nm,i,args['data'][Fld][i])
                 if  not nwe in Fields:
@@ -696,7 +699,7 @@ def publish(**args):
     except IOError:
         raise IOError
     except:
-        MyLogger.log(modulename,'ERROR',"Error in query: %s" % query)
+        Conf['log'](modulename,'ERROR',"Error in query: %s" % query)
         ErrorCnt += 1
     if ErrorCnt > 10:
         return False
@@ -714,8 +717,6 @@ if __name__ == '__main__':
     if not len(sys.argv) > 1: exit(0)
     # get nodes info from a json file and update node info to DB
     if  sys.argv[1:] != 'test':
-        MyLogger.Conf['level'] = 'INFO'
-        import json
         from jsmin import jsmin     # tool to delete comments and compress json
         try:
             new = {}

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyCONSOLE.py,v 3.1 2020/03/30 18:45:02 teus Exp teus $
+# $Id: MyCONSOLE.py,v 3.2 2020/04/11 11:33:37 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,18 +26,18 @@
     Relies on Conf setting biy main program
 """
 modulename='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.1 $"[11:-2]
+__version__ = "0." + "$Revision: 3.2 $"[11:-2]
 
 try:
-    import MyLogger
     import sys
     from time import time
     import datetime
+    import MyPrint
 except ImportError as e:
-    MyLogger.log(modulename,"FATAL","One of the import modules not found: %s" % e)
+    sys.exit("FATAL: One of the import modules not found: %s" % e)
 
 # configurable options
-__options__ = ['output','file']
+__options__ = ['output','file','print']
 
 Conf = {
      'output': False,    # console output dflt enabled if no output channels defined
@@ -47,25 +47,31 @@ Conf = {
         ('C','oC'),
         ('F','oF'),
         ('pcs/qf','pcs/0.01qf'),
-           ],
+          ],
+     'print': True,      # if not None try to print color, or False: fifo
+     'log': None,        # log print routine (name,level,message)
+     'stop': None
 
 }
 
-colored = True
-try: from xtermcolor import colorize
-except: colored = False
-def printc(text, ansi=4):
-    global colored
+# ansi colors: 1:red, 2:green, 3:yellow, 4:blew, 5:purple, 8: gray, 16: black, 21: blew
+def printc(text, color=0): # default color ansi black
+    global Conf
     try:
-        if colored: print(colorize(text,ansi=ansi))
+      if Conf['print']:
+        Conf['print'](text, color=color)
         return
     except: pass
-    print(text)
+    try: sys.stdout(text+'\n')
+    except: pass
 
 IdentSeen = {}
 def registrate(ident):
     global Conf
     fnd = None ; new = False
+    if not Conf['log']:
+        import MyLogger
+        Conf['log'] = MyLogger.log
     # should be unique
     for Id in ("serial","geolocation","street","label",'apikey','intern_ip'):
         if not Id in ident.keys():
@@ -85,18 +91,31 @@ def registrate(ident):
             new = True
         count = str(ident['count'])
     except: count = '?'
+    if ('print' in Conf.keys()) and (type(Conf['print']) is bool):
+      try:
+        import MyPrint
+        fifo = False
+        if Conf['file'].find('fifo=') == 0:
+            fifo = True; Conf['file'] = Conf['file'][5:]
+        Conf['print'] = MyPrint.MyPrint(output=Conf['file'], color=Conf['print'], fifo=fifo, date=False)
+        Conf['stop'] = Conf['print'].stop
+        Conf['print'] = Conf['print'].MyPrint
+      except: Conf['print'] = None
         
     printc('ID: %s (#%s) at %s' % (str(fnd),count,datetime.datetime.fromtimestamp(time()).strftime('%b %d %Y %H:%M:%S')),18)
     if not new: return  # ident is similar as previous
     try:
         printc("    Identity info of project %s S/N %s at geo location %s:" % (ident['project'], ident['serial'],ident['geolocation']),4)
     except: pass
-    for Id in ("label","project","serial","description","comment","geolocation","coordinates","street","village","province","municipality",'fields','units','calibrations','types','apikey','intern_ip','extern_ip','version'):
+    for Id in ("label","project","serial","description","comment","geolocation","coordinates","street","pcode","village","province","municipality",'fields','units','calibrations','types','apikey','intern_ip','extern_ip','version'):
         if Id == 'geolocation': printc('    location details:',4)
         elif Id == 'fields': printc('    sensor details:',4)
         if (Id in ident.keys() and (ident[Id] != None)):
-            print "%15s: " % Id, ident[Id]
-    print ''
+            if type(ident[Id]) is list:
+                printc("%15s: %s" % (Id,str(ident[Id]).replace(' ','').replace('u\'','').replace('\'','')))
+            else:
+                printc("%15s: %s" % (Id,str(ident[Id])))
+    printc('')
     return
 
 translateTBL = {
@@ -169,14 +188,14 @@ def publish(**args):
         return
     for key in ['data','ident']:
         if not key in args.keys():
-            MyLogger.log(modulename,'FATAL',"publish call missing argument %s." % key)
+            Conf['log'](modulename,'FATAL',"publish call missing argument %s." % key)
     registrate(args['ident'])
     # printc('    sensor data:',4)
     printc("    %-14s: %s (%s)" % ('time',args['data']['time'],datetime.datetime.fromtimestamp(args['data']['time']).strftime("%Y-%m-%d %H:%M:%S")),4)
     for item in sorted(args['data'].iterkeys()):
         if item != 'time':
             Unit,Type = findInfo(args['ident'],item)
-            print "\t%-10s: %-10.10s%-8.8s%s" % (item,args['data'][item],trans(Unit),Type)
+            printc("\t%-10s: %-10.10s%-8.8s%s" % (item,args['data'][item],trans(Unit),Type))
 
 # test main loop
 if __name__ == '__main__':

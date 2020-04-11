@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.4 2020/04/04 12:35:17 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.6 2020/04/11 14:42:05 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,10 +31,9 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.4 $"[11:-2]
+__version__ = "0." + "$Revision: 3.6 $"[11:-2]
 
 try:
-    import MyLogger
     import sys
     import datetime
     import json
@@ -43,10 +42,11 @@ try:
     from time import time
     import re
 except ImportError as e:
-    MyLogger.log(modulename,"FATAL","One of the import modules not found: %s" % e)
+    sys.exit("FATAL: One of the import modules not found: %s" % e)
 
 # configurable options
-__options__ = ['output','luftdaten','madavi','id_prefix', 'serials', 'projects','active']
+__options__ = ['output','luftdaten','madavi','id_prefix',
+        'serials', 'projects','active','DEBUG']
 
 Conf = {
     'output': False,
@@ -56,10 +56,11 @@ Conf = {
     'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
     # expression to identify serials to be subjected to be posted
     'serials': '(f07df1c50[02-9]|93d73279d[cd])', # pmsensor[1 .. 11] from pmsensors
-    'projects': 'VW2017',  # expression to identify projects to be posted
+    'projects': 'VW2017',# expression to identify projects to be posted
     'active': True,      # output to luftdaten maps is also activated
     'registrated': None, # has done initial setup
-    # 'debug': True,       # print output on POSTs
+    'log': None,         # MyLogger log print routine
+    'DEBUG': False       # debugging info
 }
 
 # ========================================================
@@ -70,6 +71,9 @@ Conf = {
 # TO DO: this needs to have more security in it e.g. add apikey signature
 def registrate(net):
     global Conf
+    if not Conf['log']:
+        import MyLogger
+        Conf['log'] = MyLogger.log
     if Conf['registrated'] != None:
             return Conf['registrated']
     if net['module'] is bool:
@@ -152,7 +156,8 @@ def sendLuftdaten(ident,values):
         
 # seems https may hang once a while
 def alrmHandler(signal,frame):
-    MyLogger.log(modulename,'ATTENT','HTTP POST hangup, post aborted. Alarm nr %d' % signal)
+    global Conf
+    Conf['log'](modulename,'ATTENT','HTTP POST hangup, post aborted. Alarm nr %d' % signal)
     # signal.signal(signal.SIGALRM,None)
 
 def watchOn(url):
@@ -179,33 +184,33 @@ def watchOff(prev):
 def post2Luftdaten(headers,postdata,postTo):
     global Conf
     # debug time: do not really post this
-    if ('debug' in Conf.keys()) and Conf['debug']:
-        MyLogger.log(modulename,'DEBUG',"Post headers: %s" % str(headers))
-        MyLogger.log(modulename,'DEBUG',"Post data   : %s" % str(postdata))
+    Conf['log'](modulename,'DEBUG',"Post headers: %s" % str(headers))
+    Conf['log'](modulename,'DEBUG',"Post data   : %s" % str(postdata))
     rts = True
     for url in postTo:
-        # print("Luftdaten POST to %s" % url)
-        # print("Post headers: %s" % str(headers))
-        # print("Post data   : %s" % str(postdata))
-        # continue
+        if Conf['DEBUG']:
+            sys.stderr.write("Luftdaten POST to %s:\n" % url)
+            sys.stderr.write("     headers: %s\n" % str(headers))
+            sys.stderr.write("     data   : %s\n" % str(postdata))
+            # continue
         prev = watchOn(url)
         try:
             r = requests.post(url, json=postdata, headers=headers)
-            # MyLogger.log(modulename,'INFO','Post to: %s' % url)
-            MyLogger.log(modulename,'DEBUG','Post returned status: %d' % r.status_code)
+            # Conf['log'](modulename,'INFO','Post to: %s' % url)
+            Conf['log'](modulename,'DEBUG','Post returned status: %d' % r.status_code)
             if not r.ok:
                 if r.status_code == 403:
-                  MyLogger.log(modulename,'ERROR','Post to %s with status code: forbidden (%d)' % (headers['X-Sensor'],r.status_code))
+                  Conf['log'](modulename,'ERROR','Post to %s with status code: forbidden (%d)' % (headers['X-Sensor'],r.status_code))
                 else:
-                  MyLogger.log(modulename,'ATTENT','Post to %s with status code: %d' % (headers['X-Sensor'],r.status_code))
+                  Conf['log'](modulename,'ATTENT','Post to %s with status code: %d' % (headers['X-Sensor'],r.status_code))
         except requests.ConnectionError as e:
-            MyLogger.log(modulename,'ERROR','Connection error: ' + str(e))
+            Conf['log'](modulename,'ERROR','Connection error: ' + str(e))
             rts = False
         except Exception as e:
-            MyLogger.log(modulename,'ERROR','Error: ' + str(e))
+            Conf['log'](modulename,'ERROR','Error: ' + str(e))
             rts = False
         if not watchOff(prev):
-            MyLogger.log(modulename,'ERROR','HTTP timeout error on %s' % url)
+            Conf['log'](modulename,'ERROR','HTTP timeout error on %s' % url)
             rts = False
     return rts
 
@@ -216,9 +221,9 @@ def publish(**args):
         return
     for key in ['data','internet','ident']:
         if not key in args.keys():
-            MyLogger.log(modulename,'FATAL',"Publish call missing argument %s." % key)
+            Conf['log'](modulename,'FATAL',"Publish call missing argument %s." % key)
     if not registrate(args['internet']):
-        MyLogger.log(modulename,'WARNING',"Unable to registrate the sensor.")
+        Conf['log'](modulename,'WARNING',"Unable to registrate the sensor.")
         return False 
     for key in ['project','serial']:
         if (not key in args['ident'].keys()) or (not args['ident'][key]):
@@ -229,7 +234,7 @@ def publish(**args):
     if not matched:
         if not args['ident']['project']+'_'+args['ident']['serial'] in notMatchedSerials:
             notMatchedSerials.append(args['ident']['project']+'_'+args['ident']['serial'])
-            MyLogger.log(modulename,'INFO',"Skipping records of project %s with serial %s to post to Luftdaten" % (args['ident']['project'],args['ident']['serial']))
+            Conf['log'](modulename,'INFO',"Skipping records of project %s with serial %s to post to Luftdaten" % (args['ident']['project'],args['ident']['serial']))
         return True
     elif not 'madavi' in args['ident'].keys():  # dflt: Post to madavi.de
         args['ident']['madavi'] = True
@@ -248,7 +253,7 @@ if __name__ == '__main__':
     Conf['output'] = True
     Conf['active'] = False      # no Post to Luftdaten in this test
     net = { 'module': True, 'connected': True }
-    # Conf['debug'] = True        # e.g. print Posts
+    # Conf['DEBUG'] = True        # e.g. print Posts
     Output_test_data = [
         {   'ident': {'geolocation': '0,0,0',
               'luftdaten': False,

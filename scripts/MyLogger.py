@@ -18,38 +18,33 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLogger.py,v 3.1 2020/03/30 18:45:02 teus Exp teus $
+# $Id: MyLogger.py,v 3.3 2020/04/11 11:33:37 teus Exp teus $
 
 # TO DO:
 
 """ Push logging to the external world.
 """
 modulename='$RCSfile: MyLogger.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.1 $"[11:-2]
+__version__ = "0." + "$Revision: 3.3 $"[11:-2]
 
 # configurable options
-__options__ = ['level','file']
+__options__ = ['level','file','output','date']
 
 Conf = {
     'level': 0,
-    'istty': False,
+    'istty': False, # should go away
     'file' : None,
     'fd': None,
-    'colorize': None
+    'output': True,
+    'date': True, # prepend with date
+    'print': True, # color printing
+    'stop': None
 }
 # ===========================================================================
 # logging
 # ===========================================================================
 
-try:
-    import sys
-except:
-    print("FATAL error: no sys to import")
-    exit(1)
-try:
-    from xtermcolor import colorize
-    Conf['colorize'] = False
-except: pass
+import sys
 
 # logging levels
 FATAL    = 70
@@ -67,6 +62,7 @@ log_colors = [16,6,21,4,3,5,9,1]
 def log(name,level,message): # logging to console or log file
     global Conf
     # seems python3 logging module does not allow logging on stdout or stderr
+    if not Conf['output']: return
     def IsTTY():
         global Conf
         if Conf['istty']: return True
@@ -74,16 +70,19 @@ def log(name,level,message): # logging to console or log file
             # log messages go to tty
             if Conf['file'] == None or ['/dev/stdout','/dev/stderr','/dev/tty'].index(Conf['file']) >= 0:
                 Conf['istty'] = True
-                if Conf['colorize'] != None: Conf['colorize'] = True
         except:
             Conf['istty'] = False
         return Conf['istty']
                 
-    def colored(text, ansi=16, fd=1):
+    def printc(text, color=0): # default color ansi black
+        global Conf
         try:
-            if Conf['colorize']: return(colorize(text,ansi=ansi,fd=fd))
+          if Conf['print']:
+            Conf['print'].MyPrint(text, color=color)
+            return
         except: pass
-        return(text)
+        try: sys.stderr.write(text+'\n')
+        except: pass
 
     if type(level) is str:
         level = log_levels.index(level.upper())*10
@@ -94,7 +93,7 @@ def log(name,level,message): # logging to console or log file
         pass
     name = name.replace('.py','')
     if name != 'MySense': name = 'MySense ' + name.replace('My','')
-    if Conf['fd'] == None and not IsTTY():
+    if Conf['fd'] == None and Conf['print'] == None:
         try:
             import logging, logging.handlers
             Conf['fd'] = logging.getLogger("IoS-sensor_log")
@@ -104,14 +103,31 @@ def log(name,level,message): # logging to console or log file
             Conf['fd'].setLevel(10 * log_levels.index(Conf['level']))
         except:
             Conf['fd'].setLevel(1)  # log all
-        if Conf['file'].lower() == 'syslog':
+        if type(Conf['file']) is str:
+          if Conf['file'].lower() == 'syslog':
             log_handle = logging.handlers.SysLogHandler(address = '/dev/log')
-        else:
+          else:
             log_handle = logging.FileHandler(Conf['file'])
-        log_frmt = logging.Formatter("%(asctime)s IoS %(levelname)s: %(message)s", datefmt='%Y/%m/%d %H:%M:%S')
+        elif Conf['file']: log_handle = Conf['file']
+        if Conf['date']:
+            log_frmt = logging.Formatter("%(asctime)s IoS %(levelname)s: %(message)s", datefmt='%Y/%m/%d %H:%M:%S')
+        else:
+            log_frmt = logging.Formatter("IoS log %(levelname)s: %(message)s")
         log_handle.setFormatter(log_frmt)
         Conf['fd'].addHandler(log_handle)
-    if not Conf['istty']:
+    elif Conf['print'] != None and (type(Conf['print']) is bool):
+      if (not 'file' in Conf.keys()) or not Conf['file']:
+        Conf['file'] = sys.stderr
+      try:
+        import MyPrint
+        fifo = False
+        if (type(Conf['file']) is str) and Conf['file'].find('fifo=') == 0:
+            fifo = True; Conf['file'] = Conf['file'][5:]
+        Conf['print'] = MyPrint.MyPrint(output=Conf['file'], color=Conf['print'], fifo=fifo, date=Conf['date'])
+        Conf['stop'] = Conf['print'].stop
+      except: Conf['print'] = None
+
+    if Conf['fd']:
         try:
             Conf['fd'].log(level,name + ': ' + message)
         except:
@@ -120,9 +136,7 @@ def log(name,level,message): # logging to console or log file
             Conf['fd'].log(CRITICAL,"Program aborted.")
             sys.exit("FATAL error. Program Aborted.")
     else:
-        sys.stderr.write(colored("%s %s: %s" % (name,log_levels[int(level / len(log_levels))], message + "\n"),ansi=(log_colors[int(level / len(log_colors))]),fd=2))
-        if level == FATAL:
-            sys.exit("FATAL error. IoS Program Aborted.")
+        printc("%s %s: %s" % (name,log_levels[int(level/10)%len(log_levels)], message),log_colors[int(level/10)%len(log_levels)])
     
 def show_error():               # print sys error
     log('ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )

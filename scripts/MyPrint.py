@@ -1,12 +1,12 @@
 #
 
-# $Id: MyPrint.py,v 1.2 2020/04/06 19:15:02 teus Exp teus $
+# $Id: MyPrint.py,v 1.4 2020/04/11 11:33:37 teus Exp teus $
 
 # print lines to /dev/stdout, stderr or FiFo file
 # thread buffer (max MAX).
 """ Threading to allow prints to fifo file or otherwise
 """
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 __license__ = 'GPLV4'
 
 import threading
@@ -20,8 +20,11 @@ from os import path
 
 class MyPrint:
     # initialize variables for this thread instance
-    def __init__(self, output=sys.stderr, fifo=False, **args):
+    def __init__(self, output=sys.stderr, color=False, fifo=False, **args):
         self.fifo = fifo
+        self.color = False          # use colorize on terminal output
+        self.colorize = None
+        self.fd = None
         if type(output) is str:
           if not fifo: # output to stderr/stdout or file
             try:
@@ -41,9 +44,17 @@ class MyPrint:
                 exit(1)
         else:
             self.output = output    # file handler
+        if self.output.isatty(): self.color = color
+        if self.color:
+            try:
+              from xtermcolor import colorize
+              self.colorize = colorize
+            except: self.color = False
+            if output == sys.stderr: self.fd = 2
+            else: self.fd = 1
         self.inits = {}
-        self.inits['MAX'] = 10      # max length buffer of output lines
-        self.inits['DEBUG'] = True
+        self.inits['MAX'] = 100      # max length buffer of output lines
+        self.inits['DEBUG'] = False
         self.inits['date'] = False  # prepend datetime string to each output line
         self.inits['strftime'] = "%Y-%m-%d %-H:%-M:%-S" # default date format
         for key in args.keys(): self.inits[key] = args[key]
@@ -75,12 +86,15 @@ class MyPrint:
               while len(self.buffer):
                 line = ''
                 with self.bufferLock:
-                  timing, line = self.buffer.pop(0)
+                  timing, line, color = self.buffer.pop(0)
                 try:
                   if line:
                     if self.inits['date']:
                         timing = datetime.datetime.fromtimestamp(timing).strftime(self.inits['strftime']) + '\t'
                     else: timing = ''
+                    if (color != None) and self.color:
+                        try: line = self.colorize(line, ansi=color, fd=self.fd)
+                        except: pass
                     print >>self.output, timing + line
                     self.output.flush()
                 except Exception as e:
@@ -94,7 +108,7 @@ class MyPrint:
             sleep(0.1); self.output = None; os.remove(self.fifo)
         except: pass
     
-    def MyPrint(self,line):
+    def MyPrint(self,line,color=None):
         if self.inits['DEBUG']: logging.debug('Producer thread started ...')
         if not self.RUNNING:
             threading.Thread(name='printer', target=self.printer, args=()).start()
@@ -103,9 +117,10 @@ class MyPrint:
             if self.inits['DEBUG']: logging.debug('Making resource available')
             with self.bufferLock:
                 if len(self.buffer) == self.inits['MAX']: self.buffer.pop(0)
-                self.buffer.append((time(),line))
+                self.buffer.append((time(),line,color))
             if self.inits['DEBUG']: logging.debug('Notifying to all consumers')
             self.condition.notifyAll()
+        sleep(0.05)
 
     def stop(self):
         self.STOP = True
@@ -120,8 +135,8 @@ if __name__ == '__main__':
             Print = MyPrint(output=sys.argv[1][5:], fifo=True, date=True)
         else: Print = MyPrint(output=sys.argv[1])
     else:
-        Print = MyPrint(output='/dev/stderr', DEBUG=False, date=True)
+        Print = MyPrint(output='/dev/stderr', color=True, DEBUG=False, date=True)
     for i in range(100):
-        Print.MyPrint('Line %d' % i)
+        Print.MyPrint('Line %d' % i, color=i)
         if (i%3) == 0: sleep(2)
     Print.stop()
