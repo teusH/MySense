@@ -18,14 +18,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLogger.py,v 3.3 2020/04/11 11:33:37 teus Exp teus $
+# $Id: MyLogger.py,v 3.4 2020/04/15 15:02:28 teus Exp teus $
 
 # TO DO:
 
 """ Push logging to the external world.
 """
 modulename='$RCSfile: MyLogger.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.3 $"[11:-2]
+__version__ = "0." + "$Revision: 3.4 $"[11:-2]
+
+import sys
 
 # configurable options
 __options__ = ['level','file','output','date']
@@ -33,7 +35,7 @@ __options__ = ['level','file','output','date']
 Conf = {
     'level': 0,
     'istty': False, # should go away
-    'file' : None,
+    'file' : sys.stderr,
     'fd': None,
     'output': True,
     'date': True, # prepend with date
@@ -43,8 +45,6 @@ Conf = {
 # ===========================================================================
 # logging
 # ===========================================================================
-
-import sys
 
 # logging levels
 FATAL    = 70
@@ -94,6 +94,7 @@ def log(name,level,message): # logging to console or log file
     name = name.replace('.py','')
     if name != 'MySense': name = 'MySense ' + name.replace('My','')
     if Conf['fd'] == None and Conf['print'] == None:
+        # this part needs some work
         try:
             import logging, logging.handlers
             Conf['fd'] = logging.getLogger("IoS-sensor_log")
@@ -102,18 +103,22 @@ def log(name,level,message): # logging to console or log file
         try:
             Conf['fd'].setLevel(10 * log_levels.index(Conf['level']))
         except:
-            Conf['fd'].setLevel(1)  # log all
-        if type(Conf['file']) is str:
-          if Conf['file'].lower() == 'syslog':
-            log_handle = logging.handlers.SysLogHandler(address = '/dev/log')
-          else:
-            log_handle = logging.FileHandler(Conf['file'])
-        elif Conf['file']: log_handle = Conf['file']
+            Conf['fd'].setLevel(logging.WARNING)
         if Conf['date']:
             log_frmt = logging.Formatter("%(asctime)s IoS %(levelname)s: %(message)s", datefmt='%Y/%m/%d %H:%M:%S')
         else:
             log_frmt = logging.Formatter("IoS log %(levelname)s: %(message)s")
-        log_handle.setFormatter(log_frmt)
+        if type(Conf['file']) is str:
+          if Conf['file'].lower() == 'syslog':
+            log_handle = logging.handlers.SysLogHandler(address = '/dev/log')
+            log_handle.setFormatter(log_frmt)
+          else:
+            log_handle = logging.FileHandler(Conf['file'])
+            log_handle.setFormatter(log_frmt)
+        elif Conf['file']:
+            log_handle = Conf['file']
+            # log_handle = logging.StreamHandler(Conf['file'])
+            # log_handle.setFormatter(log_frmt)
         Conf['fd'].addHandler(log_handle)
     elif Conf['print'] != None and (type(Conf['print']) is bool):
       if (not 'file' in Conf.keys()) or not Conf['file']:
@@ -125,7 +130,9 @@ def log(name,level,message): # logging to console or log file
             fifo = True; Conf['file'] = Conf['file'][5:]
         Conf['print'] = MyPrint.MyPrint(output=Conf['file'], color=Conf['print'], fifo=fifo, date=Conf['date'])
         Conf['stop'] = Conf['print'].stop
-      except: Conf['print'] = None
+      except Exception as e:
+        sys.stderr.write("Exception with loading module print color: %s\n" % str(e))
+        Conf['print'] = None
 
     if Conf['fd']:
         try:

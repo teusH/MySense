@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.3 2020/04/11 11:33:37 teus Exp teus $
+# $Id: MyDB.py,v 3.4 2020/04/14 14:43:17 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.3 $"[11:-2]
+__version__ = "0." + "$Revision: 3.4 $"[11:-2]
 
 try:
     import sys
@@ -51,7 +51,7 @@ Conf = {
     'port': 3306,        # default mysql port number
     'fd': None,          # have sent to db: current fd descriptor, 0 on IO error
     'log': None,         # MyLogger log routiune
-    'omit' : ['time','geolocation','coordinates','version','gps','meteo','dust','gwlocation']        # fields not archived
+    'omit' : ['time','geolocation','coordinates','version','gps','meteo','dust','gwlocation','event','value']        # fields not archived
 }
 # ========================================================
 # write data directly to a database
@@ -669,7 +669,7 @@ def publish(**args):
         gotIts.append(Fld)
         Nm = db_name(Fld)
         if (not Fld in args['data'].keys()) or (args['data'][Fld] == None):
-            cols.append(Nm); vals.append("NULL")
+            continue  # cols.append(Nm); vals.append("NULL")
         elif type(args['data'][Fld]) is str:
             cols.append(Nm); vals.append("'%s'" % args['data'][Fld])
         elif type(args['data'][Fld]) is list:

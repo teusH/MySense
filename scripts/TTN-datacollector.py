@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.11 2020/04/11 11:32:22 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.12 2020/04/12 12:10:01 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -35,7 +35,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.11 $"[11:-2]
+__version__ = "0." + "$Revision: 3.12 $"[11:-2]
 
 try:
     import MyLogger
@@ -1796,8 +1796,9 @@ def getdata():
             MyLogger.log(modulename,'FATAL','Subscription failed Mid: %s. Aborted.' % e)
             EXIT(1)
         ErrorCnt += 1
-        MyLogger.log(modulename,'WARNING','Subscription is failing Mid: %s. Slowing down.' % e)
-        return {}
+        # watch dog should restart collector after 5 minutes.
+        MyLogger.log(modulename,'FATAL','Subscription is failing Mid: %s.\nSlowing down. Exiting.' % str(e))
+        EXIT(1)
     if (len(msg['topic']) < 3) or (msg['topic'][1] != Conf['topic']) or (not type(msg['payload']) is dict) or (not 'dev_id' in msg['payload'].keys()):
         MyLogger.log(modulename,'ERROR','Received an unknown record %s' % str(msg))
         sleep(0.1)

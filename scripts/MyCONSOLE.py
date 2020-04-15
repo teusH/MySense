@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyCONSOLE.py,v 3.2 2020/04/11 11:33:37 teus Exp teus $
+# $Id: MyCONSOLE.py,v 3.3 2020/04/15 15:02:28 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,7 +26,7 @@
     Relies on Conf setting biy main program
 """
 modulename='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.2 $"[11:-2]
+__version__ = "0." + "$Revision: 3.3 $"[11:-2]
 
 try:
     import sys
@@ -62,7 +62,7 @@ def printc(text, color=0): # default color ansi black
         Conf['print'](text, color=color)
         return
     except: pass
-    try: sys.stdout(text+'\n')
+    try: sys.stdout.write(text+'\n')
     except: pass
 
 IdentSeen = {}
@@ -95,7 +95,7 @@ def registrate(ident):
       try:
         import MyPrint
         fifo = False
-        if Conf['file'].find('fifo=') == 0:
+        if (type(Conf['file']) is str) and (Conf['file'].find('fifo=') == 0):
             fifo = True; Conf['file'] = Conf['file'][5:]
         Conf['print'] = MyPrint.MyPrint(output=Conf['file'], color=Conf['print'], fifo=fifo, date=False)
         Conf['stop'] = Conf['print'].stop

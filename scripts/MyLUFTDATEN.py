@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.6 2020/04/11 14:42:05 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.7 2020/04/15 15:02:28 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.6 $"[11:-2]
+__version__ = "0." + "$Revision: 3.7 $"[11:-2]
 
 try:
     import sys
@@ -74,6 +74,10 @@ def registrate(net):
     if not Conf['log']:
         import MyLogger
         Conf['log'] = MyLogger.log
+    import logging
+    req_log = logging.getLogger('requests.packages.urllib3')
+    req_log.setLevel(logging.WARNING)
+    req_log.propagate = True
     if Conf['registrated'] != None:
             return Conf['registrated']
     if net['module'] is bool:
@@ -188,16 +192,20 @@ def post2Luftdaten(headers,postdata,postTo):
     Conf['log'](modulename,'DEBUG',"Post data   : %s" % str(postdata))
     rts = True
     for url in postTo:
-        if Conf['DEBUG']:
-            sys.stderr.write("Luftdaten POST to %s:\n" % url)
-            sys.stderr.write("     headers: %s\n" % str(headers))
-            sys.stderr.write("     data   : %s\n" % str(postdata))
-            # continue
         prev = watchOn(url)
         try:
             r = requests.post(url, json=postdata, headers=headers)
             # Conf['log'](modulename,'INFO','Post to: %s' % url)
             Conf['log'](modulename,'DEBUG','Post returned status: %d' % r.status_code)
+            if Conf['DEBUG']:
+              if not r.ok:
+                sys.stderr.write("Luftdaten POST to %s:\n" % url)
+                sys.stderr.write("     headers: %s\n" % str(headers))
+                sys.stderr.write("     data   : %s\n" % str(postdata))
+                sys.stderr.write("     returns: %d\n" % r.status_code)
+              else:
+                host = ('Luftdate.info' if url.find('luftdaten') > 0 else 'madavi.de')
+                sys.stderr.write("POST OK(%d) to %s ID(%s).\n" % (r.status_code,host,headers['X-Sensor']))
             if not r.ok:
                 if r.status_code == 403:
                   Conf['log'](modulename,'ERROR','Post to %s with status code: forbidden (%d)' % (headers['X-Sensor'],r.status_code))
