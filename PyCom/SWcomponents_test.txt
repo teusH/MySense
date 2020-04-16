@@ -17,17 +17,35 @@
 # These archived data is cleared/reset as follows:
 import MySense
 MySense.MyReset()
-# delete detected configuration surfiving reboots
+# delete detected configuration surfiving reboots via deepsleep/RTC
 import os
 os.remove('/flash/MySenseConfig.json')
+# show details in the PyCom LoPy flash memory
 # os.uname()  # show version PyCom controller
+# remove all installed user software from the LoPy
 # os.fsformat('/flash')   # remove all MySense firmware >= LoPy V1.19
 # os.mkfs('/flash')       # remove all MySense firmware <= LoPy V1.19
 # 
-# delete frequently changed status variables
+# in case of unexpected halt of the PyCom LoPy one may need to
+# get an idea what lately was going on:
+# Show all variables saved in nvs ram
+# AlarmWDT watch dog alarm program location indicator
+# LAT, LON, ALT latest/updated geo GPS coordinates
+# gps state GPS sensor
+# Vmax, Vmin max/min accu voltage measured during lifetime
+# count hour ticks to switch off wifi
+# myReset cause for MyReset() nvs mem / clear admin json file
+# AlarmSlp deepsleep seconds set
+# aLow accu low set
+# gps_next, info_next next time to: force GPS updates on static location, send meta info
+# from pycom import nvs_get, nvs_erase
+# for item in ['gps','LAT','LON','ALT','info_next','gps_next','AlarmWDT','Vmax','Vmin','count','myReset','AlarmSlp','aLow']:
+#    try: print("nvs var %s: %d" % (item,nvs_get(item)))
+#    except: pass
+# delete all frequently changed status nvs variables
 from pycom import nvs_erase_all
 nvs_erase_all()
-# for item in ['gps','mode','LAT','LON','ALT','info_next','gps_next']: nvs_erase(item)
+# for item in ['gps','LAT','LON','ALT','info_next','gps_next']: nvs_erase(item)
 # delete LoRa saved status data
 from network import LoRa
 lora = LoRa(mode=LoRa.LORAWAN, region=LoRa.EU868)
