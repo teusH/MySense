@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.7 2020/04/15 15:02:28 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.10 2020/04/22 18:50:36 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.7 $"[11:-2]
+__version__ = "0." + "$Revision: 3.10 $"[11:-2]
 
 try:
     import sys
@@ -106,6 +106,7 @@ sense_table = {
         # TO DO: complete the ID codes used by Luftdaten
         "types": {
             'SDS011': 1, 'PMS3003': 1, 'PMS7003': 1, 'PMS5003': 1,
+            'PMSx003': 1, 'PMSX003': 1,
             # SPS30 pin nr is a guess
             'SPS30': 1, 'HPM': 25, 'PPD42NS': 5, 'SHINEY': 5,
         },
@@ -128,17 +129,17 @@ def sendLuftdaten(ident,values):
     else:
         headers = {
             'X-Sensor': Conf['id_prefix'] + str(ident['serial']),
-            # 'X-Pin': str(integer_ID),  # this should be deprecated. It is doubling traffic
         }
     postdata = {
         'software_version': 'MySense' + __version__,
-        # 'sensordatavalues': [{ sensor_field_id: %.2f float},]
     }
     postTo = []
-    for url in ['madavi','luftdaten']:
-        if (url == 'luftdaten') and (not Conf['active']): continue
-        # post first to Madavi on succes maybe to Luftdaten
-        if (url in ident.keys()) and ident[url]:
+    for url in ['luftdaten','madavi']:
+        if (url == 'luftdaten') and (not ident['luftdaten']):
+          print("Not (%s) to Luftdaten for kit: %s" % (str(ident['luftdaten']),headers['X-Sensor']))
+          continue
+        if ident[url] or ident['luftdaten'] == None:
+          if url in ident.keys():
             postTo.append(Conf[url])
     if not len(postTo): return True
     for sensed in ['dust','meteo']:
@@ -154,14 +155,14 @@ def sendLuftdaten(ident,values):
                 if valueField in sense_table[sensed][field]:
                     postdata['sensordatavalues'].append({ 'value_type': field, 'value': str(round(values[valueField],2)) })
         if not len(postdata['sensordatavalues']): continue
-        if not post2Luftdaten(headers,postdata,postTo):
+        if not post2Luftdaten(headers,postdata,postTo,sensed):
             return False
     return True
         
 # seems https may hang once a while
 def alrmHandler(signal,frame):
     global Conf
-    Conf['log'](modulename,'ATTENT','HTTP POST hangup, post aborted. Alarm nr %d' % signal)
+    Conf['log'](modulename,'DEBUG','HTTP POST hangup, post aborted. Alarm nr %d' % signal)
     # signal.signal(signal.SIGALRM,None)
 
 def watchOn(url):
@@ -169,7 +170,7 @@ def watchOn(url):
     rts = [None,0,0]
     rts[0] = signal.signal(signal.SIGALRM,alrmHandler)
     rts[1] = int(time())
-    rts[2] = signal.alarm(3*60)
+    rts[2] = signal.alarm(3*30)
     return rts
 
 def watchOff(prev):
@@ -185,12 +186,18 @@ def watchOff(prev):
     return alrm
     
 # do an HTTP POST to [ Madavi.de, Luftdaten, ...]
-def post2Luftdaten(headers,postdata,postTo):
+def post2Luftdaten(headers,postdata,postTo,sensed):
     global Conf
     # debug time: do not really post this
     Conf['log'](modulename,'DEBUG',"Post headers: %s" % str(headers))
     Conf['log'](modulename,'DEBUG',"Post data   : %s" % str(postdata))
     rts = True
+    if not 'HTTP_errors' in post2Luftdaten.__dict__:
+        post2Luftdaten.HTTP_errors = {}
+    if (headers['X-Sensor'] in post2Luftdaten.HTTP_errors.keys()) and ((post2Luftdaten.HTTP_errors[headers['X-Sensor']]%15) >= 3):
+        Conf['log'](modulename,'ERROR','Posts for %s too many errors. Skipping.' % headers['X-Sensor'])
+        post2Luftdaten.HTTP_errors[headers['X-Sensor']] += 1
+        return True
     for url in postTo:
         prev = watchOn(url)
         try:
@@ -205,12 +212,18 @@ def post2Luftdaten(headers,postdata,postTo):
                 sys.stderr.write("     returns: %d\n" % r.status_code)
               else:
                 host = ('Luftdate.info' if url.find('luftdaten') > 0 else 'madavi.de')
-                sys.stderr.write("POST OK(%d) to %s ID(%s).\n" % (r.status_code,host,headers['X-Sensor']))
+                sys.stderr.write("POST %s OK(%d) to %s ID(%s).\n" % (sensed,r.status_code,host,headers['X-Sensor']))
             if not r.ok:
                 if r.status_code == 403:
-                  Conf['log'](modulename,'ERROR','Post to %s with status code: forbidden (%d)' % (headers['X-Sensor'],r.status_code))
+                  Conf['log'](modulename,'ERROR','Post %s to %s with status code: forbidden (%d)' % (sensed,headers['X-Sensor'],r.status_code))
                 else:
-                  Conf['log'](modulename,'ATTENT','Post to %s with status code: %d' % (headers['X-Sensor'],r.status_code))
+                  Conf['log'](modulename,'ATTENT','Post %s to %s with status code: %d' % (sensed,headers['X-Sensor'],r.status_code))
+                if not headers['X-Sensor'] in post2Luftdaten.HTTP_errors.keys():
+                  post2Luftdaten.HTTP_errors[headers['X-Sensor']]  = 0
+                post2Luftdaten.HTTP_errors[headers['X-Sensor']] += 1
+            elif headers['X-Sensor'] in post2Luftdaten.HTTP_errors.keys():
+                del post2Luftdaten.HTTP_errors[headers['X-Sensor']]
+            rts = True
         except requests.ConnectionError as e:
             Conf['log'](modulename,'ERROR','Connection error: ' + str(e))
             rts = False
@@ -218,8 +231,8 @@ def post2Luftdaten(headers,postdata,postTo):
             Conf['log'](modulename,'ERROR','Error: ' + str(e))
             rts = False
         if not watchOff(prev):
-            Conf['log'](modulename,'ERROR','HTTP timeout error on %s' % url)
-            rts = False
+            Conf['log'](modulename,'ATTENT','HTTP 90 sec timeout error: URL %s with ID %s' % (url,headers['X-Sensor']))
+            rts = True
     return rts
 
 notMatchedSerials = []
@@ -236,6 +249,9 @@ def publish(**args):
     for key in ['project','serial']:
         if (not key in args['ident'].keys()) or (not args['ident'][key]):
             return True
+    # ident['luftdaten'] == None -> if not madavi in ident: ident['madavi'] = True
+    if (not 'luftdaten' in args['ident'].keys()) and (not 'madavi' in args['ident'].keys()):
+        return True
     matched = Conf['match'].match(args['ident']['project']+'_'+args['ident']['serial'])
     # publish only records of the matched project/serial combi,
     # default Madavi is enabled for those matches

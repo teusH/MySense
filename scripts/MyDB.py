@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.4 2020/04/14 14:43:17 teus Exp teus $
+# $Id: MyDB.py,v 3.5 2020/04/17 13:13:58 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.4 $"[11:-2]
+__version__ = "0." + "$Revision: 3.5 $"[11:-2]
 
 try:
     import sys
@@ -297,6 +297,39 @@ def TableColumns(table):
 # only used once to ship json info to database
 def putNodeInfo(info):
     global Conf
+    LAT = 0
+    LON = 1
+    ALT = 2
+    def GPSdistance(gps1,gps2): # returns None on a not valid GPS oordinate
+        from math import sin, cos, radians, pow, sqrt, atan2
+        def str2list(val):
+            if not type(val) is list:
+                rts = val
+            elif val == None: return None
+            else: rts = [float(x) for x in val.split(',')]
+            if len(rts) < 2: return None
+            if rts[0] < 0.1 or rts[1] < 0.1: return None
+            return rts
+      
+        gps1 = str2list(gps1); gps2 = str2list(gps2)
+        # if gps1 == None and gps2 == None: return 0
+        if gps1 == None or gps2 == None: return None
+        if gps1[:2] == gps2[:2]: return 0
+
+        delta = radians(float(str2list(gps1)[LON])-float(str2list(gps2)[LON]))
+        sdlon = sin(delta)
+        cdlon = cos(delta)
+        lat = radians(float(str2list(gps1)[LAT]))
+        slat1 = sin(lat); clat1 = cos(lat)
+        lat = radians(float(str2list(gps2)[LAT]))
+        slat2 = sin(lat); clat2 = cos(lat)
+      
+        delta = pow((clat1 * slat2) - (slat1 * clat2 * cdlon),2)
+        delta += pow(clat2 * sdlon,2)
+        delta = sqrt(delta)
+        denom = (slat1 * slat2) + (clat1 * clat2 * cdlon)
+        return int(round(6372795 * atan2(delta, denom)))
+    
     if Conf['fd'] == None and not db_connect():
         Conf['log'](modulename,'FATAL','Unable to connect to DB')
         exit(1)
@@ -308,6 +341,9 @@ def putNodeInfo(info):
     # convert special cases
     from dateutil.parser import parse
     from time import mktime, sleep
+    if 'date' in info.keys():
+        if not 'first' in info.keys(): info['first'] = info['date']
+        elif not 'datum' in info.keys(): info['datum'] = info['date']
     for item in ('first','datum'): # convert human timestamp to POSIX timestamp
         if item in info.keys():
           try:
@@ -318,9 +354,12 @@ def putNodeInfo(info):
     if 'GPS' in info.keys():       # convert GPS to coordinates string
         info['coordinates'] = ["0","0","0"]
         for oord in info['GPS'].keys():
-            if oord.lower().find('lon'): info['coordinates'][0] = str(info['GPS'][oord])
-            elif oord.lower().find('lat'): info['coordinates'][1] = str(info['GPS'][oord])
-            elif oord.lower().find('alt'): info['coordinates'][2] = str(info['GPS'][oord])
+            if oord.lower().find('lon') >= 0:
+                info['coordinates'][LON] = str(info['GPS'][oord])
+            elif oord.lower().find('lat') >= 0:
+                info['coordinates'][LAT] = str(info['GPS'][oord])
+            elif oord.lower().find('alt') >= 0:
+                info['coordinates'][ALT] = str(info['GPS'][oord])
         info['coordinates'] = ','.join(info['coordinates'])
     sensors = []                   # convert sensor types to ;hw: string
     for item in ('dust','meteo','gps'):
@@ -332,14 +371,44 @@ def putNodeInfo(info):
             info['luftdaten'] = True
             if type(info['luftdaten']) is str: info['luftdatenID'] = info['luftdaten.info']
         else: info['luftdaten'] = False
+    for item in ['pcode','street','coordinates']:
+        if not item in info.keys(): info[item] = ''
 
     # export info dict to DB tables update, if table not exists create it
     for table in ['Sensors','TTNtable']:
         if not db_table(table): continue
-        rts = db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % (table,info['project'],info['serial']), True)
-        if not len(rts): # insert a new row
+        extra = ''
+        if table == 'Sensors':
+            extra = ', pcode, street, active, coordinates'
+        rts = db_query("SELECT UNIX_TIMESTAMP(id)%s FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % (extra,table,info['project'],info['serial']), True)
+        if len(rts) and extra: # may need new entry if location changed
+            # to do: lock this table while updating
+            try:
+              dist = None
+              try:
+                id = rts[0][0]; active = rts[0][3]
+                dist = GPSdistance(info['coordinates'],rts[0][4])
+                if dist and dist > 50: # locations differ more as 50 meters
+                  dist = True
+                elif dist != None: dist = False
+                # else: dist = None
+              except: pass
+              try:
+                if dist == None:
+                  if not rts[0][1]: rts[0][1] = ''
+                  if not rts[0][2]: rts[0][2] = ''
+                  # may need to check on geolocation first
+                  if rts[0][1] != info['pcode'] or rts[0][2][-3:] != info['street'][-3:]:
+                    dist = True
+                  else: dist = False
+              except: pass
+              if (dist != False) and active: # deactivate
+                db_query("UPDATE Sensors set active = 0 WHERE id = FROM_UNIXTIME(%s)" % id, False)
+                rts = [] # force new entry
+            except: pass  
+        if not len(rts): # insert a new row entry
             sleep(2) # make sure id timestamp is unique
-            if not db_query("INSERT INTO %s (datum, project, serial) VALUES (now(),'%s','%s')" % (table,info['project'],info['serial']), False):
+            if not db_query("INSERT INTO %s (datum, project, serial, active) VALUES (now(),'%s','%s',1)" % (table,info['project'],info['serial']), False):
                 Conf['log'](modulename,'ERROR','Cannot insert new row in table %s for project %s, serial %s' % (table,info['project'],info['serial']))
                 continue
             rts = db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % (table,info['project'],info['serial']), True)
@@ -351,7 +420,9 @@ def putNodeInfo(info):
               qry.append( "%s = %d" % (item,info[item]))
             elif type(info[item]) is bool:
               qry.append( "%s = %d" % (item, (1 if info[item] else 0)))
-            else: qry.append("%s = '%s'" % (item,info[item]))
+            elif info[item]: 
+              qry.append("%s = '%s'" % (item,info[item]))
+            else: qry.append("%s = NULL" % item)
         if not len(qry): continue
         if not db_query("UPDATE %s SET %s WHERE UNIX_TIMESTAMP(id) = %d" % (table,', '.join(qry),rts[0][0]), False):
             Conf['log'](modulename,'ERROR','Updating node info for %s SN %s' % (info['project'],info['serial']))
@@ -718,6 +789,7 @@ if __name__ == '__main__':
     # get nodes info from a json file and update node info to DB
     if  sys.argv[1:] != 'test':
         from jsmin import jsmin     # tool to delete comments and compress json
+        import json
         try:
             new = {}
             with open(sys.argv[1:][0]) as _typeOfJSON:

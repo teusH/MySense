@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.12 2020/04/12 12:10:01 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.13 2020/04/22 18:45:29 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -35,7 +35,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.12 $"[11:-2]
+__version__ = "0." + "$Revision: 3.13 $"[11:-2]
 
 try:
     import MyLogger
@@ -794,12 +794,15 @@ def getIdent(info,Cached):
         for one in Channels: Cached['exports'][one['name']] = None
     try:
         Cached['exports']['luftdaten'] = (True if info['output']['luftdaten'] else False)
-    except: Cached['exports']['luftdaten'] = None
+    except: pass
+    try:
+        ident['luftdaten'] = Cached['exports']['luftdaten']
+    except: pass
+    # except: Cached['exports']['luftdaten'] = None
     try: Cached['exports']['luftdatenID'] = info['output']['luftdatenID']
     except: pass
     try: ident['luftdatenID'] = Cached['exports']['luftdatenID']
     except: pass
-    ident['luftdaten'] = Cached['exports']['luftdaten']
     # next: ident/active: activated, ident/activeDB: export to DB
     try: Cached['exports']['database'] = info['output']['active']
     except: pass
