@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.13 2020/04/22 18:45:29 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.15 2020/04/23 12:48:47 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -35,7 +35,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.13 $"[11:-2]
+__version__ = "0." + "$Revision: 3.15 $"[11:-2]
 
 try:
     import MyLogger
@@ -66,7 +66,7 @@ mid = None               # for logging: message ID
 telegrams = []           # telegram buffer, max length is 100     
 ErrorCnt = 0             # connectivity error cnt, slows down, >20 reconnect, >40 abort
 PingTimeout = 0          # last time ping request was sent
-ReDoCache  = 3*60*60     # period in time to check for new kits
+ReDoCache  = 18*60*60     # period in time to check for new kits
 Channels = []      # output channels
 DB = None                # shortcut to Output channel database dict
 ThreadStops = []         # list of stop routines for threads
@@ -87,6 +87,7 @@ cached = {
     #    'kitTable': name of measurements table of a kit
     # },
     # 'ident': collected meta info
+    # 'TTL': unix timestamp time to live for this cache entry: entered time + 3 hrs
     # },
 }
 dirtySensorCache = False
@@ -445,13 +446,13 @@ def importNotices():
 
 # delete cache entries in DB tables Sensors/TTNtable, which have been updated
 def UpdateCache():
-    global cache, dirtyCaches, updateCacheTime, ReDoCache
+    global cached, dirtyCaches, updateCacheTime, ReDoCache
     global DB
     if not len(SensorCache) or DB: return
     topics = DB.UpdatedIDs(updateCacheTime,field='TTN_id', table='TTNtables')
     if len(topics):
         MyLogger.log(modulename,'DEBUG','Kits to be updated in cache: %s' % ', '.join(topics))
-    for one in cache.keys():
+    for one in cached.keys():
         indx = 0
         try: indx = '/'.index(one)+1
         except: pass
@@ -578,7 +579,10 @@ def Initialize():
 
 # reread admin meta info of nodes in, may de/activate data arcghiving of the node
 def SigUSR2handler(signum,frame):
-    dirtyCache = True
+    global dirtyCache
+    try:
+      dirtyCache = True
+    except: pass
     return
 
 # see if we know this product
@@ -995,8 +999,10 @@ previous = []
 # show current status of nodes seen so far
 def SigUSR1handler(signum,frame):
     global modulename, cached
-    for name in cached.keys():
+    try:
+      for name in cached.keys():
         MyLogger.log(modulename,'INFO',"Status device %s:\n\t%s" % (name, str(chached[name])) )
+    except: pass
 
 # search record for gateway with best [value,min,max] rssi & snr, ID and ordinates
 WRSSI = 0.2
@@ -1383,7 +1389,9 @@ def convert2MySense( data, **sensor):
         UpdateCache()
         importNotices() # check if notice addreses file exists and is modified
     else: cleanupCache(myID)
-    # to do: check DB for changes, if so update cache entry
+    try: # get maybe updated sensor meta data from DB
+        if time() > cached[myID]['TTL']: del cached[myID]
+    except: pass
     if not myID in cached.keys():       # caching
         if len(cached) >= 100: # FiFo to avoid exhaustion, maydisrupt chack on dead kits
             oldest = time() ; oldestKey = None
@@ -1403,6 +1411,7 @@ def convert2MySense( data, **sensor):
                 'SensorsID':  DBtables[0],
                 'TTNtableID': DBtables[1],
                 'kitTable':   DBtables[3],
+            'TTL': time()+3*60*60,
             },
             'identified': False}
         cached[myID]['port%d' % record['port']] = {}
@@ -1822,6 +1831,7 @@ def getdata():
     return convert2MySense(msg)
 
 # send kill -USR1 <process id> to dump status overview
+# there is a namespace problem with signal handling if done inside an import
 signal.signal(signal.SIGUSR1, SigUSR1handler)
 signal.signal(signal.SIGUSR2, SigUSR2handler)
 
@@ -2129,9 +2139,12 @@ def RUNcollector():
                     Channels[indx]['timeout'] = time()-1
                     cnt += 1
                     MyLogger.log(modulename,'DEBUG','Sent record to outputchannel %s' % Channels[indx]['name'])
-                except:
-                    MyLogger.log(modulename,'ERROR','sending record to %s' % Channels[indx]['name'])
-                    Channels[indx]['errors'] += 1
+                except Exception as e:
+                    if str(e).find("EVENT") > 0:
+                        sendNotice('Event notice "%s" on archive action for kit %s/%s' % (str(e)[str(e).index('EVENT')+5:],record['ident']['project'],record['ident']['serial']),myID='all/event')
+                    else:
+                        MyLogger.log(modulename,'ERROR','sending record to %s: %s' % (Channels[indx]['name'],str(e)))
+                        Channels[indx]['errors'] += 1
                 try:
                     one = Channels[indx]['module'].Conf['stop']
                     if one and not ThreadStops.count(one): ThreadStops.append(one)
