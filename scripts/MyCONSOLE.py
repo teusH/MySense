@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyCONSOLE.py,v 3.3 2020/04/15 15:02:28 teus Exp teus $
+# $Id: MyCONSOLE.py,v 3.4 2020/04/23 13:53:30 teus Exp teus $
 
 # TO DO: write to file or cache
 
@@ -26,7 +26,7 @@
     Relies on Conf setting biy main program
 """
 modulename='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.3 $"[11:-2]
+__version__ = "0." + "$Revision: 3.4 $"[11:-2]
 
 try:
     import sys
@@ -185,7 +185,7 @@ def publish(**args):
         return name
     
     if not Conf['output']:
-        return
+        return False
     for key in ['data','ident']:
         if not key in args.keys():
             Conf['log'](modulename,'FATAL',"publish call missing argument %s." % key)
@@ -196,6 +196,7 @@ def publish(**args):
         if item != 'time':
             Unit,Type = findInfo(args['ident'],item)
             printc("\t%-10s: %-10.10s%-8.8s%s" % (item,args['data'][item],trans(Unit),Type))
+    return True
 
 # test main loop
 if __name__ == '__main__':

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.11 2020/04/23 12:48:32 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.12 2020/04/23 15:38:50 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.11 $"[11:-2]
+__version__ = "0." + "$Revision: 3.12 $"[11:-2]
 
 try:
     import sys
@@ -74,12 +74,14 @@ def registrate(net):
     if not Conf['log']:
         import MyLogger
         Conf['log'] = MyLogger.log
-    import logging
-    req_log = logging.getLogger('requests.packages.urllib3')
-    req_log.setLevel(logging.WARNING)
-    req_log.propagate = True
     if Conf['registrated'] != None:
             return Conf['registrated']
+    import logging
+    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    # req_log = logging.getLogger('requests.packages.urllib3')
+    # req_log.setLevel(logging.WARNING)
+    # req_log.propagate = True
     if net['module'] is bool:
         if (not net['module']) or (not net['connected']): return False
     Conf['match'] = re.compile(Conf['projects']+'_'+Conf['serials'], re.I)

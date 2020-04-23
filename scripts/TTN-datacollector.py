@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.15 2020/04/23 12:48:47 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.16 2020/04/23 14:15:55 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -35,7 +35,7 @@
     One may need to change payload and TTN record format!
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.15 $"[11:-2]
+__version__ = "0." + "$Revision: 3.16 $"[11:-2]
 
 try:
     import MyLogger
@@ -2130,11 +2130,14 @@ def RUNcollector():
             if Channels[indx]['module'] and Channels[indx]['Conf']['output']:
               if PublishMe:
                 try:
-                    Channels[indx]['module'].publish(
+                    if Channels[indx]['module'].publish(
                         ident = record['ident'],
                         data = record['data'],
                         internet = net
-                    )
+                        ):
+                       monitorPrt("    Kit %s/%s data output to %s: OK" % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name']),4)
+                    else:
+                       monitorPrt("    Kit %s/%s data no output to %s: FAILED" % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name']),31)
                     Channels[indx]['errors'] = 0
                     Channels[indx]['timeout'] = time()-1
                     cnt += 1
