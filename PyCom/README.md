@@ -103,10 +103,10 @@ The LoRa antenna is fixated inside the PVC pipe as well.
 <img src="images/Motherboard-3DprintComponentsLanternHousing.png" align=right width=150>images/Motherboard-3DprintComponentsLanternHousing.png</img>
 All 3D printed components and mother board are found in the images folder ( 3D .stl en dcx (FreeCAD) files):
 * 3D print GPS mounting table: <a href="images/GPS tafel a.stl">images/GPS tafel a.stl</a>
-* 3D print oled display window: <a href="images/Oled  inw b.stl">images/Oled  inw b.stl</a>
-* 3D print oled display mounting: <a href="images/Oled buiten nieuw uitw c.stl">images/Oled buiten nieuw uitw c.stl</a>
-* 3D print motherboard socket: <a href="images/houder mb i.stl">images/houder mb i.stl</a>
-* CAD CAM mill mold: the mounting board: <a href="images/motherboard-SPS-PMS-insideantenna.dxf">images/motherboard-SPS-PMS-insideantenna.dxf</a>
+* 3D print oled display window: <a href="images/Oled  inw 2.stl">images/Oled  inw 2.stl</a>, and <a href="images/Oled  inw 2.1.stl">images/Oled  inw 2.1.stl</a>.
+* 3D print oled display mounting: <a href="images/Oled buiten uitw c.stl">images/Oled buiten uitw c.stl</a>
+* 3D print motherboard socket: <a href="images/houder mb.stl">images/houder mb.stl</a>.
+* CAD CAM mill mold: the mounting board: <a href="images/moederframe2.2.dxf">images/moederframe2.2.dxf</a>
 These stl and dxf files: Copyright 2019, Joan Marsman, the Netherlands licensed as GPL V3.
 
 ### TTN gateway
