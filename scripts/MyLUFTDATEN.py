@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.12 2020/04/23 15:38:50 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.14 2020/04/25 13:24:20 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.12 $"[11:-2]
+__version__ = "0." + "$Revision: 3.14 $"[11:-2]
 
 try:
     import sys
@@ -216,6 +216,7 @@ def post2Luftdaten(headers,postdata,postTo,sensed):
                 host = ('Luftdate.info' if url.find('luftdaten') > 0 else 'madavi.de')
                 sys.stderr.write("POST %s OK(%d) to %s ID(%s).\n" % (sensed,r.status_code,host,headers['X-Sensor']))
             if not r.ok:
+                rts = False
                 if r.status_code == 403:
                   Conf['log'](modulename,'ERROR','Post %s to %s with status code: forbidden (%d)' % (sensed,headers['X-Sensor'],r.status_code))
                 elif r.status_code == 400:
@@ -228,7 +229,6 @@ def post2Luftdaten(headers,postdata,postTo,sensed):
                 post2Luftdaten.HTTP_errors[headers['X-Sensor']] += 1
             elif headers['X-Sensor'] in post2Luftdaten.HTTP_errors.keys():
                 del post2Luftdaten.HTTP_errors[headers['X-Sensor']]
-            rts = True
         except requests.ConnectionError as e:
             Conf['log'](modulename,'ERROR','Connection error: ' + str(e))
             rts = False

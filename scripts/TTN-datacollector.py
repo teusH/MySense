@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.16 2020/04/23 14:15:55 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.20 2020/04/26 09:15:28 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -29,13 +29,49 @@
 # broker server: Debian: apt-get install mqtt
 
 """ Download measurements from TTN MQTTT server:
-    Subscribe to measurements from a Mosquitto Broker server
-    e.g.
-    Publish measurements as client to luftdaten.info and MySQL
+    Subscribe to measurements from a Mosquitto Broker server (eg TTN LoRa server)
+    and
+    Publish measurements as client to luftdaten.info and MySQL database
+    Monitor traffic and output channels.
     One may need to change payload and TTN record format!
+    MySense meta measurement kits data is read from MySQL database table Sensors.
+    Output activation per kit is read from MySQL table TTNtable:
+    active, luftdaten, luftdaten.info.
+    Script can be used to read meta kit information from json file and export
+    it to MySql Sensors and TTNtable.
+    Output channels defined: database, monitor, luftdaten, ...
+    Input channels defined: TTN MQTT server.
+    The program will handle events and play as watchdog on kit activity.
+    Notices are sent via email and Slack notices per kit, and group of kits.
+    Every 3 hours the data collector will check data base meta entry
+    for changed like other output channel activations.
+    On changes of measurement kit location this change will be updated in
+    the meta data (Sensors DB table).
+
+    LoRa decode is done via json decoding at MQTT level as well on subscribe
+    level per port type.
+
+    Sensor data decoding is done per sensor type.
+
+    The Conf dict will define different configurable elements and
+    every Conf setting can be changed from the command line.
+    Command line arguments (only a few examples):
+    file=nameMQTT_JSONfile.json this file will be used as input iso TTN MQTT server
+    DevAddr=ttn_address only this topic subscription (default +)
+
+    Various output channels can be reconfigured as eg:
+    luftdaten:output=true (default) luftdaten:debug=true (dflt false)
+    monitor:output=false (default)
+    console:output=false (default)
+    database: output=true (default)
+    notices:output=true (default)
+    logger:print=true (defgault) print in colored format
+    as database acces credential settings: host=xyz, user=name, password=acacadabra
+    Or use command environment settings: DBUSER,DBHOST,DBPASS environment
+    See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.16 $"[11:-2]
+__version__ = "0." + "$Revision: 3.20 $"[11:-2]
 
 try:
     import MyLogger
@@ -66,7 +102,6 @@ mid = None               # for logging: message ID
 telegrams = []           # telegram buffer, max length is 100     
 ErrorCnt = 0             # connectivity error cnt, slows down, >20 reconnect, >40 abort
 PingTimeout = 0          # last time ping request was sent
-ReDoCache  = 18*60*60     # period in time to check for new kits
 Channels = []      # output channels
 DB = None                # shortcut to Output channel database dict
 ThreadStops = []         # list of stop routines for threads
@@ -87,9 +122,9 @@ cached = {
     #    'kitTable': name of measurements table of a kit
     # },
     # 'ident': collected meta info
-    # 'TTL': unix timestamp time to live for this cache entry: entered time + 3 hrs
     # },
 }
+ReDoCache  = 3*60*60     # period in time to check for new kits
 dirtySensorCache = False
 dirtyCaches = False
 updateCacheTime = int(time())+ReDoCache
@@ -444,24 +479,7 @@ def importNotices():
         MyLogger.log(modulename,'ERROR','Failed to load notice addresses. Error: e' % str(e))
         return False
 
-# delete cache entries in DB tables Sensors/TTNtable, which have been updated
-def UpdateCache():
-    global cached, dirtyCaches, updateCacheTime, ReDoCache
-    global DB
-    if not len(SensorCache) or DB: return
-    topics = DB.UpdatedIDs(updateCacheTime,field='TTN_id', table='TTNtables')
-    if len(topics):
-        MyLogger.log(modulename,'DEBUG','Kits to be updated in cache: %s' % ', '.join(topics))
-    for one in cached.keys():
-        indx = 0
-        try: indx = '/'.index(one)+1
-        except: pass
-        if one[indx:] in topics:
-            MyLogger.log(modulename,'ATTENT','Kit with topic %s to be updated in cache' % one)
-            del cache[one]
-    dirtyCaches = False
-    updateCacheTime = int(time())+ReDoCache
-
+# monitor output channel
 def monitorPrt(test, color=0): # default color is black
     global monitor
     if not monitor: return
@@ -471,6 +489,28 @@ def monitorPrt(test, color=0): # default color is black
     except: pass
     try: sys.stdout(test+'\n')
     except: pass
+
+# delete cache entries in DB tables Sensors/TTNtable, which DB entry has been updated
+def UpdateCache():
+    global cached, dirtyCaches, updateCacheTime, ReDoCache
+    global DB
+    if not len(SensorCache) or not DB: return
+    if (not dirtyCaches) and (time() <= updateCacheTime): return
+    updateCacheTime = int(time())+ReDoCache
+    # get topics for which kits (Sensors) meta data has been changed meanwhile
+    topics = DB.UpdatedIDs(updateCacheTime,field='TTN_id', table='TTNtables')
+    if len(topics):
+        MyLogger.log(modulename,'DEBUG','Kits to be updated in cache: %s' % ', '.join(topics))
+    else: return
+    for one in cached.keys():
+        indx = 0
+        try: indx = '/'.index(one)+1
+        except: pass
+        if one[indx:] in topics:
+            MyLogger.log(modulename,'ATTENT','Kit with topic %s to be updated in cache' % one)
+            monitorPrt("Cached kit with topics %s to be updated." % one[indx:], 4)
+            del cache[one]
+            dirtyCaches = False
 
 # json file with predefined nodes administration details
 # prefer to export nodes info via MyDB.py in standalone mode
@@ -579,9 +619,9 @@ def Initialize():
 
 # reread admin meta info of nodes in, may de/activate data arcghiving of the node
 def SigUSR2handler(signum,frame):
-    global dirtyCache
+    global updateCacheTime
     try:
-      dirtyCache = True
+      updateCacheTime = 0
     except: pass
     return
 
@@ -1389,9 +1429,6 @@ def convert2MySense( data, **sensor):
         UpdateCache()
         importNotices() # check if notice addreses file exists and is modified
     else: cleanupCache(myID)
-    try: # get maybe updated sensor meta data from DB
-        if time() > cached[myID]['TTL']: del cached[myID]
-    except: pass
     if not myID in cached.keys():       # caching
         if len(cached) >= 100: # FiFo to avoid exhaustion, maydisrupt chack on dead kits
             oldest = time() ; oldestKey = None
@@ -1411,7 +1448,6 @@ def convert2MySense( data, **sensor):
                 'SensorsID':  DBtables[0],
                 'TTNtableID': DBtables[1],
                 'kitTable':   DBtables[3],
-            'TTL': time()+3*60*60,
             },
             'identified': False}
         cached[myID]['port%d' % record['port']] = {}
@@ -1726,7 +1762,7 @@ def convert2MySense( data, **sensor):
            cached[myID]['active'] = False
         elif not cached[myID]['active'] and cached[myID]['count'] <= 1:
            MyLogger.log(modulename,'ATTENT','Record from not activated kit: %s_%s' % (ident['project'],ident['serial']))
-           monitorPrt('Record from not activated kit: %s_%s' % (ident['project'],ident['serial']),1)
+           monitorPrt('Record from not activated kit: %s_%s' % (ident['project'],ident['serial']),31)
            MyLogger.log(modulename,'DEBUG','Record from not activated kit: ident: %s, values: %s' % (str(ident),str(values)))
            sendNotice('Not active (in test?) kit found: %s, project: %s, serial: %s' % (myID,ident['project'],ident['serial']),myID=myID)
            # gotMetaInfo = True
@@ -1738,14 +1774,12 @@ def convert2MySense( data, **sensor):
     # sendNotice('Got record ident: %s, data: %s' % (str(ident),str(values)), myID=myID)
     if 'monitor' in Conf.keys():
         if re.match(Conf['monitor'],ident['project']+'_'+ident['serial']):
-            monitorPrt("%s %s (%s_%s):\t#%4.d%s" % (
-                datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),
-                myID.split('/')[1],
-                ident['project'],
-                ident['serial'],
+            monitorPrt("%-66.65s #%4.d%s" % (
+                '%s %s (%s_%s):' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),
+                myID.split('/')[1], ident['project'], ident['serial']),
                 cached[myID]['count'],
-                (' at %dm%ds' % (cached[myID]['interval']/60,cached[myID]['interval']%60) if cached[myID]['interval'] < 60*60 else '')
-            ), 17)
+                ' at %dm%ds' % (cached[myID]['interval']/60,(cached[myID]['interval']%60) if cached[myID]['interval'] < 60*60 else '')
+            ), 34)
     if ('check' in Conf.keys()) and (type(Conf['check']) is list):
         for item in values.keys(): # out of band values
             if not ValidValue(myID,item,values[item]): del values[item]
@@ -1937,16 +1971,15 @@ def ImportArguments():
                             # sys.stderr.write("Channel %s new value Conf[%s]: %s\n" %(Channels[indx]['name'],key,str(Match['value'])))
                         break
             else:
-                CMatch = re.match(r'(file|initfile|smtp|from|debug)',Match['key'], re.IGNORECASE)
+                CMatch = re.match(r'(file|initfile|smtp|from|debug|DevAddr)',Match['key'], re.IGNORECASE)
                 if CMatch:
                     if Match['key'].lower() in ['smtp','debug']:
                         if type(Conf[Match['key'].upper()]) is list: Match['value'].split(',')
                         Conf[Match['key'].upper()] = Match['value']
-                        # sys.stderr.write("New value Conf[%s]: %s\n" %(Match['key'].upper(),str(Match['value'])))
                     else:
-                        if type(Conf[Match['key'].lower()]) is list: Match['value'].split(',')
-                        Conf[Match['key'].lower()] =  Match['value']
-                        # sys.stderr.write("New value Conf[%s]: %s\n" %(Match['key'].lower(),str(Match['value'])))
+                        if type(Conf[Match['key']]) is list: Match['value'].split(',')
+                        Conf[Match['key']] =  Match['value']
+                    sys.stderr.write("New value Conf[%s]: %s\n" %(Match['key'],str(Match['value'])))
     return True
 
 # synchronize Conf with Channels
@@ -2135,9 +2168,9 @@ def RUNcollector():
                         data = record['data'],
                         internet = net
                         ):
-                       monitorPrt("    Kit %s/%s data output to %s: OK" % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name']),4)
+                       monitorPrt("    %-50.50s OK" % ('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),4)
                     else:
-                       monitorPrt("    Kit %s/%s data no output to %s: FAILED" % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name']),31)
+                       monitorPrt("    %-50.50s FAILED" % ('Kit %s/%s data no output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),31)
                     Channels[indx]['errors'] = 0
                     Channels[indx]['timeout'] = time()-1
                     cnt += 1
