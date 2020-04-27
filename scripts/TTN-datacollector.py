@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.20 2020/04/26 09:15:28 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.22 2020/04/27 09:25:06 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -35,43 +35,57 @@
     Monitor traffic and output channels.
     One may need to change payload and TTN record format!
     MySense meta measurement kits data is read from MySQL database table Sensors.
-    Output activation per kit is read from MySQL table TTNtable:
+    Output channel activation per kit is read from MySQL table TTNtable:
     active, luftdaten, luftdaten.info.
+    The script is designed to run autonomisly and send notices on discovered events.
+    The script can run in different modi: data forwarder, monitoring forwarding,
+    measurement kit info load into air quality DB, or with different combinations.
+    The configuration is read from a json formatted initialisation file.
+
+    Configuration:
     Script can be used to read meta kit information from json file and export
     it to MySql Sensors and TTNtable.
     Output channels defined: database, monitor, luftdaten, ...
     Input channels defined: TTN MQTT server.
-    The program will handle events and play as watchdog on kit activity.
-    Notices are sent via email and Slack notices per kit, and group of kits.
-    Every 3 hours the data collector will check data base meta entry
-    for changed like other output channel activations.
-    On changes of measurement kit location this change will be updated in
-    the meta data (Sensors DB table).
-
-    LoRa decode is done via json decoding at MQTT level as well on subscribe
-    level per port type.
-
-    Sensor data decoding is done per sensor type.
-
     The Conf dict will define different configurable elements and
     every Conf setting can be changed from the command line.
     Command line arguments (only a few examples):
     file=nameMQTT_JSONfile.json this file will be used as input iso TTN MQTT server
     DevAddr=ttn_address only this topic subscription (default +)
 
+    Events:
+    The program will handle events and play as watchdog on kit activity.
+    A measurement kit which is not seen for a long period is notified.
+    A measurement kit which is too active is throttled. Notices are sent in this case.
+    Notices are sent via email and Slack notices per kit, and group of kits.
+    If the measurement kit generates out of band values (e.g. RH or temp is
+    not changed for a long period) a notice will be sent.
+
+    Updates:
+    Every 3 hours the data collector will check data base meta entry
+    for changed like other output channel activations.
+    On DB kit meta info changes of measurement kit location this change will
+    be updated in the meta data (Sensors DB table).
+
+    LoRa decoding:
+    LoRa decode is done via json decoding at MQTT level as well on subscribe
+    level per port type.
+    Sensor data decoding is done per sensor type.
+
+    Configuration from CLI level:
     Various output channels can be reconfigured as eg:
     luftdaten:output=true (default) luftdaten:debug=true (dflt false)
     monitor:output=false (default)
     console:output=false (default)
     database: output=true (default)
     notices:output=true (default)
-    logger:print=true (defgault) print in colored format
+    logger:print=true (default) print in colored format
     as database acces credential settings: host=xyz, user=name, password=acacadabra
-    Or use command environment settings: DBUSER,DBHOST,DBPASS environment
+    Or use command environment settings: DBHOST, DBUSER, DBPASS, or DB
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.20 $"[11:-2]
+__version__ = "0." + "$Revision: 3.22 $"[11:-2]
 
 try:
     import MyLogger
@@ -129,9 +143,6 @@ dirtySensorCache = False
 dirtyCaches = False
 updateCacheTime = int(time())+ReDoCache
 SensorCache = {}
-
-# TTN working command line example
-# mosquitto_sub -v -h eu.thethings.network -p 1883 -u 20179215970128 -P 'ttn-account-v2.ZJvoRKh3kHsegybn_XhADOGEglqf6CGAChqLUJLrXA'  -t '+/devices/+/up' -v
 
 # configurable options
 __options__ = [
