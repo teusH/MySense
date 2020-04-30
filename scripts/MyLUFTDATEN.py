@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.14 2020/04/25 13:24:20 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.15 2020/04/30 08:07:41 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.14 $"[11:-2]
+__version__ = "0." + "$Revision: 3.15 $"[11:-2]
 
 try:
     import sys
@@ -221,7 +221,7 @@ def post2Luftdaten(headers,postdata,postTo,sensed):
                   Conf['log'](modulename,'ERROR','Post %s to %s with status code: forbidden (%d)' % (sensed,headers['X-Sensor'],r.status_code))
                 elif r.status_code == 400:
                   Conf['log'](modulename,'ERROR','Not registered post %s for ID %s, status code: %d' % (sensed,headers['X-Sensor'],r.status_code))
-                  raise ValueError("EVENT Not registered %s POST for ID %s" % (url,headers['X-Sensor']))
+                  # raise ValueError("EVENT Not registered %s POST for ID %s" % (url,headers['X-Sensor']))
                 else:
                   Conf['log'](modulename,'ATTENT','Post %s to %s with status code: %d' % (sensed,headers['X-Sensor'],r.status_code))
                 if not headers['X-Sensor'] in post2Luftdaten.HTTP_errors.keys():
@@ -230,10 +230,11 @@ def post2Luftdaten(headers,postdata,postTo,sensed):
             elif headers['X-Sensor'] in post2Luftdaten.HTTP_errors.keys():
                 del post2Luftdaten.HTTP_errors[headers['X-Sensor']]
         except requests.ConnectionError as e:
-            Conf['log'](modulename,'ERROR','Connection error: ' + str(e))
+            Conf['log'](modulename,'DEBUG','Connection error: ' + str(e))
             rts = False
         except Exception as e:
-            if str(e).find('EVENT') >= 0: raise ValueError(str(e)) # send notice event
+            if str(e).find('EVENT') >= 0:
+                raise ValueError(str(e)) # send notice event
                 # return True # not reached
             Conf['log'](modulename,'ERROR','Error: ' + str(e))
             rts = False

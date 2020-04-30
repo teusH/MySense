@@ -18,14 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLogger.py,v 3.4 2020/04/15 15:02:28 teus Exp teus $
+# $Id: MyLogger.py,v 3.5 2020/04/30 14:19:08 teus Exp teus $
 
 # TO DO:
 
 """ Push logging to the external world.
 """
 modulename='$RCSfile: MyLogger.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.4 $"[11:-2]
+__version__ = "0." + "$Revision: 3.5 $"[11:-2]
 
 import sys
 
@@ -33,7 +33,7 @@ import sys
 __options__ = ['level','file','output','date']
 
 Conf = {
-    'level': 0,
+    'level': 'INFO',
     'istty': False, # should go away
     'file' : sys.stderr,
     'fd': None,

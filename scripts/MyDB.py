@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.6 2020/04/24 11:07:56 teus Exp teus $
+# $Id: MyDB.py,v 3.7 2020/04/30 14:19:08 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.6 $"[11:-2]
+__version__ = "0." + "$Revision: 3.7 $"[11:-2]
 
 try:
     import sys
@@ -137,6 +137,7 @@ def CreateSensors():
           ADD COLUMN pcode VARCHAR(10) DEFAULT NULL,
           ADD COLUMN province VARCHAR(50) DEFAULT NULL,
           ADD COLUMN municipality VARCHAR(50) DEFAULT NULL,
+          ADD COLUMN region VARCHAR(20) DEFAULT NULL,
           ADD COLUMN last_check DATETIME DEFAULT CURRENT_TIMESTAMP,
           CHANGE datum datum datetime DEFAULT current_timestamp ON UPDATE current_timestamp
         """, False):
@@ -147,7 +148,7 @@ def CreateSensors():
 
 # registrate the sensor to the Sensors table and update location/activity
 serials = {}     # remember serials of sensor kits checked in into table Sensors
-def db_registrate(ident):
+def db_registrate(ident, adebug=False):
     """ create or update identification inf to Sensors table in database """
     global Conf
     try: tableID = '%s_%s' % (ident['project'],ident['serial'])
@@ -164,16 +165,19 @@ def db_registrate(ident):
         Conf['log'](modulename,'FATAL','Unable to access Sensors table in DB')
         exit(1)
 
-    def db_WhereAmI(ident,desc=True):
+    def db_WhereAmI(ident,desc=True,adebug=False):
         query = []
         # [str(r[0]) for r in db_query("SELECT column_name FROM information_schema.columns WHERE  table_name = 'Sensors' AND table_schema = '%s'" % Conf['database'],True)]
-        for fld in ("label","description","street","village","province","municipality","coordinates"):
+        for fld in ("label","description","street","village","province","municipality","region","coordinates"):
             if (fld == "description") and (not desc): continue
             if (fld in ident.keys()) and (ident[fld] != None):
                 query.append("%s = '%s'" % (fld,ident[fld]))
         if not len(query): return
         try:
-            db_query("UPDATE Sensors SET %s WHERE project = '%s' AND serial = '%s' AND active" % (','.join(query),ident['project'],ident['serial']),False)
+            update = "UPDATE Sensors SET %s WHERE project = '%s' AND serial = '%s' AND active" % (','.join(query),ident['project'],ident['serial'])
+            if adebug: print("Could update DB table Sensors qry: %s" % update)
+            else:
+              db_query(update, False)
         except: pass
         return
 
@@ -201,7 +205,7 @@ def db_registrate(ident):
             fld_units += "%s(%s)" %(ident['fields'][i],ident['units'][i])
     ident['sensors'] = (fld_units if len(fld_units) else 'NULL')
     if ('geolocation' in ident.keys()) and (not 'coordinates' in ident.keys()): # naming clash
-        ident['coordinates'] = ident['geolocation']
+        ident['coordinates'] = ','.join([x.rstrip('0') if x.rstrip('0') else '0' for x in ident['geolocation'].split(',')])
 
     for item in mayUpdate:
         try:
@@ -217,7 +221,7 @@ def db_registrate(ident):
             mayUpdate.append(item); values.append(Rslt[item])
     if len(mayUpdate):
         mayUpdate.append('last_check'); values.append('now()')
-        setNodeFields(None,mayUpdate,values,table='Sensors',project=ident['project'],serial=ident['serial'])
+        setNodeFields(None,mayUpdate,values,table='Sensors',project=ident['project'],serial=ident['serial'], adebug=debug)
         Conf['log'](modulename,'INFO',"Updated registration proj %s: SN %s in database table 'Sensors'." % (ident['project'],ident['serial']))
     return True
 
@@ -295,7 +299,7 @@ def TableColumns(table):
 
 # push info dict into tables of DB: Sensors (Sensor kit location info) and TTN LoRa info
 # only used once to ship json info to database
-def putNodeInfo(info):
+def putNodeInfo(info,adebug=False):
     global Conf
     LAT = 0
     LON = 1
@@ -303,8 +307,8 @@ def putNodeInfo(info):
     def GPSdistance(gps1,gps2): # returns None on a not valid GPS oordinate
         from math import sin, cos, radians, pow, sqrt, atan2
         def str2list(val):
-            if not type(val) is list:
-                rts = val
+            if type(val) is list:
+                rts = [float(x) for x in val]
             elif val == None: return None
             else: rts = [float(x) for x in val.split(',')]
             if len(rts) < 2: return None
@@ -345,7 +349,7 @@ def putNodeInfo(info):
         if not 'first' in info.keys(): info['first'] = info['date']
         elif not 'datum' in info.keys(): info['datum'] = info['date']
     for item in ('first','datum'): # convert human timestamp to POSIX timestamp
-        if item in info.keys():
+        if (item in info.keys()) and (not type(info[item]) is int):
           try:
             info[item] = int(mktime(parse(info[item], dayfirst=True, yearfirst=False).timetuple()))
           except ValueError:
@@ -360,20 +364,34 @@ def putNodeInfo(info):
                 info['coordinates'][LAT] = str(info['GPS'][oord])
             elif oord.lower().find('alt') >= 0:
                 info['coordinates'][ALT] = str(info['GPS'][oord])
-        info['coordinates'] = ','.join(info['coordinates'])
-    sensors = []                   # convert sensor types to ;hw: string
+        info['coordinates'] = ','.join([x.rstrip('0') if x.rstrip('0') else '0' for x in info['coordinates']])
+
+    sensors = []; descript = []    # convert sensor types to ;hw: string
+    if 'description' in info.keys():
+        descript = info['description'].split(';')
     for item in ('dust','meteo','gps'):
-        try: sensors.append(info[item])
+        try:
+          sensors.append(info[item].upper().strip())
+          if item == 'gps' and info[item]: sensors.append('TIME')
         except: pass
-    if len(sensors): info['sensors'] = ';hw: ' + ','.join(sensors)
+        sensors.sort()
+    if len(sensors):
+        for i in range(len(descript)-1,-1,-1):
+            descript[i] = descript[i].strip()
+            if descript[i].find('hw:') >= 0  or not descript[i]:
+              del descript[i]
+        info['description'] = ';hw: ' + ','.join(sensors)
+        if len(descript): info['description'] += ';'+';'.join(descript)
+
     if 'luftdaten.info' in info.keys(): # convert to newer handling
         if info['luftdaten.info']:
             info['luftdaten'] = True
             if type(info['luftdaten']) is str: info['luftdatenID'] = info['luftdaten.info']
         else: info['luftdaten'] = False
-    for item in ['pcode','street','coordinates']:
-        if not item in info.keys(): info[item] = ''
+    # for item in ['pcode','street','coordinates','region']:
+    #     if not item in info.keys(): info[item] = ''
 
+    # To Do: lock Sensors table while updating "LOCK TABLES Sensors, TTNtable READ LOCAL"
     # export info dict to DB tables update, if table not exists create it
     for table in ['Sensors','TTNtable']:
         if not db_table(table): continue
@@ -382,36 +400,51 @@ def putNodeInfo(info):
             extra = ', pcode, street, active, coordinates'
         rts = db_query("SELECT UNIX_TIMESTAMP(id)%s FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % (extra,table,info['project'],info['serial']), True)
         if len(rts) and extra: # may need new entry if location changed
-            # to do: lock this table while updating
             try:
               dist = None
               try:
                 id = rts[0][0]; active = rts[0][3]
+                info['coordinates'] = ','.join([x.rstrip('0') if x.rstrip('0') else '0' for x in info['coordinates'].split(',')])
                 dist = GPSdistance(info['coordinates'],rts[0][4])
-                if dist and dist > 50: # locations differ more as 50 meters
+                if adebug: print("Distance %s - %s: %d" % (info['coordinates'],rts[0][4],dist))
+                if dist and (50 < dist < 100000): # locations differ more as 50 meters
                   dist = True
                 elif dist != None: dist = False
                 # else: dist = None
               except: pass
-              try:
-                if dist == None:
-                  if not rts[0][1]: rts[0][1] = ''
-                  if not rts[0][2]: rts[0][2] = ''
-                  # may need to check on geolocation first
-                  if rts[0][1] != info['pcode'] or rts[0][2][-3:] != info['street'][-3:]:
-                    dist = True
-                  else: dist = False
-              except: pass
+              if dist == None:
+                if not rts[0][1]: rts[0][1] = ''
+                if not rts[0][2]: rts[0][2] = ''
+                # may need to check on geolocation first
+                if 'pcode' in info.keys() and rts[0][1] != info['pcode']:
+                  dist = True
+                elif 'street' in info.keys() and rts[0][2][-3:] != info['street'][-3:]:
+                  dist = True
+                else: dist = False
               if (dist != False) and active: # deactivate
-                db_query("UPDATE Sensors set active = 0 WHERE id = FROM_UNIXTIME(%s)" % id, False)
-                rts = [] # force new entry
+                query = "UPDATE Sensors set active = 0 WHERE id = FROM_UNIXTIME(%s)" % id
+                if adebug:
+                  print("Could update DB Sensors qry: %s" % query)
+                else:
+                  db_query(query, False)
+                  flds = ','.join(list(set(TableColumns('Sensors')) - set(['street','pcode','village','municipality','region','coordinates','active','datum','id']))) # default active = True
+                  query = "INSERT INTO Sensors (%s) SELECT %s FROM Sensors WHERE id = FROM_UNIXTIME(%s)" % (flds, flds, id)
+                  db_query(query, False)
+                  # and copy part of it: no location, active
+                  rts = db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % ('Sensors',info['project'],info['serial']), True)
             except: pass  
         if not len(rts): # insert a new row entry
-            sleep(2) # make sure id timestamp is unique
-            if not db_query("INSERT INTO %s (datum, project, serial, active) VALUES (now(),'%s','%s',1)" % (table,info['project'],info['serial']), False):
-                Conf['log'](modulename,'ERROR','Cannot insert new row in table %s for project %s, serial %s' % (table,info['project'],info['serial']))
+            Conf['log'](modulename,'ATTENT','Insert new entry in Sensors table for %s/%s.' % (info['project'],info['serial']))
+            query = "INSERT INTO %s (datum, project, serial, active) VALUES(now(),'%s','%s',%d)" % (table,info['project'],info['serial'], 1 if 'active' in info.keys() and info['active'] else 0)
+            if adebug:
+              print("Could change DB with: %s" % query); rts = [(1001,)]
+            else:
+              sleep(2) # make sure id timestamp is unique
+              # TO DO: new entry in TTNtable with default values?
+              if not db_query(query, False):
+                Conf['log'](modulename,'ERROR','Cannot insert new row in table %s for project %s, serial %s' % ('TTNtable',info['project'],info['serial']))
                 continue
-            rts = db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % (table,info['project'],info['serial']), True)
+              rts = db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % (table,info['project'],info['serial']), True)
         qry = []
         for item in (set(TableColumns(table)) & set(info.keys())) - set(['project','serial','id']):
             if item in ('first','datum'):
@@ -424,8 +457,12 @@ def putNodeInfo(info):
               qry.append("%s = '%s'" % (item,info[item]))
             else: qry.append("%s = NULL" % item)
         if not len(qry): continue
-        if not db_query("UPDATE %s SET %s WHERE UNIX_TIMESTAMP(id) = %d" % (table,', '.join(qry),rts[0][0]), False):
-            Conf['log'](modulename,'ERROR','Updating node info for %s SN %s' % (info['project'],info['serial']))
+        update = "UPDATE %s SET %s WHERE UNIX_TIMESTAMP(id) = %d" % (table,', '.join(qry),rts[0][0])
+        if adebug: print("Could update DB Sensors qry: %s" % update)
+        else:
+          if not db_query(update, False):
+            Conf['log'](modulename,'ERROR','Updating node info (%s) for %s SN %s' % (', '.join(qry),info['project'],info['serial']))
+    # To Do: "UNLOCK TABLES"
     return True
     
 # get TTN_id's with changes later then timestamp in tables Sensors and TTNtable
@@ -440,14 +477,11 @@ def UpdatedIDs(timestamp, field='TTN_id', table='TTNtable'):
     rts = []
     try:
         qry = db_query('SELECT project, serial FROM %s WHERE UNIX_TIMESTAMP(datum) > %d' % (('Sensors' if table == 'TTNtable' else 'Sensors'),int(timestamp)), True)
-        if not len(qry): return rts
         sql = []
         for one in qry:
-            if len(one) != 2: continue
-            sql.append("(project = '%s' AND serial = '%s')" % (one[0],one[1]))
-        if not len(sql): return rts
+            sql.append("(project = '%s' and serial = '%s')")
         sql = ' or '.join(sql)+' or '        
-        qry = db_query('SELECT DISTINCT %s FROM %s WHERE %s (UNIX_TIMESTAMP(datum) > %d)' % (field,table,sql,int(timestamp)), True)
+        qry = db_query('SELECT DISTINCT %s FROM %s WHERE %s UNIX_TIMESTAMP(datum) > %d' % (field,table,int(timestamp)), True)
         for one in qry: rts.append(one[0])
     except: pass
     return rts
@@ -518,7 +552,7 @@ def getNodeFields(id,fields,table='Sensors',project=None,serial=None):
         return rts
 
 # update a list of fields and values in a DB table
-def setNodeFields(id,fields,values,table='Sensors',project=None,serial=None):
+def setNodeFields(id,fields,values,table='Sensors',project=None,serial=None,adebug=False):
     if project and serial:
         try:
             qry = db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' AND active ORDER BY datum DESC LIMIT 1" % (table,project,serial), True)
@@ -542,7 +576,11 @@ def setNodeFields(id,fields,values,table='Sensors',project=None,serial=None):
         qry.append('%s = %s' % (fields[i],values[i]))
     if not len(qry): return True
     try:
-        return(db_query('UPDATE %s SET %s WHERE UNIX_TIMESTAMP(id) = %d' % (table, ', '.join(qry), id),False))
+        update = 'UPDATE %s SET %s WHERE UNIX_TIMESTAMP(id) = %d' % (table, ', '.join(qry), id)
+        if adebug:
+          print("Could update DB with: %s" % update); return True
+        else:
+          return(db_query('UPDATE %s SET %s WHERE UNIX_TIMESTAMP(id) = %d' % (table, ', '.join(qry), id),False))
     except Exception as e:
         Conf['log'](modulename,'ERROR','Unable to update table %s. Error %s.' % (table,str(e)))
         return False
