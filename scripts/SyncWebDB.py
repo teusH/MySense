@@ -18,22 +18,23 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: SyncWebDB.py,v 1.1 2020/04/30 14:20:15 teus Exp teus $
+# $Id: SyncWebDB.py,v 1.2 2020/05/02 15:38:36 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
 
 modulename='$RCSfile: SyncWebDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.1 $"[11:-2]
+__version__ = "0." + "$Revision: 1.2 $"[11:-2]
 
 help = """
     Command: python %s arg ...
-        --help | -h         This message
-        --time | -t <secs>  Minimal change time
-        --interact | -i     Make changes interactively
-        --debug | -d        Debug modus, do not change values in database
-        project_serial pattern Pattern match, only those measurement kits: eg SAN_.*
-        filename.json       Filename json type with meta info to be entered in Sensors
+        --help | -h         This message.
+        --time | -t <secs>  Minimal change time.
+        --interact | -i     Make changes interactively.
+        --debug | -d        Debug modus, do not change values in database.
+        --quiet | -q        Be quiet: do not show differences in DB's. Deflt: false.
+        <project>_<serial pattern> Pattern match, only those measurement kits: eg SAN_.*.
+        <filename>.json     Filename json type with meta info to be entered in Sensors.
 
     Synchronize meta information between air quality DB luchtmetingen
     and map/graphs visualisation, and interact a form to enter meta information DB Drupal.
@@ -106,6 +107,7 @@ def EXIT(status):
     except: pass
   sys.exit("%s of %s" % (('FATAL: exit' if status else 'Exit'), modulename) )
 
+quiet = False      # be queit while showing differences in DB's
 prepend = 'field_data_field_' # for all DSrupal table names
 # to convert value to Nld province name and visa versa. Indexed list.
 provincies = [None,'Groningen','Friesland','Drente','Gelderland','Overijssel','Flevoland','Noord-Holland','Zuid-Holland','Zeeland','Brabant','Limburg']
@@ -211,8 +213,10 @@ def GPSdistance(gps1,gps2): # returns None on a not valid GPS oordinate
     def str2list(val):
         if type(val) is list:
             rts = val
-        elif val == None: return None
-        else: rts = [float(x) for x in str(val).split(',')]
+        elif val == None or val == 'None': return None
+        else:
+          try: rts = [float(x) for x in str(val).split(',')]
+          except: return None
         if len(rts) < 2: return None
         # if rts[0] < 0.1 or rts[1] < 0.1: return None
         return rts
@@ -436,7 +440,7 @@ def getFromAQ(project,serial, info, items=info_fields):
             elif str(qry[0][indx]) == 'None': info[fields[indx]] = None
             else:
               info[fields[indx]] = str(qry[0][indx])
-    if 'coordinates' in info.keys():  # may try to correct order
+    if 'coordinates' in info.keys() and type(info['coordinates']) is str:  # may try to correct order
         ord = [float(x) for x in info['coordinates'].split(',')]
         if ord[0] < ord[1]:
             tmp = ord[1]
@@ -537,7 +541,8 @@ def DateTranslate(datum, format=None):
         ('juni','Jun'),('juli','Jul'),('augustus','Aug'),('september','Sep'),('october','Oct'),
         ('oktober','Oct'),('november','Nov'),('december','Dec')]
     rslt = datum
-    if not type(rslt) is int and rslt.isdigit():
+    if rslt == None: rslt = 0
+    elif not type(rslt) is int and rslt.isdigit():
         rslt = int(rslt)
     if not type(rslt) is int:
       t = datum.strip().split(' '); rslt = datum
@@ -550,7 +555,10 @@ def DateTranslate(datum, format=None):
           rslt = datum.replace(this,mt)
           break
       try: rslt = int(mktime(parse(rslt, dayfirst=True, yearfirst=False).timetuple()))
-      except: pass
+      except Exception as e:
+        sys.stderr.write("Unable to parse time: %s, error %s." % (rslt,str(e)))
+        if format: return datum
+        rslt = 0
     try:
       if format: return datetime.datetime.fromtimestamp(rslt).strftime(format)
       return rslt
@@ -574,7 +582,7 @@ def diffInfos(Drupal,AQDB,left,line1='',line2=''):
             if GPSdistance(DrItem,AqItem) > 50: diff = True
             else: diff = False
         if not diff and not interactAll:
-          print("  %12.12s: %s" % (fld,str(DrItem)))
+          if not quiet: print("  %12.12s: %s" % (fld,str(DrItem)))
           continue
         ToChange = (DrItem if left else AqItem)
         AqItemC = "\033[%dm%s\033[0m" % ((32 if AqItem == ToChange else 31),str(AqItem)[:25])
@@ -605,8 +613,47 @@ def diffInfos(Drupal,AQDB,left,line1='',line2=''):
         print("  Air Qual DB: ", str(AQrslt))
     return (DRrslt,AQrslt)
 
+def setMembers(column,table):
+    qry = MyDB.db_query("SELECT DISTINCT %s FROM %s" % (column,table), True)
+    rslt = []
+    if not len(qry) or not len(qry[0]): return rslt
+    for item in qry:
+        if len(item): rslt.append(item[0])
+    return rslt
+
+# insert new entrys in Sensors/TTNtable for this Drupal entry if operational
+def insertNewKit(WebKit):
+    global modulename, interact
+    qry = MyDB.db_query("SELECT UNIX_TIMESTAMP(datum) FROM Sensors WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1"% (WebKit['project'],WebKit['serial']), True)
+    if len(qry) and len(qry[0]) and qry[0][0]: return qry[0][0]
+    operational = WebDB.db_query("SELECT field_operationeel_value from field_data_field_operationeel WHERE entity_id = %d" % WebKit['nid'], True)
+    if not len(operational) or not len(operational[0]): operational = None
+    elif not operational[0][0]: operational = False
+    else: operational = True
+    if not operational: return 0
+    # vid == 8 for project names defined in Drupal
+    # qry = WebDB.db_query("SELECT name FROM taxonomy_term_data WHERE vid = 8", True)
+    setSensors = setMembers('project','Sensors')
+    setTTNtable = setMembers('project','TTNtable')
+    if not WebKit['project'] in set(set(setSensors) & set(setTTNtable)):
+        MyLogger.log(modulename,'WARNING','Unknown project "%s" for a kit. Insert it manually.' % WebKit['project'])
+        if not interact: return 0
+        try: line = raw_input("Insert new project %s serial %s in Sensors/TTNtable? (Y/n): " % (WebKit['project'],WebKit['serial']))
+        except: line = 'no'
+        line = line.strip()
+        if line and (line.lower()[0] != 'y'): return 0
+    try:
+        t = WebKit['changed']-12*60*60 # make sure Drupal date time overrules AQ date time
+        MyLogger.log(modulename,'ATTENT','Insert new entry project %s, serial %s in AQ DB tables from Drupal node %d dated: %s.' % (WebKit['project'],WebKit['serial'],WebKit['nid'],datetime.datetime.fromtimestamp(WebKit['changed']).strftime("%Y-%m-%d %H:%M")))
+        MyDB.db_query("INSERT INTO Sensors (datum,project,serial,active) VALUES (FROM_UNISTIMESTAMP(%d),%s,%s,0)" % (t,WebKit['project'],WebKit['serial']),False)
+        qry = MyDB.db_query("SELECT id FROM TTNtable WHERE project = %s AND serial = '%s'" % (WebKit['project'],WebKit['serial']), True)
+        if len(qry) and len(qry[0]): return t
+        MyDB.db_query("INSERT INTO TTNtable (datum,project,serial,active) VALUES (FROM_UNISTIMESTAMP(%d),%s,%s,0)" % (t,WebKit['project'],WebKit['serial']),False)
+        return t
+    except: return 0
+
 def syncWebDB():
-    global Conf, KitSelections
+    global Conf, KitSelections, modulename
     global DustTypes, MeteoTypes, GpsTypes
     #if Conf['log']: 
     #    WebDB.Conf['log'] = MyDB.Conf['log'] = Conf['log']
@@ -622,13 +669,13 @@ def syncWebDB():
     for indx in range(len(WebMeetkits)):
         qry = MyDB.db_query("SELECT UNIX_TIMESTAMP(datum) FROM Sensors WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1"% (WebMeetkits[indx]['project'],WebMeetkits[indx]['serial']), True)
         if not len(qry):
-            MyLogger.log(modulename,'WARNING','Sensor kit proj %s,serial %s not in Sensors table' % (WebMeetkits[indx]['project'],WebMeetkits[indx]['serial']))
-            WebMeetkits[indx]['datum'] = None
+            MyLogger.log(modulename,'ATTENT','Sensor kit from Drupal node %d with project %s,serial %s is not defined in Sensors/TTNtable table(s).' % (WebMeetkits[indx]['nid'],WebMeetkits[indx]['project'],WebMeetkits[indx]['serial']))
+            WebMeetkits[indx]['datum'] = insertNewKit(WebMeetkits[indx])
         else: WebMeetkits[indx]['datum'] = qry[0][0]
         # WebMeetkits list of dict nid, changed, project, serial, Sensors datum keys
-
         MyLogger.log(modulename,'DEBUG','Kit Drupal node nid %d dated %s AND data DB kit %s_%s dated %s.' % (WebMeetkits[indx]['nid'],datetime.datetime.fromtimestamp(WebMeetkits[indx]['changed']).strftime("%Y-%m-%d %H:%M"),WebMeetkits[indx]['project'],WebMeetkits[indx]['serial'],datetime.datetime.fromtimestamp(WebMeetkits[indx]['datum']).strftime("%Y-%m-%d %H:%M")))
         if WebMeetkits[indx]['datum'] and (abs(WebMeetkits[indx]['datum']-WebMeetkits[indx]['changed']) >= changeTime):
+          try:
             # modification times bigger as 5 minutes
             WebInfo = {}
             # info fields:
@@ -674,6 +721,8 @@ def syncWebDB():
                 if not 'serial' in AQinfo.keys(): AQinfo['serial'] = WebMeetkits[indx]['serial']
                 MyLogger.log(modulename,'INFO',"Synchronize web Air Quality DB meta info: %s" % str(AQinfo))
                 MyDB.putNodeInfo(AQinfo,adebug=debug)
+          except Exception as e:
+            sys.stderr.write("%s: While handling %s/%s, exception error: %s\n" % (modulename,WebMeetkits[indx]['project'],WebMeetkits[indx]['serial'],str(e)))
     return True
 
 
@@ -698,6 +747,8 @@ if __name__ == '__main__':
     for i in range(1,len(sys.argv)):
         if sys.argv[i] in ['--help', '-h']:    # help, how to use CLI
             print(help); exit(0)
+        if sys.argv[i] in ['--verbose', '-v']:    # show differences in DB's
+            quiet =  False; continue
         if sys.argv[i] in ['--debug', '-d']:    # do not change DB values
             debug = True; continue
         if sys.argv[i] in ['--time', '-t']:     # minimal modification diff in time 
