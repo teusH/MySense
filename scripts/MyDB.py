@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.7 2020/04/30 14:19:08 teus Exp teus $
+# $Id: MyDB.py,v 3.13 2020/05/05 13:09:42 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.7 $"[11:-2]
+__version__ = "0." + "$Revision: 3.13 $"[11:-2]
 
 try:
     import sys
@@ -205,7 +205,7 @@ def db_registrate(ident, adebug=False):
             fld_units += "%s(%s)" %(ident['fields'][i],ident['units'][i])
     ident['sensors'] = (fld_units if len(fld_units) else 'NULL')
     if ('geolocation' in ident.keys()) and (not 'coordinates' in ident.keys()): # naming clash
-        ident['coordinates'] = ','.join([x.rstrip('0') if x.rstrip('0') else '0' for x in ident['geolocation'].split(',')])
+        ident['coordinates'] = ','.join([x.rstrip('.0') if x.rstrip('.0') else '0' for x in ident['geolocation'].split(',')])
 
     for item in mayUpdate:
         try:
@@ -221,7 +221,7 @@ def db_registrate(ident, adebug=False):
             mayUpdate.append(item); values.append(Rslt[item])
     if len(mayUpdate):
         mayUpdate.append('last_check'); values.append('now()')
-        setNodeFields(None,mayUpdate,values,table='Sensors',project=ident['project'],serial=ident['serial'], adebug=debug)
+        setNodeFields(None,mayUpdate,values,table='Sensors',project=ident['project'],serial=ident['serial'], adebug=adebug)
         Conf['log'](modulename,'INFO',"Updated registration proj %s: SN %s in database table 'Sensors'." % (ident['project'],ident['serial']))
     return True
 
@@ -231,6 +231,9 @@ Retry = False
 def db_query(query,answer):
     """ communicate in sql to database """
     global Conf, Retry
+    if Conf['fd'] == None and not db_connect():
+        Conf['log'](modulename,'FATAL','Unable to connect to DB')
+        exit(1)
     # testCnt = 0 # just for testing connectivity failures
     # if testCnt > 0: raise IOError
     Conf['log'](modulename,'DEBUG',"MySQL query: %s" % query)
@@ -364,7 +367,7 @@ def putNodeInfo(info,adebug=False):
                 info['coordinates'][LAT] = str(info['GPS'][oord])
             elif oord.lower().find('alt') >= 0:
                 info['coordinates'][ALT] = str(info['GPS'][oord])
-        info['coordinates'] = ','.join([x.rstrip('0') if x.rstrip('0') else '0' for x in info['coordinates']])
+        info['coordinates'] = ','.join([x.rstrip('.0') if x.rstrip('.0') else '0' for x in info['coordinates']])
 
     sensors = []; descript = []    # convert sensor types to ;hw: string
     if 'description' in info.keys():
@@ -404,7 +407,7 @@ def putNodeInfo(info,adebug=False):
               dist = None
               try:
                 id = rts[0][0]; active = rts[0][3]
-                info['coordinates'] = ','.join([x.rstrip('0') if x.rstrip('0') else '0' for x in info['coordinates'].split(',')])
+                info['coordinates'] = ','.join([x.rstrip('.0') if x.rstrip('.0') else '0' for x in info['coordinates'].split(',')])
                 dist = GPSdistance(info['coordinates'],rts[0][4])
                 if adebug: print("Distance %s - %s: %d" % (info['coordinates'],rts[0][4],dist))
                 if dist and (50 < dist < 100000): # locations differ more as 50 meters
@@ -476,10 +479,10 @@ def UpdatedIDs(timestamp, field='TTN_id', table='TTNtable'):
         exit(1)
     rts = []
     try:
-        qry = db_query('SELECT project, serial FROM %s WHERE UNIX_TIMESTAMP(datum) > %d' % (('Sensors' if table == 'TTNtable' else 'Sensors'),int(timestamp)), True)
+        qry = db_query('SELECT DISTINCT project, serial FROM %s WHERE UNIX_TIMESTAMP(datum) > %d' % (('Sensors' if table == 'TTNtable' else 'Sensors'),int(timestamp)), True)
         sql = []
         for one in qry:
-            sql.append("(project = '%s' and serial = '%s')")
+            sql.append("(project = '%s' and serial = '%s')" % (one[0],one[1]))
         sql = ' or '.join(sql)+' or '        
         qry = db_query('SELECT DISTINCT %s FROM %s WHERE %s UNIX_TIMESTAMP(datum) > %d' % (field,table,int(timestamp)), True)
         for one in qry: rts.append(one[0])
@@ -564,7 +567,7 @@ def setNodeFields(id,fields,values,table='Sensors',project=None,serial=None,adeb
     if len(fields) != len(values):
         raise ValueError("Set fields/values not same size for table %s." % table)
     import re
-    Exp = re.compile('^([0-9]+(\.[0-9]+)?|(FROM_UNIXTIME|from_unixtime|now|NOW)\(.*\))', re.I)
+    Exp = re.compile('^([0-9]+(\.[0-9]+)?$|(FROM_UNIXTIME|from_unixtime|now|NOW)\(.*\))', re.I)
     qry = []
     for i in range(len(values)):
         if not fields[i] in TableColumns(table):

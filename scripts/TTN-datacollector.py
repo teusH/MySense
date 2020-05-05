@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.22 2020/04/27 09:25:06 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.23 2020/05/05 12:00:41 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.22 $"[11:-2]
+__version__ = "0." + "$Revision: 3.23 $"[11:-2]
 
 try:
     import MyLogger
@@ -120,13 +120,14 @@ Channels = []      # output channels
 DB = None                # shortcut to Output channel database dict
 ThreadStops = []         # list of stop routines for threads
 
+# cached meta info  and handling info measurement kits
 # cache to limit DB access
 cached = {
     # 'applID/deviceID': {
     # 'unknown_fields': [] seen but not used fields
     # 'last_seen': unix timestamp secs
-    # 'count': received records count
-    # 'gtw': LoRa gateway nearby (gwID,rssi,snr,(lat,long,alt))
+    # 'count': received records count, will be reset after new meta info from DB
+    # 'gtw': [[],...] LoRa gateway nearby [gwID,rssi,snr,(lat,long,alt)]
     # 'sensors': list of sensor types (same as firmware/sensors) deprecated
     # 'firmware': {sensors,fields,id (classId)}
     # 'port%d': {packing, adjust}
@@ -135,13 +136,15 @@ cached = {
     #    'TTNtableID': TTNtable table database row id
     #    'kitTable': name of measurements table of a kit
     # },
-    # 'ident': collected meta info
+    # 'ident': {} # collected meta info e.g. from AQ database
     # },
 }
-ReDoCache  = 3*60*60     # period in time to check for new kits
+ReDoCache  = 3*60*60          # period in time to check for new kits
+updateCacheTime = int(time()) # last time update cached check was done
+dirtyCache = False            # force a check of cached items to DB infoe
+
+# sensor info: type, units etc
 dirtySensorCache = False
-dirtyCaches = False
-updateCacheTime = int(time())+ReDoCache
 SensorCache = {}
 
 # configurable options
@@ -503,13 +506,14 @@ def monitorPrt(test, color=0): # default color is black
 
 # delete cache entries in DB tables Sensors/TTNtable, which DB entry has been updated
 def UpdateCache():
-    global cached, dirtyCaches, updateCacheTime, ReDoCache
+    global cached, dirtyCache, updateCacheTime, ReDoCache
     global DB
-    if not len(SensorCache) or not DB: return
-    if (not dirtyCaches) and (time() <= updateCacheTime): return
-    updateCacheTime = int(time())+ReDoCache
+    if not len(cached) or not DB: return
+    if (not dirtyCache) and (time() <= updateCacheTime+ReDoCache): return
     # get topics for which kits (Sensors) meta data has been changed meanwhile
+    # get TTN_id's for which Sensor meta info is changed after updateCacheTime
     topics = DB.UpdatedIDs(updateCacheTime,field='TTN_id', table='TTNtables')
+    updateCacheTime = int(time())+ReDoCache
     if len(topics):
         MyLogger.log(modulename,'DEBUG','Kits to be updated in cache: %s' % ', '.join(topics))
     else: return
@@ -520,13 +524,13 @@ def UpdateCache():
         if one[indx:] in topics:
             MyLogger.log(modulename,'ATTENT','Kit with topic %s to be updated in cache' % one)
             monitorPrt("Cached kit with topics %s to be updated." % one[indx:], 4)
-            del cache[one]
-            dirtyCaches = False
+            del cached[one]
+    dirtyCache = False
 
 # json file with predefined nodes administration details
 # prefer to export nodes info via MyDB.py in standalone mode
 def ExportNodes(name):
-    global Conf, dirtyCaches
+    global Conf, dirtyCache
     global Channels, DB
     if not name: return True
     fnd = False
@@ -559,7 +563,7 @@ def ExportNodes(name):
                     Nok.append('node %s: %s not dict with ordinates.' % (item,chck))
                     canAdd = False
             if canAdd:
-                dirtyCaches = True
+                dirtyCache = True
                 try:
                     if not DB.putNodeInfo(item):
                         Nok.append("Unable to export node info for: %s" % str(item))
@@ -571,7 +575,7 @@ def ExportNodes(name):
     return True
 
 def Initialize():
-    global Conf, dirtyCaches, dirtySensorCache, notices
+    global Conf, dirtyCache, dirtySensorCache, notices
     if (not 'initfile' in Conf.keys()) or not Conf['initfile']:
         MyLogger.log(modulename,'WARNING',"No initialisation file defined, use internal definitions.")
     else:
@@ -612,7 +616,7 @@ def Initialize():
                     'active': False,
                 }
             }
-        dirtyCaches = True ; dirtySensorCache = True
+        dirtySensorCache = True
         # nodes info are exported to Database tables Sensors and TTNtable
         for item in ['project','sensors','firmware','classes','translate','LoRa','notice','from','SMTP','adminDB','nodes','initfile','noticefile']:
             if item in new.keys():
@@ -630,9 +634,9 @@ def Initialize():
 
 # reread admin meta info of nodes in, may de/activate data arcghiving of the node
 def SigUSR2handler(signum,frame):
-    global updateCacheTime
+    global DirtyCache
     try:
-      updateCacheTime = 0
+      DirtyCache = True
     except: pass
     return
 
@@ -1300,6 +1304,40 @@ def AllowInterval(interval,now=None):
     if not now: now = time()
     return int( now - (4.5*interval + 7.5 + 0.5)*60)
 
+# only once at startup time: get names operational defined kits silent for long period
+def DeadKits():
+    global DB
+    if not DB: return
+    # obtain all operational kits
+    kitTbls = DB.db_query("SELECT DISTINCT Sensors.project, Sensors.serial FROM Sensors, TTNtable WHERE Sensors.active AND TTNtable.active ORDER BY Sensors.datum DESC", True)
+    if not len(kitTbls): return
+    lastRun = 0 # get last date one was active
+    Selection = []
+    for kit in kitTbls:
+      datum = 0
+      try:
+        datum = DB.db_query("SELECT UNIX_TIMESTAMP(datum) FROM %s_%s ORDER BY datum DESC LIMIT 1" % (kit[0],kit[1]), True)
+        if datum[0][0]:
+          datum = int(datum[0][0])
+          Selection.append([datum,kit[0],kit[1]])
+          if lastRun < datum: lastRun = datum
+      except: pass
+    if not lastRun: return
+    # topic id for dead kits
+    for indx in range(len(Selection)):
+      diff = lastRun - Selection[indx][0]
+      if diff <= 2*60*60: continue
+      try:
+        TTNid = DB.db_query("SELECT DISTINCT TTN_id FROM TTNtable WHERE project = '%s' AND serial = '%s' AND active" % (Selection[indx][1],Selection[indx][2]), True)
+        if not len(TTNid) or not len(TTNid[0]): continue
+        MyLogger.log(modulename,'ATTENT',"Kit TTN id %s, project %s, serial %s, not seen for a while. Last seen: %s." % (TTNid[0][0], Selection[indx][1],Selection[indx][2],datetime.datetime.fromtimestamp(Selection[indx][0]).strftime("%Y-%m-%d %H:%M")) )
+        if diff <= 24*60*60:
+          sendNotice("Kit TTN id %s (project %s, serial %s:\t last seen %dh:%dm:%ds ago.\nMaybe not connected?\nLast time seen: %s." % (TTNid[0][0],Selection[indx][1],Selection[indx][2],diff/3600,(diff%3600)/60,(diff%(3600*60))%60,datetime.datetime.fromtimestamp(Selection[indx][0]).strftime("%Y-%m-%d %H:%M")),myID="all/%s" % TTNid[0][0])
+        else:
+          sendNotice("Kit TTN id %s (project %s, serial %s:\nMaybe not connected for a long time?\nLast time seen: %s.\n" % (TTNid[0][0],Selection[indx][1],Selection[indx][2],datetime.datetime.fromtimestamp(Selection[indx][0]).strftime("%Y-%m-%d %H:%M")),myID='all/events')
+      except: pass
+    return
+
 def cleanupCache(saveID): # delete dead kits from cache
     global cached, previous, Conf
     now = time(); items = []
@@ -1413,7 +1451,8 @@ def FluctCheck(myID,afld,avalue):
 
 # convert MQTT structure to MySense ident,value structure
 def convert2MySense( data, **sensor):
-    global Conf, cached, previous, dirtyCaches, startedCache, debug, ProcessStart
+    global Conf, cached, previous, debug, ProcessStart
+    global updateCacheTime, ReDoCache, dirtyCache
     global DB, WRSSI, WSNR
     global monitor
     def recordTranslate(arecord):
@@ -1436,7 +1475,7 @@ def convert2MySense( data, **sensor):
         else: record[item] = None       # should be an error: return {}
 
     # update cache if dirty or uptime time has arrived
-    if dirtyCaches or (int(time()) > updateCacheTime):
+    if dirtyCache or (int(time()) >= updateCacheTime+ReDoCache):
         UpdateCache()
         importNotices() # check if notice addreses file exists and is modified
     else: cleanupCache(myID)
@@ -2072,6 +2111,8 @@ def StartTTNconnection():
                         MyLogger.log(modulename,'FATAL','Missing login %s credentials.' % key[0])
                         return False
                 sendNotice('Automatic (re)start TTN MQTT server data collector service on server %s' % socket.getfqdn(),myID='all/event')
+                # warn for kits no longer active
+                DeadKits()
         else:
             # switch output to Luftdaten off if input data is read from file
             if os.path.isfile(Conf['file']):
