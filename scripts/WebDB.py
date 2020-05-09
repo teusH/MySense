@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: WebDB.py,v 1.1 2020/04/30 14:20:15 teus Exp teus $
+# $Id: WebDB.py,v 1.2 2020/05/06 12:36:21 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: WebDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.1 $"[11:-2]
+__version__ = "0." + "$Revision: 1.2 $"[11:-2]
 
 try:
     import sys
@@ -136,6 +136,7 @@ def db_query(query,answer):
         else:
             Conf['fd'].commit()
     except IOError:
+        close(Conf['fd']); Conf['fd'] = None
         raise IOError
     except:
         Conf['log'](modulename,'ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )

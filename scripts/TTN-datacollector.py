@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.23 2020/05/05 12:00:41 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.24 2020/05/09 09:58:11 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.23 $"[11:-2]
+__version__ = "0." + "$Revision: 3.24 $"[11:-2]
 
 try:
     import MyLogger
@@ -119,6 +119,16 @@ PingTimeout = 0          # last time ping request was sent
 Channels = []      # output channels
 DB = None                # shortcut to Output channel database dict
 ThreadStops = []         # list of stop routines for threads
+
+def PrintException():
+    #exc_type, exc_obj, tb = sys.exc_info()[:3]
+    #f = sys.exc_info()[-1].tb_frame
+    lineno = sys.exc_info()[-1].tb_lineno
+    filename = sys.exc_info()[-1].tb_frame.f_code.co_filename
+    # linecache.checkcache(filename)
+    # line = linecache.getline(filename, lineno, f.f_globals)
+    #print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj)
+    print('EXCEPTION IN %s, LINE %d' % (filename, lineno))
 
 # cached meta info  and handling info measurement kits
 # cache to limit DB access
@@ -390,7 +400,7 @@ Conf = {
               "sensors": ["PMS7003","SDS011","SPS30","BME680","BME280","NEO","PYCOM","ENERGY"]
             },
             "port10": {
-              # Libelium Wasnodes void,id,void,accu,temp,...
+              # Libelium Waspmote void,id,void,accu,temp,...
               #"packing": ["<B11sB7sBBBBBfBfBfBfBfBfBBBf"],
               "packing": ["<B11sB7sBBBBBfBfBfBfBfBfBBBf"], # (id,value),...
               # every field has sensor id one byte
@@ -1828,7 +1838,7 @@ def convert2MySense( data, **sensor):
                 '%s %s (%s_%s):' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),
                 myID.split('/')[1], ident['project'], ident['serial']),
                 cached[myID]['count'],
-                ' at %dm%ds' % (cached[myID]['interval']/60,(cached[myID]['interval']%60) if cached[myID]['interval'] < 60*60 else '')
+                (' at %dm%ds' % (cached[myID]['interval']/60,(cached[myID]['interval']%60))) if (cached[myID]['interval'] < 60*60) else ''
             ), 34)
     if ('check' in Conf.keys()) and (type(Conf['check']) is list):
         for item in values.keys(): # out of band values
@@ -2172,6 +2182,7 @@ def RUNcollector():
                 MyLogger.log(modulename,'INFO','Get get record error: %s (skipped)' % err)
             continue
         except Exception as e:
+            PrintException()
             # sys.stderr.write(traceback.format_exc())
             MyLogger.log(modulename,'INFO','Get data failed with %s' % e)
             sys.stderr.write("FAILED record: %s" % str(record))
