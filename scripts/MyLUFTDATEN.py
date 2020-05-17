@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.15 2020/04/30 08:07:41 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.21 2020/05/17 11:18:01 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.15 $"[11:-2]
+__version__ = "0." + "$Revision: 3.21 $"[11:-2]
 
 try:
     import sys
@@ -45,7 +45,7 @@ except ImportError as e:
     sys.exit("FATAL: One of the import modules not found: %s" % e)
 
 # configurable options
-__options__ = ['output','luftdaten','madavi','id_prefix',
+__options__ = ['output','luftdaten','madavi','id_prefix', 'timeout',
         'serials', 'projects','active','DEBUG']
 
 Conf = {
@@ -59,6 +59,7 @@ Conf = {
     'projects': 'VW2017',# expression to identify projects to be posted
     'active': True,      # output to luftdaten maps is also activated
     'registrated': None, # has done initial setup
+    'timeout': 3*30,     # timeout on wait of http request result in seconds
     'log': None,         # MyLogger log print routine
     'DEBUG': False       # debugging info
 }
@@ -136,7 +137,7 @@ def sendLuftdaten(ident,values):
         'software_version': 'MySense' + __version__,
     }
     postTo = []
-    for url in ['luftdaten','madavi']:
+    for url in ['luftdaten','madavi']: # Luftdaten map (needs Luftdaten ID) and Madavi archive
         if (url == 'luftdaten') and (not ident['luftdaten']):
           print("Not (%s) to Luftdaten for kit: %s" % (str(ident['luftdaten']),headers['X-Sensor']))
           continue
@@ -144,6 +145,7 @@ def sendLuftdaten(ident,values):
           if url in ident.keys():
             postTo.append(Conf[url])
     if not len(postTo): return True
+    postings = [] # Luftdaten and Madavi have same POST interface
     for sensed in ['dust','meteo']:
         headers['X-Pin'] = None
         for sensorType in sense_table[sensed]['types']:
@@ -157,8 +159,12 @@ def sendLuftdaten(ident,values):
                 if valueField in sense_table[sensed][field]:
                     postdata['sensordatavalues'].append({ 'value_type': field, 'value': str(round(values[valueField],2)) })
         if not len(postdata['sensordatavalues']): continue
-        if not post2Luftdaten(headers,postdata,postTo,sensed):
-            return False
+        postings.append((sensed,headers,postdata)) # type, POST header dict, POST data dict
+    try:
+        if not post2Luftdaten(postTo,postings):
+            Conf['log'](modulename,'ERROR','HTTP POST connection failure')
+    except Exception as e:
+        sys.stderr.write("Exception ERROR in post2Luftdaten as %s\n" % str(e))
     return True
         
 # seems https may hang once a while
@@ -168,11 +174,12 @@ def alrmHandler(signal,frame):
     # signal.signal(signal.SIGALRM,None)
 
 def watchOn(url):
+    global Conf
     if url[:6] != 'https:': return None
     rts = [None,0,0]
     rts[0] = signal.signal(signal.SIGALRM,alrmHandler)
     rts[1] = int(time())
-    rts[2] = signal.alarm(3*30)
+    rts[2] = signal.alarm(Conf['timeout'])
     return rts
 
 def watchOff(prev):
@@ -188,59 +195,81 @@ def watchOff(prev):
     return alrm
     
 # do an HTTP POST to [ Madavi.de, Luftdaten, ...]
-def post2Luftdaten(headers,postdata,postTo,sensed):
-    global Conf
+PostErrors = {}
+def PostError(url,cause):
+   global PostErrors, Conf
+   try:
+       Conf['log'](modulename,'ERROR',"For %s: %s" % (url[8:url.find('/',9)],cause))
+   except: pass
+   if url in PostErrors.keys():
+       if 5 <= PostErrors[url] <= 10: PostErrors[url] = int(time())+10*60
+       elif PostErrors[url] < 5: PostErrors[url] += 1
+       elif url in PostErrors.keys(): del PostErrors[url]
+   else: PostErrors[url] = 1
+
+# to each element of array of POST URL's, 
+#    POST all posting elements tuple of type, header dict and data dict
+def post2Luftdaten(postTo,postings):
+    global Conf, PostErrors
     # debug time: do not really post this
-    Conf['log'](modulename,'DEBUG',"Post headers: %s" % str(headers))
-    Conf['log'](modulename,'DEBUG',"Post data   : %s" % str(postdata))
+    Conf['log'](modulename,'DEBUG',"HTTP POST to: %s" % ', '.join(postTo))
+    for data in postings:
+        Conf['log'](modulename,'DEBUG',"Post headers: %s" % str(data[1]))
+        Conf['log'](modulename,'DEBUG',"Post data   : %s" % str(data[2]))
     rts = True
-    if not 'HTTP_errors' in post2Luftdaten.__dict__:
-        post2Luftdaten.HTTP_errors = {}
-    if (headers['X-Sensor'] in post2Luftdaten.HTTP_errors.keys()) and ((post2Luftdaten.HTTP_errors[headers['X-Sensor']]%15) >= 3):
-        Conf['log'](modulename,'ERROR','Posts for %s too many errors. Skipping.' % headers['X-Sensor'])
-        post2Luftdaten.HTTP_errors[headers['X-Sensor']] += 1
-        return True
     for url in postTo:
-        prev = watchOn(url)
-        try:
-            r = requests.post(url, json=postdata, headers=headers)
-            # Conf['log'](modulename,'INFO','Post to: %s' % url)
-            Conf['log'](modulename,'DEBUG','Post returned status: %d' % r.status_code)
-            if Conf['DEBUG']:
-              if not r.ok:
-                sys.stderr.write("Luftdaten POST to %s:\n" % url)
-                sys.stderr.write("     headers: %s\n" % str(headers))
-                sys.stderr.write("     data   : %s\n" % str(postdata))
-                sys.stderr.write("     returns: %d\n" % r.status_code)
-              else:
-                host = ('Luftdate.info' if url.find('luftdaten') > 0 else 'madavi.de')
-                sys.stderr.write("POST %s OK(%d) to %s ID(%s).\n" % (sensed,r.status_code,host,headers['X-Sensor']))
-            if not r.ok:
+        host = url.find('://')
+        if host > 0: host = url[host+3:url.find('/',host+3)]
+        else: # just a guess
+            host = ('api.luftdate.info' if url.find('luftdaten') > 0 else 'api-rrd.madavi.de')
+        if host in PostErrors.keys(): # avoid holding up other posts and input
+            if 5 < PostErrors[host] < int(time()):
+              Conf['log'](modulename,'ATTENT','HTTP too many connect errors: URL %s skipping ID %s' % (url,headers['X-Sensor']))   
+              continue
+        for data in postings:
+            prev = watchOn(host)
+            try:
+                r = requests.post(url, json=data[2], headers=data[1])
+                Conf['log'](modulename,'DEBUG','Post %s returned status: %d' % (host,r.status_code))
+                if Conf['DEBUG']:
+                  if not r.ok:
+                    sys.stderr.write("Luftdaten %s POST to %s:\n" % (data[0],url))
+                    sys.stderr.write("     headers: %s\n" % str(data[1]))
+                    sys.stderr.write("     data   : %s\n" % str(data[2]))
+                    sys.stderr.write("     returns: %d\n" % r.status_code)
+                  else:
+                    sys.stderr.write("%s POST %s OK(%d) to %s ID(%s).\n" % (host,data[0],r.status_code,host,data[1]['X-Sensor']))
+                if not r.ok:
+                    rts = False
+                    if r.status_code == 403:
+                      Conf['log'](modulename,'ERROR','Post %s to %s ID %s returned status code: forbidden (%d)' % (data[0],host,data[1]['X-Sensor'],r.status_code))
+                      PostErrors[host] = int(time())+1*60*60 # try again after some while
+                    elif r.status_code == 400:
+                      Conf['log'](modulename,'ERROR','Not registered post %s to %s with ID %s, status code: %d' % (data[0],host,data[1]['X-Sensor'],r.status_code))
+                      PostErrors[host] = int(time())+1*60*60 # try again after some while
+                      # raise ValueError("EVENT Not registered %s POST for ID %s" % (url,data[1]['X-Sensor']))
+                    else: # temporary error?
+                      PostError(host,'Post %s with ID %s returned status code: %d' % (data[0],data[1]['X-Sensor'],r.status_code))
+                else: # POST OK
+                    if host in PostErrors.keys():
+                       Conf['log'](modulename,'ATTENT','Postage to %s recovered. OK.' % host)
+                       del PostErrors[host] # clear errors
+                    Conf['log'](modulename,'DEBUG','Sent %s postage to %s OK.' % (data[0],host))
+            except requests.ConnectionError as e:
+                if str(e).find('Interrupted system call') < 0: # if so watchdog interrupt
+                    PostError(host,'Connection error: ' + str(e))
                 rts = False
-                if r.status_code == 403:
-                  Conf['log'](modulename,'ERROR','Post %s to %s with status code: forbidden (%d)' % (sensed,headers['X-Sensor'],r.status_code))
-                elif r.status_code == 400:
-                  Conf['log'](modulename,'ERROR','Not registered post %s for ID %s, status code: %d' % (sensed,headers['X-Sensor'],r.status_code))
-                  # raise ValueError("EVENT Not registered %s POST for ID %s" % (url,headers['X-Sensor']))
-                else:
-                  Conf['log'](modulename,'ATTENT','Post %s to %s with status code: %d' % (sensed,headers['X-Sensor'],r.status_code))
-                if not headers['X-Sensor'] in post2Luftdaten.HTTP_errors.keys():
-                  post2Luftdaten.HTTP_errors[headers['X-Sensor']]  = 0
-                post2Luftdaten.HTTP_errors[headers['X-Sensor']] += 1
-            elif headers['X-Sensor'] in post2Luftdaten.HTTP_errors.keys():
-                del post2Luftdaten.HTTP_errors[headers['X-Sensor']]
-        except requests.ConnectionError as e:
-            Conf['log'](modulename,'DEBUG','Connection error: ' + str(e))
-            rts = False
-        except Exception as e:
-            if str(e).find('EVENT') >= 0:
-                raise ValueError(str(e)) # send notice event
-                # return True # not reached
-            Conf['log'](modulename,'ERROR','Error: ' + str(e))
-            rts = False
-        if not watchOff(prev):
-            Conf['log'](modulename,'ATTENT','HTTP 90 sec timeout error: URL %s with ID %s' % (url,headers['X-Sensor']))
-            rts = True
+            except Exception as e:
+                if str(e).find('EVENT') >= 0:
+                    raise ValueError(str(e)) # send notice event
+                    # return True # not reached
+                PostError(host,'Error: ' + str(e))
+                rts = False
+            if not watchOff(prev): # 5 X tryout, then timeout on this url
+                PostError(host,'HTTP %d sec timeout error with ID %s' % (Conf['timeout'],data[1]['X-Sensor']))
+                break  # no more POSTs to this host for a while
+        # end of postings loop to one host
+    # end of URL loop
     return rts
 
 notMatchedSerials = []

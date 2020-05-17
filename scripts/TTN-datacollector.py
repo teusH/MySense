@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.24 2020/05/09 09:58:11 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.26 2020/05/16 14:51:17 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.24 $"[11:-2]
+__version__ = "0." + "$Revision: 3.26 $"[11:-2]
 
 try:
     import MyLogger
@@ -121,13 +121,8 @@ DB = None                # shortcut to Output channel database dict
 ThreadStops = []         # list of stop routines for threads
 
 def PrintException():
-    #exc_type, exc_obj, tb = sys.exc_info()[:3]
-    #f = sys.exc_info()[-1].tb_frame
     lineno = sys.exc_info()[-1].tb_lineno
     filename = sys.exc_info()[-1].tb_frame.f_code.co_filename
-    # linecache.checkcache(filename)
-    # line = linecache.getline(filename, lineno, f.f_globals)
-    #print 'EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj)
     print('EXCEPTION IN %s, LINE %d' % (filename, lineno))
 
 # cached meta info  and handling info measurement kits
@@ -151,7 +146,7 @@ cached = {
 }
 ReDoCache  = 3*60*60          # period in time to check for new kits
 updateCacheTime = int(time()) # last time update cached check was done
-dirtyCache = False            # force a check of cached items to DB infoe
+dirtyCache = False            # force a check of cached items to DB info
 
 # sensor info: type, units etc
 dirtySensorCache = False
@@ -1360,22 +1355,22 @@ def cleanupCache(saveID): # delete dead kits from cache
         if (cached[item]['last_seen'] < (now-60*60*2)) or (cached[item]['last_seen'] <= AllowInterval(cached[item]['interval'],now)):
             items.append(item)
       except: pass
-    if len(items):
-      if len(items) < 3:   #  len(cached)-1
-        for item in items:
-          serial = Conf['nodes'][item.split('/')[1]]['serial']
-          MyLogger.log(modulename,'ATTENT',"Kit %s (S/N %s) not seen longer as %d minutes." % (item, serial,(now-cached[item]['last_seen'])/60))
-          try:
-              sendNotice("Kit %s (S/N %s) not seen longer as %d minutes.\nKit seems to be disconnected.\nLast time seen: %s." % (item,serial, (now-cached[item]['last_seen'])/60,datetime.datetime.fromtimestamp(cached[item]['last_seen']).strftime("%Y-%m-%d %H:%M")),myID=item)
-          except Exception as e:
-              MyLogger.log(modulename,'ERROR',"Failed to send notice: %s" % str(e))
-          del cached[item]
-      else:
-        MyLogger.log(modulename,'ATTENT',"Seems TTN server is down for a long period at %s" % datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"))
-        sendNotice("Seems TTN server is down for a long period at %s (kits with no measurements: %s)." % (datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"),', '.join(items[:3]) + '...' if len(items) > 3 else ''), myID='all/event')
-        for item in items:
-          del cached[item]
-          if not item in previous: previous.append(item)
+    if not len(items): return
+    if len(items) < 3:   #  len(cached)-1
+      for item in items:
+        serial = Conf['nodes'][item.split('/')[1]]['serial']
+        MyLogger.log(modulename,'ATTENT',"Kit %s (S/N %s) not seen longer as %d minutes." % (item, serial,(now-cached[item]['last_seen'])/60))
+        try:
+            sendNotice("Kit %s (S/N %s) not seen longer as %d minutes.\nKit seems to be disconnected.\nLast time seen: %s." % (item,serial, (now-cached[item]['last_seen'])/60,datetime.datetime.fromtimestamp(cached[item]['last_seen']).strftime("%Y-%m-%d %H:%M")),myID=item)
+        except Exception as e:
+            MyLogger.log(modulename,'ERROR',"Failed to send notice: %s" % str(e))
+        del cached[item]
+    else:
+      MyLogger.log(modulename,'ATTENT',"Seems TTN server is down for a long period at %s" % datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"))
+      sendNotice("Seems TTN server is down for a long period at %s (kits with no measurements: %s)." % (datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"),', '.join(items[:3]) + '...' if len(items) > 3 else ''), myID='all/event')
+      for item in items:
+        del cached[item]
+        if not item in previous: previous.append(item)
 
 # get TTNtable id for a node returns (SensorsID,TTNtableID,last_seen,project_serial)
 def TTNtopic2IDs(topic):
@@ -1989,6 +1984,7 @@ def Configure():
                 'id_prefix': "TTN-", # prefix ID prepended to serial number of module
                 'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
                 'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
+                'timeout': 1*15,  # wait timeout on http request result
                 # expression to identify serials to be subjected to be posted
                 #'serials': '(30aea4[0-9a-f]{6}|807d3a93(76dc|5cb8)|e101e82a2c|3c71bf876dbc|b4e62df55731)', # pmsensor[1 .. 11] from pmsensors
                 'serials': '(130aea|30[aA][eE][aA]4|3c71bf|788d27|807[dD]3[aA]|b4e62[fd]|D54990|e101e8)[A-Fa-f0-9]{4,6}', # serials numbers allowed to be forwarded
