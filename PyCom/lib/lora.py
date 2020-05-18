@@ -2,13 +2,13 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 5.12 2019/06/14 13:26:30 teus Exp teus $
+# $Id: lora.py,v 5.13 2020/05/18 10:31:44 teus Exp teus $
 
 import socket
 from network import LoRa
 from time import sleep_ms
 
-class LORA(object):
+class LORA(object,dr=2):
   'Wrapper class for LoRa'
   def __init__(self):
     # LoRa and socket instances
@@ -16,10 +16,11 @@ class LORA(object):
     self.lora = LoRa(mode = LoRa.LORAWAN, region=LoRa.EU868)
     self.callback = None
     self.sockets = []
+    self.dr = dr # socket dr
     self.LED = None
     self.debug = False
 
-  def connect(self, method, ports=1, callback=None, myLED=None, debug=False):
+  def connect(self, method, ports=1, callback=None, myLED=None, dr=None, debug=False):
     """
     Connect device to LoRa.
     Set the socket and lora instances.
@@ -71,11 +72,12 @@ class LORA(object):
       dev_eui = method['OTAA'][0]; dev_eui = unhexlify(dev_eui)
       app_eui = method['OTAA'][1]; app_eui = unhexlify(app_eui)
       app_key = method['OTAA'][2]; app_key = unhexlify(app_key)
-      self.lora.join(activation = LoRa.OTAA, auth = (dev_eui, app_eui, app_key), timeout = 0)
+      self.lora.join(activation = LoRa.OTAA, auth = (dev_eui, app_eui, app_key), timeout = 0, dr=dr)
       # Wait until the module has joined the network
       while not self.lora.has_joined():
         if myLED: myLED.blink(1, 2.5, 0xff0000)
-        if count > 20: break  # stop this?
+        else: sleep_ms(2500)
+        if count > 20: break  # machine.reset()?
         print("Wait for OTAA join: " ,  count)
         count += 1
       if self.lora.has_joined():
@@ -108,7 +110,7 @@ class LORA(object):
     self.sockets.append(socket.socket(socket.AF_LORA, socket.SOCK_RAW))
 
     # Set the LoRaWAN data rate
-    self.sockets[0].setsockopt(socket.SOL_LORA, socket.SO_DR, 2)
+    self.sockets[0].setsockopt(socket.SOL_LORA, socket.SO_DR, self.dr)
 
     # Make the socket non-blocking
     self.sockets[0].setblocking(False)
