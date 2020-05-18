@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.16 2020/05/18 08:37:04 teus Exp teus $
+# $Id: MyDB.py,v 3.17 2020/05/18 08:46:15 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.16 $"[11:-2]
+__version__ = "0." + "$Revision: 3.17 $"[11:-2]
 
 try:
     import sys
@@ -194,7 +194,7 @@ def db_registrate(ident, adebug=False):
     # first, coordinates, description ?
     mayUpdate = ['first','coordinates','active','sensors']
     # do not update guessed hardware
-    if ('description' in ident.keys()) && (ident['description'].find('DFLTs') < 0):
+    if ('description' in ident.keys()) and (ident['description'].find('DFLTs') < 0):
         mayUpdate.append('description')
     # else: del ident['description']
     Rslt = getNodeFields(None,mayUpdate,table='Sensors',project=ident['project'],serial=ident['serial'])
