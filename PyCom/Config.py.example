@@ -4,6 +4,10 @@
 # TTN register:
 #          app id  ???, dev id ???
 Network = 'TTN' # or 'WiFi'
+# data rate on join, low on long range
+#DR_join  = None # 0 .. 5 dflt None=5 gives sf 12 .. 7
+# data rate on lora transfers
+#DR_sock = 2 # 0 .. 5
 # OTAA keys
 dev_eui = "AAAA" # will be completed by dev hex serial nr
 app_eui = "70123412341234D3"
@@ -16,9 +20,6 @@ app_key = "7912341234123412341234123412345B"
 # wifi AP or Node
 W_SSID = 'MySense-AAAA'  # will be completed with 4 S/N bytes
 W_PASS = 'BehoudDeParel'
-
-# force development mode?
-#REPL = False
 
 #  interval = { 'sample': 60,    # dust sample in secs
 #             'interval': 15,     # sample interval in minutes

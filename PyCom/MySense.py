@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.76 2020/04/03 18:41:56 teus Exp teus $
+# $Id: MySense.py,v 5.84 2020/05/18 10:57:54 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.76 $"[11:-2]
+__version__ = "0." + "$Revision: 5.84 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -154,13 +154,12 @@ def getVoltage(debug=False): # range 0 (None) and 11.4 (88% low) - 12.5 (high)
         volts.append(MyDevices[atype]['lib'].value()*0.004271845)
       volts = (min(volts),sum(volts)/len(volts),max(volts))
       if debug: print('volts: %s' % str(volts))
-      mmax = MyTypes[atype]['max']
-      if mmax == None:
-        try: mmax = nvs_get('Vmax')/10.0
-        except: pass
-        if mmax == None: mmax = 0
+
+      mmax = None
+      try: mmax = nvs_get('Vmax')/10.0
+      except: pass
+      if mmax == None: mmax = 0
       if volts[1] > (mmax + 0.09):
-        MyTypes[atype]['max'] = volts[1]
         nvs_set('Vmax', int(volts[1]*10.0+0.5))
         # if not max: MyConfig.dump('Vmax',max)
       mmin = None
@@ -171,8 +170,8 @@ def getVoltage(debug=False): # range 0 (None) and 11.4 (88% low) - 12.5 (high)
         nvs_set('Vmin', int(volts[1]*10.0-0.5))
       if debug: print("Accu V: %.2f [%.2f - %.2f]" % (volts[1],mmin,mmax))
 
-      if 0.0 < volts[1] < 10.9:
-        global Alarm, AlarmAccu
+      if 10.7 < volts[1] < 11.0:
+        global Alarm, AlarmAccu # show event
         Alarm = (AlarmAccu,int(volts[1]*10))
       return volts
   except Exception as e:
@@ -323,18 +322,13 @@ def getPinsConfig(debug=False):
   global MyConfig
   if not MyConfig: initConfig()
   deepsleepMode() # deepsleep pin conf
+
   ## accu? too low?
   volts = getVoltage()
-  if volts[0] and (volts[0] > 1.0):
-    # Vmax = None
-    # try:
-    #   Vmax = nvs_get('Vmax')/10.0
-    # except: pass
-    # if not Vmax: Vmax = 12.6
-    if volts[2] < 10.8: # 12V accu class 6%
-      nvs_set('Accu',int(volts[1]*10.0+0.5))
+  if volts[1] < 10.9: # 12V accu class 6%
       from pycom import rgbled
-      pycom.rgbled(0x990000); sleep_ms(1*1000)
+      for i in range(5):
+        pycom.rgbled(0xff0000); sleep_ms(400)
       DEEPSLEEP(15*60)
 
 ## CONF busses
@@ -1184,10 +1178,10 @@ def initAccu():
   else: return True
 
 def DoAccu(debug=False):
-  if not 'accu' in MyDevices.keys(): initAccu()
-  try:
-    if MyDevices['accu']: return getVoltage()[1]
-  except: return 0
+  global MyDevices
+  if (not 'accu' in MyDevices.keys()) and not initAccu():
+    return 0
+  return getVoltage()[1]
 
 ## LoRa
 # called via TTN response
@@ -1272,9 +1266,19 @@ def initNetwork(debug=False):
   Network['enabled'] = False
   try:
     from lora import LORA
-    Network['lib'] = LORA()
+    dr = 2
+    try:
+      from Config import DR_sock
+      if 0 <= DR_sock <= 5: dr = DR_sock
+    except: pass
+    Network['lib'] = LORA(dr=dr)
     # resume is handled by driver
-    if not Network['lib'].connect(method=Network['method'], ports=(len(Dprt)+1), callback=CallBack, myLED=LED, debug=debug):
+    dr = None
+    try:
+      from Config import DR_join
+      if 0 <= DR_join <= 5: dr = DR_join # 0=SF12, 5=SF7 (dflt)
+    except: pass
+    if not Network['lib'].connect(method=Network['method'], ports=(len(Dprt)+1), callback=CallBack, myLED=LED, dr=dr, debug=debug):
       display("NO LoRaWan")
       Network['lib'] = None
       return False
