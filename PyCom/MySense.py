@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.84 2020/05/18 10:57:54 teus Exp teus $
+# $Id: MySense.py,v 5.87 2020/05/18 13:35:08 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.84 $"[11:-2]
+__version__ = "0." + "$Revision: 5.87 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -131,52 +131,38 @@ def saveGPS(curGPS):
 
 # Read accu voltage out
 def getVoltage(debug=False): # range 0 (None) and 11.4 (88% low) - 12.5 (high)
-  global MyDevices, MyConfig, MyDevices, MyTypes
+  global MyConfiguration, MyConfig
   if not MyConfig: initConfig()
   atype = 'accu'
-  try:
-    if not 'accuPin' in MyConfiguration.keys():
-      accuPin = 'P17'
-      try: from Config import accuPin
-      except: pass
-      MyConfig.dump('accuPin',accuPin)
-      MyConfiguration['accuPin'] = accuPin
-    else: accuPin = MyConfiguration['accuPin']
-    if not atype in MyDevices.keys():
-      from machine import ADC
-      MyTypes[atype] = MyDevices[atype] = {
-        'max': None,
-        'lib': ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB)}
-    volts = [MyDevices[atype]['lib'].value()*0.004271845]
-    if volts[0] > 0.1:  # accu attached
-      for i in range(9): # 10 sec sample
-        sleep_ms(1000)
-        volts.append(MyDevices[atype]['lib'].value()*0.004271845)
-      volts = (min(volts),sum(volts)/len(volts),max(volts))
-      if debug: print('volts: %s' % str(volts))
+  volts = (0,0,0)
+  if not initAccu(): return volts
+  accuPin = 'P17'
+  try: accuPin = MyConfiguration['accuPin']
+  except: pass
+  try: volts = [(ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB).value())*0.004271845]
+  except: return (0,0,0)
+  if volts[0] > 0.1:  # accu attached
+    for i in range(9): # 10 sec sample
+      sleep_ms(500)
+      volts.append((ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB).value())*0.004271845)
+    volts = (min(volts),sum(volts)/len(volts),max(volts))
+    if debug: print('volts (min,avg,max): %s' % str(volts))
 
-      mmax = None
-      try: mmax = nvs_get('Vmax')/10.0
-      except: pass
-      if mmax == None: mmax = 0
-      if volts[1] > (mmax + 0.09):
-        nvs_set('Vmax', int(volts[1]*10.0+0.5))
-        # if not max: MyConfig.dump('Vmax',max)
-      mmin = None
-      try: mmin = nvs_get('Vmin')/10.0
-      except: pass
-      if mmin == None: mmin = 100
-      if volts[1] < (mmin - 0.09):
-        nvs_set('Vmin', int(volts[1]*10.0-0.5))
-      if debug: print("Accu V: %.2f [%.2f - %.2f]" % (volts[1],mmin,mmax))
+    mmax = None
+    try: mmax = nvs_get('Vmax')/10.0
+    except: pass
+    if mmax == None: mmax = 0
+    if volts[1] > (mmax + 0.09):
+      nvs_set('Vmax', int(volts[1]*10.0+0.5))
+    mmin = None
+    try: mmin = nvs_get('Vmin')/10.0
+    except: pass
+    if mmin == None: mmin = 100
+    if volts[1] < (mmin - 0.09):
+      nvs_set('Vmin', int(volts[1]*10.0-0.5))
+    if debug: print("Accu V: %.2f [%.2f - %.2f]" % (volts[1],mmin,mmax))
 
-      if 10.7 < volts[1] < 11.0:
-        global Alarm, AlarmAccu # show event
-        Alarm = (AlarmAccu,int(volts[1]*10))
-      return volts
-  except Exception as e:
-    print(str(e))
-  return (0,0,0)
+  return volts
 
 # sleep phases all active till config done after cold start, then:
 #    sleep pin not set & power sleep False: sleep, rgb led, wifi
@@ -323,13 +309,27 @@ def getPinsConfig(debug=False):
   if not MyConfig: initConfig()
   deepsleepMode() # deepsleep pin conf
 
-  ## accu? too low?
-  volts = getVoltage()
-  if volts[1] < 10.9: # 12V accu class 6%
-      from pycom import rgbled
-      for i in range(5):
-        pycom.rgbled(0xff0000); sleep_ms(400)
-      DEEPSLEEP(15*60)
+def accuLow():
+  # too low: do deepsleep
+  volts = getVoltage()  # may raise accu alarm
+  cnt = None
+  try: cnt = nvs_get('aLow')
+  except: pass
+  if 0.1 < volts[1] < 11.0:
+    MyMark(13)
+    from pycom import rgbled
+    for i in range(5):
+      sleep_ms(i*60); pycom.rgbled(0xff0000)
+      sleep_ms(100); pycom.rgbled(0x000000)
+    if not cnt: cnt = 0
+    cnt += 1
+    if cnt < 4: 
+      global Alarm, AlarmAccu # show event
+      Alarm = (AlarmAccu,int(volts[1]*10))
+    elif cnt > 10: cnt = 1
+    nvs_set('aLow',cnt)
+  elif cnt != None: nvs_erase('aLow')
+  return False
 
 ## CONF busses
 def getBusConfig(busses=['i2c','ttl'], devices=None, debug=False):
@@ -1172,10 +1172,23 @@ def DoGPS(debug=False):
 
 ## Pin devices
 def initAccu():
-  global MyDevices, MyConfig
+  global MyDevices, MyConfig, MyConfiguration, MyTypes
   if not MyConfig: initConfig()
-  if not 'accu' in MyDevices.keys(): return (getVoltage()[0] != 0)
-  else: return True
+  if not 'accuPin' in MyConfiguration.keys():
+    accuPin = 'P17'
+    try: from Config import accuPin
+    except: pass
+    MyConfig.dump('accuPin',accuPin)
+    MyConfiguration['accuPin'] = accuPin
+  else: accuPin = MyConfiguration['accuPin']
+  if not accuPin: return False
+  atype = 'accu'
+  if not atype in MyDevices.keys():
+    from machine import ADC
+    MyTypes[atype] = MyDevices[atype] = {
+      'max': None, 'min': None,
+      'lib': ADC(0).channel(pin=accuPin, attn=ADC.ATTN_11DB)}
+  return True
 
 def DoAccu(debug=False):
   global MyDevices
@@ -1273,7 +1286,7 @@ def initNetwork(debug=False):
     except: pass
     Network['lib'] = LORA(dr=dr)
     # resume is handled by driver
-    dr = None
+    dr = 0
     try:
       from Config import DR_join
       if 0 <= DR_join <= 5: dr = DR_join # 0=SF12, 5=SF7 (dflt)
@@ -1530,12 +1543,13 @@ def runMe(debug=False,reset=False):
 
   while True: # LOOP forever
     MyMark(10)
+    accuLow()
     if Alarm:  # event on empty accu
       if LED: LED.blink(3,0.1,0xF99B15,l=False,force=True)
       try:
         SendEvent(port=Iprt, event=Alarm[0], value=int(Alarm[1])) # send event
       except: pass
-      Alarm = False
+      Alarm = None
     elif LED: LED.blink(1,0.2,0x00FF00,l=False,force=True)
     toSleep = ticks()
     try:

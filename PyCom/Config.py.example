@@ -5,7 +5,7 @@
 #          app id  ???, dev id ???
 Network = 'TTN' # or 'WiFi'
 # data rate on join, low on long range
-#DR_join  = None # 0 .. 5 dflt None=5 gives sf 12 .. 7
+#DR_join  = 0 # 0 .. 5 dflt None=5 gives sf 12 .. 7
 # data rate on lora transfers
 #DR_sock = 2 # 0 .. 5
 # OTAA keys

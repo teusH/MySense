@@ -59,3 +59,7 @@ An antenna outside the housing is easily damaged. However the housing material w
 Default the LoRa spreading factor (SF) for the LoPy is set to 7. Enlarging this SF will negatively influence maximum air time and datagram size.
 The way out is: if the distance is a problem we can easily turn the antenna to point the antenna down to an out side situation.
 The lesson learned is: collect the RSSI and SNR values provided via the LoRa gateway to TTN.
+
+The default data rate during LoRa join phase is set to DR=0 (spreading factor 12, highest level). To change the data rate use Config.py (configuration file). The PyCom default data rate is None (SF7).
+
+The LoRa socket data rate is set to 2. One can change this default values via the Config.py (configuration) file.
