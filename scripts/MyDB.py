@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.13 2020/05/05 13:09:42 teus Exp teus $
+# $Id: MyDB.py,v 3.16 2020/05/18 08:37:04 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.13 $"[11:-2]
+__version__ = "0." + "$Revision: 3.16 $"[11:-2]
 
 try:
     import sys
@@ -169,7 +169,9 @@ def db_registrate(ident, adebug=False):
         query = []
         # [str(r[0]) for r in db_query("SELECT column_name FROM information_schema.columns WHERE  table_name = 'Sensors' AND table_schema = '%s'" % Conf['database'],True)]
         for fld in ("label","description","street","village","province","municipality","region","coordinates"):
-            if (fld == "description") and (not desc): continue
+            if (fld == "description") and (fld in ident.keys()):
+                if (not desc): continue
+                if ident[fld].find('DFLTs') >= 0: continue   # do not update
             if (fld in ident.keys()) and (ident[fld] != None):
                 query.append("%s = '%s'" % (fld,ident[fld]))
         if not len(query): return
@@ -190,7 +192,11 @@ def db_registrate(ident, adebug=False):
 
     # may need to update in Sensors table from ident:
     # first, coordinates, description ?
-    mayUpdate = ['first','coordinates','active','description','sensors']
+    mayUpdate = ['first','coordinates','active','sensors']
+    # do not update guessed hardware
+    if ('description' in ident.keys()) && (ident['description'].find('DFLTs') < 0):
+        mayUpdate.append('description')
+    # else: del ident['description']
     Rslt = getNodeFields(None,mayUpdate,table='Sensors',project=ident['project'],serial=ident['serial'])
     if not type(Rslt) is dict: return True
     # collect description of sensors if new in this run

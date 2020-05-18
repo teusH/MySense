@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.26 2020/05/16 14:51:17 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.27 2020/05/18 08:37:04 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.26 $"[11:-2]
+__version__ = "0." + "$Revision: 3.27 $"[11:-2]
 
 try:
     import MyLogger
@@ -1094,7 +1094,8 @@ def SensorInfo( sensors ):
         SensorCache = {} ; dirtySensorCache = False
     if theKey in SensorCache.keys(): return SensorCache[theKey].copy()
     ident = {
-        'description': ';hw: %s,TIME' % ','.join(sensors),
+        # this is just a guess indicated by DFLTs flag!
+        'description': ';hw: %s,TIME,DFLTs' % ','.join(sensors),
         'fields': ['time', ], 'types': ['time'], 'units': ['s',], 'calibrations': [None,],
         }
     for sensor in sensors:
@@ -2222,14 +2223,17 @@ def RUNcollector():
             if Channels[indx]['module'] and Channels[indx]['Conf']['output']:
               if PublishMe:
                 try:
-                    if Channels[indx]['module'].publish(
+                    Rslt = Channels[indx]['module'].publish(
                         ident = record['ident'],
                         data = record['data'],
                         internet = net
-                        ):
+                        )
+                    if Rslt == True:
                        monitorPrt("    %-50.50s OK" % ('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),4)
-                    else:
+                    elif Rslt == False:
                        monitorPrt("    %-50.50s FAILED" % ('Kit %s/%s data no output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),31)
+                    else:
+                       monitorPrt("    %-50.50s UNKNOWN" % ('Kit %s/%s data unknown output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),31)
                     Channels[indx]['errors'] = 0
                     Channels[indx]['timeout'] = time()-1
                     cnt += 1
