@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.87 2020/05/18 13:35:08 teus Exp teus $
+# $Id: MySense.py,v 5.88 2020/05/19 07:53:13 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.87 $"[11:-2]
+__version__ = "0." + "$Revision: 5.88 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -315,7 +315,7 @@ def accuLow():
   cnt = None
   try: cnt = nvs_get('aLow')
   except: pass
-  if 0.1 < volts[1] < 11.0:
+  if 0.1 < volts[1] < 11.3:
     MyMark(13)
     from pycom import rgbled
     for i in range(5):
@@ -328,7 +328,8 @@ def accuLow():
       Alarm = (AlarmAccu,int(volts[1]*10))
     elif cnt > 10: cnt = 1
     nvs_set('aLow',cnt)
-  elif cnt != None: nvs_erase('aLow')
+  elif cnt != None and (volts[1] > 11.8):
+    nvs_erase('aLow') # back to normal
   return False
 
 ## CONF busses
