@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.27 2020/05/18 08:37:04 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.28 2020/05/23 10:28:16 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.27 $"[11:-2]
+__version__ = "0." + "$Revision: 3.28 $"[11:-2]
 
 try:
     import MyLogger
@@ -1251,9 +1251,6 @@ def sendNotice(message,myID=None):
     try:
         if not len(Conf['notice'][0]): return True
     except: return True
-    if monitor:
-        if notices: monitorPrt("Send Notice to: %s\n" % str(sendTo), 1)
-        monitorPrt("     Message  : %s\n" % str(message), (8 if not notices else 5))
     if not notices: return True
     nodeNotice = []; info = []
     if myID:
@@ -1284,6 +1281,9 @@ def sendNotice(message,myID=None):
         sys.stderr.write("     Message  : %s\n" % str(message))
         if info: sys.stderr.write("     Info: %s\n" % info)
     else:
+        if monitor:
+          if notices: monitorPrt("Send Notice to: %s\n" % str(sendTo), 1)
+          monitorPrt("     Message  : %s\n" % str(message), (8 if not notices else 5))
         if info: message += '\nKit ID and location: %s' % info
         if len(sendTo['slack']): slack_message(message,sendTo['slack'])
         if len(sendTo['email']): email_message(message,sendTo['email'])
@@ -2041,7 +2041,7 @@ def ImportArguments():
 
 # synchronize Conf with Channels
 def UpdateChannelsConf():
-    global Conf, Channels, DB, monitor
+    global Conf, Channels, DB, monitor, notices
     try:
         for indx in range(len(Channels)):
             if Channels[indx]['name'] == 'monitor':
@@ -2228,12 +2228,16 @@ def RUNcollector():
                         data = record['data'],
                         internet = net
                         )
-                    if Rslt == True:
-                       monitorPrt("    %-50.50s OK" % ('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),4)
-                    elif Rslt == False:
-                       monitorPrt("    %-50.50s FAILED" % ('Kit %s/%s data no output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),31)
+                    # failures without an exception event will not be queued for a retry
+                    if type(Rslt) is bool:
+                        if Rslt == True:
+                          monitorPrt("    %-50.50s OK" % ('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),4)
+                        else:
+                          monitorPrt("    %-50.50s FAILED" % ('Kit %s/%s data no output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),31)
+                    elif Rslt:
+                        monitorPrt("    %-50.50s OK with %s" % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),31)
                     else:
-                       monitorPrt("    %-50.50s UNKNOWN" % ('Kit %s/%s data unknown output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),31)
+                        monitorPrt("    %-50.50s FAILED UNKNOWN" % ('Kit %s/%s data unknown output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),31)
                     Channels[indx]['errors'] = 0
                     Channels[indx]['timeout'] = time()-1
                     cnt += 1

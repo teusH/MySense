@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.21 2020/05/17 11:18:01 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.22 2020/05/23 10:28:16 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.21 $"[11:-2]
+__version__ = "0." + "$Revision: 3.22 $"[11:-2]
 
 try:
     import sys
@@ -144,7 +144,7 @@ def sendLuftdaten(ident,values):
         if ident[url] or ident['luftdaten'] == None:
           if url in ident.keys():
             postTo.append(Conf[url])
-    if not len(postTo): return True
+    if not len(postTo): return []
     postings = [] # Luftdaten and Madavi have same POST interface
     for sensed in ['dust','meteo']:
         headers['X-Pin'] = None
@@ -160,12 +160,16 @@ def sendLuftdaten(ident,values):
                     postdata['sensordatavalues'].append({ 'value_type': field, 'value': str(round(values[valueField],2)) })
         if not len(postdata['sensordatavalues']): continue
         postings.append((sensed,headers,postdata)) # type, POST header dict, POST data dict
+
     try:
-        if not post2Luftdaten(postTo,postings):
+        Rslt = []
+        Rslt = post2Luftdaten(postTo,postings,headers['X-Sensor'])
+        if not Rslt:
             Conf['log'](modulename,'ERROR','HTTP POST connection failure')
+        else: return str(Rslt)
     except Exception as e:
-        sys.stderr.write("Exception ERROR in post2Luftdaten as %s\n" % str(e))
-    return True
+        raise IOError("Exception ERROR in post2Luftdaten as %s\n" % str(e))
+    return str(Rslt)
         
 # seems https may hang once a while
 def alrmHandler(signal,frame):
@@ -195,37 +199,48 @@ def watchOff(prev):
     return alrm
     
 # do an HTTP POST to [ Madavi.de, Luftdaten, ...]
-PostErrors = {}
-def PostError(url,cause):
-   global PostErrors, Conf
+Posts = {}
+def PostError(key,cause,timeout=None):
+   global Posts, Conf
    try:
-       Conf['log'](modulename,'ERROR',"For %s: %s" % (url[8:url.find('/',9)],cause))
+       Conf['log'](modulename,'ERROR',"For %s: %s" % (key,cause))
    except: pass
-   if url in PostErrors.keys():
-       if 5 <= PostErrors[url] <= 10: PostErrors[url] = int(time())+10*60
-       elif PostErrors[url] < 5: PostErrors[url] += 1
-       elif url in PostErrors.keys(): del PostErrors[url]
-   else: PostErrors[url] = 1
+   if timeout: # no warnings case
+       # madavi.de seems to forbid most traffic since May 2020
+       Posts[key] = { 'timeout':timeout * (12 if key.find('madavi') > 0 else 1), 'warned': 6}
+       return 
+   elif not key in Posts.keys():
+       Posts[key] = { 'timeout': int(time>()) + 60*60, 'warned': 1 }
+   else:
+       Posts[key]['warned'] += 1
+       if Posts[key]['warned'] > 5: Posts[key]['timeout'] = int(time()) + 1*60*60
 
 # to each element of array of POST URL's, 
 #    POST all posting elements tuple of type, header dict and data dict
-def post2Luftdaten(postTo,postings):
-    global Conf, PostErrors
+def post2Luftdaten(postTo,postings,ID):
+    global Conf, Posts
     # debug time: do not really post this
-    Conf['log'](modulename,'DEBUG',"HTTP POST to: %s" % ', '.join(postTo))
+    Conf['log'](modulename,'DEBUG',"HTTP POST ID %s to: %s" % (ID,', '.join(postTo)))
     for data in postings:
         Conf['log'](modulename,'DEBUG',"Post headers: %s" % str(data[1]))
         Conf['log'](modulename,'DEBUG',"Post data   : %s" % str(data[2]))
-    rts = True
+    rts = []
     for url in postTo:
         host = url.find('://')
         if host > 0: host = url[host+3:url.find('/',host+3)]
-        else: # just a guess
-            host = ('api.luftdate.info' if url.find('luftdaten') > 0 else 'api-rrd.madavi.de')
-        if host in PostErrors.keys(): # avoid holding up other posts and input
-            if 5 < PostErrors[host] < int(time()):
-              Conf['log'](modulename,'ATTENT','HTTP too many connect errors: URL %s skipping ID %s' % (url,headers['X-Sensor']))   
-              continue
+        else: # just make a guess
+            host = ('api.luftdaten.info' if url.find('luftdaten') > 0 else 'api-rrd.madavi.de')
+        key = ID + '@' + host.split('.')[1]
+        # avoid holding up other posts and input
+        if key in Posts.keys():
+            if int(time()) < Posts[key]['timeout']:
+                if Posts[key]['warned'] == 6:
+                  Conf['log'](modulename,'ATTENT','HTTP too many connect errors: ID@URL %s skipping up to %s' % (key,datetime.datetime.fromtimestamp(Posts[key]['timeout']).strftime("%Y-%m-%d %H:%M")) )   
+                if Posts[key]['warned'] > 5: # after 5 warnings just skip till timeout
+                  Posts[key]['warned'] += 1
+                  continue
+            else: del Posts[key] # reset
+
         for data in postings:
             prev = watchOn(host)
             try:
@@ -240,37 +255,33 @@ def post2Luftdaten(postTo,postings):
                   else:
                     sys.stderr.write("%s POST %s OK(%d) to %s ID(%s).\n" % (host,data[0],r.status_code,host,data[1]['X-Sensor']))
                 if not r.ok:
-                    rts = False
                     if r.status_code == 403:
-                      Conf['log'](modulename,'ERROR','Post %s to %s ID %s returned status code: forbidden (%d)' % (data[0],host,data[1]['X-Sensor'],r.status_code))
-                      PostErrors[host] = int(time())+1*60*60 # try again after some while
+                      PostError(key,'Post %s to %s ID %s returned status code: forbidden (%d)' % (data[0],host,data[1]['X-Sensor'],r.status_code), int(time())+2*60*60)
                     elif r.status_code == 400:
-                      Conf['log'](modulename,'ERROR','Not registered post %s to %s with ID %s, status code: %d' % (data[0],host,data[1]['X-Sensor'],r.status_code))
-                      PostErrors[host] = int(time())+1*60*60 # try again after some while
+                      PostError(key,'Not registered post %s to %s with ID %s, status code: %d' % (data[0],host,data[1]['X-Sensor'],r.status_code),int(time())+1*60*60)
                       # raise ValueError("EVENT Not registered %s POST for ID %s" % (url,data[1]['X-Sensor']))
                     else: # temporary error?
-                      PostError(host,'Post %s with ID %s returned status code: %d' % (data[0],data[1]['X-Sensor'],r.status_code))
+                      PostError(key,'Post %s with ID %s returned status code: %d' % (data[0],data[1]['X-Sensor'],r.status_code))
+                    break
                 else: # POST OK
-                    if host in PostErrors.keys():
-                       Conf['log'](modulename,'ATTENT','Postage to %s recovered. OK.' % host)
-                       del PostErrors[host] # clear errors
-                    Conf['log'](modulename,'DEBUG','Sent %s postage to %s OK.' % (data[0],host))
+                    if key in Posts.keys():
+                       Conf['log'](modulename,'ATTENT','Postage to %s recovered. OK.' % key)
+                       del Posts[key] # clear errors
+                    Conf['log'](modulename,'DEBUG','Sent %s postage to %s OK.' % (data[0],key))
+                    rts.append(key) # may extend this with data[0] type of sensor
             except requests.ConnectionError as e:
                 if str(e).find('Interrupted system call') < 0: # if so watchdog interrupt
-                    PostError(host,'Connection error: ' + str(e))
-                rts = False
+                    PostError(key,'Connection error: ' + str(e))
             except Exception as e:
                 if str(e).find('EVENT') >= 0:
                     raise ValueError(str(e)) # send notice event
-                    # return True # not reached
-                PostError(host,'Error: ' + str(e))
-                rts = False
+                PostError(key,'Error: ' + str(e))
             if not watchOff(prev): # 5 X tryout, then timeout on this url
-                PostError(host,'HTTP %d sec timeout error with ID %s' % (Conf['timeout'],data[1]['X-Sensor']))
+                PostError(key,'HTTP %d sec timeout error with ID %s' % (Conf['timeout'],data[1]['X-Sensor']))
                 break  # no more POSTs to this host for a while
         # end of postings loop to one host
     # end of URL loop
-    return rts
+    return list(set(rts))
 
 notMatchedSerials = []
 def publish(**args):

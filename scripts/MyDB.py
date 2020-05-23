@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.17 2020/05/18 08:46:15 teus Exp teus $
+# $Id: MyDB.py,v 3.18 2020/05/23 10:28:16 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.17 $"[11:-2]
+__version__ = "0." + "$Revision: 3.18 $"[11:-2]
 
 try:
     import sys
@@ -228,7 +228,8 @@ def db_registrate(ident, adebug=False):
     if len(mayUpdate):
         mayUpdate.append('last_check'); values.append('now()')
         setNodeFields(None,mayUpdate,values,table='Sensors',project=ident['project'],serial=ident['serial'], adebug=adebug)
-        Conf['log'](modulename,'INFO',"Updated registration proj %s: SN %s in database table 'Sensors'." % (ident['project'],ident['serial']))
+        Conf['log'](modulename,'INFO',"Updated registration proj %s: SN %s in database table 'Sensors' with %s." % (ident['project'],ident['serial'],str(values)))
+        # Conf['log'](modulename,'INFO',"Updated registration proj %s: SN %s in database table 'Sensors'." % (ident['project'],ident['serial']))
     return True
 
 # do a query
