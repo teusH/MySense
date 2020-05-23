@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.22 2020/05/23 10:28:16 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.24 2020/05/23 14:22:57 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.22 $"[11:-2]
+__version__ = "0." + "$Revision: 3.24 $"[11:-2]
 
 try:
     import sys
@@ -61,6 +61,7 @@ Conf = {
     'registrated': None, # has done initial setup
     'timeout': 3*30,     # timeout on wait of http request result in seconds
     'log': None,         # MyLogger log print routine
+    'message': None,     # event message from this module, eg skipping output
     'DEBUG': False       # debugging info
 }
 
@@ -236,6 +237,8 @@ def post2Luftdaten(postTo,postings,ID):
             if int(time()) < Posts[key]['timeout']:
                 if Posts[key]['warned'] == 6:
                   Conf['log'](modulename,'ATTENT','HTTP too many connect errors: ID@URL %s skipping up to %s' % (key,datetime.datetime.fromtimestamp(Posts[key]['timeout']).strftime("%Y-%m-%d %H:%M")) )   
+                  if key.find('madavi') < 0: # if unimportant host no message
+                    Conf['message'] = 'HTTP POST connection failuring: ID@URL %s.\nSkip postages up to %s' % (key,datetime.datetime.fromtimestamp(Posts[key]['timeout']).strftime("%Y-%m-%d %H:%M"))
                 if Posts[key]['warned'] > 5: # after 5 warnings just skip till timeout
                   Posts[key]['warned'] += 1
                   continue
@@ -312,6 +315,7 @@ def publish(**args):
         args['ident']['madavi'] = True
     mayPost = False
     # if 'madavi' and/or 'luftdaten' is enabled in ident send them a HTTP POST
+    Conf['message'] = None # clear former error message
     for postTo in ['madavi','luftdaten',]:
         if not postTo in args['ident'].keys(): args['ident'][postTo] = False
         elif args['ident'][postTo]: mayPost = True

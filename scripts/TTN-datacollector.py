@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.28 2020/05/23 10:28:16 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.29 2020/05/23 13:44:23 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.28 $"[11:-2]
+__version__ = "0." + "$Revision: 3.29 $"[11:-2]
 
 try:
     import MyLogger
@@ -2238,6 +2238,11 @@ def RUNcollector():
                         monitorPrt("    %-50.50s OK with %s" % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),31)
                     else:
                         monitorPrt("    %-50.50s FAILED UNKNOWN" % ('Kit %s/%s data unknown output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),31)
+                    if ('message' in Channels[indx]['module'].Conf.keys()) and Channels[indx]['module'].Conf['message']:
+                        try:
+                          sendNotice(Channels[indx]['module'].Conf['message'],myID=record['myID'])
+                          Channels[indx]['module'].Conf['message'] = ''
+                        except: pass
                     Channels[indx]['errors'] = 0
                     Channels[indx]['timeout'] = time()-1
                     cnt += 1
