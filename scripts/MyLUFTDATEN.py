@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.25 2020/05/23 14:56:15 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.26 2020/05/26 13:10:32 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.25 $"[11:-2]
+__version__ = "0." + "$Revision: 3.26 $"[11:-2]
 
 try:
     import sys
@@ -207,8 +207,8 @@ def PostError(key,cause,timeout=None):
        Conf['log'](modulename,'ERROR',"For %s: %s" % (key,cause))
    except: pass
    if timeout: # no warnings case
-       # madavi.de seems to forbid most traffic since May 2020
-       Posts[key] = { 'timeout':timeout + 60*60*(12 if key.find('madavi') > 0 else 1), 'warned': 6}
+       # madavi.de seems to forbid most traffic since May 2020, check every 2 days
+       Posts[key] = { 'timeout':timeout + 60*60*(48 if key.find('madavi') > 0 else 1), 'warned': 6}
        return 
    elif not key in Posts.keys():
        Posts[key] = { 'timeout': int(time>()) + 60*60, 'warned': 1 }
