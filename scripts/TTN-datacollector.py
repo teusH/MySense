@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.29 2020/05/23 13:44:23 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.32 2020/05/26 13:05:52 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.29 $"[11:-2]
+__version__ = "0." + "$Revision: 3.32 $"[11:-2]
 
 try:
     import MyLogger
@@ -1169,6 +1169,19 @@ def addInfo(module,ident,clear=False):
         return False
     return True
 
+# delete double addresses
+def UniqAddress( to ):
+    def email(address):
+        try: return address[address.index('<')+1:address.index('>')].strip()
+        except: return address.strip()
+
+    Rslt = []; cleaned = []
+    for one in to:
+        addr = email(one)
+        if not addr in cleaned:
+            Rslt.append(one.strip()); cleaned.append(addr)
+    return Rslt
+
 def email_message(message, you):
     global Conf, debug
     if not 'from' in Conf.keys(): return True
@@ -1184,6 +1197,7 @@ def email_message(message, you):
     # me == the sender's email address
     # you == the recipient's email address
     if not type(you) is list: you = you.split(',')
+    you = UniqAddress(you)
     msg['Subject'] = 'MySense: TTN data collector service notice'
     msg['From'] = Conf['from']
     msg['To'] = ','.join(you)
@@ -1359,12 +1373,16 @@ def cleanupCache(saveID): # delete dead kits from cache
     if not len(items): return
     if len(items) < 3:   #  len(cached)-1
       for item in items:
-        serial = Conf['nodes'][item.split('/')[1]]['serial']
-        MyLogger.log(modulename,'ATTENT',"Kit %s (S/N %s) not seen longer as %d minutes." % (item, serial,(now-cached[item]['last_seen'])/60))
+        serial = 'unknown'; project = 'unknown'
         try:
-            sendNotice("Kit %s (S/N %s) not seen longer as %d minutes.\nKit seems to be disconnected.\nLast time seen: %s." % (item,serial, (now-cached[item]['last_seen'])/60,datetime.datetime.fromtimestamp(cached[item]['last_seen']).strftime("%Y-%m-%d %H:%M")),myID=item)
+            serial = cached[item]['serial']
+            project = cached[item]['project']
+        except: pass
+        MyLogger.log(modulename,'ATTENT',"Kit %s (project %s, S/N %s) not seen longer as %d minutes." % (item, project, serial,(now-cached[item]['last_seen'])/60))
+        try:
+            sendNotice("Kit %s (project %s, S/N %s) not seen longer as %d minutes.\nKit seems to be disconnected.\nLast time seen: %s." % (item,project, serial, (now-cached[item]['last_seen'])/60,datetime.datetime.fromtimestamp(cached[item]['last_seen']).strftime("%Y-%m-%d %H:%M")),myID=item)
         except Exception as e:
-            MyLogger.log(modulename,'ERROR',"Failed to send notice: %s" % str(e))
+            MyLogger.log(modulename,'ERROR',"Failed to send 'not seen' notice: %s" % str(e))
         del cached[item]
     else:
       MyLogger.log(modulename,'ATTENT',"Seems TTN server is down for a long period at %s" % datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"))
@@ -2182,7 +2200,7 @@ def RUNcollector():
             PrintException()
             # sys.stderr.write(traceback.format_exc())
             MyLogger.log(modulename,'INFO','Get data failed with %s' % e)
-            sys.stderr.write("FAILED record: %s" % str(record))
+            # sys.stderr.write("FAILED record: %s" % str(record))
             inputError += 1
             continue
         if (not type(record) is dict):
@@ -2233,11 +2251,17 @@ def RUNcollector():
                         if Rslt == True:
                           monitorPrt("    %-50.50s OK" % ('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),4)
                         else:
-                          monitorPrt("    %-50.50s FAILED" % ('Kit %s/%s data no output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),31)
+                          monitorPrt("    %-50.50s FAILED" % ('Kit %s/%s data no output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),1)
                     elif Rslt:
-                        monitorPrt("    %-50.50s OK with %s" % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),31)
+                        try:
+                          if type(Rslt) is list: Rslt = ', '.join(Rslt)
+                        except: Rslt = str(Rslt)
+                        if len(Rslt):
+                          monitorPrt("    %-50.50s OK with %s" % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),31)
+                        else:
+                          monitorPrt("    %-50.50s NO output." % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),1)
                     else:
-                        monitorPrt("    %-50.50s FAILED UNKNOWN" % ('Kit %s/%s data unknown output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),31)
+                        monitorPrt("    %-50.50s UNKNOWN FAILURE" % ('Kit %s/%s data unknown output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),1)
                     if ('message' in Channels[indx]['module'].Conf.keys()) and Channels[indx]['module'].Conf['message']:
                         try:
                           sendNotice(Channels[indx]['module'].Conf['message'],myID=record['myID'])
