@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.26 2020/05/26 13:10:32 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.28 2020/05/27 13:48:25 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.26 $"[11:-2]
+__version__ = "0." + "$Revision: 3.28 $"[11:-2]
 
 try:
     import sys
@@ -50,6 +50,7 @@ __options__ = ['output','luftdaten','madavi','id_prefix', 'timeout',
 
 Conf = {
     'output': False,
+    'hosts': ['luftdaten', ],    # 'madavi' deleted
     # defined by, obtained from LuftDaten: Rajko Zschiegner dd 24-12-2017
     'id_prefix': "TTNMySense-", # prefix ID prepended to serial number of module
     'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
@@ -138,14 +139,14 @@ def sendLuftdaten(ident,values):
         'software_version': 'MySense' + __version__,
     }
     postTo = []
-    for url in ['luftdaten','madavi']: # Luftdaten map (needs Luftdaten ID) and Madavi archive
+    for url in Conf['hosts']: # Luftdaten map (needs Luftdaten ID) and Madavi archive
         if (url == 'luftdaten') and (not ident['luftdaten']):
           print("Not (%s) to Luftdaten for kit: %s" % (str(ident['luftdaten']),headers['X-Sensor']))
           continue
         if ident[url] or ident['luftdaten'] == None:
           if url in ident.keys():
             postTo.append(Conf[url])
-    if not len(postTo): return []
+    if not len(postTo): return "No destination defined"
     postings = [] # Luftdaten and Madavi have same POST interface
     for sensed in ['dust','meteo']:
         headers['X-Pin'] = None
@@ -167,10 +168,11 @@ def sendLuftdaten(ident,values):
         Rslt = post2Luftdaten(postTo,postings,headers['X-Sensor'])
         if not Rslt:
             Conf['log'](modulename,'ERROR','HTTP POST connection failure')
-        else: return str(Rslt)
+            return 'HTTP POST connection failure'
+        else: return Rslt
     except Exception as e:
         raise IOError("Exception ERROR in post2Luftdaten as %s\n" % str(e))
-    return str(Rslt)
+    return Rslt
         
 # seems https may hang once a while
 def alrmHandler(signal,frame):
@@ -290,7 +292,7 @@ notMatchedSerials = []
 def publish(**args):
     global Conf, notMatchedSerials
     if (not 'output' in Conf.keys()) or (not Conf['output']):
-        return
+        return []
     for key in ['data','internet','ident']:
         if not key in args.keys():
             Conf['log'](modulename,'FATAL',"Publish call missing argument %s." % key)
@@ -299,10 +301,9 @@ def publish(**args):
         return False 
     for key in ['project','serial']:
         if (not key in args['ident'].keys()) or (not args['ident'][key]):
-            return True
-    # ident['luftdaten'] == None -> if not madavi in ident: ident['madavi'] = True
-    if (not 'luftdaten' in args['ident'].keys()) and (not 'madavi' in args['ident'].keys()):
-        return True
+            return "No project/serial defined"
+    for one in Conf['hosts']:
+        if not one in args['ident'].keys(): return "No forward %s host defined" % one
     matched = Conf['match'].match(args['ident']['project']+'_'+args['ident']['serial'])
     # publish only records of the matched project/serial combi,
     # default Madavi is enabled for those matches
@@ -310,18 +311,18 @@ def publish(**args):
         if not args['ident']['project']+'_'+args['ident']['serial'] in notMatchedSerials:
             notMatchedSerials.append(args['ident']['project']+'_'+args['ident']['serial'])
             Conf['log'](modulename,'INFO',"Skipping records of project %s with serial %s to post to Luftdaten" % (args['ident']['project'],args['ident']['serial']))
-        return True
-    elif not 'madavi' in args['ident'].keys():  # dflt: Post to madavi.de
-        args['ident']['madavi'] = True
+        return "Serial nr no match. Skipped"
+    #elif not 'madavi' in args['ident'].keys():  # dflt: Post to madavi.de
+    #    args['ident']['madavi'] = True
     mayPost = False
     # if 'madavi' and/or 'luftdaten' is enabled in ident send them a HTTP POST
     Conf['message'] = None # clear former error message
-    for postTo in ['madavi','luftdaten',]:
+    for postTo in Conf['hosts']:
         if not postTo in args['ident'].keys(): args['ident'][postTo] = False
         elif args['ident'][postTo]: mayPost = True
-    if args['ident']['luftdaten']: args['ident']['madavi'] = True
+    #if args['ident']['luftdaten']: args['ident']['madavi'] = True
     if mayPost: return sendLuftdaten(args['ident'],args['data'])
-    return True
+    return "No one to forward to"
 
 # test main loop
 if __name__ == '__main__':

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.32 2020/05/26 13:05:52 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.36 2020/05/27 13:48:25 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.32 $"[11:-2]
+__version__ = "0." + "$Revision: 3.36 $"[11:-2]
 
 try:
     import MyLogger
@@ -1578,10 +1578,11 @@ def convert2MySense( data, **sensor):
     if (cached[myID]['count'] == 1):
         tstamp = 0
         if cached[myID]['last_seen']:
-            tstamp = time() - (cached[myID]['last_seen'] if cached[myID]['last_seen'] > ProcessStart else ProcessStart) 
+            tstamp = time() - (cached[myID]['last_seen'] if cached[myID]['last_seen'] > ProcessStart else (ProcessStart-1)) 
         if not tstamp:
-            MyLogger.log(modulename,'ATTENT','Kit %s is newly started.' % myID)
-            sendNotice('Kit %s is newly started at time: %s' % (myID,datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M")),myID=myID)
+            MyLogger.log(modulename,'ATTENT','Not activated and/or not administrated kit %s found.' % myID)
+            if time()-ProcessStart > 60*60:
+              sendNotice('Not activated or not administrated kit %s found at time: %s' % (myID,datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M")),myID=myID)
         elif tstamp > 90*60:
             MyLogger.log(modulename,'ATTENT','Kit %s is restarted after %dh%dm%ds.' % (myID,tstamp/3600,(tstamp%3600)/60,tstamp%60))
             sendNotice('Kit %s is restarted at time: %s after %dh%dm%ds.' % (myID,datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"),tstamp/3600,(tstamp%3600)/60,tstamp%60),myID=myID)
@@ -2007,7 +2008,7 @@ def Configure():
                 # expression to identify serials to be subjected to be posted
                 #'serials': '(30aea4[0-9a-f]{6}|807d3a93(76dc|5cb8)|e101e82a2c|3c71bf876dbc|b4e62df55731)', # pmsensor[1 .. 11] from pmsensors
                 'serials': '(130aea|30[aA][eE][aA]4|3c71bf|788d27|807[dD]3[aA]|b4e62[fd]|D54990|e101e8)[A-Fa-f0-9]{4,6}', # serials numbers allowed to be forwarded
-                'projects': '(HadM|SAN|KIP)',  # expression to identify projects to be posted
+                'projects': '(HadM|SAN|KIP|RIVM)',  # expression to identify projects to be posted
 
                 'active': True,        # output to luftdaten is also activated
                 'DEBUG' : False,        # show what is sent and POST status
@@ -2251,17 +2252,23 @@ def RUNcollector():
                         if Rslt == True:
                           monitorPrt("    %-50.50s OK" % ('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),4)
                         else:
+                          MyLogger.log(modulename,'ATTENT','Kit %s/%s data no output to %s' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name']))
                           monitorPrt("    %-50.50s FAILED" % ('Kit %s/%s data no output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),1)
                     elif Rslt:
-                        try:
-                          if type(Rslt) is list: Rslt = ', '.join(Rslt)
-                        except: Rslt = str(Rslt)
-                        if len(Rslt):
-                          monitorPrt("    %-50.50s OK with %s" % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),31)
-                        else:
-                          monitorPrt("    %-50.50s NO output." % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),1)
+                        if type(Rslt) is str or type(Rslt) is unicode:
+                            MyLogger.log(modulename,'ATTENT','Kit %s/%s data NO output to %s: %s' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'],str(Rslt)))
+                            monitorPrt("    %-50.50s FAILURE %s" % ('Kit %s/%s data NO output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name']),str(Rslt)),1)
+                        elif type(Rslt) is list:
+                            try: Rslt = ', '.join(Rslt)
+                            except: Rslt = str(Rslt)
+                            if len(Rslt):
+                              monitorPrt("    %-50.50s OK for %s" % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),31)
+                            else:
+                              MyLogger.log(modulename,'ATTENT','Kit %s/%s data output to %s: %s' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'],str(Rslt)))
+                              monitorPrt("    %-50.50s NO output." % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),1)
                     else:
-                        monitorPrt("    %-50.50s UNKNOWN FAILURE" % ('Kit %s/%s data unknown output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),1)
+                        MyLogger.log(modulename,'ATTENT','Kit %s/%s data output to %s: unknown' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name']))
+                        monitorPrt("    %-50.50s UNKNOWN FAILURE" % ('Kit %s/%s data NO output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),1)
                     if ('message' in Channels[indx]['module'].Conf.keys()) and Channels[indx]['module'].Conf['message']:
                         try:
                           sendNotice(Channels[indx]['module'].Conf['message'],myID=record['myID'])
