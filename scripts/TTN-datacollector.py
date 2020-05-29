@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.36 2020/05/27 13:48:25 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.37 2020/05/29 10:24:41 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.36 $"[11:-2]
+__version__ = "0." + "$Revision: 3.37 $"[11:-2]
 
 try:
     import MyLogger
@@ -1336,6 +1336,8 @@ def DeadKits():
     for kit in kitTbls:
       datum = 0
       try:
+        tbl = DB.db_query("SHOW TABLES like '%s_%s'" % (kit[0],kit[1]), True)
+        if not len(tbl) or not len(tbl[0]): continue # table does not exists
         datum = DB.db_query("SELECT UNIX_TIMESTAMP(datum) FROM %s_%s ORDER BY datum DESC LIMIT 1" % (kit[0],kit[1]), True)
         if datum[0][0]:
           datum = int(datum[0][0])

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.28 2020/05/27 13:48:25 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.29 2020/05/29 19:26:25 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.28 $"[11:-2]
+__version__ = "0." + "$Revision: 3.29 $"[11:-2]
 
 try:
     import sys
@@ -155,19 +155,24 @@ def sendLuftdaten(ident,values):
                 headers['X-Pin'] = str(sense_table[sensed]['types'][sensorType])
                 break
         if not headers['X-Pin']: continue
-        postdata['sensordatavalues'] = []
+        postdata['sensordatavalues'] = []; cnt = 0
         for field in sense_table[sensed].keys():
             for valueField in values:
                 if valueField in sense_table[sensed][field]:
                     postdata['sensordatavalues'].append({ 'value_type': field, 'value': str(round(values[valueField],2)) })
-        if not len(postdata['sensordatavalues']): continue
+                    cnt += 1
+        if not cnt: continue
         postings.append((sensed,headers,postdata)) # type, POST header dict, POST data dict
 
     try:
         Rslt = []
+        if not postings:
+            Conf['log'](modulename,'INFO',"No values for %s with postings: %s\n" % (str(headers['X-Sensor']),str(postings)))
+            return Rslt
         Rslt = post2Luftdaten(postTo,postings,headers['X-Sensor'])
         if not Rslt:
             Conf['log'](modulename,'ERROR','HTTP POST connection failure')
+            sys.stderr.write("Failed X-Sensor %s with postings: %s\n" % (str(headers['X-Sensor']),str(postings)))
             return 'HTTP POST connection failure'
         else: return Rslt
     except Exception as e:
@@ -263,7 +268,8 @@ def post2Luftdaten(postTo,postings,ID):
                     if r.status_code == 403:
                       PostError(key,'Post %s to %s ID %s returned status code: forbidden (%d)' % (data[0],host,data[1]['X-Sensor'],r.status_code), int(time())+2*60*60)
                     elif r.status_code == 400:
-                      PostError(key,'Not registered post %s to %s with ID %s, status code: %d' % (data[0],host,data[1]['X-Sensor'],r.status_code),int(time())+1*60*60)
+                      # PostError(key,'Not registered post %s to %s with ID %s, status code: %d' % (data[0],host,data[1]['X-Sensor'],r.status_code),int(time())+1*60*60)
+                      PostError(key,'Not registered post %s to %s with header: %s, data %s and ID %s, status code: %d' % (data[0],host,str(data[1]),str(data[2]),r.status_code),int(time())+1*60*60)
                       # raise ValueError("EVENT Not registered %s POST for ID %s" % (url,data[1]['X-Sensor']))
                     else: # temporary error?
                       PostError(key,'Post %s with ID %s returned status code: %d' % (data[0],data[1]['X-Sensor'],r.status_code))

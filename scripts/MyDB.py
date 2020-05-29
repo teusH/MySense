@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.18 2020/05/23 10:28:16 teus Exp teus $
+# $Id: MyDB.py,v 3.21 2020/05/29 19:26:25 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.18 $"[11:-2]
+__version__ = "0." + "$Revision: 3.21 $"[11:-2]
 
 try:
     import sys
@@ -444,7 +444,7 @@ def putNodeInfo(info,adebug=False):
                   rts = db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % ('Sensors',info['project'],info['serial']), True)
             except: pass  
         if not len(rts): # insert a new row entry
-            Conf['log'](modulename,'ATTENT','Insert new entry in Sensors table for %s/%s.' % (info['project'],info['serial']))
+            Conf['log'](modulename,'ATTENT','Insert new entry in %s table for %s/%s.' % (table,info['project'],info['serial']))
             query = "INSERT INTO %s (datum, project, serial, active) VALUES(now(),'%s','%s',%d)" % (table,info['project'],info['serial'], 1 if 'active' in info.keys() and info['active'] else 0)
             if adebug:
               print("Could change DB with: %s" % query); rts = [(1001,)]
@@ -452,7 +452,7 @@ def putNodeInfo(info,adebug=False):
               sleep(2) # make sure id timestamp is unique
               # TO DO: new entry in TTNtable with default values?
               if not db_query(query, False):
-                Conf['log'](modulename,'ERROR','Cannot insert new row in table %s for project %s, serial %s' % ('TTNtable',info['project'],info['serial']))
+                Conf['log'](modulename,'ERROR','Cannot insert new row in table %s for project %s, serial %s' % (table,info['project'],info['serial']))
                 continue
               rts = db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % (table,info['project'],info['serial']), True)
         qry = []
@@ -519,7 +519,7 @@ def Topic2IDs(topic, active=None):
             rts[1] = qry[0][0]
             qry = db_query("SELECT UNIX_TIMESTAMP(Sensors.id), concat(TTNtable.project,'_',TTNtable.serial) FROM Sensors, TTNtable WHERE Sensors.project = TTNtable.project AND Sensors.serial = TTNtable.serial AND UNIX_TIMESTAMP(TTNtable.id) = %d %s ORDER BY Sensors.datum DESC, Sensors.active DESC LIMIT 1" % (rts[1],active), True)
             if len(qry) and qry[0][0]: rts[0] = qry[0][0]
-            if len(qry) and len(qry[0][1]): # last datum measurements
+            if len(qry) and len(qry[0][1]) and db_table(qry[0][1],create=False): # last datum measurements
                 qry = db_query("SELECT UNIX_TIMESTAMP(datum),'%s' FROM %s ORDER BY datum DESC LIMIT 1" % (qry[0][1],qry[0][1]), True)
                 if len(qry) and qry[0][0]:
                     rts[2] = qry[0][0]
@@ -616,25 +616,17 @@ def db_table(table,create=True):
         table_name = table
     elif table == 'TTNtable':
         Conf[table] = CreateLoRaTable(table); return Conf[table]
-    else:
-        comment = 'unknown location'
-        ######## needs some work
-        for ordinates in ['geolocation','GPS','gps','coordinates']:
-            if ordinates in ident.keys():
-                comment = 'Sensor located at: %s' % str(ident[ordinates])
-                break
-        table_name = '%s_%s' % (ident['project'],ident['serial'])
     if not db_query("""CREATE TABLE %s (
         id TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             COMMENT 'date/time latest change',
         datum datetime UNIQUE default NULL
             COMMENT 'date/time measurement'
         ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-            COMMENT='%s'""" % (table_name,comment),False):
+            COMMENT='sensor table created at %s'""" % (table,datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M")),False):
         Conf[table] = False
-        Conf['log'](modulename,'ERROR',"Unable to create sensor table %s in database." % table_name)
+        Conf['log'](modulename,'ERROR',"Unable to create sensor table %s in database." % table)
     else:
-        Conf['log'](modulename,'ATTENT',"Created table %s" % table_name)
+        Conf['log'](modulename,'ATTENT',"Created table %s" % table)
     Conf[table] = True
     return Conf[table]
 
@@ -832,9 +824,9 @@ if __name__ == '__main__':
     from time import sleep
     Conf['output'] = True
     Conf['hostname'] = 'localhost'         # host InFlux server
-    Conf['database'] = 'luchtmetingen' # the MySql db for test usage, must exists
-    Conf['user'] = 'IoS'              # user with insert permission of InFlux DB
-    Conf['password'] = 'acacadabra'     # DB credential secret to use InFlux DB
+    Conf['database'] = 'luchtmetingen'     # the MySql db for test usage, must exists
+    Conf['user'] = 'IoS'                   # user with insert permission of InFlux DB
+    Conf['password'] = 'acacadabra'        # DB credential secret to use InFlux DB
 
     if not len(sys.argv) > 1: exit(0)
     # get nodes info from a json file and update node info to DB
