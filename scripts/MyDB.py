@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.21 2020/05/29 19:26:25 teus Exp teus $
+# $Id: MyDB.py,v 3.22 2020/05/31 12:07:26 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.21 $"[11:-2]
+__version__ = "0." + "$Revision: 3.22 $"[11:-2]
 
 try:
     import sys
@@ -51,6 +51,7 @@ Conf = {
     'port': 3306,        # default mysql port number
     'fd': None,          # have sent to db: current fd descriptor, 0 on IO error
     'log': None,         # MyLogger log routiune
+    'level': None,       # MyLogger log level, default INFO
     'omit' : ['time','geolocation','coordinates','version','gps','meteo','dust','gwlocation','event','value']        # fields not archived
 }
 # ========================================================
@@ -69,6 +70,7 @@ def db_connect(net = { 'module': True, 'connected': True }):
     if not Conf['log']:
         import MyLogger
         Conf['log'] = MyLogger.log
+        if Conf['level']: MyLogger.Conf['level'] = Conf['level'] # set log level
     if not 'fd' in Conf.keys(): Conf['fd'] = None
     if not 'last' in Conf.keys():
         Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
