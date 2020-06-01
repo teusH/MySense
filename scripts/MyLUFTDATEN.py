@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.33 2020/06/01 15:10:35 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.34 2020/06/01 19:33:17 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.33 $"[11:-2]
+__version__ = "0." + "$Revision: 3.34 $"[11:-2]
 
 try:
     import sys
@@ -174,7 +174,7 @@ def sendLuftdaten(ident,values):
         Rslt = post2Luftdaten(postTo,postings,headers['X-Sensor'])
         if not Rslt:
             Conf['log'](modulename,'ERROR','HTTP POST connection failure')
-            sys.stderr.write("Failed X-Sensor %s with postings: %s\n" % (str(headers['X-Sensor']),str(postings)))
+            # sys.stderr.write("Failed X-Sensor %s with postings: %s\n" % (str(headers['X-Sensor']),str(postings)))
             return 'HTTP POST connection failure'
         else: return Rslt
     except Exception as e:
@@ -258,11 +258,11 @@ def post2Luftdaten(postTo,postings,ID):
             try:
                 r = requests.post(url, json=data[2], headers=data[1])
                 Conf['log'](modulename,'DEBUG','Post %s returned status: %d' % (host,r.status_code))
-                if not r.ok:
-                  sys.stderr.write("Luftdaten %s POST to %s:\n" % (data[0],url))
-                  sys.stderr.write("     headers: %s\n" % str(data[1]))
-                  sys.stderr.write("     data   : %s\n" % str(data[2]))
-                  sys.stderr.write("     returns: %d\n" % r.status_code)
+                #if not r.ok:
+                #  sys.stderr.write("Luftdaten %s POST to %s:\n" % (data[0],url))
+                #  sys.stderr.write("     headers: %s\n" % str(data[1]))
+                #  sys.stderr.write("     data   : %s\n" % str(data[2]))
+                #  sys.stderr.write("     returns: %d\n" % r.status_code)
                 if Conf['DEBUG']:
                   if not r.ok:
                     sys.stderr.write("Luftdaten %s POST to %s:\n" % (data[0],url))
