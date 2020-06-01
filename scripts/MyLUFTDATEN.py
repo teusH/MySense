@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.29 2020/05/29 19:26:25 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.33 2020/06/01 15:10:35 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.29 $"[11:-2]
+__version__ = "0." + "$Revision: 3.33 $"[11:-2]
 
 try:
     import sys
@@ -128,16 +128,13 @@ def sendLuftdaten(ident,values):
     # the Luftdaten API json template
     # suggest to limit posts and allow one post with multiple measurements
     if 'luftdatenID' in ident.keys():
-        headers = {
+        hdrs = {
             'X-Sensor': Conf['id_prefix'] + str(ident['luftdatenID']),
         }
     else:
-        headers = {
+        hdrs = {
             'X-Sensor': Conf['id_prefix'] + str(ident['serial']),
         }
-    postdata = {
-        'software_version': 'MySense' + __version__,
-    }
     postTo = []
     for url in Conf['hosts']: # Luftdaten map (needs Luftdaten ID) and Madavi archive
         if (url == 'luftdaten') and (not ident['luftdaten']):
@@ -147,21 +144,26 @@ def sendLuftdaten(ident,values):
           if url in ident.keys():
             postTo.append(Conf[url])
     if not len(postTo): return "No destination defined"
+
     postings = [] # Luftdaten and Madavi have same POST interface
     for sensed in ['dust','meteo']:
-        headers['X-Pin'] = None
-        for sensorType in sense_table[sensed]['types']:
-            if sensorType.lower() in [ x.lower() for x in ident['types']]:
+        postdata = {
+            'software_version': 'MySense' + __version__,
+        }
+        headers = hdrs.copy(); headers['X-Pin'] = None
+        for sensorType in sense_table[sensed]['types'].keys():
+            if sensorType.lower() in list(set([ x.lower() for x in ident['types']])):
                 headers['X-Pin'] = str(sense_table[sensed]['types'][sensorType])
                 break
         if not headers['X-Pin']: continue
-        postdata['sensordatavalues'] = []; cnt = 0
+        postdata['sensordatavalues'] = []
         for field in sense_table[sensed].keys():
+            if field == 'types': continue
             for valueField in values:
                 if valueField in sense_table[sensed][field]:
+                  if values[valueField] != None:
                     postdata['sensordatavalues'].append({ 'value_type': field, 'value': str(round(values[valueField],2)) })
-                    cnt += 1
-        if not cnt: continue
+        if not len(postdata['sensordatavalues']): continue
         postings.append((sensed,headers,postdata)) # type, POST header dict, POST data dict
 
     try:
@@ -256,6 +258,11 @@ def post2Luftdaten(postTo,postings,ID):
             try:
                 r = requests.post(url, json=data[2], headers=data[1])
                 Conf['log'](modulename,'DEBUG','Post %s returned status: %d' % (host,r.status_code))
+                if not r.ok:
+                  sys.stderr.write("Luftdaten %s POST to %s:\n" % (data[0],url))
+                  sys.stderr.write("     headers: %s\n" % str(data[1]))
+                  sys.stderr.write("     data   : %s\n" % str(data[2]))
+                  sys.stderr.write("     returns: %d\n" % r.status_code)
                 if Conf['DEBUG']:
                   if not r.ok:
                     sys.stderr.write("Luftdaten %s POST to %s:\n" % (data[0],url))
@@ -269,7 +276,7 @@ def post2Luftdaten(postTo,postings,ID):
                       PostError(key,'Post %s to %s ID %s returned status code: forbidden (%d)' % (data[0],host,data[1]['X-Sensor'],r.status_code), int(time())+2*60*60)
                     elif r.status_code == 400:
                       # PostError(key,'Not registered post %s to %s with ID %s, status code: %d' % (data[0],host,data[1]['X-Sensor'],r.status_code),int(time())+1*60*60)
-                      PostError(key,'Not registered post %s to %s with header: %s, data %s and ID %s, status code: %d' % (data[0],host,str(data[1]),str(data[2]),r.status_code),int(time())+1*60*60)
+                      PostError(key,'Not registered post %s to %s with header: %s, data %s and ID %s, status code: %d' % (data[0],host,str(data[1]),str(data[2]),data[1]['X-Sensor'],r.status_code),int(time())+1*60*60)
                       # raise ValueError("EVENT Not registered %s POST for ID %s" % (url,data[1]['X-Sensor']))
                     else: # temporary error?
                       PostError(key,'Post %s with ID %s returned status code: %d' % (data[0],data[1]['X-Sensor'],r.status_code))
@@ -308,6 +315,8 @@ def publish(**args):
     for key in ['project','serial']:
         if (not key in args['ident'].keys()) or (not args['ident'][key]):
             return "No project/serial defined"
+    if not 'madavi' in args['ident'].keys():  # dflt: Post to madavi.de
+        args['ident']['madavi'] = True
     for one in Conf['hosts']:
         if not one in args['ident'].keys(): return "No forward %s host defined" % one
     matched = Conf['match'].match(args['ident']['project']+'_'+args['ident']['serial'])
@@ -318,8 +327,6 @@ def publish(**args):
             notMatchedSerials.append(args['ident']['project']+'_'+args['ident']['serial'])
             Conf['log'](modulename,'INFO',"Skipping records of project %s with serial %s to post to Luftdaten" % (args['ident']['project'],args['ident']['serial']))
         return "Serial nr no match. Skipped"
-    #elif not 'madavi' in args['ident'].keys():  # dflt: Post to madavi.de
-    #    args['ident']['madavi'] = True
     mayPost = False
     # if 'madavi' and/or 'luftdaten' is enabled in ident send them a HTTP POST
     Conf['message'] = None # clear former error message
