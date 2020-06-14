@@ -16,9 +16,9 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 1.32 2020/06/14 10:53:50 teus Exp teus $
+# $Id: ChartsPM.pl,v 2.1 2020/06/14 14:11:48 teus Exp teus $
 # use 5.010;
-my $Version = '$Revision: 1.32 $, $Date: 2020/06/14 10:53:50 $.';
+my $Version = '$Revision: 2.1 $, $Date: 2020/06/14 14:11:48 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/([0-9]+:[0-9]+):[0-9]+/$1/;
 # Description:
@@ -1136,7 +1136,7 @@ sub InsertTableHdr {
     $meteoStrg = ' Tav meteo data is gebruik gemaakt van een speciale meteo sensor kit. ' if $meteo;
     return "Als achtergronds kleur (en nivo) wordt bij vertoning van een fijnstof grafiek het gezondheidsrisico weergegeven volgens de <a href='https://www.epa.gov/sites/production/files/2016-04/documents/2012_aqi_factsheet.pdf'>U.S. Environmental Protection Agency</a> PM<sub>2.5</sub> of PM<sub>10</sub> 24-uurs tabellen.<p>In de legendum kan door aanklikken een grafiek voor een enkele sensorkit meting aan- of uitgezet worden. Klik 'toon' aan voor het aan- of uitzetten van de betreffende grafiekweergave." .
         ($Mean ? 
-        "<br />Bij 'regionale overzichts grafieken' worden er een grafiek getoond met de gemiddelde waarden samen met 50% en 90% spreidingsgrafiek. De individuele grafieken kunnen apart aan- of uitgezet worden door deze een voor een aan te klikken in de legendum."
+        "<br />Bij 'regionale overzichts grafieken' worden er een grafiek getoond met de gemiddelde waarden samen met 50% en 90% spreidingsgrafiek. De individuele grafieken kunnen apart aan- of uitgezet worden door deze een voor een aan te klikken in de legendum. Tav de metingen die bovengemiddeld hoog zijn worden maximaal 3 grafieken direct zichtbaar gemaakt."
           : ""). 
         "<br />De chart biedt de mogelijkheid om met de 'slider' (onderin de chart) in een bepaalde periode van de grafiek in of uit te zoomen. Door te schuiven over de tijdas kan de weergave periode veranderd worden." if $#BUTS < 1;
 
@@ -1150,7 +1150,7 @@ sub InsertTableHdr {
     join(' of ',@BUTS) .  $meteoStrg .
     ".</td></tr><tr><td colspan=2>Als achtergronds kleur (en nivo) wordt bij vertoning van een fijnstof grafiek het gezondheidsrisico weergegeven volgens de <a href='https://www.epa.gov/sites/production/files/2016-04/documents/2012_aqi_factsheet.pdf'>U.S. Environmental Protection Agency</a> PM<sub>2.5</sub> of PM<sub>10</sub> 24-uurs tabellen.<br />In de legendum kan door aanklikken de grafiek van een bepaalde lokatie aan- of uitgezet worden. Klik 'toon' aan voor het aan- of uitzetten van de betreffende grafiekweergave." .
         ($Mean ? 
-        "<br />Bij 'regionale overzichts grafieken' worden er een grafiek getoond met de gemiddelde waarden samen met 50% en 90% spreidingsgrafiek. De individuele grafieken kunnen apart aan- of uitgezet worden door deze een voor een aan te klikken in de legendum."
+        "<br />Bij 'regionale overzichts grafieken' worden er een grafiek getoond met de gemiddelde waarden samen met 50% en 90% spreidingsgrafiek. De individuele grafieken kunnen apart aan- of uitgezet worden door deze een voor een aan te klikken in de legendum. Tav de metingen die bovengemiddeld hoog zijn worden maximaal 3 grafieken direct zichtbaar gemaakt."
           : "").
         "<br />Zo nodig kan de legendum door met de linker muisknop op de plaats :: ingedrukt te houden, verplaatst worden.<br />De grafiek heeft de mogelijkheid om een bepaalde periode van de grafiek te laten zien. Met de 'slider' kan de periode vergroot, verkleind of verschoven worden.</td></tr></table><br />"
     }
@@ -1628,6 +1628,7 @@ sub ChartSerie {
     for( my $i = 0; $i <= $#{$data}; $i++ ){
         my $ugm3 = '\\u00B5g/m\\u00B3';
         my $visible = 0;
+        $visible = 1 if (defined $data->[$i]{visible}) && $data->[$i]{visible};
         if( $Mean ) { $visible = 1 if $data->[$i]{table} !~ /_/; }
         elsif( $data->[$i]{table} =~ /_/ ){ $visible = 1; }
         # pm2.5 pollutants are all visible
@@ -1680,8 +1681,8 @@ sub ChartSerie {
         $series .= "\n\tdashStyle: 'shortdash'," if $data->[$i]{sense} =~ /rv$/;
         $series .= "\n\tcolor: '#739fe8'," if $data->[$i]{sense} =~ /rv$/;
         $series .= "\n\tcolor: '#37dcb4'," if $data->[$i]{sense} =~ /luchtdruk/;
-        my @c = ('ff','dd','bb','99','77'); # color selection for official station series
-        $series .= sprintf("\n\tcolor: '#%s02ff',", $c[$i % $#c]) if $data->[$i]{table} !~ /_/;
+        my @c = ('5a005a','2e0052','001f47','164700','6b2b00'); # color selection for official station series
+        $series .= sprintf("\n\tcolor: '#%s',", $c[$i % $#c]) if $data->[$i]{table} !~ /_/;
         if ($data->[$i]{sense} =~ /rain/ ) {
             $series .= "\n\tzIndex: 0,";
         } elsif ( $data->[$i]{sense} =~ /(luchtdruk|rv)/ ) {
@@ -2031,6 +2032,29 @@ sub MyPrint {
 
 use Statistics::Basic qw(:all nofill);
 
+# return average distance between 2 graphs
+# start in units
+sub AverageDist {
+    my ($strt1,$graph1,$strt2,$graph2) = @_;
+    return AverageDist($strt2,$graph2,$strt1,$graph1) if $strt1 > $strt2;
+    my @vec1 = ();
+    for( my $i = 0; $i <= $#{$graph1}; $i++) {
+        next if not defined $graph1->[$i];
+        next if $graph1->[$i] =~ /null/;
+        my $j =  $i-($strt2-$strt1);
+        next if $j < 0;
+        last if $j > $#{$graph2};
+        next if not defined $graph2->[$j];
+        next if $graph2->[$j] =~ /null/;
+        push(@vec1, $graph2->[$j]-$graph1->[$i]);
+    }
+    return 0 if $#vec1 <= 0;
+    my $vec  = vector(@vec1);
+    # print("Distance avg-graph: $vec, ");
+    $vec = avg($vec); $vec =~ s/,/./;
+    return $vec;
+}
+
 # return hash with average and stddev per time unit when more as 5 data sequences
 # synchronize start times, check on equal time units and sense type
 sub GetAvgStdDev {
@@ -2095,6 +2119,25 @@ sub GetAvgStdDev {
         push(@avg,$average); push(@dev,$stddev);
     }
     $rslt{average} = '['.join(',',@avg).']'; $rslt{stddev} = '['.join(',',@dev).']';
+    my @distances = ();
+    for( my $i = 0; $i < $#{$data}; $i++) { # get distances for graph to average graphs
+        my $str = ${$data}[$i]{data}; $str =~ s/[\[\]]//g;
+        my @data = split(/, */,$str);
+        $data->[$i]{distance} = AverageDist(int($rslt{first}/$rslt{unit}),\@avg,int(${$data}[$i]{first}/${$data}[$i]{unit}),\@data);
+        push(@distances,$data->[$i]{distance});
+        ${$data}[$i]{visible} = FALSE;
+    }
+    @distances = sort { $a <=> $b } @distances;
+    for( my $i = 2; $i >= 0; $i-- ) {
+        next if not defined $distances[$#distances-$i];
+        $rslt{distance} = $distances[$#distances-$i]; last;
+    }
+    if( defined $rslt{distance} ) { # turn visibility on for graphs exceeding average
+        for( my $i = 0; $i <= $#{$data}; $i++ ) {
+            next if not defined $data->[$i]{distance};
+            ${$data}[$i]{visible} = TRUE if $data->[$i]{distance} >= $rslt{distance};
+        }
+    }
     return \%rslt;
 }
 
