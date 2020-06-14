@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.22 2020/05/31 12:07:26 teus Exp teus $
+# $Id: MyDB.py,v 3.23 2020/06/03 08:22:11 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.22 $"[11:-2]
+__version__ = "0." + "$Revision: 3.23 $"[11:-2]
 
 try:
     import sys
@@ -54,6 +54,31 @@ Conf = {
     'level': None,       # MyLogger log level, default INFO
     'omit' : ['time','geolocation','coordinates','version','gps','meteo','dust','gwlocation','event','value']        # fields not archived
 }
+
+# column names in sensor table
+Sensor_fields = {
+    'geo':         "VARCHAR(25) default NULL",
+    'TTNversion':  "VARCHAR(15) default NULL",
+    'pa':          "INT(11) default NULL",
+    'hpa':         "INT(11) default NULL",
+    'wd':          "SMALLINT(4) default NULL",
+    'pm1':         "DECIMAL(9,2) default NULL",
+    'pm1_atm':     "DECIMAL(9,2) default NULL",
+    'pm1_cnt':     "DECIMAL(9,2) default NULL",
+    'pm4_cnt':     "DECIMAL(9,2) default NULL",
+    'pm5_cnt':     "DECIMAL(9,2) default NULL",
+    'pm03_cnt':    "DECIMAL(9,2) default NULL",
+    'pm05_cnt':    "DECIMAL(9,2) default NULL",
+    'rssi':        "SMALLINT(4) default NULL",
+    'longitude':   "DECIMAL(9,6) default NULL",
+    'latitude':    "DECIMAL(8,6) default NULL",
+    'altitude':    "DECIMAL(7,2) default NULL",
+    'gas':         "DECIMAL(9,3) default NULL",
+    'aqi':         "DECIMAL(5,2) default NULL",
+    'default':     "DECIMAL(7,2) default NULL",
+    "_valid":      "BOOL default 1"
+}
+
 # ========================================================
 # write data directly to a database
 # ========================================================
@@ -234,6 +259,21 @@ def db_registrate(ident, adebug=False):
         # Conf['log'](modulename,'INFO',"Updated registration proj %s: SN %s in database table 'Sensors'." % (ident['project'],ident['serial']))
     return True
 
+# try to correct database for missing columns in table
+def db_tableColError(failureType,query):
+    global Sensor_fields
+    try:
+        col = failureType[failureType.lower().index('unknown column ')+16:]
+        col = col[:col.index("'")]
+        tbl = query[query.lower().index('insert into ')+12:]
+        tbl = tbl[:tbl.index(' ')]
+        tbl.index('_') # check on sensor table name
+        if not db_table(tbl): return False
+        Conf['log'](modulename,'ATTENT',"Added for table %s column %s and %s_valid" % (tbl,col,col))
+        return db_query("ALTER TABLE %s ADD COLUMN %s %s, ADD COLUMN %s_valid %s" % (tbl,col,Sensor_fields[col],col,Sensor_fields['_valid']),False)
+    except: return False
+    return True
+
 # do a query
 Retry = False
 # returns either True/False or an array of tuples
@@ -256,8 +296,9 @@ def db_query(query,answer):
     except IOError:
         raise IOError
     except:
-        Conf['log'](modulename,'ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
-        Conf['log'](modulename,'ERROR',"On query: %s" % query)
+        FailType = sys.exc_info()[1]
+        Conf['log'](modulename,'ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],FailType) )
+        #Conf['log'](modulename,'ERROR',"On query: %s" % query)
         # try once to reconnect
         try:
             Conf['fd'].close
@@ -268,6 +309,7 @@ def db_query(query,answer):
             return False
         if Retry:
             return False
+        db_tableColError(FailType,query)  # maybe we can correct this
         Retry = True
         Conf['log'](modulename,'INFO',"Retry the query")
         if db_query(query,answer):
@@ -636,7 +678,7 @@ ErrorCnt = 0
 def publish(**args):
     """ add records to the database,
         on the first update table Sensors with ident info """
-    global Conf, ErrorCnt
+    global Conf, ErrorCnt, Sensor_fields
     if (not 'output' in Conf.keys()) or (not Conf['output']):
         return
     for key in ['data','internet','ident']:
@@ -661,7 +703,7 @@ def publish(**args):
 
     # check if fields in table exists if not add them
     def db_fields(my_ident):
-        global Conf, ErrorCnt
+        global Conf, ErrorCnt, Sensor_fields
         table = my_ident['project']+'_'+my_ident['serial']
         if not 'fields' in Conf.keys(): Conf['fields'] = {}
         missing = False
@@ -671,29 +713,6 @@ def publish(**args):
         else: missing = True
         if not missing:
             return True
-        Sensor_fields = {
-            'geo':         "VARCHAR(25) default NULL",
-            'TTNversion':  "VARCHAR(15) default NULL",
-            'pa':          "INT(11) default NULL",
-            'hpa':         "INT(11) default NULL",
-            'wd':          "SMALLINT(4) default NULL",
-            'pm1':         "DECIMAL(9,2) default NULL",
-            'pm1_atm':     "DECIMAL(9,2) default NULL",
-            'pm1_cnt':     "DECIMAL(9,2) default NULL",
-            'pm4_cnt':     "DECIMAL(9,2) default NULL",
-            'pm5_cnt':     "DECIMAL(9,2) default NULL",
-            'pm03_cnt':    "DECIMAL(9,2) default NULL",
-            'pm05_cnt':    "DECIMAL(9,2) default NULL",
-            'rssi':        "SMALLINT(4) default NULL",
-            'longitude':   "DECIMAL(9,6) default NULL",
-            'latitude':    "DECIMAL(8,6) default NULL",
-            'altitude':    "DECIMAL(7,2) default NULL",
-            'gas':         "DECIMAL(9,3) default NULL",
-            'aqi':         "DECIMAL(5,2) default NULL",
-            'default':     "DECIMAL(7,2) default NULL",
-            "_valid":      "BOOL default 1"
-        }
-
         fields = my_ident['fields']
         units = my_ident['units']
         add = []
