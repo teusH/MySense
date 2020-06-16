@@ -16,9 +16,9 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 2.1 2020/06/14 14:11:48 teus Exp teus $
+# $Id: ChartsPM.pl,v 2.4 2020/06/16 14:00:59 teus Exp teus $
 # use 5.010;
-my $Version = '$Revision: 2.1 $, $Date: 2020/06/14 14:11:48 $.';
+my $Version = '$Revision: 2.4 $, $Date: 2020/06/16 14:00:59 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/([0-9]+:[0-9]+):[0-9]+/$1/;
 # Description:
@@ -177,9 +177,8 @@ my $correctPM   = FALSE; # correct PM value with RIVM Joost value
                         # needed for optional pm corrections 
 my %RVstations  = ();   # dict of stations table names with humidity values
                         # will have "default" key with default values of LML station
-my %TimeShifts  = (     # time shift for some stations, in seconds
-    'HadM' => -5*30*60,
-    );
+my $timeshift   = 6*30*60; # timeshift of dates for tables with timematch eg NL10131
+my $timematch   = '(NL10131|HadM)'; # table pattern to apply timeshift
 my $reference   = REF;
 my $last_time   = '';   # last date/time used for end date/time graphs
 my $first_time  = '';   # first time if defined calculation of period of chart
@@ -194,8 +193,6 @@ my $barb        = FALSE;# load barb JS from highcharts (wind speed/direction)
 my $java        = FALSE;# add HighChart javascript URL iso in <head> part
 my $leftAxis    = 0;    # number of left axis for legend spacing
 my $Mean        = FALSE;# do not show individual graphs on bigger overviews
-my $timeshift   = 11*30*30; # timeshift of dates for tables with timematch eg NL10131
-my $timematch   = '(NL10131)'; # table name for match for timeshift
 
 while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
   OPTION: {
@@ -394,10 +391,10 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
                 Default: 6 minutes for small periods. Script will search minimal
                 period of minutes between measurements.
                 Max (eg LML stations)  is one hour.
- --timeshift    Time to be shifted earlier in minutes for station name with pattern $timematch.
+ --timeshift    Time to be shifted earlier in minutes for station name with pattern '$timematch'.
                 Default NL10131 for 150 minutes.
  --timematch    Pattern expression to match station/table name, e.g. (NL1|NL2).
-                Default: NL10131.
+                Default Vredepeel and Horst ad Maas: (NL10131|HadM).
 
 $Version
 This program is free software: you can redistribute it and/or modify
@@ -753,7 +750,7 @@ sub Get_data {
     # last time with time zone bug/error is: 2018/01/10 02:27:18 on correction needed
     my $corr = 0 ; $corr += 3600 if $tbl =~ /_/;
     my $first = 0;
-    if( $first_time && ($first_time < $last) && ($first_time > ($last - PERIOD)) ) {
+    if( $first_time && ($first_time < $last) && ($first_time < ($last - PERIOD)) ) {
         $period = $last - $first_time ;
     }
     $first = $last-$period;
@@ -1098,7 +1095,7 @@ sub InsertTableHdr {
     for( my $i =0; $i <= $#BUTS; $i++ ) {
         $BUTS[$i] =~ s/pm([0-9]+)/PM$1/g; $BUTS[$i] =~ s/(PM[02])\./$1/;
         $BUTS[$i] =~ s/PM([0-9]+)/PM<sub>$1<\/sub>/g;
-        $BUTS[$i] =~ s/<sub>([02])([0-9)])/<sub>$1.$2/g;
+        $BUTS[$i] =~ s/PM<sub>([02])([0-9)])/PM<sub>$1.$2/g;
         $BUTS[$i] =~ s/\|.*//; $Buts[$i] = $BUTS[$i]; $Buts[$i] =~ s/<\/?sub>//g;
         $POLS[$i] =~ s/\|(dtemp|pm_[0-9]+)//g;
         if( $language =~ /UK/ ){
@@ -1712,7 +1709,13 @@ sub ChartSerie {
             $series .= sprintf("\n\tmarker:{ radius: 1+%d },",
                 ($data->[$i]{table} =~ /_/?1:0) );
             $series .= "\n\tpointPlacement: 'between',";
-            $series .= "\n\tshowInNavigator: true," if $data->[$i]{sense} =~ /(pm10|rv|temp)/;
+            if( $data->[$i]{sense} !~ /(pm[12])/ ) {
+                $series .= "\n\tshowInNavigator: true,";
+            }
+            elsif( not $Mean ) {
+                $series .= sprintf("\n\tshowInNavigator: %s,",($visible?'true':'false'));
+            }
+            # $series .= "\n\tshowInNavigator: true," if $data->[$i]{sense} =~ /(pm10|rv|temp)/;
         }
         if ( $data->[$i]{sense} =~ /rain/ ) {
             $series .= "\n\tcolor: Highcharts.color('#0264c9')
@@ -2128,7 +2131,7 @@ sub GetAvgStdDev {
         ${$data}[$i]{visible} = FALSE;
     }
     @distances = sort { $a <=> $b } @distances;
-    for( my $i = 2; $i >= 0; $i-- ) {
+    for( my $i = 1; $i >= 0; $i-- ) {
         next if not defined $distances[$#distances-$i];
         $rslt{distance} = $distances[$#distances-$i]; last;
     }
@@ -2417,12 +2420,9 @@ sub Generate {
                 $equal = ($equal == $#{$data});
                 my $AvgStd = GetAvgStdDev( \$data );
                 for( my $i = 0; $i <= $#{$data}; $i++ ){
-                    my $timeShift = 0;
-                    $timeShift = $TimeShifts{$data->[$i]{table}}
-                        if defined $TimeShifts{$data->[$i]{table}};
                     if( defined $AvgStd ) {
                         MyPrint($inscript,sprintf("var Avg%dTitle = '%s regio ';\n",$j,$AvgStd->{sense}));
-                        MyPrint($inscript,sprintf("var Avg%dStart = %d*1000 + (%d*1000);\n", $j, $AvgStd->{first},$timeShift));
+                        MyPrint($inscript,sprintf("var Avg%dStart = %d*1000;\n", $j, $AvgStd->{first}));
                         MyPrint($inscript,sprintf("var Avg%dunit = %d*1000;\n", $j, $AvgStd->{unit}));
                         MyPrint($inscript,sprintf("var Avg%ddata = %s;\n", $j, $AvgStd->{average}));
                         MyPrint($inscript,sprintf("var StdDev%ddata = %s;\n", $j, $AvgStd->{stddev}));
@@ -2442,7 +2442,7 @@ var Range${j}Area${r}2 = new Array(Avg${j}data.length);
                         }
                         $AvgStd = undef; # only once
                     }
-                    MyPrint($inscript,sprintf("var C%dstart%d = %d*1000 + (%d*1000);\n", $j, $i, $data->[$i]{first},$timeShift));
+                    MyPrint($inscript,sprintf("var C%dstart%d = %d*1000;\n", $j, $i, $data->[$i]{first}));
                     MyPrint($inscript,sprintf("var C%dunit%d = %d*1000;\n", $j, $i, $data->[$i]{unit}));
                     if( $correctPM && (defined $RVstations{$data->[$i]{table}})
                         && (defined $RVstations{$data->[$i]{table}}{$data->[$i]{sense}}) ){
@@ -2730,7 +2730,7 @@ De fijnstof sensor telt het aantal fijnstof deeltjes (PM<span style="font-size:8
 In de omrekening wordt geen rekening gehouden met relatieve vochtigheid, regen en andere lokale invloeden.
 De fijnstof metingen van de RIVM/PLIM landelijke meetstations zijn ook gewichtsmetingen (&micro;g/m&sup3;) van gemiddelden per uur.
 De apparatuur van het landelijk meetstation wordt periodiek geijkt. 
-<br />Notitie: de meetgegevens van de lokale sensoren worden voor in gebruikname onderling gecorrigeerd.
+<br />Notitie: Elke sensor is verschillend. De onderlinge verschillen zijn met met tijdrovende regressie tests te corrigeren. Hiervoor is een aanvang gemaakt. Voorlopig wordt alleen gebruik gemaakt van de ruwe meetwaarden van de sensor en tav fijnstof waarden van de door de fabrikant geconverteerde massa waarden. 
 <br />
 Om de hoeveelheid data te beperken zijn de meetwaarden geaggredeerd - een gemiddelde over een periode van 30 minuten voor de sensors en 60 minuten voor de landelijke meetstations. De getoonde periode is de afgelopen 3 dagen. Eens per uur wordt de grafiek ververst.
 </p>
