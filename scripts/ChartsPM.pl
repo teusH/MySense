@@ -16,9 +16,9 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 2.5 2020/06/17 09:05:56 teus Exp teus $
+# $Id: ChartsPM.pl,v 2.6 2020/06/17 10:09:46 teus Exp teus $
 # use 5.010;
-my $Version = '$Revision: 2.5 $, $Date: 2020/06/17 09:05:56 $.';
+my $Version = '$Revision: 2.6 $, $Date: 2020/06/17 10:09:46 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/Revision: (.*)\s[0-9]+:[0-9]+:[0-9]+\s\.*\s*/$1/;
 # Description:
@@ -2532,8 +2532,10 @@ var Range${j}Area${r}2 = new Array(Avg${j}data.length);
                 }
             } elsif( $type =~ /type/ ) {         # class of pollutants
                 MyPrint($inscript, "($poltype)\n");
+            } elsif( $type =~ /version/ ){       # version of software generator
+                MyPrint($inscript, 'V'. $Version);
             } elsif( $type =~ /updated/ ){       # last update of chart
-                MyPrint($inscript, 'software V'. $Version. ', '.'data geactualiseerd op ' . strftime("%Y-%m-%d %H:%M\n",localtime(time)));
+                MyPrint($inscript, 'data geactualiseerd op ' . strftime("%Y-%m-%d %H:%M\n",localtime(time)));
             } elsif( $type =~ /Legend/i ) {       # insert button Legend off/on
                 MyPrint($inscript, '<button id="update-legend" class="autocompare">legendum uit/aan</button>' . "\n")
                     if $nrLegends >= 2;
@@ -2710,10 +2712,17 @@ ma 12 dec 04:26
 <!-- END HIGHCHART -->
 </div></td>
 </tr>
-<tr><td colspan=5 style='vertical-align:top;text-align:right;padding-right:10px;padding-bottom:6px;font-size:70%'>
+<tr>
+<td colspan=5 style='vertical-align:bottom;padding-left:10px;padding-bottom:6px;padding-right:10px'>
+<div style='text-align:left;font-size:50%'>
+<!-- START version -->
+V0.00 2018/01/01
+<!-- END version -->
+</div><div style='text-align:right;font-size:70%'>
 <!-- START updated -->
 za 17 dec 12:41
 <!-- END updated -->
+</div>
 </td></tr>
 </tbody>
 </table>
