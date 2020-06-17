@@ -16,11 +16,11 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 2.4 2020/06/16 14:00:59 teus Exp teus $
+# $Id: ChartsPM.pl,v 2.5 2020/06/17 09:05:56 teus Exp teus $
 # use 5.010;
-my $Version = '$Revision: 2.4 $, $Date: 2020/06/16 14:00:59 $.';
+my $Version = '$Revision: 2.5 $, $Date: 2020/06/17 09:05:56 $.';
 $Version =~ s/\$//g;
-$Version =~ s/\s+,\s+Date://; $Version =~ s/([0-9]+:[0-9]+):[0-9]+/$1/;
+$Version =~ s/\s+,\s+Date://; $Version =~ s/Revision: (.*)\s[0-9]+:[0-9]+:[0-9]+\s\.*\s*/$1/;
 # Description:
 # script will generate JS script Highchart graphs from pollutant data.
 # The data is collected from the measurement stations and sensors tables
@@ -146,8 +146,9 @@ Getopt::Mixed::init(
         'index>A '.
         'w=s web>w '.
         'W=s wd>W '.
-        'x=i timeshift '.
-        'X=s timematch '.
+        'x=i timeshift>x '.
+        'X=s timematch>X '.
+        'Z=s avoid>Z '.
         'T=s language>T lang>T '.
         ''
 );
@@ -193,6 +194,7 @@ my $barb        = FALSE;# load barb JS from highcharts (wind speed/direction)
 my $java        = FALSE;# add HighChart javascript URL iso in <head> part
 my $leftAxis    = 0;    # number of left axis for legend spacing
 my $Mean        = FALSE;# do not show individual graphs on bigger overviews
+my $AvgAvoid    = 'xyz'; # do not use data of pattern table names in regio average calculation
 
 while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
   OPTION: {
@@ -307,6 +309,7 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
                         };
     $option eq 'x' and do { $timeshift = $value*60; last OPTION; };
     $option eq 'X' and do { $timematch = $value; last OPTION; };
+    $option eq 'Z' and do { $AvgAvoid = $value; last OPTION; };
     $option eq '?' and do {
         my $ref = REF;
         print STDERR <<EOF ;
@@ -395,8 +398,10 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
                 Default NL10131 for 150 minutes.
  --timematch    Pattern expression to match station/table name, e.g. (NL1|NL2).
                 Default Vredepeel and Horst ad Maas: (NL10131|HadM).
+ --avoid        Pattern: if match pattern do not use this table name(s) in regio average calculation.
+                Default: use all tables.
 
-$Version
+Software revision version: $Version
 This program is free software: you can redistribute it and/or modify
                 Humidity measurments is one element of correction arithmetic.
                 Humidity of stations will be collected per station if present.
@@ -919,6 +924,7 @@ sub Collect_data {
             next if not Check_Tbl($tbl);
             if( $use_first ) {
                 if( $first_time ) {
+                    print STDERR ("ATTENT: Use of '-f' option is redefining '-S' (start) argument!\n");
                     if ( $first_time > $info{first} ){
                         $first_time = $info{first};
                     }
@@ -1997,18 +2003,28 @@ sub JScompress {
 
 # some help text if PM values are corrected
 sub correctPMtext {
-    return '' if not correctME;
+    my $txt;
+    if( $language =~ /UK/ ) { $txt = "
+<p>The timestamp of measurements of some stations may have been shifted. This is corrected in the graphs.</p>
+<p>Note: Together with the national health research center RIVM we look into improvements for measuring fine dust particles (Particle Matter or PM).
+Experiments show a good relation to the refence sensor equipment of RIVM if the correction based on the influence of rel. humidity.
+"       ;
+    }
+    else { $txt = "
+<p>Het blijkt dat de metingen van enkele meetstations om een of andere reden verschoven zijn in de tijd. Hiervoor is zonodig een tijdscorrectie toegepast.</p>
+<p>Samen met het RIVM wordt gekeken of de procedures voor het meten van PM fijnstof waarden verbeterd kunnen worden.
+Als experiment worden de PM<sub>1</sub>, PM<sub>2.5</sub> en PM<sub>10</sub> fijnstof waarden gecorrigeerd door de rel. vochtigheidsmeting er in te betrekken.
+Door toepassing van deze correcties worden de lokale metingen redelijk tot goed vergelijkbaar met de referentie fijnstof metingen van een RIVM/PLIM meetstation in de buurt.
+"       ;
+    }
+    return $txt if not $correctPM;
     if( $language =~ /UK/ ) {
-    return "
-<p>Together with the national health research center RIVM we look into improvements for measuring fine dust particles (Particle Matter or PM).
-Currently the correction based on the influence of rel. humidity we see a good relation to the refence sensor equipment of RIVM. The chart will also be able to show the uncorrected values as well the graphs of PM<sub>10</sub> and PM<sub>2.5</sub> of a nearby reference station.</p>
+    return $txt . "
+<br />The chart will also be able to show the uncorrected values as well the graphs of PM<sub>10</sub> and PM<sub>2.5</sub> of a nearby reference station.</p>
     ";
     } else {
-    return "
-<p>Samen met het RIVM wordt gekeken of de procedures voor het meten van PM fijnstof waarden verbeterd kunnen worden.
-Als experiment worden de PM<sub>10</sub> en PM<sub>2.5</sub> fijnstof waarden gecorrigeerd door de rel. vochtigheidsmeting er in te betrekken. Door toepassing van de beide correcties worden de metingen vergelijkbaar met de referentie fijnstof metingen van een RIVM/PLIM meetstation in de buurt.
-Door te clicken met de muis op 'ongecorrigeerd' worden ook de ongecorrigeerde waarden in de grafiek getoond.
-Het blijkt dat de metingen van Hoogheide verschoven zijn in de tijd. Hierop is ook gecorrigeerd.
+    return $txt . "
+<br />Door te clicken met de muis op 'ongecorrigeerd' worden ook de ongecorrigeerde waarden in de grafiek getoond.
 </p>
     ";
     }
@@ -2078,7 +2094,8 @@ sub GetAvgStdDev {
     }
     my @row = (); my @cols = ();
     for( my $i = 0; $i < $#{$data}; $i++) {
-        continue if ${$data}[$i]{table} !~ /_/ ; $Scnt++;
+        next if ${$data}[$i]{table} =~ /$AvgAvoid/; 
+        next if ${$data}[$i]{table} !~ /_/ ; $Scnt++;
         my $col = ${$data}[$i]{data}; $col =~ s/[\[\]]//g; $col =~ s/null//g;
         my $free = int((${$data}[$i]{first} - $Tmin) /  $unit)-1;
         $cols[$i] = ();
@@ -2124,6 +2141,8 @@ sub GetAvgStdDev {
     $rslt{average} = '['.join(',',@avg).']'; $rslt{stddev} = '['.join(',',@dev).']';
     my @distances = ();
     for( my $i = 0; $i < $#{$data}; $i++) { # get distances for graph to average graphs
+        next if ${$data}[$i]{table} =~ /$AvgAvoid/; 
+        next if ${$data}[$i]{table} !~ /_/;
         my $str = ${$data}[$i]{data}; $str =~ s/[\[\]]//g;
         my @data = split(/, */,$str);
         $data->[$i]{distance} = AverageDist(int($rslt{first}/$rslt{unit}),\@avg,int(${$data}[$i]{first}/${$data}[$i]{unit}),\@data);
@@ -2514,7 +2533,7 @@ var Range${j}Area${r}2 = new Array(Avg${j}data.length);
             } elsif( $type =~ /type/ ) {         # class of pollutants
                 MyPrint($inscript, "($poltype)\n");
             } elsif( $type =~ /updated/ ){       # last update of chart
-                MyPrint($inscript, strftime("%Y-%m-%d %H:%M\n",localtime(time)));
+                MyPrint($inscript, 'software V'. $Version. ', '.'data geactualiseerd op ' . strftime("%Y-%m-%d %H:%M\n",localtime(time)));
             } elsif( $type =~ /Legend/i ) {       # insert button Legend off/on
                 MyPrint($inscript, '<button id="update-legend" class="autocompare">legendum uit/aan</button>' . "\n")
                     if $nrLegends >= 2;
@@ -2527,7 +2546,7 @@ var Range${j}Area${r}2 = new Array(Avg${j}data.length);
             } elsif( $type =~ /straat/ ){        # street name text
                 MyPrint($inscript, 'straat naam'."\n");
             } elsif( $type =~ /revision/ ){      # script revision nr and date
-                MyPrint($inscript, "<!-- ".$Version." -->\n");
+                MyPrint($inscript, "<!-- HighCharts generator Version ".$Version." -->\n");
             } elsif( $type =~ /TableHdr/ ) {     # table with button or not
                 MyPrint($inscript,InsertTableHdr(\@BUTTONS,\@POLLUTANTS) ."\n");
             } elsif( $type =~ /correctPM/ ) {    # add text info on PM corrections
@@ -2691,7 +2710,7 @@ ma 12 dec 04:26
 <!-- END HIGHCHART -->
 </div></td>
 </tr>
-<tr><td colspan=5 style='vertical-align:top;text-align:right;padding-right:10px;padding-bottom:6px;font-size:70%'>geactualiseerd op 
+<tr><td colspan=5 style='vertical-align:top;text-align:right;padding-right:10px;padding-bottom:6px;font-size:70%'>
 <!-- START updated -->
 za 17 dec 12:41
 <!-- END updated -->
@@ -2726,11 +2745,12 @@ Fake Adres, Location ERROR (Fake)
 <!-- START correctPM -->
 <!-- END correctPM -->
 <p>
-De fijnstof sensor telt het aantal fijnstof deeltjes (PM<span style="font-size:80%">2.5</span> en PM<span style="font-size:80%">10</span>) in een minuut in een periode van telkens  ca 15 minuten. De fijnstof meting wordt door de fabrikant vervolgens omgerekend naar het gewicht van de deeltjes in &micro;g/m&sup3;.
-In de omrekening wordt geen rekening gehouden met relatieve vochtigheid, regen en andere lokale invloeden.
-De fijnstof metingen van de RIVM/PLIM landelijke meetstations zijn ook gewichtsmetingen (&micro;g/m&sup3;) van gemiddelden per uur.
-De apparatuur van het landelijk meetstation wordt periodiek geijkt. 
-<br />Notitie: Elke sensor is verschillend. De onderlinge verschillen zijn met met tijdrovende regressie tests te corrigeren. Hiervoor is een aanvang gemaakt. Voorlopig wordt alleen gebruik gemaakt van de ruwe meetwaarden van de sensor en tav fijnstof waarden van de door de fabrikant geconverteerde massa waarden. 
+De fijnstof sensor van deze meetkits telt het aantal fijnstof deeltjes (PM<span style="font-size:80%">1</span>, PM<span style="font-size:80%">2.5</span> en PM<span style="font-size:80%">10</span>) in een minuut in een periode van telkens  ca 15 minuten. De fijnstof meting wordt door de fabrikant vervolgens omgerekend naar het gewicht van de deeltjes in &micro;g/m&sup3;.
+In de omrekening door de fabrikant wordt geen rekening gehouden met relatieve vochtigheid, regen en andere lokale invloeden.
+<br />De fijnstof metingen van de RIVM/PLIM landelijke meetstations zijn ook gewichtsmetingen (&micro;g/m&sup3;) van gemiddelden per uur.
+De apparatuur van het landelijk meetstation wordt periodiek (lokaal) geijkt. 
+<br />Notitie: Elke sensor is verschillend. De onderlinge verschillen zijn met met tijdrovende regressie tests te corrigeren.
+Hiervoor is begin 2020 een aanvang gemaakt. Voorlopig wordt alleen gebruik gemaakt van de ruwe meetwaarden van de sensor en tav fijnstof waarden van de door de fabrikant geconverteerde massa waarden. 
 <br />
 Om de hoeveelheid data te beperken zijn de meetwaarden geaggredeerd - een gemiddelde over een periode van 30 minuten voor de sensors en 60 minuten voor de landelijke meetstations. De getoonde periode is de afgelopen 3 dagen. Eens per uur wordt de grafiek ververst.
 </p>
