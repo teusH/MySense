@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.23 2020/06/03 08:22:11 teus Exp teus $
+# $Id: MyDB.py,v 3.24 2020/06/18 12:40:28 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.23 $"[11:-2]
+__version__ = "0." + "$Revision: 3.24 $"[11:-2]
 
 try:
     import sys
@@ -327,6 +327,7 @@ def CreateLoRaTable(table):
         serial  VARCHAR(16) DEFAULT NULL COMMENT 'serial kit hex',
         TTN_id  VARCHAR(32) DEFAULT NULL COMMENT 'TTN device topic name',
         active  BOOLEAN     DEFAULT 0    COMMENT 'DB values enabled',
+        website BOOLEAN     DEFAULT 0    COMMENT 'measurements are shown on website',
         luftdatenID VARCHAR(16) DEFAULT NULL COMMENT 'if null use TTN-serial',
         luftdaten BOOLEAN   DEFAULT 0    COMMENT 'POST to luftdaten',
         datum   TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
