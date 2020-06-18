@@ -16,9 +16,9 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 2.6 2020/06/17 10:09:46 teus Exp teus $
+# $Id: ChartsPM.pl,v 2.7 2020/06/18 19:38:30 teus Exp teus $
 # use 5.010;
-my $Version = '$Revision: 2.6 $, $Date: 2020/06/17 10:09:46 $.';
+my $Version = '$Revision: 2.7 $, $Date: 2020/06/18 19:38:30 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/Revision: (.*)\s[0-9]+:[0-9]+:[0-9]+\s\.*\s*/$1/;
 # Description:
@@ -1441,20 +1441,20 @@ sub InsertHighChartGraph {
         },
         credits: { enabled: false },
         tooltip: {
-/*
-formatter: function() {
-          if(this.points[0].key < (this.points[0].series.xData.length -2)){
-                return false;
-          }
-          var s = []; var t = new Date(this.x).toISOString().substr(11, 8);
-          s.push(t);
-          this.points.forEach(function(point) {
-            s.push('<br><b>' + point.series.name + '</b>: ' + point.y);
-          });
+            formatter: function() {
+                var t = new Date(this.x).toDateString('nl-NL');
+                var h = new Date(this.x).toTimeString('nl-NL');
+                return this.points.reduce(function(s,point) {
+                  if ( point.series.name.search(/regio std dev/i) > 0 ) {
+                    return s;
+                  }
+                  var c = '<span style=\"color:' + point.series.color + '\">\\u25CF</span> '
+                  return s + '<br />' + c + point.series.name + ': <b>' + point.y.toFixed(1) + '</b> ' +  '<br/>';
+                }, '<b>' + t.substr(0,t.length-4) + ' ' + h.substr(0,5) + '</b>');
+            },
+            positioner: function() { return { x: 200, y: 2 }; },
+            shadow: true,
 
-          return s;
-        },
-*/
             shared: true,
             split: false,
             valueDecimals: 0,
@@ -2120,6 +2120,7 @@ sub GetAvgStdDev {
     ); 
     $rslt{sense} =~ s/pm25/pm2.5/; $rslt{sense} = lc($rslt{sense});
     my @avg; my @dev; my @ext = ();
+    my @stdDev1; my @stdDev2;
     # my @area1 = (); my @area2 = ();
     for( my $i = 0; $i < $#row; $i++) {
         my @tmp = (); my @ind = ();
@@ -2137,8 +2138,19 @@ sub GetAvgStdDev {
             # print("Vector avg $i: $average and $stddev\n");
         }
         push(@avg,$average); push(@dev,$stddev);
+        # # area range calculation std deviation area
+        # if( ($average =~ 'null') || ($stddev =~ 'null') ) {
+        #     push(@area1,'null'); push(@area2,'null');
+        # }
+        # else {
+        #     my $low = $average-$stddev; $low = 0.05 if $low < 0.05;
+        #     push(@area1,sprintf("[%.2f,%.2f]", $low, $average+$stddev));
+        #     $low = $average-2*$stddev; $low = 0.05 if $low < 0.05;
+        #     push(@area2,sprintf("[%.2f,%.2f]", $low, $average+2*$stddev));
+        # }
     }
     $rslt{average} = '['.join(',',@avg).']'; $rslt{stddev} = '['.join(',',@dev).']';
+    # $rslt{stddev1} = '['.join(',',@area1).']'; $rslt{stddev2} = '['.join(',',@area2).']';
     my @distances = ();
     for( my $i = 0; $i < $#{$data}; $i++) { # get distances for graph to average graphs
         next if ${$data}[$i]{table} =~ /$AvgAvoid/; 
@@ -2440,24 +2452,26 @@ sub Generate {
                 my $AvgStd = GetAvgStdDev( \$data );
                 for( my $i = 0; $i <= $#{$data}; $i++ ){
                     if( defined $AvgStd ) {
+                        # display graphs with average and std deviation
                         MyPrint($inscript,sprintf("var Avg%dTitle = '%s regio ';\n",$j,$AvgStd->{sense}));
                         MyPrint($inscript,sprintf("var Avg%dStart = %d*1000;\n", $j, $AvgStd->{first}));
                         MyPrint($inscript,sprintf("var Avg%dunit = %d*1000;\n", $j, $AvgStd->{unit}));
                         MyPrint($inscript,sprintf("var Avg%ddata = %s;\n", $j, $AvgStd->{average}));
                         MyPrint($inscript,sprintf("var StdDev%ddata = %s;\n", $j, $AvgStd->{stddev}));
-                        # MyPrint($inscript,sprintf("var Area%ddata1 = %s;\n", $j, $AvgStd->{area1}));
-                        # MyPrint($inscript,sprintf("var Area%ddata2 = %s;\n", $j, $AvgStd->{area2}));
+                        # MyPrint($inscript,sprintf("var Area1data%d = %s;\n", $j, $AvgStd->{stddev1}));
+                        # MyPrint($inscript,sprintf("var Area2data%d = %s;\n", $j, $AvgStd->{stddev2}));
                         for( my $r = 1; $r <= 2; $r++ ){
-                            MyPrint($inscript,"var Range${j}Area${r}1 = new Array(Avg${j}data.length);
-var Range${j}Area${r}2 = new Array(Avg${j}data.length);
-    for (var i = 0; i < Avg${j}data.length; i++) {
-        if ( Avg${j}data[i] == null ) {
-          Range${j}Area${r}1[i] = null; Range${j}Area${r}2[i] = null; continue;
-        }
-        Range${j}Area${r}1[i] = Avg${j}data[i] + $r * StdDev${j}data[i];
-        Range${j}Area${r}2[i] = Avg${j}data[i] - $r * StdDev${j}data[i];
-        if( Range${j}Area${r}2[i] < 0.05 ) { Range${j}Area${r}2[i] = 0.05; }
-    }\n");
+                            MyPrint($inscript,"
+        var Range${j}Area${r}1 = new Array(Avg${j}data.length);
+        var Range${j}Area${r}2 = new Array(Avg${j}data.length);
+        for (var i = 0; i < Avg${j}data.length; i++) {
+            if ( Avg${j}data[i] == null ) {
+                Range${j}Area${r}1[i] = null; Range${j}Area${r}2[i] = null; continue;
+            }
+            Range${j}Area${r}1[i] = Avg${j}data[i] + $r * StdDev${j}data[i];
+            Range${j}Area${r}2[i] = Avg${j}data[i] - $r * StdDev${j}data[i];
+            if( Range${j}Area${r}2[i] < 0.05 ) { Range${j}Area${r}2[i] = 0.05; }
+        }\n");
                         }
                         $AvgStd = undef; # only once
                     }
