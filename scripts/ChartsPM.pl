@@ -16,9 +16,9 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 2.7 2020/06/18 19:38:30 teus Exp teus $
+# $Id: ChartsPM.pl,v 2.8 2020/06/20 15:28:44 teus Exp teus $
 # use 5.010;
-my $Version = '$Revision: 2.7 $, $Date: 2020/06/18 19:38:30 $.';
+my $Version = '$Revision: 2.8 $, $Date: 2020/06/20 15:28:44 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/Revision: (.*)\s[0-9]+:[0-9]+:[0-9]+\s\.*\s*/$1/;
 # Description:
@@ -763,6 +763,7 @@ sub Get_data {
     $first -= $corr if $first <= 1515547638;
     my $Ufactor = '';
     $Ufactor = '*10/36' if $pol =~ /^ws$/i; # WASP windspeed km/h -> m/sec
+    $Ufactor = '*22.4' if $pol =~ /^wr$/i; # WASP winddirection [0..15] -> [0..359]
     # there is a timeshift of minus 2-3 hours for official measurements stations
     # should be corrected in the database station table
     my $tShift = 0;
@@ -1430,7 +1431,7 @@ sub InsertHighChartGraph {
             itemStyle: { fontSize: '75\%', color: '#314877' },
             itemHiddenStyle: { color: '#4a6396' },
             verticalAlign: 'center',
-            maxHeight: 145,
+            maxHeight: 150,
             floating: true,
             draggable: true,
             title: {
@@ -1445,14 +1446,35 @@ sub InsertHighChartGraph {
                 var t = new Date(this.x).toDateString('nl-NL');
                 var h = new Date(this.x).toTimeString('nl-NL');
                 return this.points.reduce(function(s,point) {
+                  var n = point.series.name;
+                  if ( point.series.name.search(/regio .* max [0-7]0/i) > 0 ) {
+                     var i = point.series.name.search(/ /);
+                     if( i < 0 ) i = 0;
+                     n = point.series.name.substr(0,i) + ' regio gemiddelde en spreiding 50% =';
+                  } else
                   if ( point.series.name.search(/regio std dev/i) > 0 ) {
                     return s;
                   }
                   var c = '<span style=\"color:' + point.series.color + '\">\\u25CF</span> '
-                  return s + '<br />' + c + point.series.name + ': <b>' + point.y.toFixed(1) + '</b> ' +  '<br/>';
+                  var suf = '';
+                  if( point.series.name.search(/PM/) >= 0 ) {
+                     suf = ' \\u00B5g/m\\u00B3';
+                  }
+                  else if( point.series.name.search(/temp/) > 0 ) {
+                     suf = ' \\u2103';
+                  }
+                  else if( point.series.name.search(/rv/) > 0 ) {
+                     suf = ' \\u0025';
+                  }
+                  else if( point.series.name.search(/luchtdruk/) > 0 ) {
+                     suf = ' hPa';
+                  }
+                  return s + '<br />' + c + n + ': <b>' + point.y.toFixed(1) + '</b> ' +  suf + '<br/>';
                 }, '<b>' + t.substr(0,t.length-4) + ' ' + h.substr(0,5) + '</b>');
             },
-            positioner: function() { return { x: 200, y: 2 }; },
+            positioner: function(labelWidth, labelHeight, point) {
+                var chart = this.chart;
+                return { x: chart.plotWidth-labelWidth, y: 2 }; },
             shadow: true,
 
             shared: true,
@@ -1631,9 +1653,11 @@ sub ChartSerie {
     for( my $i = 0; $i <= $#{$data}; $i++ ){
         my $ugm3 = '\\u00B5g/m\\u00B3';
         my $visible = 0;
-        $visible = 1 if (defined $data->[$i]{visible}) && $data->[$i]{visible};
+        $visible = $data->[$i]{visible} if defined $data->[$i]{visible};
         if( $Mean ) { $visible = 1 if $data->[$i]{table} !~ /_/; }
-        elsif( $data->[$i]{table} =~ /_/ ){ $visible = 1; }
+        elsif( $data->[$i]{table} =~ /_/ ){
+            $visible = 1 if $data->[$i]{sense} !~ /(luchtdruk)/;
+        }
         # pm2.5 pollutants are all visible
         # graph not visible if not local sensor kit (has _ in name)
         my $corr = '';
@@ -1644,7 +1668,12 @@ sub ChartSerie {
                 $series .= "\n\t{";
                 $series .= sprintf("\n\tpointStart: ${id}start%d, pointInterval: ${id}unit%d,",$i,$i);
                 $series .= "\n\'ttype: 'spLine', /* $data->[$i]{table} */";
-                $series .= sprintf("\n\tname: ${id}title%d + ' gecorrigeerd',",$i);
+                my $PM = uc $data->[$i]{sense}; $PM =~ s/PM_/PM/; $PM =~ s/PM2/PM2./;
+                $PM =~ s/PM([0-9\.]+)/PM$1 /;
+                if( $PM =~ /PM10/ ){ $PM = 'PM\\u2081\\u2080'; }
+                elsif( $PM =~ /PM2.5/ ){ $PM = 'PM\\u2082.\\u2085'; }
+                elsif( $PM =~ /PM[0-9]/ ){ $PM =~ s/PM([0-9])/PM\\u208$1/; }
+                $series .= sprintf("\n\tname: '$PM ' + ${id}title%d + ' gecorrigeerd',",$i);
                 $series .= sprintf("\n\tdata: correctPMs('%s',${id}data%d,humrv%s),",$data->[$i]{sense}, $i, $name);
                 $series .= sprintf("\n\tlineWidth: 1+%d", $i);
                 $series .= sprintf("\n\tvisible: %s,",($visible?'true':'false'));
@@ -1678,7 +1707,12 @@ sub ChartSerie {
         $series .= "\n\ttype: 'area'," if $data->[$i]{sense} =~ /rain/;
         $series .= "\n\ttype: 'windbarb',\n\tid: 'windbarbs'," if $data->[$i]{sense} =~ /wind/;
         $series .= sprintf("\n\tpointStart: ${id}start%d, pointInterval: ${id}unit%d,",$i, $i);
-        $series .= sprintf("\n\tname: ${id}title%d + '$corr',",$i);
+        my $PM = uc $data->[$i]{sense}; $PM =~ s/PM_/PM/; $PM =~ s/PM2/PM2./;
+        $PM =~ s/PM([0-9\.]+)/PM$1 /;
+        if( $PM =~ /PM10/ ){ $PM = 'PM\\u2081\\u2080'; }
+        elsif( $PM =~ /PM2.5/ ){ $PM = 'PM\\u2082.\\u2085'; }
+        elsif( $PM =~ /PM[0-9]/ ){ $PM =~ s/PM([0-9])/PM\\u208$1/; }
+        $series .= sprintf("\n\tname: '$PM ' + ${id}title%d + '$corr',",$i);
         $series .= "\n\tdata: $datavar,";
         $series .= "\n\tdashStyle: 'shortdot'," if $data->[$i]{sense} =~ /luchtdruk/;
         $series .= "\n\tdashStyle: 'shortdash'," if $data->[$i]{sense} =~ /rv$/;
@@ -2453,7 +2487,7 @@ sub Generate {
                 for( my $i = 0; $i <= $#{$data}; $i++ ){
                     if( defined $AvgStd ) {
                         # display graphs with average and std deviation
-                        MyPrint($inscript,sprintf("var Avg%dTitle = '%s regio ';\n",$j,$AvgStd->{sense}));
+                        MyPrint($inscript,sprintf("var Avg%dTitle = '%s regio ';\n",$j,uc $AvgStd->{sense}));
                         MyPrint($inscript,sprintf("var Avg%dStart = %d*1000;\n", $j, $AvgStd->{first}));
                         MyPrint($inscript,sprintf("var Avg%dunit = %d*1000;\n", $j, $AvgStd->{unit}));
                         MyPrint($inscript,sprintf("var Avg%ddata = %s;\n", $j, $AvgStd->{average}));
