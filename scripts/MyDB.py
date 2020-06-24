@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.24 2020/06/18 12:40:28 teus Exp teus $
+# $Id: MyDB.py,v 3.25 2020/06/22 15:48:25 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.24 $"[11:-2]
+__version__ = "0." + "$Revision: 3.25 $"[11:-2]
 
 try:
     import sys
@@ -562,7 +562,7 @@ def Topic2IDs(topic, active=None):
         qry = db_query("SELECT UNIX_TIMESTAMP(id) FROM TTNtable WHERE TTN_id = '%s' %s ORDER BY id DESC LIMIT 1" % (topic[indx:],active), True)
         if len(qry) and qry[0][0]:
             rts[1] = qry[0][0]
-            qry = db_query("SELECT UNIX_TIMESTAMP(Sensors.id), concat(TTNtable.project,'_',TTNtable.serial) FROM Sensors, TTNtable WHERE Sensors.project = TTNtable.project AND Sensors.serial = TTNtable.serial AND UNIX_TIMESTAMP(TTNtable.id) = %d %s ORDER BY Sensors.datum DESC, Sensors.active DESC LIMIT 1" % (rts[1],active), True)
+            qry = db_query("SELECT UNIX_TIMESTAMP(Sensors.id), concat(TTNtable.project,'_',TTNtable.serial) FROM Sensors, TTNtable WHERE Sensors.project = TTNtable.project AND Sensors.serial = TTNtable.serial AND UNIX_TIMESTAMP(TTNtable.id) = %d %s ORDER BY Sensors.active DESC, Sensors.datum DESC LIMIT 1" % (rts[1],active), True)
             if len(qry) and qry[0][0]: rts[0] = qry[0][0]
             if len(qry) and len(qry[0][1]) and db_table(qry[0][1],create=False): # last datum measurements
                 qry = db_query("SELECT UNIX_TIMESTAMP(datum),'%s' FROM %s ORDER BY datum DESC LIMIT 1" % (qry[0][1],qry[0][1]), True)
