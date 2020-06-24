@@ -16,9 +16,9 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 2.8 2020/06/20 15:28:44 teus Exp teus $
+# $Id: ChartsPM.pl,v 2.10 2020/06/24 13:04:58 teus Exp teus $
 # use 5.010;
-my $Version = '$Revision: 2.8 $, $Date: 2020/06/20 15:28:44 $.';
+my $Version = '$Revision: 2.10 $, $Date: 2020/06/24 13:04:58 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/Revision: (.*)\s[0-9]+:[0-9]+:[0-9]+\s\.*\s*/$1/;
 # Description:
@@ -763,7 +763,7 @@ sub Get_data {
     $first -= $corr if $first <= 1515547638;
     my $Ufactor = '';
     $Ufactor = '*10/36' if $pol =~ /^ws$/i; # WASP windspeed km/h -> m/sec
-    $Ufactor = '*22.4' if $pol =~ /^wr$/i; # WASP winddirection [0..15] -> [0..359]
+    $Ufactor = '*22.5' if $pol =~ /^wr$/i; # WASP winddirection [0..15] -> [0..359]
     # there is a timeshift of minus 2-3 hours for official measurements stations
     # should be corrected in the database station table
     my $tShift = 0;
@@ -1572,6 +1572,7 @@ sub AvgStdSeries {
         pointStart: Avg${id}Start, pointInterval: Avg${id}unit,
         name: Avg${id}Title + 'gemiddelde, spreiding 50%-90%',
         data: Avg${id}data,
+        animation: { duration: 10000, easing: easeOutBounce },
         color: '$color',
         shadow: { color: '$color',
             width: 5, offsetX: 0, offsetY: 0
@@ -1603,6 +1604,7 @@ sub AvgStdSeries {
         $series .= "\n\tzIndex: -1," if ($s == 2) && ($r == 2);
         $series .= "
         data: Range${id}Area${r}${s},
+        // animation: { duration: 10000, easing: easeOutBounce },
         tooltip: { valueSuffix: '$suffix', radius: 1 },
         lineWidth: 0,
         yAxis: 0,
@@ -1675,6 +1677,7 @@ sub ChartSerie {
                 elsif( $PM =~ /PM[0-9]/ ){ $PM =~ s/PM([0-9])/PM\\u208$1/; }
                 $series .= sprintf("\n\tname: '$PM ' + ${id}title%d + ' gecorrigeerd',",$i);
                 $series .= sprintf("\n\tdata: correctPMs('%s',${id}data%d,humrv%s),",$data->[$i]{sense}, $i, $name);
+                $series .= "\n\tanimation: { duration: 8000, easing: easeOutBounce },";
                 $series .= sprintf("\n\tlineWidth: 1+%d", $i);
                 $series .= sprintf("\n\tvisible: %s,",($visible?'true':'false'));
                 if ( $Mean && ($data->[$i]{table} !~ /_/) ) {
@@ -1714,6 +1717,7 @@ sub ChartSerie {
         elsif( $PM =~ /PM[0-9]/ ){ $PM =~ s/PM([0-9])/PM\\u208$1/; }
         $series .= sprintf("\n\tname: '$PM ' + ${id}title%d + '$corr',",$i);
         $series .= "\n\tdata: $datavar,";
+        $series .= "\n\tanimation: { duration: 8000, easing: easeOutBounce }," if $data->[$i]{table} !~ /_/;
         $series .= "\n\tdashStyle: 'shortdot'," if $data->[$i]{sense} =~ /luchtdruk/;
         $series .= "\n\tdashStyle: 'shortdash'," if $data->[$i]{sense} =~ /rv$/;
         $series .= "\n\tcolor: '#739fe8'," if $data->[$i]{sense} =~ /rv$/;
@@ -2190,10 +2194,10 @@ sub GetAvgStdDev {
         next if ${$data}[$i]{table} =~ /$AvgAvoid/; 
         next if ${$data}[$i]{table} !~ /_/;
         my $str = ${$data}[$i]{data}; $str =~ s/[\[\]]//g;
-        my @data = split(/, */,$str);
-        $data->[$i]{distance} = AverageDist(int($rslt{first}/$rslt{unit}),\@avg,int(${$data}[$i]{first}/${$data}[$i]{unit}),\@data);
+        my @dat = split(/, */,$str);
+        $data->[$i]{distance} = AverageDist(int($rslt{first}/$rslt{unit}),\@avg,int(${$data}[$i]{first}/${$data}[$i]{unit}),\@dat);
         push(@distances,$data->[$i]{distance});
-        ${$data}[$i]{visible} = FALSE;
+        $data->[$i]{visible} = FALSE;
     }
     @distances = sort { $a <=> $b } @distances;
     for( my $i = 1; $i >= 0; $i-- ) {
@@ -2264,6 +2268,22 @@ sub Generate {
     for( my $j = 0; $j <= $#DATA; $j++ ) {
       $Mlbls[$j] = $Slbls[$j] = $Olbls[$j] = '';
       my $data = $DATA[$j];
+      my $AvgStd = GetAvgStdDev( \$data );
+      if( defined $AvgStd ) { # regional average could be calculated and can be sorted
+        my @arr = ();
+        for( my $i = 0; $i <= $#{$data}; $i++ ){
+            push(@arr,$data->[$i]) if defined $data->[$i]{distance};
+        }
+        @arr = sort { $b->{distance} <=> $a->{distance} } @arr;
+        for( my $i = 0; $i <= $#{$data}; $i++ ){
+            next if not defined $data->[$i]{distance};
+            my $top = 0;
+            for( $top = 0; $top <= $#arr; $top++ ) {
+                last if $data->[$i]{distance} >= $arr[$top]{distance};
+            }
+            $data->[$i]{top} = $top+1;
+        }
+      }
       $nrLegends = $#{$data} if $#{$data} > $nrLegends; 
       for( my $i = 0; $i <= $#{$data}; $i++ ){    # collect all locations
         $tshift = $data->[0]{first}%3600 if $i == 0;
@@ -2302,6 +2322,8 @@ sub Generate {
                         $Slbls[$j] =~ s/ en /, /; $Slbls[$j] .= ' en ';
                     }
                 }
+                # insert meta info like distance to regio average, str format for easy sort
+                $Slbls[$j] .= sprintf("<!-- TOP=%3.3d DIST=%.2f -->", $data->[$i]{top}, $data->[$i]{distance}) if defined $data->[$i]{distance};
                 my $strt = $loc; $strt =~ s/\s+[0-9].*//; # hide street nr
                 if( $data->[$i]{href} ) {
                     $href = $data->[$i]{href};
@@ -2574,9 +2596,19 @@ sub Generate {
                 if ( $#locs < 3 ) {
                     MyPrint($inscript, "$Slbls[0].\n");
                 } else {
-                    $locs[$#locs+1] = $locs[$#locs]; $locs[$#locs-1] =~ s/ (en|and) .*/ $1/;
-                    $locs[$#locs] =~ s/.* (en|and) //;
-                    MyPrint($inscript, "<ul><li>".join('<li>',@locs).".</ul>\n");
+                    $locs[$#locs+1] = $locs[$#locs]; $locs[$#locs-1] =~ s/ (en|and) .*//;
+                    $locs[$#locs] =~ s/.* (en|and)\s*//;
+                    @locs = sort @locs;
+                    my @more = (); my @less = (); my @none = ();
+                    for( my $k = 0; $k <= $#locs; $k++ ) {
+                        if( $locs[$k] =~ /<!.*DIST=[0-9]/ ) { push(@more, $locs[$k]); }
+                        elsif( $locs[$k] =~ /<!.*DIST=-[0-9]/ ) { push(@less, $locs[$k]); }
+                        else { push(@none, $locs[$k]); }
+                    }
+                    MyPrint($inscript, "<br />Onderstaande meetlokatie lijsten zijn geordend op mate van gemiddelde afwijking in de gehele getoonde periode tav de gemiddelde regionale waarden. Hoogste afwijkende staat bovenaan.\n");
+                    MyPrint($inscript, "<br />Geordende lijst van lokaties die hogere meetwaarden hebben als het gemiddelde in deze regio:<ol><li>".join('<li>',@more).".</ol>\n") if $#more >= 0;
+                    MyPrint($inscript, "<br />Geordende lijst (beste lokatie staat onderaan) van lokaties die lagere meetwaarden hebben als het gemiddelde in deze regio:<ol><li>".join('<li>',@less).".</ol>\n") if $#less >= 0;
+                    MyPrint($inscript, "<br />Sommige MySense meetkits zijn nog in test. Onderstaande lijst zijn lokaties van meetkits die nog niet meegenomen zijn in de berekening van het gemiddelde in de regio:<ul><li>".join('<li>',@none).".</ul>\n") if $#none >= 0;
                 }
             } elsif( $type =~ /type/ ) {         # class of pollutants
                 MyPrint($inscript, "($poltype)\n");
@@ -2703,6 +2735,21 @@ Highcharts.Legend.prototype.toggle = function () {
     this.chart.isDirtyBox = true;
     this.chart.redraw();
 };
+// plot graph as a bounce
+var easeOutBounce = function (pos) {
+    if ((pos) < (1 / 2.75)) {
+        return (7.5625 * pos * pos);
+    }
+    if (pos < (2 / 2.75)) {
+        return (7.5625 * (pos -= (1.5 / 2.75)) * pos + 0.75);
+    }
+    if (pos < (2.5 / 2.75)) {
+        return (7.5625 * (pos -= (2.25 / 2.75)) * pos + 0.9375);
+    }
+    return (7.5625 * (pos -= (2.625 / 2.75)) * pos + 0.984375);
+};
+Math.easeOutBounce = easeOutBounce;
+
 
 $(function () { // on DOM ready
 //START DOM
