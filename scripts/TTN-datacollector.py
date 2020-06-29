@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.40 2020/06/29 11:27:40 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.41 2020/06/29 13:40:06 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.40 $"[11:-2]
+__version__ = "0." + "$Revision: 3.41 $"[11:-2]
 
 try:
     import MyLogger
@@ -147,6 +147,7 @@ cached = {
 ReDoCache  = 3*60*60          # period in time to check for new kits
 updateCacheTime = int(time()) # last time update cached check was done
 dirtyCache = False            # force a check of cached items to DB info
+ShowCached = False            # print cached items in INFO log
 
 # sensor info: type, units etc
 dirtySensorCache = False
@@ -1059,11 +1060,27 @@ previous = []
 
 # show current status of nodes seen so far
 def SigUSR1handler(signum,frame):
-    global modulename, cached
+    PrtCached()
+
+def PrtDict(one,spacing):
+    if type(one) is dict:
+        rts = ' {\n'
+        for item in one.keys():
+            rts += spacing + "  \"%s\": " % item
+            rts += PrtDict(one[item],spacing+'  ')
+        return rts + spacing + ' },\n'
+    else: return str(one) + ',\n'
+
+def PrtCached(item=None):
+    global modulename, cached, ShowCached
     try:
+      if item:
+        if item in cached.keys():
+          MyLogger.log(modulename,'INFO',"Cached[%s] status:\n\t%s\n" % (item, PrtDict(cached[item],'  ')) )
+        return
+      ShowCached = False
       for name in cached.keys():
-        sys.stderr.write("Status device %s:\n\t%s\n" % (name, str(chached[name])))
-        MyLogger.log(modulename,'INFO',"Status device %s:\n\t%s" % (name, str(chached[name])) )
+        PrtCached(name)
     except: pass
 
 # search record for gateway with best [value,min,max] rssi & snr, ID and ordinates
@@ -1480,7 +1497,7 @@ def FluctCheck(myID,afld,avalue):
 # convert MQTT structure to MySense ident,value structure
 def convert2MySense( data, **sensor):
     global Conf, cached, previous, debug, ProcessStart
-    global updateCacheTime, ReDoCache, dirtyCache
+    global updateCacheTime, ReDoCache, dirtyCache, ShowCached
     global DB, WRSSI, WSNR
     global monitor
     def recordTranslate(arecord):
@@ -1502,6 +1519,7 @@ def convert2MySense( data, **sensor):
             record[item] = data['payload'][item]
         else: record[item] = None       # should be an error: return {}
 
+    if ShowCached: PrtCached() # show what is in cache
     # update cache if dirty or uptime time has arrived
     if dirtyCache or (int(time()) >= updateCacheTime+ReDoCache):
         UpdateCache()
