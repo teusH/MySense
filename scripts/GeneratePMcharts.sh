@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: GeneratePMcharts.sh,v 1.7 2020/06/16 14:10:02 teus Exp teus $
+# $Id: GeneratePMcharts.sh,v 1.8 2020/06/29 08:37:19 teus Exp teus $
 
 if [ "${1/*-h*/help}" == help ]
 then
@@ -118,6 +118,8 @@ WDIR=${WDIR:-/webdata/luchtmetingen/}    # working directory
 TMPWDIR=${WDIR}/tmp                         # temporary dir for generated files
 # website target directory
 DIR=${DIR:-/webdata/Drupal/cmsdata/BdP/files/luchtmetingen} # webpage files reside here
+# avoid table names matching in average regio calculations
+AVG_AVOID=xyz
 
 GENERATOR="${WDIR}/ChartsPM.pl -j"   # script to generate webpage with chart
 # default arguments for GENERATOR
@@ -126,6 +128,8 @@ MYREGION=''    # name of region for chart
 POLLUTANTS='pm10|pm25|pm1,pm25|rv|temp' # pollutants shown in chart
 SENSORTYPES='PM,Meteo'              # buttons to select graph
 REFERENCE=''   # reference station, dflt HadM
+REMOVE_SPIKES='pm1,pm25,pm10,rv,temp'
+SPIKES_CMD=FilterShow.py
 # default pollutants for chart webpage with overview of all sensor kits 
 #POLs=pm25
 POLs=pm25,pm10
@@ -257,6 +261,7 @@ function SetParameters() {
         #AVOID='_(?!30aea45059|f07df1c50|93d73279dc)'  # avoid all but
         #AVOID='_(?!30aea450(59|9e)|3c71bf876dbc|b4e62df55731|f07df1c50|e101f76c60|807d3a93(5cb8|9eb4|76dc))'  # avoid all but
         AVOID='(30aea4505988)'      # avoid old SDS011 kit Tonnie
+        AVG_AVOID="(b4e62df48ff9|cc50e39c7500|b4e62df4(9cd5|a6b9|8fe9|ad0d))"  # avoid test kits in avg count
         REFERENCE='-R NL10131'
         UPDATE_AQI=1   # update LKI index for the kits in this region/project
     ;;
@@ -271,10 +276,11 @@ function SetParameters() {
         PROJ=${PROJ:-KIP}_ # use this as project identifier
         #AVOID='_(?!D54990(6DC049|0C6C33)|30aea4505(9f9|a00|a01|a03|a04)|130aea4ec9e2|788d27294ac5)' # avoid all but
         REFERENCE='-R NL10131'
-        METEO="${PROJ}CECEA5167524"               # use for meteo data this table
-        METEO_AVOID="(788d27294ac5|130aea4ec9e2)" # do not use meteo table for these ones
+        # METEO="${PROJ}CECEA5167524"               # use for meteo data this table
+        # METEO_AVOID="(788d27294ac5|130aea4ec9e2)" # do not use meteo table for these ones
+        AVG_AVOID="(788d27294ac5|130aea4ec9e2)"  # avoid kantine/werl kit in avg count
         # START="$(date --date='720 hours ago' '+%Y/%m/%d %H:%M')"
-        START="$(date --date='1 May 2020' '+%Y/%m/%d %H:%M')"
+        START="$(date --date='4 May 2020' '+%Y/%m/%d %H:%M')"
         UPDATE_AQI=1   # update LKI index for the kits in this region/project
     ;;
     HORST|GRUBBENVORST|BDP|HADM)  # Horst aan de Maas Behoud de Parel
@@ -466,6 +472,17 @@ function DoOnePMchart() {
         fi
     fi
 
+    if [ -x "$SPIKES_CMD" ] && [ -n "$REMOVE_SPIKES" ] # update removal of spikes
+    then
+        local OPT='-q'
+        if (( $VERBOSE > 0 )) ; then OPT=''; fi
+        if [ -z "$DEBUG" ] ; then OPT+=' -d'; fi
+        if ! python "$SPIKES_CMD" $OPT ${ThisKIT}/"$REMOVE_SPIKES"
+        then
+            echo "$CMD ERROR: failed to exec $SPIKES_CMD $OPT ${ThisKIT}/$REMOVE_SPIKES" 1>&2
+        fi
+    fi
+
     # /home/teus/BehoudDeParel/luchtmetingen/IoS/BdP/PMcharts-website/ChartsPM.pl -w /webdata/Drupal/cmsdata/BdP/files/luchtmetingen/BdP/ -d -v -c -e "pm10|pm25,pm10|rv|temp" -b PM,Meteo -O 30aea4505888 -R HadM -L now HadM_30aea4505888
     if [ -n "$METEO" ] # maybe use alternative meteo data
     then
@@ -532,9 +549,9 @@ function DoPM_Overview() {
 
     if [ -n "$DEBUG" ]
     then
-        echo "perl $GENERATOR $MYREGION $LNG $REFERENCE --alias 'http://behouddeparel.nl/' $DEBUG -w '$TMPWDIR/' -e '$POLs' -b '$POLs' -L '$LAST' -S '$START' $FIRST -O ${OVERVIEW/.html/} $*" 1>&2
+        echo "perl $GENERATOR $MYREGION $LNG $REFERENCE --avoid '$AVG_AVOID' --alias 'http://behouddeparel.nl/' $DEBUG -w '$TMPWDIR/' -e '$POLs' -b '$POLs' -L '$LAST' -S '$START' $FIRST -O ${OVERVIEW/.html/} $*" 1>&2
     fi
-    if ! perl $GENERATOR $MYREGION $LNG $REFERENCE --alias "$REGION" $DEBUG -w "$TMPWDIR/" -e "$POLs" -b "$POLs" -L "$LAST" -S "$START" $FIRST -O ${OVERVIEW/.html/} $* 2>$TMPWDIR/ERRORS
+    if ! perl $GENERATOR $MYREGION $LNG $REFERENCE --alias "$REGION" $DEBUG --avoid "$AVG_AVOID"  -w "$TMPWDIR/" -e "$POLs" -b "$POLs" -L "$LAST" -S "$START" $FIRST -O ${OVERVIEW/.html/} $* 2>$TMPWDIR/ERRORS
     then # ERROR
         date 1>&2
         echo "$CMD ERROR: Failed to generate chart for ${OVERVIEW}" 1>&2
