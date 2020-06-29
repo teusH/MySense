@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.37 2020/05/29 10:24:41 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.40 2020/06/29 11:27:40 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -36,7 +36,7 @@
     One may need to change payload and TTN record format!
     MySense meta measurement kits data is read from MySQL database table Sensors.
     Output channel activation per kit is read from MySQL table TTNtable:
-    active, luftdaten, luftdaten.info.
+    active, luftdaten, luftdatenID.
     The script is designed to run autonomisly and send notices on discovered events.
     The script can run in different modi: data forwarder, monitoring forwarding,
     measurement kit info load into air quality DB, or with different combinations.
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.37 $"[11:-2]
+__version__ = "0." + "$Revision: 3.40 $"[11:-2]
 
 try:
     import MyLogger
@@ -513,15 +513,17 @@ def monitorPrt(test, color=0): # default color is black
 def UpdateCache():
     global cached, dirtyCache, updateCacheTime, ReDoCache
     global DB
+    if (not dirtyCache) and (int(time()) < updateCacheTime+ReDoCache): return
+    updateCacheTime = int(time())+ReDoCache
+    dirtyCache = False
     if not len(cached) or not DB: return
-    if (not dirtyCache) and (time() <= updateCacheTime+ReDoCache): return
     # get topics for which kits (Sensors) meta data has been changed meanwhile
     # get TTN_id's for which Sensor meta info is changed after updateCacheTime
-    topics = DB.UpdatedIDs(updateCacheTime,field='TTN_id', table='TTNtables')
-    updateCacheTime = int(time())+ReDoCache
+    topics = DB.UpdatedIDs(updateCacheTime,field='TTN_id', table='TTNtable')
     if len(topics):
-        MyLogger.log(modulename,'DEBUG','Kits to be updated in cache: %s' % ', '.join(topics))
-    else: return
+        MyLogger.log(modulename,'DEBUG','Kit meta info to be updated in cache: %s' % ', '.join(topics))
+    else:
+        return
     for one in cached.keys():
         indx = 0
         try: indx = '/'.index(one)+1
@@ -530,7 +532,6 @@ def UpdateCache():
             MyLogger.log(modulename,'ATTENT','Kit with topic %s to be updated in cache' % one)
             monitorPrt("Cached kit with topics %s to be updated." % one[indx:], 4)
             del cached[one]
-    dirtyCache = False
 
 # json file with predefined nodes administration details
 # prefer to export nodes info via MyDB.py in standalone mode
@@ -639,9 +640,9 @@ def Initialize():
 
 # reread admin meta info of nodes in, may de/activate data arcghiving of the node
 def SigUSR2handler(signum,frame):
-    global DirtyCache
+    global dirtyCache
     try:
-      DirtyCache = True
+      dirtyCache = True
     except: pass
     return
 
@@ -1061,6 +1062,7 @@ def SigUSR1handler(signum,frame):
     global modulename, cached
     try:
       for name in cached.keys():
+        sys.stderr.write("Status device %s:\n\t%s\n" % (name, str(chached[name])))
         MyLogger.log(modulename,'INFO',"Status device %s:\n\t%s" % (name, str(chached[name])) )
     except: pass
 
@@ -1969,17 +1971,20 @@ def Configure():
             'Conf': {
                 'level': 'INFO', 'file': sys.stderr, 'print': True,
                 'date': False, # prepend with timing
+                'monitor': False,  # monitoring correct publish data
             }
         },
         {   'name': 'monitor', 'timeout': time()-1,
             'Conf': {
                 'output': False, 'file': sys.stdout, 'print': True,
                 'date': True, # prepend with timing
+                'monitor': False,  # monitoring correct publish data
             }
         },
         {   'name': 'notices', 'timeout': time()-1,
             'Conf': {
                 'output': True,
+                'monitor': False,  # monitoring correct publish data
             }
         },
         {   'name': 'console', 'script': 'MyCONSOLE', 'module': None,
@@ -1987,6 +1992,7 @@ def Configure():
             'Conf': {
                 'output': False, 'timeout': time()-1,
                 'file': sys.stdout, 'print': True,
+                'monitor': False,  # monitoring correct publish data
             }
         },
         {   'name': 'database', 'script': 'MyDB', 'module': 0, # 0 enable nodes info export to DB
@@ -1996,6 +2002,7 @@ def Configure():
                 # use credentials from environment
                 'hostname': None, 'database': 'luchtmetingen', # overwritten by DB, DBHOST
                 'user': None, 'password': None, # overwritten bij DBUSER, DBPASS
+                'monitor': False,  # monitoring correct publish data
                 'DEBUG': False
             }
         },
@@ -2014,6 +2021,7 @@ def Configure():
 
                 'active': True,        # output to luftdaten is also activated
                 'DEBUG' : False,        # show what is sent and POST status
+                'monitor': False,  # monitoring correct publish data
             }
         },
         ]
@@ -2145,7 +2153,9 @@ def StartTTNconnection():
             # switch output to Luftdaten off if input data is read from file
             if os.path.isfile(Conf['file']):
                 for indx in Channels:
-                    if 'luftdaten' in indx['Conf'].keys(): indx['Conf']['output'] = False
+                    if 'luftdaten' in indx['Conf'].keys():
+                        indx['Conf']['output'] = False
+                        MyLogger.log(modulename,'INFO','Output for %s: channel is DISABLED' % indx['name'])
                 if not debug:
                     sendNotice('Import from backup file %s' % Conf['file'],myID='all/event')
             else:
@@ -2180,7 +2190,7 @@ def RUNcollector():
                   MyLogger.log(modulename,'ATTENT',"Curious event: %s" % str(e))
                 else:
                   # patch for elder kits firmware
-                  if (str(err[1]) != 'Accu level') or (str(err[2]) != 'Value 0'):
+                  if (str(err[1]).find('Accu level') < 0) or (str(err[2]).find('Value 0') < 0):
                     sendNotice("Sensor kit %s raised %s with %s" % (err[0],str(err[1]),str(err[2])),myID=err[0])
                   MyLogger.log(modulename,'ATTENT',"Sensor kit %s raised %s with %s" % (err[0],str(err[1]),str(err[2])))
             elif err.find('unknown') >= 0:
@@ -2243,6 +2253,9 @@ def RUNcollector():
                 PublishMe = False ; cnt += 1
             if Channels[indx]['module'] and Channels[indx]['Conf']['output']:
               if PublishMe:
+                RsltOK = False
+                try: RsltOK = Channels[indx]['Conf']
+                except: pass
                 try:
                     Rslt = Channels[indx]['module'].publish(
                         ident = record['ident'],
@@ -2252,7 +2265,8 @@ def RUNcollector():
                     # failures without an exception event will not be queued for a retry
                     if type(Rslt) is bool:
                         if Rslt == True:
-                          monitorPrt("    %-50.50s OK" % ('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),4)
+                          if RsltOK:
+                            monitorPrt("    %-50.50s OK" % ('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),4)
                         else:
                           MyLogger.log(modulename,'ATTENT','Kit %s/%s data no output to %s' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name']))
                           monitorPrt("    %-50.50s FAILED" % ('Kit %s/%s data no output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),1)
@@ -2264,7 +2278,8 @@ def RUNcollector():
                             try: Rslt = ', '.join(Rslt)
                             except: Rslt = str(Rslt)
                             if len(Rslt):
-                              monitorPrt("    %-50.50s OK for %s" % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),31)
+                              if RsltOK:
+                                monitorPrt("    %-50.50s OK for %s" % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),31)
                             else:
                               MyLogger.log(modulename,'ATTENT','Kit %s/%s data output to %s: %s' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'],str(Rslt)))
                               monitorPrt("    %-50.50s NO output." % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),1)

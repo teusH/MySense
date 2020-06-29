@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.26 2020/06/27 10:23:01 teus Exp teus $
+# $Id: MyDB.py,v 3.27 2020/06/29 11:14:32 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.26 $"[11:-2]
+__version__ = "0." + "$Revision: 3.27 $"[11:-2]
 
 try:
     import sys
@@ -531,7 +531,7 @@ def UpdatedIDs(timestamp, field='TTN_id', table='TTNtable'):
         exit(1)
     rts = []
     try:
-        qry = db_query('SELECT DISTINCT %s.%s FROM Sensors, TTNtable WHERE Sensors.serial = TTNtable.serial AND ((UNIX_TIMESTAMP(Sensors.datum) > %d) OR (UNIX_TIMESTAMP(TTNtable.datum) > %d' % (table,field,int(timestamp),int(timestamp)), True)
+        qry = db_query('SELECT DISTINCT %s.%s FROM Sensors, TTNtable WHERE Sensors.serial = TTNtable.serial AND ((UNIX_TIMESTAMP(Sensors.datum) > %d) OR (UNIX_TIMESTAMP(TTNtable.datum) > %d))' % (table,field,int(timestamp),int(timestamp)), True)
         rts = []
         for one in rts: rts.append(one[0])
     except: pass
@@ -848,7 +848,7 @@ if __name__ == '__main__':
 
     if not len(sys.argv) > 1: exit(0)
     # get nodes info from a json file and update node info to DB
-    if  sys.argv[1:] != 'test':
+    if  sys.argv[1:][0] != 'test':
         from jsmin import jsmin     # tool to delete comments and compress json
         import json
         try:
