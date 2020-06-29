@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.25 2020/06/22 15:48:25 teus Exp teus $
+# $Id: MyDB.py,v 3.26 2020/06/27 10:23:01 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.25 $"[11:-2]
+__version__ = "0." + "$Revision: 3.26 $"[11:-2]
 
 try:
     import sys
@@ -531,13 +531,9 @@ def UpdatedIDs(timestamp, field='TTN_id', table='TTNtable'):
         exit(1)
     rts = []
     try:
-        qry = db_query('SELECT DISTINCT project, serial FROM %s WHERE UNIX_TIMESTAMP(datum) > %d' % (('Sensors' if table == 'TTNtable' else 'Sensors'),int(timestamp)), True)
-        sql = []
-        for one in qry:
-            sql.append("(project = '%s' and serial = '%s')" % (one[0],one[1]))
-        sql = ' or '.join(sql)+' or '        
-        qry = db_query('SELECT DISTINCT %s FROM %s WHERE %s UNIX_TIMESTAMP(datum) > %d' % (field,table,int(timestamp)), True)
-        for one in qry: rts.append(one[0])
+        qry = db_query('SELECT DISTINCT %s.%s FROM Sensors, TTNtable WHERE Sensors.serial = TTNtable.serial AND ((UNIX_TIMESTAMP(Sensors.datum) > %d) OR (UNIX_TIMESTAMP(TTNtable.datum) > %d' % (table,field,int(timestamp),int(timestamp)), True)
+        rts = []
+        for one in rts: rts.append(one[0])
     except: pass
     return rts
 
