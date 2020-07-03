@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: FilterShow.py,v 1.4 2020/07/03 13:10:48 teus Exp teus $
+# $Id: FilterShow.py,v 1.5 2020/07/03 13:20:59 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -39,7 +39,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: FilterShow.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
+__version__ = "0." + "$Revision: 1.5 $"[11:-2]
 
 try:
     import sys
@@ -751,6 +751,15 @@ def grubbs(X, test='two-tailed', alpha=0.05, ddof=1):
     floor: (minimal,maximal) value of array with outliers removed
     '''
  
+    if np.min(X) == np.min(X):
+        return { # static values give stddev == 0 and so division error
+                'valid': len(X),
+                'liers': 0,
+                'min': np.min(X),
+                'max': np.max(X),
+                'mean': np.mean(X),
+                'stddev': 0.0,
+                }
     try:
         Z = zscore(X, ddof=ddof)  # Z-score
     except: return { # static values give stddev == 0 and so division error
