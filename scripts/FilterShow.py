@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: FilterShow.py,v 1.3 2020/07/03 11:03:15 teus Exp teus $
+# $Id: FilterShow.py,v 1.4 2020/07/03 13:10:48 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -39,7 +39,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: FilterShow.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 1.4 $"[11:-2]
 
 try:
     import sys
@@ -441,9 +441,14 @@ def Zscore(table,pollutant,period,db=net):
         return None
     data = np.array([float(data[i][0]) for i in range(0,len(data))])
     result = grubbs(np.array(data),test=test, alpha=alpha, ddof=ddof)
-    if result['liers']:
-        update = '%s < %f OR %s > %f' % \
-            (pollutant, result['min'], pollutant, result ['max'])
+    if result:
+        if result['liers']:
+            update = '%s < %f OR %s > %f' % \
+                (pollutant, result['min'], pollutant, result ['max'])
+        elif result['stddev'] == 0.0 and result['valid'] > 3:  # static over the period
+            update = '%s  < %f OR %s > %f' % \
+                (pollutant, result['min']-0.01, pollutant, result ['max']+0.1)
+        else: return False
     else: return False
     if debug:
         print("Table %s, colums %s, period %s up to %s: Grubbs Z-score invalidate %d cells from %d cells:\n\tmean %.2f stddev %.2f, min %.2f max %.2f." % \
@@ -699,7 +704,7 @@ Any script change remains free. Feel free to indicate improvements.''')
                     print("\ttable %s %s\toutliers range [%f - %f]" % (pollutants[-1]['table'],pollutants[-1]['pollutant'],pollutants[-1]['range'][0],pollutants[-1]['range'][1]))
                 else:  # for some reason no data for this pollutant
                   if verbose:
-                    print("\tno measurements for this period. Skipped.")
+                    print("\tpollutant %s: no measurements for this period. Skipped." % pols[1])
                     pollutants.pop() 
         # next argument
     return
@@ -746,7 +751,16 @@ def grubbs(X, test='two-tailed', alpha=0.05, ddof=1):
     floor: (minimal,maximal) value of array with outliers removed
     '''
  
-    Z = zscore(X, ddof=ddof)  # Z-score
+    try:
+        Z = zscore(X, ddof=ddof)  # Z-score
+    except: return { # static values give stddev == 0 and so division error
+                'valid': len(X),
+                'liers': 0,
+                'min': np.min(X),
+                'max': np.max(X),
+                'mean': np.mean(X),
+                'stddev': 0.0,
+                }
     N = len(X)  # number of samples
  
     # calculate extreme index and the critical t value based on the test
@@ -778,7 +792,11 @@ def grubbs(X, test='two-tailed', alpha=0.05, ddof=1):
         # remove outlier from array
         X = np.delete(X, extreme_ix(Z))
         # repeat Z score
-        Z = zscore(X, ddof=ddof)
+        try:
+            Z = zscore(X, ddof=ddof)
+        except:
+            print("ERROR in grubbs/zscore call (stddev == 0)\n")
+            break
         N = len(X)
  
     return {
