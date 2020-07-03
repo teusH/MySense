@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: FilterShow.py,v 1.2 2020/07/03 10:15:24 teus Exp teus $
+# $Id: FilterShow.py,v 1.3 2020/07/03 11:03:15 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -39,7 +39,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: FilterShow.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
 
 try:
     import sys
@@ -346,7 +346,6 @@ def Check(table,pollutant,period=None, valid=True,db=net):
 # invalidate cel vcalue if values are NULL or are static (failing)
 def rawCleanUp(table, pollutant,period,interval=4,db=net):
     global debug, verbose
-    # select UNIX_TIMESTAMP(datum) as STRT, UNIX_TIMESTAMP(date_add(datum, interval 4 hour)) as END, count(*), stddev(temp) from RIVM_30aea4505888 where temp_valid group by year(datum), month(datum), day(datum), floor(hour(datum)/4);
     qry = 'SELECT count(*) FROM %s WHERE UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d AND isnull(%s) AND %s_valid' % \
         (table, period[0], period[1], pollutant, pollutant)
     total = db_query(qry,True, db=db); total = total[0][0]
@@ -466,12 +465,12 @@ def date2secs(string):
     if timing_re.match(string): return int(string)
     try:
         number = subprocess.check_output(["/bin/date","--date=%s" % string,"+%s"])
+        number = number.decode('utf-8').strip()
     except:
         sys.exit("Unable to find date/time from string \"%s\"." % string)
-    for i in number.split('\n'):
-        if i:
-            secs = timing_re.match(i)
-            if secs: return int(i)
+    if number:
+        secs = timing_re.match(number)
+        if secs: return int(number)
     sys.exit("Unable to find date/time from string \"%s\"." % string)
 
 # roll in the definition from environment eg passwords
@@ -855,7 +854,7 @@ def FindOutliers(pollutant,db=net):
     global verbose, debug, period, lossy, RESET, cleanup, cleanup_only
     if (not pollutant['table']) or (not pollutant['pollutant']): return
     doStatistics(pollutant['table'],pollutant['pollutant'],period=period,db=db,string='(before outliers removal)')
-    freq = int(period[1]-period[0])/(int(period[2]/2))
+    freq = int(int(period[1]-period[0])/(int(period[2]/2)))
     period[0] += int(period[1]-period[0])%freq
     strt = period[0]; periods = []
     for i in range(0,freq-1):
