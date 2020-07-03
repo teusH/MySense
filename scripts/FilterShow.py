@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: FilterShow.py,v 1.2 2020/07/02 15:40:42 teus Exp teus $
+# $Id: FilterShow.py,v 1.2 2020/07/03 10:15:24 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -337,8 +337,10 @@ def Check(table,pollutant,period=None, valid=True,db=net):
     qry = "SELECT COUNT(%s) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s" % \
         (pollutant, table, period[0], period[1], valued)
     cnt = db_query(qry, True, db=db)
-    if (cnt[0][0] < threshold) and debug:
-        print("Table %s / column %s not minmail %d values in the (window) period." % (table, pollutant), threshold)
+    if (cnt[0][0] < threshold):
+        if debug:
+          print("Table %s / column %s not minimal %d values in the (window) period." % (table, pollutant,cnt[0][0]), threshold)
+        return 0
     return cnt[0][0]
 
 # invalidate cel vcalue if values are NULL or are static (failing)
