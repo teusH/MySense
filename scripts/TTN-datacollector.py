@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.41 2020/06/29 13:40:06 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.43 2020/07/10 19:10:11 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.41 $"[11:-2]
+__version__ = "0." + "$Revision: 3.43 $"[11:-2]
 
 try:
     import MyLogger
@@ -1373,9 +1373,9 @@ def DeadKits():
         if not len(TTNid) or not len(TTNid[0]): continue
         MyLogger.log(modulename,'ATTENT',"Kit TTN id %s, project %s, serial %s, not seen for a while. Last seen: %s." % (TTNid[0][0], Selection[indx][1],Selection[indx][2],datetime.datetime.fromtimestamp(Selection[indx][0]).strftime("%Y-%m-%d %H:%M")) )
         if diff <= 24*60*60:
-          sendNotice("Kit TTN id %s (project %s, serial %s:\t last seen %dh:%dm:%ds ago.\nMaybe not connected?\nLast time seen: %s." % (TTNid[0][0],Selection[indx][1],Selection[indx][2],diff/3600,(diff%3600)/60,(diff%(3600*60))%60,datetime.datetime.fromtimestamp(Selection[indx][0]).strftime("%Y-%m-%d %H:%M")),myID="all/%s" % TTNid[0][0])
+          sendNotice("Kit TTN id %s (project %s, serial %s:\t last seen %dh:%dm:%ds ago.\nMaybe not connected?\nLast time seen: %s.\nMySense kit information: %s." % (TTNid[0][0],Selection[indx][1],Selection[indx][2],diff/3600,(diff%3600)/60,(diff%(3600*60))%60,datetime.datetime.fromtimestamp(Selection[indx][0]).strftime("%Y-%m-%d %H:%M"),MyId2Info(TTNid[0][0])),myID="all/%s" % TTNid[0][0])
         else:
-          sendNotice("Kit TTN id %s (project %s, serial %s:\nMaybe not connected for a long time?\nLast time seen: %s.\n" % (TTNid[0][0],Selection[indx][1],Selection[indx][2],datetime.datetime.fromtimestamp(Selection[indx][0]).strftime("%Y-%m-%d %H:%M")),myID='all/events')
+          sendNotice("Kit TTN id %s (project %s, serial %s:\nMaybe not connected for a long time?\nLast time seen: %s.\nMySense kit information: %s." % (TTNid[0][0],Selection[indx][1],Selection[indx][2],datetime.datetime.fromtimestamp(Selection[indx][0]).strftime("%Y-%m-%d %H:%M"),MyId2Info(TTNid[0][0])),myID='all/events')
       except: pass
     return
 
@@ -1494,6 +1494,20 @@ def FluctCheck(myID,afld,avalue):
     return False
 
 
+def MyId2Info(myid):
+    global DB
+    if not DB: return 'UNKNOWN'
+    topic = myid
+    try:
+        topic = myid[myid.index('/')+1:]
+    except: pass
+    qry = "SELECT Sensors.project, Sensors.serial, Sensors.street, Sensors.village FROM Sensors, TTNtable WHERE TTNtable.TTN_id = '%s' AND TTNtable.serial = Sensors.serial AND TTNtable.project = Sensors.project ORDER BY Sensors.active DESC, Sensors.datum DESC LIMIT 1" % topic
+    qry = DB.db_query(qry, True)
+    if not len(qry): return 'UNKNOWN'
+    for i in range(len(qry[0])):
+        if not qry[0][i]: qry[0][i] = 'unknown'
+    return "project: %s, serial: %s, location: %s, %s" % (qry[0][0],qry[0][1],qry[0][2],qry[0][3])
+    
 # convert MQTT structure to MySense ident,value structure
 def convert2MySense( data, **sensor):
     global Conf, cached, previous, debug, ProcessStart
@@ -1606,8 +1620,8 @@ def convert2MySense( data, **sensor):
             if time()-ProcessStart > 60*60:
               sendNotice('Not activated or not administrated kit %s found at time: %s' % (myID,datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M")),myID=myID)
         elif tstamp > 90*60:
-            MyLogger.log(modulename,'ATTENT','Kit %s is restarted after %dh%dm%ds.' % (myID,tstamp/3600,(tstamp%3600)/60,tstamp%60))
-            sendNotice('Kit %s is restarted at time: %s after %dh%dm%ds.' % (myID,datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"),tstamp/3600,(tstamp%3600)/60,tstamp%60),myID=myID)
+            MyLogger.log(modulename,'ATTENT','Kit %s is restarted after %dh%dm%ds' % (myID,tstamp/3600,(tstamp%3600)/60,tstamp%60))
+            sendNotice('Kit %s is restarted at time: %s after %dh%dm%ds.\nMySense kit information: %s.' % (myID,datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"),tstamp/3600,(tstamp%3600)/60,tstamp%60,MyId2Info(myID)),myID=myID)
         if myID in previous:
             previous.remove(myID)
     cached[myID]['last_seen'] = now # may be overwritten by datagram timestamp later
@@ -2032,9 +2046,8 @@ def Configure():
                 'luftdaten': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
                 'madavi': 'https://api-rrd.madavi.de/data.php', # madavi.de end point
                 'timeout': 1*15,  # wait timeout on http request result
-                # expression to identify serials to be subjected to be posted
-                #'serials': '(30aea4[0-9a-f]{6}|807d3a93(76dc|5cb8)|e101e82a2c|3c71bf876dbc|b4e62df55731)', # pmsensor[1 .. 11] from pmsensors
-                'serials': '(130aea|30[aA][eE][aA]4|3c71bf|788d27|807[dD]3[aA]|b4e62[fd]|D54990|e101e8)[A-Fa-f0-9]{4,6}', # serials numbers allowed to be forwarded
+                # expression to identify serials subjected for data to be forwarded
+                'serials': '(cc50e3|130aea|30[aA][eE][aA]4|3c71bf|788d27|807[dD]3[aA]|b4e62[fd]|D54990|e101e8)[A-Fa-f0-9]{4,6}', # serials numbers allowed to be forwarded
                 'projects': '(HadM|SAN|KIP|RIVM)',  # expression to identify projects to be posted
 
                 'active': True,        # output to luftdaten is also activated
@@ -2119,7 +2132,7 @@ def UpdateChannelsConf():
             if not 'script' in Channels[indx].keys(): continue
             if (not Channels[indx]['Conf']['output']) and (Channels[indx]['module'] == None):
                 continue
-            if (Channels[indx]['script'] == 'MyLUFTDATEN') and ('file' in Conf.keys()) and Conf['file']:
+            if (Channels[indx]['script'] == 'MyLUFTDATEN') and ('file' in Conf.keys()) and Conf['file'] and not Channels[indx]['Conf']['DEBUG']:
                 # do not output to Luftdaten as timestamp is wrong
                 Channels[indx]['Conf']['output'] = False
             if ('module' in Channels[indx].keys()) and not Channels[indx]['module']:
@@ -2171,7 +2184,7 @@ def StartTTNconnection():
             # switch output to Luftdaten off if input data is read from file
             if os.path.isfile(Conf['file']):
                 for indx in Channels:
-                    if 'luftdaten' in indx['Conf'].keys():
+                    if ('luftdaten' in indx['Conf'].keys()) and not indx['Conf']['DEBUG']:
                         indx['Conf']['output'] = False
                         MyLogger.log(modulename,'INFO','Output for %s: channel is DISABLED' % indx['name'])
                 if not debug:
