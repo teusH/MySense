@@ -39,3 +39,10 @@ Use: meta data maintenance
 
 Synchronize and update visa versa measurement kit meta information between website database pages and measurements database.
 SyncWebDB uses WebDB.py (website database interface), AirQualityIndex.pl (LKI marker coloring) and MyDB.py (measurements database interface).
+
+### CheckDeadSensors
+Use: check for malfunctioning and not active measurement kits over a long period.
+Send notices if problems are detected.
+
+Use DB environment variables for database credentials definitions. REGION and arguments may be string patterns as supported by regexp of MySQL. Use command help for help.
+Script will save dates of sent notices and will only resend email notices again after 3 days.
