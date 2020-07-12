@@ -471,6 +471,11 @@ The Grove GPS sensors is applied via USB bus connection and the standard Debian 
 #### Raspberry Pi
 The tests are done with the Raspberry Pi 3. With the GrovePi+ shield and the big V5/2.5A adapter it gets bulky. The new Raspberry Pi Zero V1.3 is half size, uses far less power and costs only 25% of the Pi3.
 We expect the Zero might be more applicable.
+The Raspberry Pi is using WiFi as data communication channel.
+Due to communication reliability the current focus is to use LoRaWan as communication channel. Which is less easy and pricing wise to apply with a Pi.
+
+### PyCom LoPy-4
+The LoPy-4 of PyCom is used as controller for situations where LoRaWan can be used and wireless distances are needed beyond 30 meters up to 2.5km. The main focus currently is to use a LoPy-4 in the measurements kit. Currently there are about 35 measurement kits operational. 50% is powered from solar panels.
 
 ## Costs
 There is no funding (costs and development time is above personal budget level).
@@ -480,10 +485,16 @@ Money is lacking for sensors research and travel expenses coverage to meet other
 July 2017: local government is asked to subsidy operational phase: distribution of sensors kits and maintenance.
 They refused ('there are other initiatives'). A neighboring local government seems to be willing to sponsor. A technical high school has started now a second project with MySense.
 
+July 2019: LoPy-4 based measurement kit have a hardware costs of about 150 euro. With solar the costs are about 200 euro (solar panel and regulator).
+
 ## Licensing:
 FSF GPLV4. All improvements and additions should remain in the public domain.
 Feedback of improvements, or extentions to the software are required.
-* Copyright: Teus Hagen, ver. Behoud de Parel, the Netherlands, 2017
+* Copyright: Teus Hagen, ver. Behoud de Parel, the Netherlands, 2017-2020.
+
+If any part is used in a commercial setting has to contribute to this project
+in either financial, code, or other ways and mention MySense in the product or service based
+on any part of this MySense project information.
 
 ## References
 At a Koppelting conference we explained how to build the measurment kit and how to visualize the data. A PDF of this presentation:  <a href=""http://behouddeparel.nl/sites/behouddeparel.nl/files/20200125-Koppelting-WAR-Amersfoort.pdf" alt="an How To build a kit and show the results">"Measuring Air Quality in an Agri Region: an How To"</a>.
