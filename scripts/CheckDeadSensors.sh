@@ -19,7 +19,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.5 2020/07/12 09:16:58 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.6 2020/07/12 09:22:37 teus Exp teus $
 
 CMD=$0
 SENSORS='temp'
@@ -91,6 +91,10 @@ then
     RED="\033[1;31m"
     GREEN="\033[1;32m"
     NOCOLOR="\033[0m"
+else
+    RED="$CMD: "
+    GREEN="$CMD: "
+    NOCOLOR=''
 fi
 
 # human readable date/time in std format no seconds
