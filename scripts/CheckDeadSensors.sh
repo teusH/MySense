@@ -3,7 +3,7 @@
 
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 #
-# Copyright (C) 2018, Behoud de Parel, Teus Hagen, the Netherlands
+# Copyright (C) 2020, Behoud de Parel, Teus Hagen, the Netherlands
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,21 +19,26 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.4 2020/07/11 12:46:18 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.5 2020/07/12 09:16:58 teus Exp teus $
 
+CMD=$0
 SENSORS='temp'
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
 Environment variables supported:
 MySQL credentials: DBUSER=$USER, DBPASS=interact, DBHOST=localhost, DB=luchtmetingen
-Period to check: START='3 weeks ago', LAST=now
-Regions or projects: REGION='.*' regular expression
+Default period to check fir sensor failures: START='3 weeks ago', LAST=now
+Regions or project names: REGION='.*' regular expression
 Sensors to check for eg SENSORS='temp rv pm10 pm1', dflt: SENSORS='$SENSORS'
 Arguments: kits to be searched for. No argument: all kits from the REGION
 Example of command:
-    DBUSER=$USER DBHOST=localhost DBPASS=acacadabra DB=luchtmetingen $0 SAN_1234567abc
+check kit SAN_1234567abc and all active kits of project HadM
+    DBUSER=$USER DBHOST=localhost DBPASS=acacadabra DB=luchtmetingen $0 SAN_1234567abc HadM
+check all kits active of projects SAN and HadM
     DBUSER=$USER DBHOST=localhost DBPASS=acacadabra DB=luchtmetingen REGION='(SAN|HadM)' $0
+If command is used from terminal the output info will be colered.
+Date/time in period may have format understood by the 'date' command.
     "
     exit 0
 fi
@@ -90,7 +95,7 @@ fi
 
 # human readable date/time in std format no seconds
 function DATE() {
-    date --date=@"$1" '+%Y-%m-%d %H:%M'
+    date --date=@"${1:-now}" '+%Y-%m-%d %H:%M'
     return $?
 }
 
@@ -98,7 +103,7 @@ function DATE() {
 function Date2Secs() {
     if echo "$1" | grep -P -q '^[0-9]+$'
     then echo "$1"
-    else echo $(date --date="$1" "+%s")
+    else echo $(date --date="${1:-now}" "+%s")
     fi
     return $?
 }
@@ -133,7 +138,7 @@ function SendNotice() {
     fi
     if [ -n "$DEBUG" ] && [ -n "$NOTICE" ]
     then
-        echo "DEBUG: would send email notice to '$NOTICE'" 1>&2
+        echo "$CMD: DEBUG: would send email notice to '$NOTICE'" 1>&2
         NOTICE=''
     fi
     if [ -n "${NOTICE}" ]
@@ -141,7 +146,7 @@ function SendNotice() {
         local LOCATION=$($MYSQL -e "SELECT concat('with label: ',label, ', location: ',street, ', ', village) FROM Sensors WHERE active AND NOT isnull(notice) AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1")
         if ! mail -r mysense@behouddeparel.nl -s "ATTENT: MySense kit $KIT sensor $SENS $LOCATION info" "$NOTICE" <$FILE
         then
-            echo -e "ERROR sending email to $NOTICE with message:\n" "-----------------" 1>&2
+            echo -e "$CMD: ERROR sending email to $NOTICE with message:\n" "-----------------" 1>&2
             cat $FILE
         fi
     fi
@@ -184,7 +189,7 @@ function NrValids() {
             else STAT[1]=0 ; fi
             echo "MySense kit $KT: not enough measurements (${STAT[1]} with ${STAT[0]} NULL values) ${STAT[1]}% in period of $(DATE ${STRT}) up to $(DATE ${LST})" 1>&2
             STAT[2]=$($MYSQL -e "SELECT UNIX_TIMESTAMP(datum) FROM $KT WHERE NOT isnull($TPE) ORDER BY datum DESC LIMIT 1")
-            echo -e "\tLast active date $(DATE ${STAT[2]}) for sensor $TPE." 1>&2
+            echo -e "\tLast active date $(DATE ${STAT[2]}) of sensor $TPE." 1>&2
             if (( ${STAT[2]} < $(date --date='6 months ago' +%s) ))
             then
                 echo -e "Kit $KT was not active during last 6 months.\n" 1>&2
@@ -234,7 +239,7 @@ function NrValids() {
     echo "MySense kit $KT: $((${STAT[1]}-${STAT[0]})) of ${STAT[1]} valid measurements $(( ( (${STAT[1]}-${STAT[0]})*100) / ${STAT[1]} ))% in period $(DATE ${STAT[2]}) up to $(DATE ${STAT[3]})" 1>&2
     echo -e "\tMeasurements sensor $TPE:\n\tTotal ${STAT[1]}, null valued: $NULLS, static valued: $STATICS, and $((${STAT[1]} - $NULLS - $STATICS)) valid valued in $PERIODS period(s)." 1>&2
     STAT[2]=$($MYSQL -e "SELECT UNIX_TIMESTAMP(datum) FROM $KT WHERE NOT isnull($TPE) AND $TPE != $AVOID ORDER BY datum DESC LIMIT 1")
-    echo -e "\tLast active date $(DATE ${STAT[2]}) for sensor $TPE." 1>&2
+    echo -e "\tLast active date $(DATE ${STAT[2]}) of sensor $TPE." 1>&2
     if (( (${STAT[2]} - $LST) > 2*60*60 )) ; then rts=1 ; fi
     return $RTS
 }
@@ -263,20 +268,20 @@ fi
 
 for KIT in $KITS
 do
-        # echo "Check $KIT:"
+        # echo "$CMD: Check $KIT:"
     for SENSOR in $SENSORS
     do
         if ! NrValids "$KIT" "$SENSOR" "$START" "$LAST" 2>/var/tmp/Check$$
         then
-            echo -e "${RED}$KIT has problems for sensoring $SENSOR!${NOCOLOR}" 1>&2
+            echo -e "${RED}$KIT has problems with sensor $SENSOR!${NOCOLOR}" 1>&2
             if [ -s /var/tmp/Check$$ ]
             then
                 if ! SendNotice "$KIT" "$SENSOR" /var/tmp/Check$$
                 then
-                    echo "FAIL to send Notice about kit $KIT, sensor $SENSOR" 1>&2
+                    echo "$CMD: FAIL to send Notice about kit $KIT, sensor $SENSOR" 1>&2
                 fi
             fi
-            if (( $VERBOSE == 1 )) ; then cat /var/tmp/Check$$ 1>&2 ; fi
+            if (( $VERBOSE <= 1 )) ; then cat /var/tmp/Check$$ 1>&2 ; fi
         elif (( $VERBOSE > 0 ))
         then
             echo -e "${GREEN}$KIT sensor $SENSOR is OK.${NOCOLOR}" 1>&2
@@ -290,8 +295,8 @@ if [ -s ~/.ATTENTS.sh ] ; then rm -f ~/.ATTENTS.sh ; fi
 if (( ${#ATTENT[@]} > 0 ))
 then
     echo "#
-# $0 notices sent at date.
-# file created at $(date)
+# $CMD: file created or modified  at $(DATE)
+# notices and dates/time sent
 #" >~/.ATTENTS.sh
 fi
 
