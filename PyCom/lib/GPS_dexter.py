@@ -1,14 +1,14 @@
 # from https://github.com/DexterInd/GrovePi
 # Software/Python/dexter_gps
 # changed for micropython
-# $Id: GPS_dexter.py,v 1.6 2018/03/29 18:18:20 teus Exp teus $
+# $Id: GPS_dexter.py,v 5.9 2019/09/18 10:51:18 teus Exp teus $
 
 import re
 try:
-  from machine import UART, RTC
+  from machine import RTC
   from time import sleep_ms, ticks_ms
 except:
-  from const import UART, sleep_ms, ticks_ms  # not micropython
+  from const import sleep_ms, ticks_ms  # not micropython
   RTC = None
 
 patterns=["$GPGGA",
@@ -26,17 +26,26 @@ patterns=["$GPGGA",
 class GROVEGPS:
   # dflt pins=(Tx-pin,Rx-pin): wiring Tx-pin -> Rx GPS module
   def __init__(self,port=1,baud=9600,debug=False,pins=('P3','P4')):
-    try:
-      self.ser = UART(port,baudrate=baud,pins=pins)
-    except:
-      self.ser = UART(port,baudrate=baud)
-    self.ser.readall()
+    if type(port) is str: # no PyCom case
+       import serial
+       self.ser = serial.Serial(port, 9600, bytesize=8, parity='N', stopbits=1, timeout=20, xonxoff=0, rtscts=0)
+       self.ser.any = self.in_waiting
+    elif type(port) is int:
+      from machine import UART
+      try:
+        self.ser = UART(port,baudrate=baud,pins=pins)
+      except:
+        self.ser = UART(port,baudrate=baud)
+    else:
+      self.ser = port
+    #self.ser.read()
     self.raw_line = ""
     self.gga = []
     self.validation =[] # contains compiled regex
     self.debug = debug
-    self.last_read = 0
     self.date = 0
+    self.max_wait = 3
+    self.max_retry = 50  # wait for fix was 50
 
     # compile regex once to use later
     for i in range(len(patterns)-1):
@@ -49,22 +58,22 @@ class GROVEGPS:
     if self.debug:
       print(in_str)
 
+  def in_waiting(self): # for non PyCom python
+    try: return self.ser.in_waiting
+    except: raise ValueError
+
   # convert to string and if needed wait a little
   def readCR(self,serial):
-    if not self.last_read:
-      serial.readall()
-      self.last_read = ticks_ms()
-    self.last_read = ticks_ms()-self.last_read
-    if self.last_read < 200 and self.last_read >= 0:
-      sleep_ms(200-self.last_read)
     line = ''
+    for i in range(10):
+      if serial.any(): break
+      self.DEBUG("wait %d for GPS serial" % i)
+      sleep_ms(200)
     try:
       line = serial.readline().decode('utf-8')
     except:
-      if self.debug: print('Read line error')
-    self.last_read = ticks_ms()
+      self.DEBUG('Read line error')
     return line.strip()
-
 
   def clean_data(self):
     '''
@@ -87,16 +96,17 @@ class GROVEGPS:
     self.longitude = -1.0
     self.fancylat = ""  #
 
-  def read(self):
+  def read(self,debug=False):
     '''
-    Attempts 50 times at most to get valid data from GPS
+    Attempts max_retry times at most to get valid data from GPS
     Returns as soon as valid data is found
     If valid data is not found, then clean up data in GPS instance
     '''
     valid = False
-    for i in range(50):
+    for i in range(self.max_retry):
       # sleep_ms(500)
       self.raw_line = self.readCR(self.ser)
+      self.DEBUG("GPS %d/%d read." %(i,self.max_retry))
       if self.validate(self.raw_line):
         valid = True
         break;
@@ -109,7 +119,7 @@ class GROVEGPS:
 
   # use GPS date/time to update RTC time
   def UpdateRTC(self):
-    for i in range(20):
+    for i in range(self.max_wait):
       if self.date: break
       self.read()
     day = int(self.date)
@@ -205,6 +215,19 @@ class GROVEGPS:
       'altitude': int(self.altitude) }
 
 
-# gps = GROVEGPS(port=1,baud=9600,timeout=0,debug=False,pins=('P3','P4'))
-# data = gps.read()
-# print(data)
+if __name__ == "__main__":
+    import sys
+    print("Reading from %s for GPS" % sys.argv[1])
+    from time import time, sleep
+    interval = 5*60
+    pins = ('P3','P4',None)
+    sample = 60
+    debug = True
+    gps = GROVEGPS(port=sys.argv[1],baud=9600,debug=debug,pins=pins[:-1])
+    for i in range(4):
+        lastTime = time()
+        data = gps.read()
+        print(data)
+        now = interval + time() -lastTime
+        if now > 0: sleep(now)
+

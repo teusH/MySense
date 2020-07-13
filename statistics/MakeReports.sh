@@ -17,7 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MakeReports.sh,v 1.22 2017/12/17 19:05:27 teus Exp teus $
+# $Id: MakeReports.sh,v 1.24 2018/09/11 10:00:50 teus Exp teus $
 
 # shell file produces pdf correlation report of influx raw series of timed data
 # for the dust sensor only pcs/qf is used
@@ -26,14 +26,15 @@
 # START=2017-06-01 END=now command temp BdP_12345=sds011,dylos,bme280 BdP_12346=ppd42ns,pms7003,dht22 ...
 # START=2017-06-01 END=now command pm25 BdP_12345=sds011,dylos,bme280 BdP_12346=ppd42ns,pms7003,dht22 ...
 
+# example of use:
+# DBPASS=acacadabra DBUSER=$USER DBHOST=mysql_server START='1 July' END='24 July'
+# ./MakeReports.sh dust rh temp HadM_30aea4505888=sds011,bme280 HadM_30aea4505988=pms7003,bme280
 export LANG=en_GB.UTF-8
 DAYS=${DAYS:-7}
 STRT=${START:-$(date --date="$DAYS days ago" "+%Y-%m-%d")}
 END=${END:-$(date --date="00:00" "+%Y-%m-%d")}
 INTERVAL=900
 PROJECT=${PROJECT:-BdP_}        # default project identifier
-MTYPE=raw
-FIELD=time
 
 REPORTS=reports
 mkdir -p $REPORTS
@@ -46,12 +47,27 @@ HTML2PDF=/usr/local/wkhtmltox/bin/wkhtmltopdf
 
 HTML=${HTML:---HTML}
 DBTYPE=${DBTYPE:-MySQL} # type of database to use: MySQL or Influx
+FIELD=datum
+MTYPE=/raw
+case "${DBTYPE^^}" in
+MYSQL)
+    FIELD=datum
+    MTYPE=''
+;;
+*)
+    FIELD=time
+    MTYPE=/raw
+;;
+esac
 DBTYPE="-T ${DBTYPE,,}"
 
 if [ -z "$1" ] || [ -z "${1/*help*/}" ]
 then
     cat >/dev/stderr <<EOF
 Usage: $0 type ... where type is dust or climate
+    The shell script will rearrange the tables and pollutants to compute
+    the arguments for MyRegression runs. Collects the output and produce
+    a pdf formatted output.
     The InfluxDB server will used to find proj_sensorID's
     or type is proj_sensorID=sensor_type list
         where sensor_type list is eg: dylos,sds011,dht22,bme280,pms7003,ppd42ns
@@ -64,8 +80,12 @@ Usage: $0 type ... where type is dust or climate
         START dflt DAYS ago from now, format YYYY-MM-DD,,
         END dflt  today 0h 0m, format YYYY-MM-DD
         PROJECT dflt BdP_
-    Example:
+    Examples:
         DBHOST=localhost DBUSER=IoS DBPASS=acacadabra PROJECT=BdP DAYS=2 ./MakeReport.sh dust climate TableName1=sds011,dht22 TableName2=pms7003,beme280
+    DBPASS=acacadabra DBUSER=$USER DBHOST=mysql_server START='1 July' END='24 July' \
+    ./MakeReports.sh dust rh temp \
+         HadM_30aea4505888=sds011,bme280 \
+         HadM_30aea4505988=pms7003,bme280
     dflt output dir: $REPORTS files $TOTAL and $CONTENT
     InfluxDB series $MTYPE and time field $FIELD
     script depends on wkhtmltopdf to collect content overview.
@@ -133,7 +153,7 @@ function CombineReport() {
         # show errors if present
         if [ -f "$ERR" ]
         then
-            sed -i '/Axes that are not/d' /var/tmp/ERR$$
+            sed -i -e '/Axes that are not/d'  -e '/FutureWarning/d' -e '/from pandas.core import datetools/d' /var/tmp/ERR$$
             if [ -s /var/tmp/ERR$$ ]
             then
                 echo "Encountered some errors: " >/dev/stderr
@@ -355,17 +375,21 @@ SENSOR[ppd42ns,pm25]=pm25_pcsqf
 SENSOR[ppd42ns,pm10]=pm10_pcsqf
 SENSOR[sds011,pm25]=pm25
 SENSOR[sds011,pm10]=pm10
-SENSOR[pms7003,pm25]=pm25_atm
-SENSOR[pms7003,pm10]=pm10_atm
+SENSOR[pms7003,pm25]=pm25
+SENSOR[pms7003,pm10]=pm10
 SENSOR[dht22,temp]=temp
 SENSOR[bme280,temp]=temp
 SENSOR[dht22,rh]=rv
 SENSOR[bme280,rh]=rv
 SENSOR[bme280,pha]=pha
+
 declare -a DUST=(dylos sds011 pms7003 ppd42ns)
 declare -a DUST_TYPE=(pm1 pm25 pm10)
-declare -a CLIMATE=(dht22 bme280)
+declare -a CLIMATE=(dht22 bme280 bme680)
 declare -a CLIMATE_TYPE=(temp rh pha)
+declare -a GAS=(bme680)
+declare -a GAS_TYPE=(gas aqi)
+
 declare -A CONFIG
 declare -a KITS
 declare -a ARG_KITS
@@ -379,6 +403,9 @@ do
     ;;
     climate)
         ARGS+=" temp rh pha"
+    ;;
+    gas)
+        ARGS+=" gas aqi"
     ;;
     pm1|pm25|pm10|temp|rh|pha)
         ARGS+=" $arg"
@@ -455,9 +482,9 @@ do
             else
                 PNG=''
             fi
-            python MyRegression.py ${DBTYPE}  $HTML  $PNG -t $STRT/$END -i $INTERVAL \
-                ${KITS[$I]}/${SENSES[$I]}/${FIELD}/${TYPES[$I]}/${MTYPE} \
-                ${KITS[$J]}/${SENSES[$J]}/${FIELD}/${TYPES[$J]}/${MTYPE} \
+            python MyRegression.py ${DBTYPE}  $HTML  $PNG -t "$STRT/$END" -i $INTERVAL \
+                ${KITS[$I]}/${SENSES[$I]}/${FIELD}/${TYPES[$I]}${MTYPE} \
+                ${KITS[$J]}/${SENSES[$J]}/${FIELD}/${TYPES[$J]}${MTYPE} \
                 2>>/var/tmp/ERR$$ >>"$OUTPUT"
             if ! CombineReport "$TOTAL" "$OUTPUT" /var/tmp/ERR$$ "Correlation Report for Measurement $SENSE from sensors ${TYPES[$I]} and ${TYPES[$J]}"
             then

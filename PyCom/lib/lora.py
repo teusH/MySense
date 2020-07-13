@@ -2,96 +2,176 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 1.1 2018/02/24 11:44:44 teus Exp teus $
+# $Id: lora.py,v 5.13 2020/05/18 10:31:44 teus Exp teus $
 
 import socket
-from binascii import unhexlify
 from network import LoRa
-from led import LED
+from time import sleep_ms
 
-class LORA(object):
+class LORA(object,dr=2):
   'Wrapper class for LoRa'
+  def __init__(self):
+    # LoRa and socket instances
+    # Initialize LoRa in LORAWAN mode
+    self.lora = LoRa(mode = LoRa.LORAWAN, region=LoRa.EU868)
+    self.callback = None
+    self.sockets = []
+    self.dr = dr # socket dr
+    self.LED = None
+    self.debug = False
 
-  # LoRa and socket instances
-  lora = None
-  s = None
-
-  def connect(self, dev_eui, app_eui, app_key, ports=1, callback=None):
+  def connect(self, method, ports=1, callback=None, myLED=None, dr=None, debug=False):
     """
     Connect device to LoRa.
     Set the socket and lora instances.
+    myLED is led object, on resume use lora nvram
     """
-
-    dev_eui = unhexlify(dev_eui)
-    app_eui = unhexlify(app_eui)
-    app_key = unhexlify(app_key)
     self.callback = callback # call back routine on LoRa reply callback(port,response)
-    # Disable blue blinking and turn LED off
-    LED.heartbeat(False)
-    LED.off()
-
-    # Initialize LoRa in LORAWAN mode
-    self.lora = LoRa(mode = LoRa.LORAWAN)
-
-    # Join a network using OTAA (Over the Air Activation)
-    self.lora.join(activation = LoRa.OTAA, auth = (dev_eui, app_eui, app_key), timeout = 0)
-
-    # Wait until the module has joined the network
+    self.debug = debug
+    self.LED = myLED
+    if myLED : myLED.heartbeat(False)
+    self.restore; sleep_ms(100)
+    if self.lora.has_joined() or self.status: # resume LoRa OTAA or ABP
+      self.getPorts(ports)
+      return True
+    if self.debug: print("No previous LoRa join. Try to join.")
+    if (not type(method) is dict): raise ValueError("No activation method defined.")
+    fnd = False
+    try:
+      if not method['OTAA'][0]: raise ValueError()
+      fnd = True
+    except:
+      try: # OTAA
+        from Config import dev_eui
+      except:
+        from machine import unique_id
+        from ubinascii import hexlify
+        dev_eui = 'AAAA'+hexlify(unique_id()) # use dflt
+      try:
+        from Config import app_eui, app_key
+        method['OTAA'] = (dev_eui, app_eui, app_key)
+        fnd = True
+      except: pass
+    if not fnd:
+      try:
+        if not method['ABP'][0]: raise ValueError()
+        fnd = True
+      except: # ABP
+        try:
+          from Config import dev_addr, nwk_swkey, app_swkey
+          method['ABP'] = (dev_addr, nwk_swkey, app_swkey)
+          fnd = True
+        except: pass
+    if not fnd: raise ValueError("No LoRa keys defined")
+    if self.debug: print("LoRa keys load from Config")
     count = 0
-    while not self.lora.has_joined():
-      LED.blink(1, 2.5, 0xff0000)
-      if count > 20:
-        return False
-      print("Trying to join: " ,  count)
-      count += 1
+    if self.debug: print("Try to join LoRa/%s" % str(method.keys()))
+    if 'OTAA' in method.keys(): # first OTAA
+      from ubinascii import unhexlify
+      # Join a network using OTAA (Over the Air Activation) next code looks strange
+      dev_eui = method['OTAA'][0]; dev_eui = unhexlify(dev_eui)
+      app_eui = method['OTAA'][1]; app_eui = unhexlify(app_eui)
+      app_key = method['OTAA'][2]; app_key = unhexlify(app_key)
+      self.lora.join(activation = LoRa.OTAA, auth = (dev_eui, app_eui, app_key), timeout = 0, dr=dr)
+      # Wait until the module has joined the network
+      while not self.lora.has_joined():
+        if myLED: myLED.blink(1, 2.5, 0xff0000)
+        else: sleep_ms(2500)
+        if count > 20: break  # machine.reset()?
+        print("Wait for OTAA join: " ,  count)
+        count += 1
+      if self.lora.has_joined():
+        count = 1
+        print("LoRa OTAA join.")
+      else: count = 0
 
-    # Create a LoRa socket
-    LED.blink(2, 0.1, 0x009900)
-    self.s = []
-    self.s.append(socket.socket(socket.AF_LORA, socket.SOCK_RAW))
+    if not count: # if not ABP
+      if not 'ABP' in method.keys():
+        print("No ABP TTN keys defined.")
+        return False
+      import struct
+      from ubinascii import unhexlify
+      # next code is strange. ABP method is not yet operational
+      dev_addr = method['ABP'][0]; dev_addr = unhexlify(dev_addr)
+      dev_addr = struct.unpack('>l', dev_addr)[0]
+      nwk_swkey = method['ABP'][1]; nwk_swkey = unhexlify(nwk_swkey)
+      app_swkey = method['ABP'][2]; app_swkey = unhexlify(app_swkey)
+      print("LoRa ABP join.")
+      self.lora.join(activation = LoRa.ABP, auth = (dev_addr, nwk_swkey, app_swkey))
+
+    self.getPorts(ports)
+    if myLED: myLED.blink(2, 0.1, 0x009900)
+    self.dump
+    return True
+
+  def getPorts(self,ports):
+    # Create a LoRa sockets
+    self.sockets = []
+    self.sockets.append(socket.socket(socket.AF_LORA, socket.SOCK_RAW))
 
     # Set the LoRaWAN data rate
-    self.s[0].setsockopt(socket.SOL_LORA, socket.SO_DR, 5)
+    self.sockets[0].setsockopt(socket.SOL_LORA, socket.SO_DR, self.dr)
 
     # Make the socket non-blocking
-    self.s[0].setblocking(False)
-
-    print ("Success after %d tries" % count)
-    # print("Create LoRaWAN socket")
+    self.sockets[0].setblocking(False)
 
     # Create a raw LoRa socket
     # default port 2
-    self.s.append(None)
+    self.sockets.append(None)
     for nr in range(ports):
-      print("Setting up port %d" % (nr+2))
-      self.s.append(socket.socket(socket.AF_LORA, socket.SOCK_RAW))
-      self.s[nr+2].setblocking(False)
-      if nr: self.s[nr+2].bind(nr+2)
-    LED.off()
+      self.sockets.append(socket.socket(socket.AF_LORA, socket.SOCK_RAW))
+      self.sockets[nr+2].setblocking(False)
+      if nr: self.sockets[nr+2].bind(nr+2)
+      if self.debug: print("Installed LoRa port %d" % (nr+2))
     return True
 
   def send(self, data, port=2):
     """
     Send data over the network.
     """
-    if (port < 2) or (port > len(self.s)): raise ValueError('Unknown LoRa port')
-    if not self.s[port]: raise OSError('No socket')
+    if (port < 2) or (port > len(self.sockets)): raise ValueError('Unknown LoRa port %d' % port)
+    if not self.sockets[port]: raise OSError('No socket')
 
     rts = True
     try:
-      self.s[port].send(data)
-      LED.blink(2, 0.1, 0x0000ff)
-      # print("Sending data")
+      self.sockets[port].send(data)
+      if self.LED: self.LED.blink(2, 0.1, 0x0000ff)
+      if self.debug: print("Sending data")
       # print(data)
     except OSError as e:
       if e.errno == 11:
         print("Caught exception while sending")
         print("errno: ", e.errno)
+      else: print("Lora ERROR: %s" % e)
       rts = False
 
-    LED.off()
-    data = self.s[port].recv(64)
-    # print("Received data:", data)
+    if self.LED: self.LED.off
+    data = self.sockets[port].recv(64)
+    if self.debug: print("Received data:", data)
     if self.callback and data:
        self.callback(port,data)
+
+    sleep_ms(1000); self.dump # save status
     return rts
+
+  @property
+  def dump(self):
+    from time import sleep_ms
+    sleep_ms(2000)
+    if self.debug: print("Save LoRa keys")
+    return self.lora.nvram_save()
+
+  @property
+  def restore(self):
+    self.lora.nvram_restore()
+    if self.debug: print("Restore LoRa keys")
+    return self.lora.stats().tx_counter
+
+  @property
+  def status(self):
+    return self.lora.stats().tx_counter
+
+  @property
+  def clear(self):
+    if self.debug: print("Clear LoRa keys")
+    self.lora.nvram_erase()

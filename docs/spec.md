@@ -15,6 +15,10 @@ A module has three parts: the Spec sensor (O3, NO2, or CO), the TTL interface wi
 
 Cost pricing varies between € 50 and higher (e.g. NO2+UL G4V board+TTL-USB: DigiKey € 66.- excl. import tax € 17.22). Make sure one uses an serial USB converter to interface to the 3V3 based TTL serial interface of the module. MySense used `Cygnal Integrated Products, Inc. CP210x UART Bridge / myAVR mySmartUSB light`. See the config example for the appetrn to recognize which USB has the gas adapter.
 
+## WARNING when using GPS serial using Pi TTL pins
+It may happen that if gps is enabled and imported in MySense the Spec module does not operate smoothlhly (no serial data read, without error indications). Solution: in `/etc/default/gpsd` set USBAUTO to false and add `-b` (only read) for *gpsd* or if it does not help disable gps in `MySense.conf` fully and disable gpsd daemon.
+Or use GPS serial reads via USB. If so make sure the USB path name survives a reboot.
+
 ## Configuration
 ### hardware
 As there maybe more as one Spec gas sensor connected to the Pi MySense will need a way to get all the serial USB adapters. Plug in the USB adapter of a Spec sensor. Use `lsusb` command to get an overview before and after the USB adapter is connected. Here the difference as example:

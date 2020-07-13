@@ -6,14 +6,21 @@ Created on 24 Apr 2017
 # comes from https://github.com/rexfue/Feinstaub_LoPy
 # changes by teus license GPLV3
 # Frank Heuer wrote a better and more extensive script
-# $Id: SDS011.py,v 1.5 2018/04/18 08:55:29 teus Exp teus $
+# $Id: SDS011.py,v 5.3 2019/09/18 10:51:18 teus Exp teus $
 
+from time import sleep
 try:
-  from machine import  UART
+  # for micropython:
   from micropython import const
   from time import ticks_ms, sleep_ms
 except:
-  from const import const, UART, ticks_ms, sleep_ms
+  try:
+    from const import const, ticks_ms, sleep_ms
+  except:
+    from time import time
+    def sleep_ms(ms): sleep(ms/1000.0)
+    def ticks_ms(): return int(time()*1000)
+    def const(a): return a
 
 """ Get sensor values: PM2.5 and PM10 from Nova Particular Matter sensor
   Types: 7003 or 5003
@@ -35,8 +42,15 @@ class SDS011:
   # idle time minimal time to switch fan OFF
   IDLE  = const(120000)   # minimal idle time between sample time and interval
 
-  def __init__(self, port=1, debug=False, sample=60, interval=1200, raw=False, calibrate=None,pins=('P3','P4')):
-    self.ser = UART(1,baudrate=9600,pins=pins)
+  def __init__(self, port=1, debug=False, sample=60, interval=1200, raw=False, calibrate=None,pins=('P3','P4'), explicit=None):
+    # explicit (pm count style) not used
+    if type(port) is str:
+      import serial
+      self.ser = serial.Serial(port, 9600, bytesize=8, parity='N', stopbits=1, timeout=20, xonxoff=0, rtscts=0)
+    elif type(port) is int:
+      from machine import UART
+      self.ser = UART(port,baudrate=9600,pins=pins)
+    else: self.ser = port # fd
     self.firmware = None
     self.debug = debug
     self.interval = interval * 1000 # if interval == 0 no auto fan switching
@@ -64,6 +78,10 @@ class SDS011:
     except:
       self.ser.readall = self.ser.flushInput # reset_input_buffer
       self.ser.any = self.ser.inWaiting
+
+  def in_waiting(self): # for non PyCom python
+    try: return self.ser.in_waiting
+    except: raise OSError
 
   # calibrate by length calibration factor (Taylor) array
   def calibrate(self,cal,value):
@@ -166,7 +184,7 @@ class SDS011:
     return self.startstopSDS(self.ACTIVE)
 
   # original read routine comes from irmusy@gmail.com http://http://irmus.tistory.com/
-  def getData(self):
+  def getData(self,debug=False):
     ''' read data telegrams from the serial interface (32 bytes)
       before actual read flush all pending data first
       during the period sample time: active (200-800 ms), passive read cmd 1 sec
@@ -179,9 +197,9 @@ class SDS011:
     # to do: allow sampling data to be done by sensor module
     StrtTime = ticks_ms(); LastTime = ticks_ms(); buff = []
     if self.mode == self.STANDBY: self.GoActive()
-    self.ser.readall()
+    self.ser.read()
     while True:
-      # self.ser.readall()
+      # self.ser.read()
       if self.mode != self.ACTIVE or self.mode != self.NORMAL:
         # in PASSIVE mode we wait one second per read
         if cnt:
@@ -203,7 +221,7 @@ class SDS011:
         # concentration (generic atmosphere conditions) in ug/m3
         # number of particles with diameter N in 0.1 liter air pcs/0.1dm3
         sample[fld[0]] = float(data[fld[2]]) # make it float
-      if self.debug:
+      if self.debug or debug:
         if not cnt:
           for fld in self.PM_fields:
             print("%8.8s " % fld[0],end='')

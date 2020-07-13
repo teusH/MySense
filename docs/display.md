@@ -9,9 +9,13 @@ Operational 2017/6/17
 * Use `INSTALL.sh DISPLAY` to install the script and dependences.
 
 The script
-<img src="images/SSD1306.png" align=right width=175>
+<img src="images/SSD1306-RGBled.png" align=right width=225>
 has three modules:
-* display server: which uses Adafruit lib and driver to receive text and display the text on the little Adafruit SSD1306 display. Try the command `./MyDisplayServer.py -help` to see all the options and command arguments. The server is multithreaded.
+* display server: which uses Adafruit lib and driver to receive text and display the text on the little Adafruit <a href="https://www.aliexpress.com/item/0-96-inch-IIC-Serial-White-OLED-Display-Module-128X64-I2C-SSD1306-12864-LCD-Screen-Board/32896971385.html?spm=a2g0s.9042311.0.0.3da24c4dctrvsH">SSD1306 display</a> (Y/B, blue or white; AliExpress € 1.80).
+Optional <a href="https://www.aliexpress.com/item/1PCS-Smart-Electronics-FZ0455-4pin-KEYES-KY-016-Three-Colors-3-Color-RGB-LED-Sensor-Module/32763280158.html?spm=a2g0s.9042311.0.0.27424c4dN3XhqH">RGB led</a> (AliExpress € 0.35).
+We used Dupont female connector/wires (€ 0.50) to connect it to the Pi.
+
+Try the command `./MyDisplayServer.py -help` to see all the options and command arguments. The server is multithreaded.
 The DISPLAY service should be run as deamon. Add `@boot path/MyDisplayServer.py start`  e.g. to crontab of root.
 * a client which is an example to send text to the display server/service on `localhost TCP/IP port 2017`.
 * an output channel to send console type of measurement results to the little display. Use the plugin `MyDISPLAY.py`
@@ -22,6 +26,17 @@ The service can be used to send text to the small display to provide visual feed
 * Add <text>, <clear> xml to the text to define font and text size changes, clear the display, etc.
 * use the Richard Hull's luma modules.
 * fix for I2C: display suddenly and sometimes displays from bottum up.
+
+## the Display (RGB led) server
+The display server listens on localhost port 2017 for incoming line based commands.
+Use eg `echo MyCommand | nc -w 2 localhost 2017`.
+MyCommand may be a text line. This text is fed to the oled display. The display will scroll if the text exceeds the display size. A bar in the text will delay the horizontal scroll longer.
+The text line may have attributes as eg `<clear>text line one` (clear display first).
+The `-y` command line option will define the oled Y/B (yellow/blue) use (first text line is yellow).
+
+The server will also be able to light the RGB led. Eg `<led color=red secs=1.5 repeat=5>` will light the red red for 1.5 seconds, wait 1.5 seconds and repeat 4 times the sequence. The `secs` argument is optional as secs=0 (led not turned off). Repeat attribiute is optional (default 1). RGB led handling is enabled by the `-rgb` command line argument.
+The RGB pinnumbers have to be defined as GPIO numbers, default GPIO 17 R, GPIO 27 G, GPIO 22 B (pin board numbers: 11 R, 13 G, 15 B). Grpound eg board pinnr 9.
+RGB led use allows simple feed back e.g. red on error, green on data transaction, yellow on startup, etc.
 
 ### hardware
 * Adafruit SSD1306  display  € 22.85 (Kiwi or SOS Solutions) or via China: € 2.-.
@@ -48,7 +63,7 @@ Note: If you use GrovePi shield, use the Oled I2C version!
 You need to enable GPIO (Oled GPIO version with 7 cables) abd I2C (Oled I2C version with 4 wires) via the Pi config `rasp-config` routine and reboot.
 
 ## SW dependencies
-You need to install with apt: python-pil, python-imaging and python-smbus and with pip: Agafruit-GPIO, Adafruit-SSD1306. Make sure you have the latest version by using `pip list --outdated` and if needed upgrade with `pip install Adafruit-GPIO --upgrade` (version 1.0.2 gives parameter type error).
+You need to install with apt: python-pil, python-imaging and python-smbus and with pip: Agafruit-GPIO (uses GPIO pin numbering), Adafruit-SSD1306. Make sure you have the latest version by using `pip list --outdated` and if needed upgrade with `pip install Adafruit-GPIO --upgrade` (version 1.0.2 gives parameter type error).
 Or use `INSTALL.sh DISPLAY` for this.
 If you use GPIO make sure the display user is added to the group `spi` and for I2C version to the group 'i2c'.
 
