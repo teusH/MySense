@@ -19,7 +19,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.6 2020/07/12 09:22:37 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.7 2020/07/13 10:47:06 teus Exp teus $
 
 CMD=$0
 SENSORS='temp'
@@ -99,7 +99,7 @@ fi
 
 # human readable date/time in std format no seconds
 function DATE() {
-    date --date=@"${1:-now}" '+%Y-%m-%d %H:%M'
+    date --date=@"${1:-$(date '+%s')}" '+%Y-%m-%d %H:%M'
     return $?
 }
 
@@ -285,13 +285,16 @@ do
                     echo "$CMD: FAIL to send Notice about kit $KIT, sensor $SENSOR" 1>&2
                 fi
             fi
-            if (( $VERBOSE <= 1 )) ; then cat /var/tmp/Check$$ 1>&2 ; fi
+            if (( $VERBOSE <= 1 )) ; then cat /var/tmp/Check$$ ; echo ; fi
         elif (( $VERBOSE > 0 ))
         then
             echo -e "${GREEN}$KIT sensor $SENSOR is OK.${NOCOLOR}" 1>&2
-            if (( $VERBOSE > 1 )) ; then cat /var/tmp/Check$$ ; fi
+            if (( $VERBOSE > 1 )) ; then cat /var/tmp/Check$$ ; echo ; fi
         fi
-        rm -f /var/tmp/Check$$
+        if [ -f /var/tmp/Check$$ ]
+        then
+            rm -f /var/tmp/Check$$
+        fi
     done
 done
 # save notices history
