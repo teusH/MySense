@@ -518,3 +518,4 @@ See also: https://developer.epa.gov/air-pollution/
 * https://mosquitto.org/ Mosquitto (MQTT) broker
 * https://docs.influxdata.com/influxdb/v1.2/ documentation from InFluxData.com
 * https://cdn.hackaday.io/files/21912937483008/Thomas_Portable_Air_Quality.pdf interesting overview of sensors
+* on github see also MarcoKull/MySense : PyCom/LoPy-4 python development based on MySense.
