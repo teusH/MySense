@@ -16,9 +16,9 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 2.10 2020/06/24 13:04:58 teus Exp teus $
+# $Id: ChartsPM.pl,v 2.11 2020/07/15 10:30:58 teus Exp teus $
 # use 5.010;
-my $Version = '$Revision: 2.10 $, $Date: 2020/06/24 13:04:58 $.';
+my $Version = '$Revision: 2.11 $, $Date: 2020/07/15 10:30:58 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/Revision: (.*)\s[0-9]+:[0-9]+:[0-9]+\s\.*\s*/$1/;
 # Description:
@@ -92,6 +92,8 @@ if( $mypass =~ /somepass/ ){
     $mypass = '';
     $mypass = $DBPASS if defined $DBPASS;
 }
+my %yAxis = ();
+my @yUnits = ();
 
 use DBI;
 my $mysql;
@@ -1578,6 +1580,7 @@ sub AvgStdSeries {
             width: 5, offsetX: 0, offsetY: 0
           },
         zIndex: 10,
+        yAxis: 0, // first per definition
         lineWidth: 1+1,
         visible: false,
         tooltip: { valueSuffix: '$suffix', radius: 1+1 },
@@ -1589,7 +1592,7 @@ sub AvgStdSeries {
         pointPlacement: 'between'
       },
      ";
-     for( my $r = 1; $r <= 2; $r++ ){
+     for( my $r = 1; $r <= 2; $r++ ){ # per definition all link to yAxis 0 option
       for( my $s = 1; $s <= 2; $s++) {
         $series .= "{
         type: 'areaspline',
@@ -1607,7 +1610,7 @@ sub AvgStdSeries {
         // animation: { duration: 10000, easing: easeOutBounce },
         tooltip: { valueSuffix: '$suffix', radius: 1 },
         lineWidth: 0,
-        yAxis: 0,
+        yAxis: 0, // per definition
         linkedTo: 0,
         fillOpacity: 0.9,
         visible: true,
@@ -1642,6 +1645,16 @@ sub CompareSeries {
     elsif( $b->{table} =~ /_/ ) { return 1; }
     elsif( $a->{table} =~ /_/ ) { return -1; }
     else { $a->{table} cmp $b->{table} }
+}
+
+# search for yAxis option serie index
+sub ySerieIndex {
+    my ($pol,$dflt) = @_;
+    my $pol = ConvertS2U($pol); $pol =~ s/\s+//g;
+    for( my $j = 0; $j <= $#yUnits; $j++) {
+        return $j if $yUnits[$j] eq $pol;
+    }
+    return $dflt;
 }
 
 # generate one chart for a set of series
@@ -1686,7 +1699,7 @@ sub ChartSerie {
                 $series .= sprintf("\n\tzIndex: %d,",$i+1);
                 $series .= sprintf("\n\ttooltip: { valueSuffix: ' %s' },",($data->[$i]{pol}?ConvertS2U($data->[$i]{pol}):$ugm3));
                 # $series .= sprintf("\n\tyAxis: %d,", ($data->[$i]{table} =~ /_/?0:1));
-                $series .= sprintf("\n\tyAxis: %d,", $i);
+                $series .= sprintf("\n\tyAxis: %d,", ySerieIndex(($data->[$i]{pol}?$data->[$i]{pol}:$data->[$i]{sense}),$i));
                 $series .= "\n\tpointPlacement: 'between',";
                 $series .= sprintf("\n\t marker:{ radius: 1+%d }",
                     ($data->[$i]{table} =~ /_/?1:0) );
@@ -1743,11 +1756,10 @@ sub ChartSerie {
             }
             $series .= sprintf("\n\tvisible: %s,",($visible?'true':'false'));
             if ( $Mean ) {
-                $series .= sprintf("\n\tyAxis: %d,",($data->[$i]{table} =~ /_/?6:7));
+                $series .= sprintf("\n\tyAxis: %d,",ySerieIndex(($data->[$i]{pol}?$data->[$i]{pol}:$data->[$i]{sense}),($data->[$i]{table} =~ /_/?6:7)));
             } else {
-                $series .= sprintf("\n\tyAxis: %d,",($data->[$i]{table} =~ /_/?0:1));
+                $series .= sprintf("\n\tyAxis: %d,",ySerieIndex(($data->[$i]{pol}?$data->[$i]{pol}:$data->[$i]{sense}),($data->[$i]{table} =~ /_/?$i:1)));
             }
-            #$series .= sprintf("\n\tyAxis: %d,",$i);
             $series .= sprintf("\n\ttooltip: { valueSuffix: ' %s' },",
                 (defined $data->[$i]{pol}?ConvertS2U($data->[$i]{pol}):$ugm3));
             $series .= sprintf("\n\tmarker:{ radius: 1+%d },",
@@ -1783,7 +1795,6 @@ sub ChartSerie {
 }
 
 # create a new yaxis configuration or return old one
-my %yAxis = ();
 sub MyLength {
     my ($str) = @_;
     $str =~ s/\\u[0-9]{4}/u/g;
@@ -1793,7 +1804,7 @@ sub MyLength {
 sub newYaxis {
     my ($nr,$units,$bands) = @_;
     state $lastLoc = -1; # right inner, left inner, right out, left out, invis
-    $lastLoc = -1 if not $nr; %yAxis = () if not $nr; # reset
+    $lastLoc = -1 if not $nr;
     my $Tbands = ''; # $Tbands = 'B_' if $bands;
     #    {color:"rgba(1,109,255,0.1)", from:0, to:20, label:{text:"goed",rotation:-90,style:{color:"rgba(1,109,255,0.6)",fontWeight:"bold",fontSize:"75%"},x:15} },
     #    {color:"rgba(2,216,255,0.1)",from:20,to:40,label:{text:"matig",rotation:-90,style:{color:"rgba(2,216,255,0.95)",fontWeight:"bold",fontSize:"75%"},x:15}},
@@ -1905,6 +1916,8 @@ sub newYaxis {
             gridLineColor: (Highcharts.theme && Highcharts.theme.background2) || '#F0F0F0'
           },\n";
     $yAxis{$Tbands.$units} = $nr;
+    $units =~ s/\s+//g;
+    $yUnits[$#yUnits+1] = $units if ySerieIndex($units, -1) < 0;
     return $newY;
 }
 
@@ -2674,9 +2687,11 @@ sub Generate {
                               'vrij krachtig', 'krachtig','hard','stormachtig','storm',
                               'zware storm','orkaan'];\n") if $barb;
                 for( my $j = 0; $j <= $#DATA; $j++ ) {
+    %yAxis = (); @yUnits = (); # reset
     # sort it...
     my @dat = sort CompareSeries @{$DATA[$j]};
-    MyPrint($inscript,InsertHighChartGraph("C$j",$BUTTONS[$j],ChartSerie($j,\@dat),ChartyAxis(\@dat,plotBands($AQI))));
+    my $first = ChartyAxis(\@dat,plotBands($AQI));
+    MyPrint($inscript,InsertHighChartGraph("C$j",$BUTTONS[$j],ChartSerie($j,\@dat),$first));
                     # MyPrint($inscript,InsertHighChartGraph("C$j",$BUTTONS[$j],ChartSerie($j,$DATA[$j]),ChartyAxis($DATA[$j],plotBands($AQI))));
                 }
             }
