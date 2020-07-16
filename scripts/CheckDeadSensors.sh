@@ -19,7 +19,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.7 2020/07/13 10:47:06 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.8 2020/07/16 12:04:18 teus Exp teus $
 
 CMD=$0
 SENSORS='temp'
@@ -62,6 +62,7 @@ MYSQL="mysql --login-path=${DB:-luchtmetingen} -h ${DBHOST:-localhost} -N -B --s
 
 VERBOSE=${VERBOSE:-0}
 if [ -n "$DEBUG" ] ; then VERBOSE=3 ; fi
+LOCATION=''     # will get KIT serial and location on error
 
 # REGIONs: BdP (HadM), GLV (Venray), RIVM, ...
 if [ -z "$REGION" ] && [ -z "$1" ]
@@ -121,6 +122,13 @@ then
     rm -f /var/tmp/Check$$
 fi
         
+function GetLocation() {
+    local KIT=$1
+    if ! echo "$KIT" | grep -q -P '^[a-zA-Z]+_[0-9a-fA-F]+$' ; then return ; fi
+    $MYSQL -e "SELECT concat('MySense kit $KIT with label: ',label, ', location: ',street, ', ', village) FROM Sensors WHERE active AND NOT isnull(notice) AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1"
+    return
+}
+
 # email a notice on failure
 function SendNotice() {
     local KIT=$1 SENS=$2 FILE=$3
@@ -147,10 +155,11 @@ function SendNotice() {
     fi
     if [ -n "${NOTICE}" ]
     then
-        local LOCATION=$($MYSQL -e "SELECT concat('with label: ',label, ', location: ',street, ', ', village) FROM Sensors WHERE active AND NOT isnull(notice) AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1")
-        if ! mail -r mysense@behouddeparel.nl -s "ATTENT: MySense kit $KIT sensor $SENS $LOCATION info" "$NOTICE" <$FILE
+        if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT") ; fi
+        if ! (echo "$LOCATION" ; cat $FILE ) | mail -r mysense@behouddeparel.nl -s "ATTENT: MySense kit $KIT sensor $SENS $LOCATION info" "$NOTICE"
         then
             echo -e "$CMD: ERROR sending email to $NOTICE with message:\n" "-----------------" 1>&2
+            echo "$LOCATION"
             cat $FILE
         fi
     fi
@@ -275,8 +284,11 @@ do
         # echo "$CMD: Check $KIT:"
     for SENSOR in $SENSORS
     do
+        LOCATION=''
         if ! NrValids "$KIT" "$SENSOR" "$START" "$LAST" 2>/var/tmp/Check$$
         then
+            if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT" ) ; fi
+            echo "$LOCATION" 1>&2
             echo -e "${RED}$KIT has problems with sensor $SENSOR!${NOCOLOR}" 1>&2
             if [ -s /var/tmp/Check$$ ]
             then
@@ -288,6 +300,8 @@ do
             if (( $VERBOSE <= 1 )) ; then cat /var/tmp/Check$$ ; echo ; fi
         elif (( $VERBOSE > 0 ))
         then
+            if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT" ) ; fi
+            echo "$LOCATION" 1>&2
             echo -e "${GREEN}$KIT sensor $SENSOR is OK.${NOCOLOR}" 1>&2
             if (( $VERBOSE > 1 )) ; then cat /var/tmp/Check$$ ; echo ; fi
         fi
