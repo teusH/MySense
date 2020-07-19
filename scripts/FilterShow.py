@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: FilterShow.py,v 1.6 2020/07/16 18:26:00 teus Exp teus $
+# $Id: FilterShow.py,v 1.8 2020/07/19 13:24:16 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -39,7 +39,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: FilterShow.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.6 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 
 try:
     import sys
@@ -58,14 +58,14 @@ except ImportError as e:
  
 debug = False   # debug messages
 verbose = True  # be more versatile
-reset = True    # revalidate cells on every start
-RESET = False   # revalidate all cells in the command line period
-lossy = True    # do not re-valid cells in first quarter of window
+reset = True    # revalidate values on every start
+RESET = False   # revalidate all values in the command line period
+lossy = True    # do not re-valid values in first quarter of window
 onlyShow = False # only show chart, do not filter spikes and outliers
 showOutliers = False # show also outliers in chart
 sigma = 2.0     # graph variance band sigma/propability
 threshold = 15  # minimal amound of measurement to act on
-cleanup = 5     # cleanup raw values: invalidate NULL and # succeeding static values
+cleanup = 3     # cleanup raw values: invalidate NULL and # succeeding static values
 cleanup_only = False # do only a cleanup
 
 # global variables can be overwritten from command line
@@ -344,8 +344,13 @@ def Check(table,pollutant,period=None, valid=True,db=net):
     return cnt[0][0]
 
 # invalidate cel value if values are NULL or are static (failing)
-def rawCleanUp(table, pollutant,period,interval=4,db=net):
+def rawCleanUp(table, pollutant,period,cleanup=3,db=net):
     global debug, verbose
+    if (period[1]-period[0]) > (cleanup+2)*7*24*3600:
+        subperiod[0] = period[0]; subperiod[1] = period[0]+3*7*24*3600
+        rawCleanUp(table, pollutant,subperiod,cleanup=cleaunup,db=net)
+        subperiod[0] = period[0]+cleanup*7*24*3600; subperiod[1] = period[1]
+        return rawCleanUp(table, pollutant,subperiod,cleanup=cleaunup,db=net)
     qry = 'SELECT count(*) FROM %s WHERE UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d AND isnull(%s) AND %s_valid' % \
         (table, period[0], period[1], pollutant, pollutant)
     total = db_query(qry,True, db=db); total = total[0][0]
@@ -362,7 +367,6 @@ def rawCleanUp(table, pollutant,period,interval=4,db=net):
         qry = 'UPDATE %s SET %s_valid = 0 WHERE isnull(%s) AND UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s_valid' % \
             (table, pollutant, pollutant, period[0], period[1], pollutant)
         if not db_query(qry,False,db=net): return False
-    if not interval: return True
     # search for static values in this period
     qry = 'SELECT count(%s), min(UNIX_TIMESTAMP(datum)), max(UNIX_TIMESTAMP(datum)) FROM %s WHERE NOT isnull(%s) AND UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d' % \
         (pollutant, table, pollutant, period[0], period[1])
@@ -370,22 +374,33 @@ def rawCleanUp(table, pollutant,period,interval=4,db=net):
     if not len(total) or not len(total[0]) or int(total[0][0]) < 15:
         return True # not enough values
     # search candidate for static value
-    cnt = 0; new = 0
+    cnt = 0; new = 0; total = total[0]
 
     qry = 'SELECT UNIX_TIMESTAMP(datum), %s FROM %s WHERE NOT isnull(%s) AND UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) < %d ORDER BY datum DESC' % \
-        (pollutant, table, pollutant, total[0][1], total[0][2])
+        (pollutant, table, pollutant, total[1], total[2])
     records = db_query(qry, True, db=db)
-    indx = 0
-    while indx < len(records):
-        if debug:
-          print("Static values search in period: %s up to %s" % (datetime.datetime.fromtimestamp(total[0][1]).strftime('%d %b %Y %H:%M'),datetime.datetime.fromtimestamp(records[indx][0]).strftime('%d %b %Y %H:%M')) )
-        qry = 'SELECT %s, count(*) AS cnt, UNIX_TIMESTAMP(max(datum)) FROM %s WHERE NOT isnull(%s) AND UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) < %d GROUP BY %s HAVING cnt > 10 ORDER BY cnt DESC LIMIT 1' % \
-            (pollutant, table, pollutant, total[0][1], records[indx][0], pollutant)
-        CntDt = db_query(qry, True, db=db)
-        if not len(CntDt) or not len(CntDt[0]): break # ready
-        StaticVal = float(CntDt[0][0])
-        # print("Max Date: %s, count %d, value %s" % (datetime.datetime.fromtimestamp(CntDt[0][2]).strftime('%d %b %Y %H:%M'),CntDt[0][1], str(StaticVal)))
-        if CntDt[0][1] < 5: break # probably no static value in this range
+    if debug:
+      print("Static values search in period: %s up to %s with %d not null values." % (datetime.datetime.fromtimestamp(total[1]).strftime('%d %b %Y %H:%M'),datetime.datetime.fromtimestamp(total[2]).strftime('%d %b %Y %H:%M'), total[0]) )
+    qry = 'SELECT %s, count(*) AS cnt, UNIX_TIMESTAMP(max(datum)) FROM %s WHERE NOT isnull(%s) AND UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d GROUP BY %s HAVING cnt > %d ORDER BY cnt DESC LIMIT 5' % \
+        (pollutant, table, pollutant, total[1], total[2], pollutant, int(len(records)/10))
+    CntDt = db_query(qry, True, db=db)
+    if not len(CntDt) or not len(CntDt[0]): return True # ready
+    StatVals = []
+    for i in range(0, len(CntDt)): # search for static value candidates
+        if CntDt[i][1] > 0.25*len(records): # more as 25% have equal value
+            StatVals.append(CntDt[i])
+            continue
+        # should be a significant amount to other values: 75% more
+        try:
+            if CntDt[i][1] > (1.75*CntDt[i+1][1]): StatVals.append(CntDt[i])
+        except: pass
+    for CntDt in StatVals:
+      if CntDt[1] < 5: continue # probably no static value in this range
+      if debug:
+        print("Period with last date %s: %d static values with value %s" % (datetime.datetime.fromtimestamp(CntDt[2]).strftime('%d %b %Y %H:%M'),CntDt[1], str(CntDt[0])))
+      indx = 0
+      while indx < len(records):
+        StaticVal = float(CntDt[0])
         count = 0 # indx to first static value
         while not count:
           try:
@@ -397,34 +412,26 @@ def rawCleanUp(table, pollutant,period,interval=4,db=net):
           if count < cleanup:
             indx += count; count = 0; continue
         if not count: break
-        # if debug:
-        #   print("Next date: %s, count %d" % (datetime.datetime.fromtimestamp(records[indx+count][0]).strftime('%d %b %Y %H:%M'),count))
         qry = 'SELECT count(%s) FROM %s WHERE NOT isnull(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s = %s AND %s_valid' % \
             (pollutant, table, pollutant, records[indx+count-1][0], records[indx][0], pollutant, str(StaticVal), pollutant)
         Ncnt = 0
         try: Ncnt =  db_query(qry, True, db=db)[0][0]
         except: pass
-        # if debug:
-        #   print("From date/time %s up to %s has %d valid of %d static values." % (datetime.datetime.fromtimestamp(records[indx+count][0]).strftime('%d %b %Y %H:%M'), datetime.datetime.fromtimestamp(records[indx][0]).strftime('%d %b %Y %H:%M'),Ncnt,count))
+        if debug:
+          print("Found in total %d (%d marked as valid) static values (%s), next period at date %s" % (count,Ncnt,str(CntDt[0]),datetime.datetime.fromtimestamp(records[indx+count-1][0]).strftime('%d %b %Y %H:%M')))
         new += Ncnt; cnt += count
         if Ncnt:
             qry = 'UPDATE %s SET %s_valid = 0 WHERE NOT isnull(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s = %s AND %s_valid' % \
                 (table, pollutant, pollutant, records[indx+count-1][0], records[indx][0], pollutant, str(StaticVal), pollutant)
             db_query(qry, False, db=db)
         else: Ncnt = 0
-        if debug:
-            print("Table %s, column %s, in this subperiod %s up to %s has %d (%d are new) invalidated static values" % \
-              (table, pollutant, \
-              datetime.datetime.fromtimestamp(records[indx+count-1][0]).strftime('%d %b %Y %H:%M'), \
-              datetime.datetime.fromtimestamp(records[indx][0]).strftime('%d %b %Y %H:%M'), \
-              count, Ncnt))
         indx += count
     if verbose:
-        print("Table %s, column %s, period %s up to %s has %d (%d new) invalidated static values" % \
+        print("Table %s, column %s, period %s up to %s has %d measurements with %d (%d new) invalidated static values" % \
             (table, pollutant, \
             datetime.datetime.fromtimestamp(period[0]).strftime('%d %b %Y %H:%M'), \
             datetime.datetime.fromtimestamp(period[1]).strftime('%d %b %Y %H:%M'), \
-            cnt,new))
+            total[0],cnt,new))
 
 # invalidate cel value if value not in raw range
 def rawInvalid(table,pollutant,period,minimal=float('nan'),maximal=float('nan'),db=net):
@@ -452,7 +459,7 @@ def rawInvalid(table,pollutant,period,minimal=float('nan'),maximal=float('nan'),
             qry = 'SELECT count(*) FROM %s WHERE (%s OR ISNULL(%s)) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s_valid' % \
                 (table, update, pollutant, period[0], period[1], pollutant)
             cnt = db_query(qry, True, db=db)
-            print("Table %s, column %s, period %s up to %s: condition: %s, invalidated in raw way %d cells from total of %d values" % \
+            print("Table %s, column %s, period %s up to %s: condition: %s, invalidated in raw way %d values from total of %d values" % \
                 (table, pollutant, \
                 datetime.datetime.fromtimestamp(period[0]).strftime('%d %b %Y %H:%M'), \
                 datetime.datetime.fromtimestamp(period[1]).strftime('%d %b %Y %H:%M'), \
@@ -489,7 +496,7 @@ def Zscore(table,pollutant,period,db=net):
         else: return False
     else: return False
     if debug:
-        print("Table %s, colums %s, period %s up to %s: Grubbs Z-score invalidate %d cells from %d cells:\n\tmean %.2f stddev %.2f, min %.2f max %.2f." % \
+        print("Table %s, colums %s, period %s up to %s: Grubbs Z-score invalidate %d values from %d values:\n\tmean %.2f stddev %.2f, min %.2f max %.2f." % \
             (table, pollutant, \
             datetime.datetime.fromtimestamp(period[0]).strftime('%d %b %Y %H:%M'), \
             datetime.datetime.fromtimestamp(period[1]).strftime('%d %b %Y %H:%M'), \
@@ -543,6 +550,10 @@ def showPols(tbl,db=net):
         if fnd:
             pols.append(col)
     print("\t%s" % ', '.join(pols))
+    try:
+      col = db_query("SELECT DATE_FORMAT(min(datum),'%%Y-%%m-%%d %%H:%%i'), DATE_FORMAT(max(datum),'%%Y-%%m-%%d %%H:%%i'), DATEDIFF(max(datum),min(datum)) FROM %s" % tbl, True, db=db)
+      print("  Data from %s up to %s (%d days)." % (col[0][0],col[0][1],col[0][2]))
+    except: pass
 
 # show table in the database with sensors
 def showTables(db=net):
@@ -582,7 +593,7 @@ def get_arguments():
 Get from a database with "pollutant" values the measured (raw) values
 over a period of time.
 Invalidate the measurements when not in a provided minimum-maximum range.
-Invalidate the measurements when NULL or static during the interval of N (dflt 4) hours.
+Invalidate the measurements when NULL or static during the interval of N (dflt 3) weeks.
 One may do only a cleanup (invalidate NULL and static values) and avoid other operations.
 And next invalidate outliers according to their Z-score (Grubbs).
 Each argument defines the table[/pollutant[/minimum:maximum]].
@@ -631,11 +642,11 @@ Any script change remains free. Feel free to indicate improvements.''')
     parser.add_argument("--ddof",help="use delta degree of Freedom (N*stddev), default: %f." % ddof, default=ddof, type=float)
     parser.add_argument("--test",help="Grubb's test for min(minimal), max(imal) or two-tailed (both) outliers test, default: %s." % test, default=test, choices=['min','max','two-tailed'])
 
-    parser.add_argument("-c", "--cleanup", help="invalidate all cells with NULL values or static values in this period of time. Default: more as %d succeeding static values. Cleanup == 0 will disable invalidation process." % cleanup, default=cleanup, type=int, choices=range(0,11))
-    parser.add_argument("-C", "--cleanup_only", help="Only do an invalidate all cells with NULL values or static values during interval of %d hours (> 0). Default: invalidate spikes etc. as well." % cleanup, default=cleanup_only, action='store_true')
-    parser.add_argument("-r", "--reset", help="do not re-valid all cells in sliding window first. See also the lossy option. Default: re-validate cells.", default=reset, action='store_false')
-    parser.add_argument("-R", "--RESET", help="re-valid all cells in the full period first, default: do not re-validate the measurements.", default=RESET, action='store_true')
-    parser.add_argument("-l", "--lossy", help="Turn lossy off. Re-valid all the cells in the sliding window period before starting the scan. Default: only re-validate all cells from second quarter of time in the sliding window.", default=lossy, action='store_false')
+    parser.add_argument("-c", "--cleanup", help="invalidate all values with NULL values or static values in this period of time. Default: more as %d succeeding static values. Cleanup == 0 will disable invalidation process." % cleanup, default=cleanup, type=int, choices=range(0,11))
+    parser.add_argument("-C", "--cleanup_only", help="Only do an invalidate all values with NULL values or static values during interval of %d weeks (> 0). Default: invalidate spikes etc. as well." % cleanup, default=cleanup_only, action='store_true')
+    parser.add_argument("-r", "--reset", help="do not re-valid all values in sliding window first. See also the lossy option. Default: re-validate values.", default=reset, action='store_false')
+    parser.add_argument("-R", "--RESET", help="re-valid all values in the full period first, default: do not re-validate the measurements.", default=RESET, action='store_true')
+    parser.add_argument("-l", "--lossy", help="Turn lossy off. Re-valid all the values in the sliding window period before starting the scan. Default: only re-validate all values from second quarter of time in the sliding window.", default=lossy, action='store_false')
     parser.add_argument("-S", "--show", help="show graph, default: graph is not shown", default=show, action='store_true')
     parser.add_argument("--onlyshow", help="show graph, do not filter spikes nor outliers, default: filter spikes and outliers in database", default=onlyShow, action='store_true')
     parser.add_argument("--sigma", help="show graph with variance sigma. Sigma=0 no variance band is plotted. Default: sigma=%.1f" % sigma, default=sigma, type=float)
@@ -688,7 +699,7 @@ Any script change remains free. Feel free to indicate improvements.''')
         showTables()
         exit(0)
     elif len(args.args[0].split('/')) == 1:
-        showPols(arg.args[0])
+        showPols(args.args[0])
         exit(0)
     
     if verbose and not onlyShow:
@@ -739,10 +750,10 @@ Any script change remains free. Feel free to indicate improvements.''')
                 pollutants[-1]['range'] = minmax[:2]
                 if checkPollutant(pollutants[-1],period):
                   if verbose and not onlyShow:
-                    print("\ttable %s %s\toutliers range [%f - %f]" % (pollutants[-1]['table'],pollutants[-1]['pollutant'],pollutants[-1]['range'][0],pollutants[-1]['range'][1]))
+                    print("\ttable %s pollutant '%s'\toutliers range [%f - %f]" % (pollutants[-1]['table'],pollutants[-1]['pollutant'],pollutants[-1]['range'][0],pollutants[-1]['range'][1]))
                 else:  # for some reason no data for this pollutant
                   if verbose:
-                    print("\tpollutant %s: no measurements for this period. Skipped." % pols[1])
+                    print("\tpollutant '%s': no measurements for this period. Skipped." % pols[1])
                     pollutants.pop() 
         # next argument
     return
@@ -863,7 +874,7 @@ def resetValid(table,pollutant,period,db=net, lossy=True):
     update = ''
     if not reset: return True
     start = period[0]
-    if lossy: start = period[0]+int(period[1]-period[0]/4)
+    if lossy: start = period[0]+int((period[1]-period[0])/4)
     if debug:
         qry = 'SELECT COUNT(*) FROM %s WHERE NOT %s_valid AND NOT ISNULL(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d' % \
         (table, pollutant, pollutant, start, period[1])
@@ -902,12 +913,12 @@ def doStatistics(table,pollutant,period,db=net,string=''):
         if pol == 'pm25': pol = 'pm2.5'
         if pol == 'rv': pol = 'rh'
         if verbose and (not debug) and rslt['invalids']:
-          print("Statistical period overview %s\n    for %s from table %s:\n\tnr invalid cells %d, nr valid cells %d, average %.2f, std dev %.2f,\n\tminimum %.2f, maximum %.2f." % \
-            (string, pol.upper(), table, rslt['invalids'],
+          print("Statistical period overview %s\n    for '%s' from table %s:\n\tnr invalid values %d, nr valid values %d, average %.2f, std dev %.2f,\n\tminimum %.2f, maximum %.2f." % \
+            (string, pol, table, rslt['invalids'],
             rslt['count'], rslt['avg'], rslt['stddev'],
             rslt['min'], rslt['max']))
         elif debug:
-          print("Statistical period overview %s\n    for %s from table %s:\n\tnr invalid cells %d, nr valid cells %d, average %.2f, std dev %.2f,\n\tminimum %.2f, maximum %.2f." % \
+          print("Statistical period overview %s\n    for %s from table %s:\n\tnr invalid values %d, nr valid values %d, average %.2f, std dev %.2f,\n\tminimum %.2f, maximum %.2f." % \
             (string, pol.upper(), table, rslt['invalids'],
             rslt['count'], rslt['avg'], rslt['stddev'],
             rslt['min'], rslt['max']))
@@ -939,7 +950,7 @@ def FindOutliers(pollutant,db=net):
             # set pollutant_valid = 1 in this start+half period, end period
             resetValid(pollutant['table'], pollutant['pollutant'], [periods[i][0],periods[i-1][1]], db=db, lossy=lossy)
         if cleanup:
-          rawCleanUp(pollutant['table'], pollutant['pollutant'],periods[i],interval=cleanup,db=db)
+          rawCleanUp(pollutant['table'], pollutant['pollutant'],periods[i],cleanup=cleanup,db=db)
           if cleanup_only: continue
         if not rawInvalid(pollutant['table'],pollutant['pollutant'],periods[i],minimal=pollutant['range'][0],maximal=pollutant['range'][1],db=db):
             if debug:
