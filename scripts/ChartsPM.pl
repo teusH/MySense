@@ -16,9 +16,9 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 2.11 2020/07/15 10:30:58 teus Exp teus $
+# $Id: ChartsPM.pl,v 2.12 2020/07/20 17:56:13 teus Exp teus $
 # use 5.010;
-my $Version = '$Revision: 2.11 $, $Date: 2020/07/15 10:30:58 $.';
+my $Version = '$Revision: 2.12 $, $Date: 2020/07/20 17:56:13 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/Revision: (.*)\s[0-9]+:[0-9]+:[0-9]+\s\.*\s*/$1/;
 # Description:
@@ -1650,7 +1650,7 @@ sub CompareSeries {
 # search for yAxis option serie index
 sub ySerieIndex {
     my ($pol,$dflt) = @_;
-    my $pol = ConvertS2U($pol); $pol =~ s/\s+//g;
+    $pol = ConvertS2U($pol); $pol =~ s/\s+//g;
     for( my $j = 0; $j <= $#yUnits; $j++) {
         return $j if $yUnits[$j] eq $pol;
     }
@@ -2816,7 +2816,7 @@ ma 12 dec 04:26
 </caption>
 <tbody>
 <tr>
-<td style='padding:1%'><div title="De metingen zijn niet gevalideerd.">
+<td style='padding:1%'><div title="De metingen zijn gevalideerd.">
 <!-- START HIGHCHART -->
 <div id="VUURWERK" style="width:510px; height:340px;margin:0 auto"></div>
 <!-- END HIGHCHART -->
@@ -2864,12 +2864,14 @@ Fake Adres, Location ERROR (Fake)
 <!-- START correctPM -->
 <!-- END correctPM -->
 <p>
-De fijnstof sensor van deze meetkits telt het aantal fijnstof deeltjes (PM<span style="font-size:80%">1</span>, PM<span style="font-size:80%">2.5</span> en PM<span style="font-size:80%">10</span>) in een minuut in een periode van telkens  ca 15 minuten. De fijnstof meting wordt door de fabrikant vervolgens omgerekend naar het gewicht van de deeltjes in &micro;g/m&sup3;.
+De fijnstof sensor van deze meetkits telt het aantal fijnstof deeltjes (PM<span style="font-size:80%">1</span>, PM<span style="font-size:80%">2.5</span> en PM<span style="font-size:80%">10</span>) elke 15 munten voor ca een minuut lang het aantal deeltjes in 6 verschillende groottes. De fijnstof meting wordt door de fabrikant vervolgens omgerekend naar het gewicht van de deeltjes in &micro;g/m&sup3;.
 In de omrekening door de fabrikant wordt geen rekening gehouden met relatieve vochtigheid, regen en andere lokale invloeden.
 <br />De fijnstof metingen van de RIVM/PLIM landelijke meetstations zijn ook gewichtsmetingen (&micro;g/m&sup3;) van gemiddelden per uur.
 De apparatuur van het landelijk meetstation wordt periodiek (lokaal) geijkt. 
 <br />Notitie: Elke sensor is verschillend. De onderlinge verschillen zijn met met tijdrovende regressie tests te corrigeren.
-Hiervoor is begin 2020 een aanvang gemaakt. Voorlopig wordt alleen gebruik gemaakt van de ruwe meetwaarden van de sensor en tav fijnstof waarden van de door de fabrikant geconverteerde massa waarden. 
+Hiervoor is begin 2020 een aanvang gemaakt.
+Voorlopig worden de vertoonde waarden alleen bijgesteld (validatie) door rae pieken mbv een statistische methode (Chi-kwadraad en Grubbs Z-score), en zg nul en statische waarden (fouten van de sensor) weg te halen bij de berekening van de grafieken.
+Maw de waarden zijn alleen gevalideerd en niet gecorrigeerd voor onderlinge sensor verschillen en gecalibreerd (vergeleken met een referentie sensor).
 <br />
 Om de hoeveelheid data te beperken zijn de meetwaarden geaggredeerd - een gemiddelde over een periode van 30 minuten voor de sensors en 60 minuten voor de landelijke meetstations. De getoonde periode is de afgelopen 3 dagen. Eens per uur wordt de grafiek ververst.
 </p>
