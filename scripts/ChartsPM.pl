@@ -16,9 +16,9 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 2.12 2020/07/20 17:56:13 teus Exp teus $
+# $Id: ChartsPM.pl,v 2.14 2020/07/21 11:44:51 teus Exp teus $
 # use 5.010;
-my $Version = '$Revision: 2.12 $, $Date: 2020/07/20 17:56:13 $.';
+my $Version = '$Revision: 2.14 $, $Date: 2020/07/21 11:44:51 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/Revision: (.*)\s[0-9]+:[0-9]+:[0-9]+\s\.*\s*/$1/;
 # Description:
@@ -1510,6 +1510,13 @@ sub InsertHighChartGraph {
         yAxis: [
             ${yAxis}
         ],
+        noData: {
+            style: {
+                fontWeight: 'bold',
+                fontSize: '15px',
+                color: '#2255a9'
+            }
+        },
         plotOptions: {
             series: { groupPadding: 0, borderWidth: 0.3, pointPadding: 0.03 },
             column: { shadow: true, colorByPoint: true, showInLegend: false },
@@ -2776,6 +2783,7 @@ $(function () { // on DOM ready
                 shortWeekdays: ['zo','ma','di','wo','do','vr','za'],
                 rangeSelectorTo: 'tot',
                 rangeSelectorFrom: 'zoom:',
+                nodata: "Er is geen data beschikbaar"
             }
         }
     );
@@ -2871,10 +2879,11 @@ De apparatuur van het landelijk meetstation wordt periodiek (lokaal) geijkt.
 <br />Notitie: Elke sensor is verschillend. De onderlinge verschillen zijn met met tijdrovende regressie tests te corrigeren.
 Hiervoor is begin 2020 een aanvang gemaakt.
 Voorlopig worden de vertoonde waarden alleen bijgesteld (validatie) door rae pieken mbv een statistische methode (Chi-kwadraad en Grubbs Z-score), en zg nul en statische waarden (fouten van de sensor) weg te halen bij de berekening van de grafieken.
-Maw de waarden zijn alleen gevalideerd en niet gecorrigeerd voor onderlinge sensor verschillen en gecalibreerd (vergeleken met een referentie sensor).
+Maw de waarden zijn alleen gevalideerd en niet gecorrigeerd voor onderlinge sensor verschillen en nog niet gecalibreerd (vergeleken met een referentie sensor).
 <br />
 Om de hoeveelheid data te beperken zijn de meetwaarden geaggredeerd - een gemiddelde over een periode van 30 minuten voor de sensors en 60 minuten voor de landelijke meetstations. De getoonde periode is de afgelopen 3 dagen. Eens per uur wordt de grafiek ververst.
 </p>
+<p>Meedenken om de metingen en visualisatie te verbeteren wordt op prijs gesteld. Neem hiertoe contact op bijv. via een email aan 'MySense at BehoudDeParel.nl'.</p>
 <!-- START showBands -->
 <!-- END showbands -->
 </td></tr>

@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: FilterShow.py,v 1.9 2020/07/20 08:54:00 teus Exp teus $
+# $Id: FilterShow.py,v 1.10 2020/07/21 14:23:06 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -39,7 +39,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: FilterShow.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.9 $"[11:-2]
+__version__ = "0." + "$Revision: 1.10 $"[11:-2]
 
 try:
     import sys
@@ -65,7 +65,7 @@ onlyShow = False # only show chart, do not filter spikes and outliers
 showOutliers = False # show also outliers in chart
 sigma = 2.0     # graph variance band sigma/propability
 threshold = 15  # minimal amound of measurement to act on
-cleanup = 3     # cleanup raw values: invalidate NULL and # succeeding static values
+cleanup = 2     # cleanup raw values: invalidate NULL and # succeeding static values
 cleanup_only = False # do only a cleanup
 
 # global variables can be overwritten from command line
@@ -347,10 +347,13 @@ def Check(table,pollutant,period=None, valid=True,db=net):
 def rawCleanUp(table, pollutant,period,cleanup=3,db=net):
     global debug, verbose
     if (period[1]-period[0]) > (cleanup+2)*7*24*3600:
-        subperiod[0] = period[0]; subperiod[1] = period[0]+cleanup*7*24*3600
-        rawCleanUp(table, pollutant,subperiod,cleanup=cleaunup,db=net)
-        subperiod[0] = period[0]+cleanup*7*24*3600-2*24*3600; subperiod[1] = period[1]
-        return rawCleanUp(table, pollutant,subperiod,cleanup=cleaunup,db=net)
+        subperiod = [0,0]
+        try:
+          subperiod[0] = period[0]; subperiod[1] = period[0]+cleanup*7*24*3600
+          rawCleanUp(table, pollutant,subperiod,cleanup=cleanup,db=net)
+          subperiod[0] = period[0]+cleanup*7*24*3600-2*24*3600; subperiod[1] = period[1]
+          return rawCleanUp(table, pollutant,subperiod,cleanup=cleaunup,db=net)
+        except: return False
     qry = 'SELECT count(*) FROM %s WHERE UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d AND isnull(%s) AND %s_valid' % \
         (table, period[0], period[1], pollutant, pollutant)
     total = db_query(qry,True, db=db); total = total[0][0]
