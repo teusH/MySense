@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: FilterShow.py,v 1.10 2020/07/21 14:23:06 teus Exp teus $
+# $Id: FilterShow.py,v 1.11 2020/07/24 13:58:30 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -39,7 +39,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: FilterShow.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.10 $"[11:-2]
+__version__ = "0." + "$Revision: 1.11 $"[11:-2]
 
 try:
     import sys
@@ -352,7 +352,7 @@ def rawCleanUp(table, pollutant,period,cleanup=3,db=net):
           subperiod[0] = period[0]; subperiod[1] = period[0]+cleanup*7*24*3600
           rawCleanUp(table, pollutant,subperiod,cleanup=cleanup,db=net)
           subperiod[0] = period[0]+cleanup*7*24*3600-2*24*3600; subperiod[1] = period[1]
-          return rawCleanUp(table, pollutant,subperiod,cleanup=cleaunup,db=net)
+          return rawCleanUp(table, pollutant,subperiod,cleanup=cleanup,db=net)
         except: return False
     qry = 'SELECT count(*) FROM %s WHERE UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d AND isnull(%s) AND %s_valid' % \
         (table, period[0], period[1], pollutant, pollutant)
@@ -379,7 +379,7 @@ def rawCleanUp(table, pollutant,period,cleanup=3,db=net):
     # search candidate for static value
     cnt = 0; new = 0; total = total[0]
 
-    qry = 'SELECT UNIX_TIMESTAMP(datum), %s FROM %s WHERE NOT isnull(%s) AND UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) < %d ORDER BY datum DESC' % \
+    qry = 'SELECT UNIX_TIMESTAMP(datum), %s FROM %s WHERE NOT isnull(%s) AND UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d ORDER BY datum DESC' % \
         (pollutant, table, pollutant, total[1], total[2])
     records = db_query(qry, True, db=db)
     if debug:
