@@ -16,9 +16,9 @@
 #
 # If yuo have improvements please do not hesitate to email the author.
 
-# $Id: ChartsPM.pl,v 2.14 2020/07/21 11:44:51 teus Exp teus $
+# $Id: ChartsPM.pl,v 2.15 2020/07/21 17:14:56 teus Exp teus $
 # use 5.010;
-my $Version = '$Revision: 2.14 $, $Date: 2020/07/21 11:44:51 $.';
+my $Version = '$Revision: 2.15 $, $Date: 2020/07/21 17:14:56 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/Revision: (.*)\s[0-9]+:[0-9]+:[0-9]+\s\.*\s*/$1/;
 # Description:
@@ -2878,8 +2878,8 @@ In de omrekening door de fabrikant wordt geen rekening gehouden met relatieve vo
 De apparatuur van het landelijk meetstation wordt periodiek (lokaal) geijkt. 
 <br />Notitie: Elke sensor is verschillend. De onderlinge verschillen zijn met met tijdrovende regressie tests te corrigeren.
 Hiervoor is begin 2020 een aanvang gemaakt.
-Voorlopig worden de vertoonde waarden alleen bijgesteld (validatie) door rae pieken mbv een statistische methode (Chi-kwadraad en Grubbs Z-score), en zg nul en statische waarden (fouten van de sensor) weg te halen bij de berekening van de grafieken.
-Maw de waarden zijn alleen gevalideerd en niet gecorrigeerd voor onderlinge sensor verschillen en nog niet gecalibreerd (vergeleken met een referentie sensor).
+Voorlopig worden de vertoonde waarden alleen bijgesteld (validatie) door rare pieken mbv een statistische methode (Chi-kwadraad en Grubbs Z-score), en zg nul en statische waarden (fouten van de sensor) weg te halen bij de berekening van de grafieken.
+Maw de waarden zijn alleen gevalideerd, niet gecorrigeerd voor onderlinge sensor verschillen en nog niet gecalibreerd (vergeleken met een referentie sensor).
 <br />
 Om de hoeveelheid data te beperken zijn de meetwaarden geaggredeerd - een gemiddelde over een periode van 30 minuten voor de sensors en 60 minuten voor de landelijke meetstations. De getoonde periode is de afgelopen 3 dagen. Eens per uur wordt de grafiek ververst.
 </p>
