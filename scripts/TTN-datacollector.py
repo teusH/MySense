@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.43 2020/07/10 19:10:11 teus Exp teus $
+# $Id: TTN-datacollector.py,v 3.44 2020/08/03 18:00:43 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.43 $"[11:-2]
+__version__ = "0." + "$Revision: 3.44 $"[11:-2]
 
 try:
     import MyLogger
@@ -930,7 +930,7 @@ def PubOrSub(topic,option):
         global waiting, telegrams
         waiting = False
         try:
-            if len(telegrams) > 100:    # 100 * 250 bytes
+            if len(telegrams) > 200:    # 200 * 250 bytes
                 MyLogger.log(modulename,'ERROR','Input buffer is full.')
                 return
             # append the TTN data to local FiFo buffer
@@ -2227,7 +2227,7 @@ def RUNcollector():
             elif err.find('unknown') >= 0:
                 try: err = str(err).split('/')[1]
                 except: pass
-                MyLogger.log(modulename,'INFO','Skip data from unknown kit: %s at time %s' % (err,datetime.datetime.fromtimestamp(record['data']['time']).strftime("%Y-%m-%d %H:%M")))
+                MyLogger.log(modulename,'INFO','Skip data from unknown kit: %s at time %s' % (err,datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M")))
             elif err.find('throttling') >= 0:
                 if (err.find('Start') >= 0) and (not monitor):
                     MyLogger.log(modulename,'ATTENT',err)

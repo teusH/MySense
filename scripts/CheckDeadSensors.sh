@@ -19,10 +19,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.8 2020/07/16 12:04:18 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.9 2020/08/14 13:50:45 teus Exp teus $
 
 CMD=$0
-SENSORS='temp'
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
@@ -46,7 +45,6 @@ fi
 # MySQL database credentials
 # will use here mysql --login-path=luchtmetingen as well!
 DEBUG=${DEBUG}
-if [ -n "$DEBUG" ] ; then DEBUG='-d -v' ; fi  # generate file as browsable HTML
 CMD=GeneratePMcharts
 export DB=${DB:-luchtmetingen}
 export DBUSER=${DBUSER:-$USER}
@@ -59,6 +57,12 @@ export DBPASS=${DBPASS:-accacadabra}
 # how to approach MySQL database. Uses mysql DB configuration in home user
 # needs ~/.my.cnf
 MYSQL="mysql --login-path=${DB:-luchtmetingen} -h ${DBHOST:-localhost} -N -B --silent ${DB:-luchtmetingen}"
+
+SENSORS=${SENSORS:-temp}  # senosors to check for
+
+# sensors to check if there is data for them
+METEO='(temp|rv|luchtdruk)' # meteo type of sensors
+DUST='(pm10|pm25|pm1)'      # dust type of sensors
 
 VERBOSE=${VERBOSE:-0}
 if [ -n "$DEBUG" ] ; then VERBOSE=3 ; fi
@@ -73,6 +77,7 @@ then
     fi
     REGION="${REGION:-.*}"  # use REGION to be prepended to generated HTML file name
 fi
+
 # period up to dflt now
 if [ -z "$LAST" ] || ! date --date="$LAST" >/dev/null # last date to show in graphs
 then
@@ -123,9 +128,10 @@ then
 fi
         
 function GetLocation() {
-    local KIT=$1
+    local KIT=$1 LOC
     if ! echo "$KIT" | grep -q -P '^[a-zA-Z]+_[0-9a-fA-F]+$' ; then return ; fi
-    $MYSQL -e "SELECT concat('MySense kit $KIT with label: ',label, ', location: ',street, ', ', village) FROM Sensors WHERE active AND NOT isnull(notice) AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1"
+    LOC=$($MYSQL -e "SELECT concat('MySense kit $KIT with label: ',label, ', location: ',street, ', ', village) FROM Sensors WHERE active AND NOT isnull(notice) AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1")
+    echo "${LOC/NULL/}"
     return
 }
 
@@ -156,10 +162,10 @@ function SendNotice() {
     if [ -n "${NOTICE}" ]
     then
         if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT") ; fi
-        if ! (echo "$LOCATION" ; cat $FILE ) | mail -r mysense@behouddeparel.nl -s "ATTENT: MySense kit $KIT sensor $SENS $LOCATION info" "$NOTICE"
+        if ! (echo "${LOCATION:-no location details known}" ; cat $FILE ) | mail -r mysense@behouddeparel.nl -s "ATTENT: MySense kit $KIT sensor $SENS $LOCATION info" "$NOTICE"
         then
             echo -e "$CMD: ERROR sending email to $NOTICE with message:\n" "-----------------" 1>&2
-            echo "$LOCATION"
+            echo "${LOCATION:-no location details known}"
             cat $FILE
         fi
     fi
@@ -226,7 +232,10 @@ function NrValids() {
 
         # VAL[0] static value, VAL[1] last date/time static value, VAL[2] count static value
         VAL=($($MYSQL -e "SELECT $TPE, UNIX_TIMESTAMP(max(datum)), count(*) AS cnt FROM $KT WHERE UNIX_TIMESTAMP(datum) >= ${STAT[2]} AND UNIX_TIMESTAMP(datum) < $NEXT AND NOT isnull($TPE) GROUP BY $TPE HAVING cnt > 5 ORDER BY cnt DESC LIMIT 1") )
-        if (( ( (${VAL[2]}*100)/(${STAT[1]}-${STAT[0]}) ) <= 10 )) # more as 10% are static values
+        if [ -z "${VAL[2]}" ]
+        then
+            break
+        elif (( ( (${VAL[2]}*100)/(${STAT[1]}-${STAT[0]}) ) <= 10 )) # more as 10% are static values
         then
             break
         fi
@@ -255,6 +264,30 @@ function NrValids() {
     echo -e "\tLast active date $(DATE ${STAT[2]}) of sensor $TPE." 1>&2
     if (( (${STAT[2]} - $LST) > 2*60*60 )) ; then rts=1 ; fi
     return $RTS
+}
+
+# check if kit is producing measurmeent data in a period
+# returns true/false and last date/time any sensed
+function LastMeasurement() {
+    local AKIT="$1" STRT="$2" LST="$3"
+    local COLS COL SENSED
+    declare -i DT
+    declare -i RECENT=$(date --date="$STRT" '+%s') STRTi
+    STRTi=$RECENT
+    COLS=$($MYSQL -e "DESCRIBE $AKIT" | awk '{ print $1; }' | grep -P "^(${DUST:-XYZ}|${METEO:-XxX})$")
+    for COL in $COLS
+    do
+        DT=$($MYSQL -e "SELECT UNIX_TIMESTAMP(datum) FROM $AKIT WHERE datum >= '$STRT' AND datum <= '$LST' AND NOT ISNULL($COL) ORDER BY datum DESC LIMIT 1")
+        if (( $DT > $RECENT ))
+        then
+            $RECENT=$DT ; SENSED="$COL"
+        fi
+    done
+    if (( $RECENT == $STRTi  )) ; then echo -e "${RED}No recent meteo or dust measurement of any sensor${NOCOLOR} after date $STRT" ; return 1 ; fi
+    if (( $VERBOSE == 0 )) ; then return 0 ; fi
+    echo "Recent e.g. $SENSED measurement at date: "
+    date --date="@$RECENT" "+%Y/%m/%d %H:%M"
+    return 0
 }
 
 # check what to do
@@ -287,21 +320,25 @@ do
         LOCATION=''
         if ! NrValids "$KIT" "$SENSOR" "$START" "$LAST" 2>/var/tmp/Check$$
         then
+            if ! LastMeasurement "$KIT" "$START" "$LAST" 2>>/var/tmp/Check$$
+            then
+                SENSOR+=' and other meteo/dust sensors'
+            fi
             if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT" ) ; fi
-            echo "$LOCATION" 1>&2
-            echo -e "${RED}$KIT has problems with sensor $SENSOR!${NOCOLOR}" 1>&2
+            echo -e "${LOCATION:-${RED}no location${NOCOLOR} details known}" 1>&2
             if [ -s /var/tmp/Check$$ ]
             then
+                echo -e "${RED}$KIT has problems with sensor $SENSOR!${NOCOLOR}" 1>&2
                 if ! SendNotice "$KIT" "$SENSOR" /var/tmp/Check$$
                 then
-                    echo "$CMD: FAIL to send Notice about kit $KIT, sensor $SENSOR" 1>&2
+                    echo -e "$CMD: ${RED}FAIL to send Notice${NOCOLOR} about kit $KIT, sensor $SENSOR" 1>&2
                 fi
             fi
             if (( $VERBOSE <= 1 )) ; then cat /var/tmp/Check$$ ; echo ; fi
         elif (( $VERBOSE > 0 ))
         then
             if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT" ) ; fi
-            echo "$LOCATION" 1>&2
+            echo -e "${LOCATION:-${RED}no location${NOCOLOR} details known}" 1>&2
             echo -e "${GREEN}$KIT sensor $SENSOR is OK.${NOCOLOR}" 1>&2
             if (( $VERBOSE > 1 )) ; then cat /var/tmp/Check$$ ; echo ; fi
         fi
