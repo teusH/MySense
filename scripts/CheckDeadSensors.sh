@@ -19,7 +19,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.9 2020/08/14 13:50:45 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.10 2020/08/15 08:17:08 teus Exp teus $
 
 CMD=$0
 if [ "${1/*-h*/help}" == help ]
@@ -280,7 +280,7 @@ function LastMeasurement() {
         DT=$($MYSQL -e "SELECT UNIX_TIMESTAMP(datum) FROM $AKIT WHERE datum >= '$STRT' AND datum <= '$LST' AND NOT ISNULL($COL) ORDER BY datum DESC LIMIT 1")
         if (( $DT > $RECENT ))
         then
-            $RECENT=$DT ; SENSED="$COL"
+            RECENT="$DT" ; SENSED="$COL"
         fi
     done
     if (( $RECENT == $STRTi  )) ; then echo -e "${RED}No recent meteo or dust measurement of any sensor${NOCOLOR} after date $STRT" ; return 1 ; fi
