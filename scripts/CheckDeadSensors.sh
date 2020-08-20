@@ -19,7 +19,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.10 2020/08/15 08:17:08 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.14 2020/08/20 14:27:02 teus Exp teus $
 
 CMD=$0
 if [ "${1/*-h*/help}" == help ]
@@ -45,7 +45,6 @@ fi
 # MySQL database credentials
 # will use here mysql --login-path=luchtmetingen as well!
 DEBUG=${DEBUG}
-CMD=GeneratePMcharts
 export DB=${DB:-luchtmetingen}
 export DBUSER=${DBUSER:-$USER}
 export DBHOST=${DBHOST:-localhost}
@@ -58,7 +57,7 @@ export DBPASS=${DBPASS:-accacadabra}
 # needs ~/.my.cnf
 MYSQL="mysql --login-path=${DB:-luchtmetingen} -h ${DBHOST:-localhost} -N -B --silent ${DB:-luchtmetingen}"
 
-SENSORS=${SENSORS:-temp}  # senosors to check for
+SENSORS=${SENSORS:-'(temp|rv)'}  # sensors to check for static values
 
 # sensors to check if there is data for them
 METEO='(temp|rv|luchtdruk)' # meteo type of sensors
@@ -162,10 +161,10 @@ function SendNotice() {
     if [ -n "${NOTICE}" ]
     then
         if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT") ; fi
-        if ! (echo "${LOCATION:-no location details known}" ; cat $FILE ) | mail -r mysense@behouddeparel.nl -s "ATTENT: MySense kit $KIT sensor $SENS $LOCATION info" "$NOTICE"
+        if ! (echo "${LOCATION:-no location details for kit ${KIT}  known}" ; cat $FILE ) | mail -r mysense@behouddeparel.nl -s "ATTENT: MySense kit $KIT sensor $SENS $LOCATION info" "$NOTICE"
         then
             echo -e "$CMD: ERROR sending email to $NOTICE with message:\n" "-----------------" 1>&2
-            echo "${LOCATION:-no location details known}"
+            echo "${LOCATION:-no location details for kit ${KIT} known}"
             cat $FILE
         fi
     fi
@@ -290,6 +289,58 @@ function LastMeasurement() {
     return 0
 }
 
+# check kit for silent sensors in a period of time
+ActiveSenses=()
+NotActiveSenses=()
+function CheckSensors() {
+    local AKIT="$1" STRT="$2" LST="$3"
+    local COLS COL QRY=''
+    ActiveSenses=()
+    NotActiveSenses=()
+    COLS=$($MYSQL -e "DESCRIBE $AKIT" | awk '{ print $1; }' | grep -P "^(${DUST:-XYZ}|${METEO:-XxX})$")
+    if [ -z "$COLS" ] ; then return 2 ; fi
+    for COL in $COLS
+    do
+        if [ -n "$QRY" ] ; then QRY+=',' ; fi
+        QRY+="(SELECT UNIX_TIMESTAMP(max(datum)) FROM $AKIT WHERE NOT ISNULL($COL) AND datum >= '$STRT' AND datum <= '$LST')"
+    done
+    declare -a DTS
+    declare -i I=0
+    declare -i LSTi=$(date --date="$LST" '+%s')
+    DTS=($($MYSQL -e "SELECT $QRY"))
+    local MSG=''
+    declare -i NullCnt=0
+    for COL in $COLS
+    do
+        if [ "${DTS[$I]}" = NULL ]
+        then
+            MSG+="\tSensor $COL: no values in this period\n"
+            NullCnt+=1
+            NotActiveSenses[${#NotActiveSenses[@]}]="$COL"
+        elif (( "${DTS[$I]}" <= ($LSTi - 4*60*60) )) # alarm after N hours silence
+        then
+            MSG+="\tSensor $COL: last seen $(date --date=@${DTS[$I]} '+%Y/%m/%d %H:%M')\n"
+            NotActiveSenses[${#NotActiveSenses[@]}]="$COL"
+        else
+            ActiveSenses[${#ActiveSenses[@]}]="$COL"
+        fi
+        I+=1
+    done
+    if (( ${#DTS[@]} == $NullCnt ))
+    then
+        echo -e "${RED}FAILURE: kit $AKIT is set as active but is silent in period $STRT up to $LST!${NOCOLOR}" 1>&2
+    elif (( ${#NotActiveSenses[@]} > 0 ))
+    then
+        echo "${#NotActiveSenses[@]} of ${#DTS[@]} sensors less functioning in kit $AKIT in period $STRT up to $LST:" 1>&2
+        echo -e "$MSG" 1>&2
+    else
+        return 0
+    fi
+    return 1
+}
+
+#CheckSensors SAN_b4e62df48fe9 "$(date --date='3 weeks ago' '+%Y/%m/%d %H:%M')" "$(date '+%Y/%m/%d %H:%M')"
+
 # check what to do
 if [ -z "$1" ] && [ -n "$REGION" ] # region defined: check all active kits in that region
 then
@@ -314,39 +365,53 @@ fi
 
 for KIT in $KITS
 do
-        # echo "$CMD: Check $KIT:"
-    for SENSOR in $SENSORS
-    do
-        LOCATION=''
-        if ! NrValids "$KIT" "$SENSOR" "$START" "$LAST" 2>/var/tmp/Check$$
-        then
-            if ! LastMeasurement "$KIT" "$START" "$LAST" 2>>/var/tmp/Check$$
-            then
-                SENSOR+=' and other meteo/dust sensors'
-            fi
-            if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT" ) ; fi
-            echo -e "${LOCATION:-${RED}no location${NOCOLOR} details known}" 1>&2
-            if [ -s /var/tmp/Check$$ ]
-            then
-                echo -e "${RED}$KIT has problems with sensor $SENSOR!${NOCOLOR}" 1>&2
-                if ! SendNotice "$KIT" "$SENSOR" /var/tmp/Check$$
-                then
-                    echo -e "$CMD: ${RED}FAIL to send Notice${NOCOLOR} about kit $KIT, sensor $SENSOR" 1>&2
-                fi
-            fi
-            if (( $VERBOSE <= 1 )) ; then cat /var/tmp/Check$$ ; echo ; fi
-        elif (( $VERBOSE > 0 ))
-        then
-            if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT" ) ; fi
-            echo -e "${LOCATION:-${RED}no location${NOCOLOR} details known}" 1>&2
-            echo -e "${GREEN}$KIT sensor $SENSOR is OK.${NOCOLOR}" 1>&2
-            if (( $VERBOSE > 1 )) ; then cat /var/tmp/Check$$ ; echo ; fi
-        fi
-        if [ -f /var/tmp/Check$$ ]
-        then
-            rm -f /var/tmp/Check$$
-        fi
-    done
+  LOCATION=''
+  CheckSensors "$KIT" "$START" "$LAST" 2>/var/tmp/Check$$  # is producing data
+  for SENSOR in ${ActiveSenses[@]}
+  do
+    if ! echo "$SENSOR" | grep -q -P "$SENSORS" ; then continue ; fi
+    # look into meteo sensor actives for static values in this period: failing sensors
+    if ! NrValids "$KIT" "$SENSOR" "$START" "$LAST" 2>/var/tmp/CheckVal$$
+    then
+        # if ! LastMeasurement "$KIT" "$START" "$LAST" 2>>/var/tmp/CheckVal$$
+        # then
+        #     SENSOR+=' and other meteo/dust sensors'
+        # fi
+        echo -e "\n${RED}${KIT} sensor $SENSOR is NOT OK.${NOCOLOR}" 1>&2
+        cat /var/tmp/CheckVal$$ >>/var/tmp/Check$$
+        NotActiveSenses[${#NotActiveSenses[@]}]=$SENSOR # sensor is inactive
+        for (( I=0; I < ${#ActiveSenses[@]} ; I++))
+        do if [ "${ActiveSenses[$I]}" = "$SENSOR" ] ; then ActiveSenses[$I]=" " ; break ; fi
+        done
+     elif (( $VERBOSE > 0 ))
+     then
+        echo -e "\n${GREEN}${KIT} sensor $SENSOR is OK.${NOCOLOR}" 1>&2
+        if (( $VERBOSE > 1 )) ; then cat /var/tmp/CheckVal$$ 1>&2 ; fi
+    fi
+    rm -f /var/tmp/CheckVal$$
+  done
+  if [ -s /var/tmp/Check$$ ] # there is a failure message
+  then
+      if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT" ) ; fi
+      echo -e "\n$KIT Location ${LOCATION:-${RED}no location${NOCOLOR} details known}" 1>&2
+      if (( ${ActiveSenses[@]} <= 0 ))
+      then
+        echo -e "${RED}$KIT is not measuring in period $START up to $LAST!${NOCOLOR}" 1>&2
+        echo -e "$KIT is not operational! No measurements in period $START up to $LAST." >/var/tmp/Check$$
+      else
+        echo -e "${RED}$KIT has problems with sensor: ${NotActiveSenses[@]}!${NOCOLOR}" 1>&2
+      fi
+      if ! SendNotice "$KIT" "$SENSOR" /var/tmp/Check$$
+      then
+           echo -e "$CMD: ${RED}FAILURE to send Notice${NOCOLOR} about kit $KIT, failing sensors ${NotActiveSenses[@]}" 1>&2
+      fi
+      rm -f /var/tmp/Check$$
+  elif (( $VERBOSE > 0 ))
+  then
+      if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT" ) ; fi
+      echo -e "\n$KIT Location ${LOCATION:-${RED}no location${NOCOLOR} details known}" 1>&2
+      echo -e "${GREEN}$KIT is OK${NOCOLOR} with sensors: ${ActiveSenses[@]}!" 1>&2
+  fi
 done
 # save notices history
 if [ -s ~/.ATTENTS.sh ] ; then rm -f ~/.ATTENTS.sh ; fi
