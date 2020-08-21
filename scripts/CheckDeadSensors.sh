@@ -19,7 +19,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.14 2020/08/20 14:27:02 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.15 2020/08/21 06:58:38 teus Exp teus $
 
 CMD=$0
 if [ "${1/*-h*/help}" == help ]
@@ -394,7 +394,7 @@ do
   then
       if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT" ) ; fi
       echo -e "\n$KIT Location ${LOCATION:-${RED}no location${NOCOLOR} details known}" 1>&2
-      if (( ${ActiveSenses[@]} <= 0 ))
+      if (( ${#ActiveSenses[@]} <= 0 ))
       then
         echo -e "${RED}$KIT is not measuring in period $START up to $LAST!${NOCOLOR}" 1>&2
         echo -e "$KIT is not operational! No measurements in period $START up to $LAST." >/var/tmp/Check$$
