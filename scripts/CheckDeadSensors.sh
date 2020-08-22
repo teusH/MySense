@@ -19,7 +19,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.15 2020/08/21 06:58:38 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.16 2020/08/22 17:05:10 teus Exp teus $
 
 CMD=$0
 if [ "${1/*-h*/help}" == help ]
@@ -292,11 +292,13 @@ function LastMeasurement() {
 # check kit for silent sensors in a period of time
 ActiveSenses=()
 NotActiveSenses=()
+NotOperational=()
 function CheckSensors() {
     local AKIT="$1" STRT="$2" LST="$3"
     local COLS COL QRY=''
     ActiveSenses=()
     NotActiveSenses=()
+    NotOperational=()
     COLS=$($MYSQL -e "DESCRIBE $AKIT" | awk '{ print $1; }' | grep -P "^(${DUST:-XYZ}|${METEO:-XxX})$")
     if [ -z "$COLS" ] ; then return 2 ; fi
     for COL in $COLS
@@ -313,10 +315,25 @@ function CheckSensors() {
     for COL in $COLS
     do
         if [ "${DTS[$I]}" = NULL ]
-        then
-            MSG+="\tSensor $COL: no values in this period\n"
+        then # set device not operational if no measurement in last 3 months of period
             NullCnt+=1
-            NotActiveSenses[${#NotActiveSenses[@]}]="$COL"
+            if (( $($MYSQL -e "SELECT COUNT($COL) FROM $AKIT WHERE NOT ISNULL($COL) AND UNIX_TIMESTAMP(datum) >= ($LSTi-60*60*24*92) AND datum <= '$LST'") > 0 ))
+            then
+                MSG+="\tSensor $COL: no values in this period\n"
+                NotActiveSenses[${#NotActiveSenses[@]}]="$COL"
+            else
+              NotOperational[${#NotOperational[@]}]="$COL"
+              if (( $VERBOSE > 0 ))
+              then
+                echo "Sensor $COL in MySense kit $AKIT is not configured" 1>&2
+                if (( $VERBOSE > 1 ))
+                then
+                    QRY=$($MYSQL -e "SELECT max(datum) FROM $AKIT WHERE NOT ISNULL($COL) AND UNIX_TIMESTAMP(datum) >= ($LSTi-60*60*24*92) AND datum <= '$LST'")
+                    QRY=${QRY/*NULL*/3 months before end of period}
+                    echo "Most recent measurement for $COL at date: $QRY" 1>&2
+                fi
+              fi
+            fi
         elif (( "${DTS[$I]}" <= ($LSTi - 4*60*60) )) # alarm after N hours silence
         then
             MSG+="\tSensor $COL: last seen $(date --date=@${DTS[$I]} '+%Y/%m/%d %H:%M')\n"
@@ -394,11 +411,16 @@ do
   then
       if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT" ) ; fi
       echo -e "\n$KIT Location ${LOCATION:-${RED}no location${NOCOLOR} details known}" 1>&2
+      if (( $VERBOSE > 0 ))
+      then
+        cat cat /var/tmp/Check$$ 1>&2
+      fi
       if (( ${#ActiveSenses[@]} <= 0 ))
       then
         echo -e "${RED}$KIT is not measuring in period $START up to $LAST!${NOCOLOR}" 1>&2
         echo -e "$KIT is not operational! No measurements in period $START up to $LAST." >/var/tmp/Check$$
-      else
+      elif (( ${#NotActiveSenses[@]} > 0 ))
+      then
         echo -e "${RED}$KIT has problems with sensor: ${NotActiveSenses[@]}!${NOCOLOR}" 1>&2
       fi
       if ! SendNotice "$KIT" "$SENSOR" /var/tmp/Check$$
