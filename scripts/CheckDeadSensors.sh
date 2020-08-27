@@ -19,9 +19,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.16 2020/08/22 17:05:10 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.19 2020/08/27 12:34:04 teus Exp teus $
 
-CMD=$0
+CMD="$(basename $0) $(echo '$Revision: 1.19 $' | sed 's/\$//g')"
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
@@ -394,7 +394,10 @@ do
         # then
         #     SENSOR+=' and other meteo/dust sensors'
         # fi
-        echo -e "\n${RED}${KIT} sensor $SENSOR is NOT OK.${NOCOLOR}" 1>&2
+        if (( $VERBOSE > 0 ))
+        then
+            echo -e "\n${RED}${KIT} sensor $SENSOR is NOT OK.${NOCOLOR}" 1>&2
+        fi
         cat /var/tmp/CheckVal$$ >>/var/tmp/Check$$
         NotActiveSenses[${#NotActiveSenses[@]}]=$SENSOR # sensor is inactive
         for (( I=0; I < ${#ActiveSenses[@]} ; I++))
