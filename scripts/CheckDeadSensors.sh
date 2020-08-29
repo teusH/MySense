@@ -19,9 +19,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.19 2020/08/27 12:34:04 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.20 2020/08/29 09:37:44 teus Exp teus $
 
-CMD="$(basename $0) $(echo '$Revision: 1.19 $' | sed 's/\$//g')"
+CMD="$(basename $0) $(echo '$Revision: 1.20 $' | sed 's/\$//g')"
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
@@ -126,10 +126,10 @@ then
     rm -f /var/tmp/Check$$
 fi
         
-function GetLocation() {
+function GetLblLocation() {
     local KIT=$1 LOC
     if ! echo "$KIT" | grep -q -P '^[a-zA-Z]+_[0-9a-fA-F]+$' ; then return ; fi
-    LOC=$($MYSQL -e "SELECT concat('MySense kit $KIT with label: ',label, ', location: ',street, ', ', village) FROM Sensors WHERE active AND NOT isnull(notice) AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1")
+    LOC=$($MYSQL -e "SELECT concat('Label: ',label, '. Location: ',street, ', ', village,'.') FROM Sensors WHERE active AND NOT isnull(notice) AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1")
     echo "${LOC/NULL/}"
     return
 }
@@ -160,8 +160,8 @@ function SendNotice() {
     fi
     if [ -n "${NOTICE}" ]
     then
-        if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT") ; fi
-        if ! (echo "${LOCATION:-no location details for kit ${KIT}  known}" ; cat $FILE ) | mail -r mysense@behouddeparel.nl -s "ATTENT: MySense kit $KIT sensor $SENS $LOCATION info" "$NOTICE"
+        if [ -z "$LOCATION" ] ; then LOCATION=$(GetLblLocation "$KIT") ; fi
+        if ! (echo "${LOCATION:-no location details for kit ${KIT} defined.}" ; cat $FILE ) | mail -r mysense@behouddeparel.nl -s "ATTENT: MySense kit $KIT sensor $SENS ${LOCATION:-Location is not defined.}" "$NOTICE"
         then
             echo -e "$CMD: ERROR sending email to $NOTICE with message:\n" "-----------------" 1>&2
             echo "${LOCATION:-no location details for kit ${KIT} known}"
@@ -412,8 +412,8 @@ do
   done
   if [ -s /var/tmp/Check$$ ] # there is a failure message
   then
-      if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT" ) ; fi
-      echo -e "\n$KIT Location ${LOCATION:-${RED}no location${NOCOLOR} details known}" 1>&2
+      if [ -z "$LOCATION" ] ; then LOCATION=$(GetLblLocation "$KIT" ) ; fi
+      echo -e "\n$KIT: ${LOCATION:-${RED}no location${NOCOLOR} details defined}" 1>&2
       if (( $VERBOSE > 0 ))
       then
         cat cat /var/tmp/Check$$ 1>&2
@@ -433,8 +433,8 @@ do
       rm -f /var/tmp/Check$$
   elif (( $VERBOSE > 0 ))
   then
-      if [ -z "$LOCATION" ] ; then LOCATION=$(GetLocation "$KIT" ) ; fi
-      echo -e "\n$KIT Location ${LOCATION:-${RED}no location${NOCOLOR} details known}" 1>&2
+      if [ -z "$LOCATION" ] ; then LOCATION=$(GetLblLocation "$KIT" ) ; fi
+      echo -e "\n$KIT: ${LOCATION:-${RED}no location${NOCOLOR} details defined}" 1>&2
       echo -e "${GREEN}$KIT is OK${NOCOLOR} with sensors: ${ActiveSenses[@]}!" 1>&2
   fi
 done
