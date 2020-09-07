@@ -19,9 +19,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.20 2020/08/29 09:37:44 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.21 2020/09/05 10:12:07 teus Exp teus $
 
-CMD="$(basename $0) $(echo '$Revision: 1.20 $' | sed 's/\$//g')"
+CMD="$(basename $0) $(echo '$Revision: 1.21 $' | sed 's/\$//g')"
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
@@ -358,26 +358,49 @@ function CheckSensors() {
 
 #CheckSensors SAN_b4e62df48fe9 "$(date --date='3 weeks ago' '+%Y/%m/%d %H:%M')" "$(date '+%Y/%m/%d %H:%M')"
 
+# gert all kit table names for kits or region
+function GetRegionalKits() {
+    local RGN KIT KITS='' TBLS REGEXP MATCH
+    TBLS=$($MYSQL -e 'SHOW TABLES' | grep -P '^[A-Za-z]+_[a-zA-Z0-9]{7,}$')
+    for RGN in $@
+    do
+        MATCH=
+        if echo "$RGN" | grep -q -P '_[a-fA-F0-9]+$'  # argument is a measurement kit
+        then
+            KITS+=" $RGN"
+            continue
+        fi
+        if echo "$RGN" | grep -q -P '_.+'           # argument is pattern of measurement kit
+        then
+            if [ -n "${RGN/_*/}" ] ; then MATCH="project = '${RGN/_*/}' AND " ; fi
+            RGN=$($MYSQL -e "SELECT DISTINCT concat(project,'_',serial) FROM Sensors WHERE $MATCH serial REGEXP '${RGN/*_/}' AND active ORDER BY project, datum DESC")
+        else      
+            RGN=$($MYSQL -e "SELECT DISTINCT concat(project,'_',serial) FROM Sensors WHERE project = '$RGN' AND active ORDER BY project, datum DESC")
+        fi
+        for KIT in $RGN
+        do
+            if echo "$KITS" | grep -q "$KIT" ; then continue ; fi
+            # some kit table names carry different regional ID but are in this project
+            KITS+=' '
+            if ! echo "$TBLS" | grep -q "$KIT"
+            then
+                KITS+=$($MYSQL -e "SHOW TABLES LIKE '%${KIT/*_/_/}'")
+            else
+                KITS+=${KIT}
+            fi
+        done
+    done
+    echo "$KITS"
+}
+
 # check what to do
+KITS=''
 if [ -z "$1" ] && [ -n "$REGION" ] # region defined: check all active kits in that region
 then
-    KITS=$($MYSQL -e "SELECT DISTINCT concat(project,'_',serial) FROM Sensors WHERE project REGEXP '$REGION' AND active ORDER BY project, datum DESC")
+    KITS=$(GetRegionalKits $REGION)       
 elif [ -n "$1" ]  # no region defined, there are arguments kits or region
 then
-    KITS=''
-    for ONE in $@
-    do
-        if echo "$ONE" | grep -q -P '_[a-fA-F0-9]+$'  # argument is a measurement kit
-        then KITS+=" $ONE"
-        elif echo "$ONE" | grep -q -P '_.+'           # argument is pattern of measurment kit
-        then
-            ONE=$($MYSQL -e "SELECT DISTINCT concat(project,'_',serial) FROM Sensors WHERE project = '${ONE/_*/}' AND serial REGEXP '${ONE/*_/}' AND active ORDER BY project, datum DESC")
-            KITS+=" $ONE"
-        else                                     # argument is region: all kits in the region
-            KTS=$($MYSQL -e "SELECT DISTINCT concat(project,'_',serial) FROM Sensors WHERE project = '$ONE' AND active ORDER BY project, datum DESC")
-            KITS+=" $KTS"
-        fi
-    done
+    KITS=$(GetRegionalKits $@)
 fi
 
 for KIT in $KITS
