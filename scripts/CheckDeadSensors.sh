@@ -19,9 +19,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.21 2020/09/05 10:12:07 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.22 2020/09/07 16:05:58 teus Exp teus $
 
-CMD="$(basename $0) $(echo '$Revision: 1.21 $' | sed 's/\$//g')"
+CMD="$(basename $0) $(echo '$Revision: 1.22 $' | sed 's/\$//g')"
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
@@ -66,6 +66,10 @@ DUST='(pm10|pm25|pm1)'      # dust type of sensors
 VERBOSE=${VERBOSE:-0}
 if [ -n "$DEBUG" ] ; then VERBOSE=3 ; fi
 LOCATION=''     # will get KIT serial and location on error
+LOWER=${LOWER:-5}  # default static value count to decide its static
+declare -A EXCLUDES
+# exceptions when static value is natural
+EXCLUDES[luchtdruk]=15
 
 # REGIONs: BdP (HadM), GLV (Venray), RIVM, ...
 if [ -z "$REGION" ] && [ -z "$1" ]
@@ -223,14 +227,14 @@ function NrValids() {
     declare -i NEXT=$((${LST}-1))
     declare -i STATICS=0 NULLS=${STAT[0]} PERIODS=1 LAST_VALID=0
     local AVOID=10000
-    while true   # try to find period(s) with static measurments
+    while true   # try to find period(s) with static measurements
     do
         # NEXT last date/time this period of current loop, STAT[2] first date/time loop
         # current loop period: STAT[2] up to NEXT
         if (( ($NEXT - ${STAT[2]}) < 15 )) ; then break ; fi
 
         # VAL[0] static value, VAL[1] last date/time static value, VAL[2] count static value
-        VAL=($($MYSQL -e "SELECT $TPE, UNIX_TIMESTAMP(max(datum)), count(*) AS cnt FROM $KT WHERE UNIX_TIMESTAMP(datum) >= ${STAT[2]} AND UNIX_TIMESTAMP(datum) < $NEXT AND NOT isnull($TPE) GROUP BY $TPE HAVING cnt > 5 ORDER BY cnt DESC LIMIT 1") )
+        VAL=($($MYSQL -e "SELECT $TPE, UNIX_TIMESTAMP(max(datum)), count(*) AS cnt FROM $KT WHERE UNIX_TIMESTAMP(datum) >= ${STAT[2]} AND UNIX_TIMESTAMP(datum) < $NEXT AND NOT isnull($TPE) GROUP BY $TPE HAVING cnt > ${EXCLUDES[${TPE}]:-${LOWER}} ORDER BY cnt DESC LIMIT 1") )
         if [ -z "${VAL[2]}" ]
         then
             break
