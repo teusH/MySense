@@ -19,9 +19,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.22 2020/09/07 16:05:58 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.23 2020/09/18 07:40:34 teus Exp teus $
 
-CMD="$(basename $0) $(echo '$Revision: 1.22 $' | sed 's/\$//g')"
+CMD="$(basename $0) $(echo '$Revision: 1.23 $' | sed 's/\$//g')"
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
@@ -101,8 +101,8 @@ then
     GREEN="\033[1;32m"
     NOCOLOR="\033[0m"
 else
-    RED="$CMD: "
-    GREEN="$CMD: "
+    RED=""
+    GREEN=""
     NOCOLOR=''
 fi
 
@@ -131,9 +131,13 @@ then
 fi
         
 function GetLblLocation() {
-    local KIT=$1 LOC
-    if ! echo "$KIT" | grep -q -P '^[a-zA-Z]+_[0-9a-fA-F]+$' ; then return ; fi
-    LOC=$($MYSQL -e "SELECT concat('Label: ',label, '. Location: ',street, ', ', village,'.') FROM Sensors WHERE active AND NOT isnull(notice) AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1")
+    local KIT="$1" LOC
+    if ! echo "$KIT" | grep -q -P '^[a-zA-Z]+_[0-9a-fA-F]+$'
+    then
+        # echo "Cannot obtail location for $KIT"
+        return
+    fi
+    LOC=$($MYSQL -e "SELECT concat('Label: ',if(isnull(label),'unknown',label), '. Location: ',if(isnull(street),'street unknown',street), ', ', if(isnull(village),'unknown village',village),'.') FROM Sensors WHERE active AND NOT isnull(notice) AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1")
     echo "${LOC/NULL/}"
     return
 }
