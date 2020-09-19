@@ -19,9 +19,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.23 2020/09/18 07:40:34 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.24 2020/09/19 10:14:55 teus Exp teus $
 
-CMD="$(basename $0) $(echo '$Revision: 1.23 $' | sed 's/\$//g')"
+CMD="$(basename $0) $(echo '$Revision: 1.24 $' | sed -e 's/\$//g' -e 's/ision://')"
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
@@ -137,7 +137,7 @@ function GetLblLocation() {
         # echo "Cannot obtail location for $KIT"
         return
     fi
-    LOC=$($MYSQL -e "SELECT concat('Label: ',if(isnull(label),'unknown',label), '. Location: ',if(isnull(street),'street unknown',street), ', ', if(isnull(village),'unknown village',village),'.') FROM Sensors WHERE active AND NOT isnull(notice) AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1")
+    LOC=$($MYSQL -e "SELECT concat('Label: ',if(isnull(label),'unknown',label), '. Location: ',if(isnull(street),'street unknown',street), ', ', if(isnull(village),'unknown village',village),'.') FROM Sensors WHERE active AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1")
     echo "${LOC/NULL/}"
     return
 }
@@ -401,6 +401,14 @@ function GetRegionalKits() {
     echo "$KITS"
 }
 
+declare -i PRTCMD=0
+function PrtCmd(){
+    if (( $PRTCMD > 0 )) ; then return ; fi
+    PRTCMD=1
+    echo "Command $CMD" 1>&2
+}
+
+
 # check what to do
 KITS=''
 if [ -z "$1" ] && [ -n "$REGION" ] # region defined: check all active kits in that region
@@ -427,6 +435,7 @@ do
         # fi
         if (( $VERBOSE > 0 ))
         then
+            PrtCmd
             echo -e "\n${RED}${KIT} sensor $SENSOR is NOT OK.${NOCOLOR}" 1>&2
         fi
         cat /var/tmp/CheckVal$$ >>/var/tmp/Check$$
@@ -436,6 +445,7 @@ do
         done
      elif (( $VERBOSE > 0 ))
      then
+        PrtCmd
         echo -e "\n${GREEN}${KIT} sensor $SENSOR is OK.${NOCOLOR}" 1>&2
         if (( $VERBOSE > 1 )) ; then cat /var/tmp/CheckVal$$ 1>&2 ; fi
     fi
@@ -443,6 +453,7 @@ do
   done
   if [ -s /var/tmp/Check$$ ] # there is a failure message
   then
+      PrtCmd
       if [ -z "$LOCATION" ] ; then LOCATION=$(GetLblLocation "$KIT" ) ; fi
       echo -e "\n$KIT: ${LOCATION:-${RED}no location${NOCOLOR} details defined}" 1>&2
       if (( $VERBOSE > 0 ))
@@ -459,11 +470,12 @@ do
       fi
       if ! SendNotice "$KIT" "$SENSOR" /var/tmp/Check$$
       then
-           echo -e "$CMD: ${RED}FAILURE to send Notice${NOCOLOR} about kit $KIT, failing sensors ${NotActiveSenses[@]}" 1>&2
+           echo -e "${RED}FAILURE to send Notice${NOCOLOR} about kit $KIT, failing sensors ${NotActiveSenses[@]}" 1>&2
       fi
       rm -f /var/tmp/Check$$
   elif (( $VERBOSE > 0 ))
   then
+      PrtCmd
       if [ -z "$LOCATION" ] ; then LOCATION=$(GetLblLocation "$KIT" ) ; fi
       echo -e "\n$KIT: ${LOCATION:-${RED}no location${NOCOLOR} details defined}" 1>&2
       echo -e "${GREEN}$KIT is OK${NOCOLOR} with sensors: ${ActiveSenses[@]}!" 1>&2
