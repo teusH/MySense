@@ -27,6 +27,11 @@ Like:
 - MyPrint.py  logging
 - WebDB.py website database interface
 
+### MyDB
+Use: database library module and meta info DB insertion
+The module can be used in stand alone version. The use is to insert meta measurement
+kit information (location, oeperational details, ect) into the database tables Sensors (lataion details,...) and TTNtable (TTN forwarding, database data forwarding).
+
 ### GeneratePMcharts
 Use: visualisation, data filtering, data correction, calibration
 
