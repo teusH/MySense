@@ -19,9 +19,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.24 2020/09/19 10:14:55 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.25 2020/10/05 09:28:50 teus Exp teus $
 
-CMD="$(basename $0) $(echo '$Revision: 1.24 $' | sed -e 's/\$//g' -e 's/ision://')"
+CMD="$(basename $0) $(echo '$Revision: 1.25 $' | sed -e 's/\$//g' -e 's/ision://')"
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
@@ -29,7 +29,7 @@ Environment variables supported:
 MySQL credentials: DBUSER=$USER, DBPASS=interact, DBHOST=localhost, DB=luchtmetingen
 Default period to check fir sensor failures: START='3 weeks ago', LAST=now
 Regions or project names: REGION='.*' regular expression
-Sensors to check for eg SENSORS='temp rv pm10 pm1', dflt: SENSORS='$SENSORS'
+Sensors to check for eg SENSORS='temp rv pm10 pm1', dflt: SENSORS='(temp|rv)'
 Arguments: kits to be searched for. No argument: all kits from the REGION
 Example of command:
 check kit SAN_1234567abc and all active kits of project HadM
@@ -38,6 +38,11 @@ check all kits active of projects SAN and HadM
     DBUSER=$USER DBHOST=localhost DBPASS=acacadabra DB=luchtmetingen REGION='(SAN|HadM)' $0
 If command is used from terminal the output info will be colered.
 Date/time in period may have format understood by the 'date' command.
+Environment vars:
+    DBUSER ($USER),DBPASS (acacadabra),DB (luchtmetingen),DBHOST (localhost),
+    VERBOSE (verbosity dflt 0),START and END period,REGION (expresion, all),
+    SENSORS (expression, sensor values to test for),
+    LOWER (minimal static value count)
     "
     exit 0
 fi
@@ -61,7 +66,7 @@ SENSORS=${SENSORS:-'(temp|rv)'}  # sensors to check for static values
 
 # sensors to check if there is data for them
 METEO='(temp|rv|luchtdruk)' # meteo type of sensors
-DUST='(pm10|pm25|pm1)'      # dust type of sensors
+DUST='(pm10_cnt|pm25_cnt|pm1_cnt)'      # dust type of sensors
 
 VERBOSE=${VERBOSE:-0}
 if [ -n "$DEBUG" ] ; then VERBOSE=3 ; fi
