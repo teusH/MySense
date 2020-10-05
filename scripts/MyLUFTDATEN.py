@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyLUFTDATEN.py,v 3.34 2020/06/01 19:33:17 teus Exp teus $
+# $Id: MyLUFTDATEN.py,v 3.35 2020/10/05 15:24:48 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyLUFTDATEN.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.34 $"[11:-2]
+__version__ = "0." + "$Revision: 3.35 $"[11:-2]
 
 try:
     import sys
@@ -161,8 +161,12 @@ def sendLuftdaten(ident,values):
             if field == 'types': continue
             for valueField in values:
                 if valueField in sense_table[sensed][field]:
-                  if values[valueField] != None:
-                    postdata['sensordatavalues'].append({ 'value_type': field, 'value': str(round(values[valueField],2)) })
+                  # awfull hack to avoid null in graph
+                  myVal = values[valueField]
+                  if myVal == None and valueField.lower()[0:2] == 'pm':
+                    myVal = 0.01
+                  if myVal != None:
+                    postdata['sensordatavalues'].append({ 'value_type': field, 'value': str(round(myVal,2)) })
         if not len(postdata['sensordatavalues']): continue
         postings.append((sensed,headers,postdata)) # type, POST header dict, POST data dict
 
@@ -253,10 +257,11 @@ def post2Luftdaten(postTo,postings,ID):
                   continue
             else: del Posts[key] # reset
 
+        timeout = 6
         for data in postings:
             prev = watchOn(host)
             try:
-                r = requests.post(url, json=data[2], headers=data[1])
+                r = requests.post(url, json=data[2], headers=data[1], timeout=timeout)
                 Conf['log'](modulename,'DEBUG','Post %s returned status: %d' % (host,r.status_code))
                 #if not r.ok:
                 #  sys.stderr.write("Luftdaten %s POST to %s:\n" % (data[0],url))
@@ -290,6 +295,8 @@ def post2Luftdaten(postTo,postings,ID):
             except requests.ConnectionError as e:
                 if str(e).find('Interrupted system call') < 0: # if so watchdog interrupt
                     PostError(key,'Connection error: ' + str(e))
+            except requests.exceptions.Timeout as e:
+                PostError(key,'HTTP %d sec request timeout POST error with ID %s' % (timeout,data[1]['X-Sensor']))
             except Exception as e:
                 if str(e).find('EVENT') >= 0:
                     raise ValueError(str(e)) # send notice event
@@ -394,4 +401,4 @@ if __name__ == '__main__':
                 print "ERROR\n"
         except Exception as e:
             print("output channel error was raised as %s" % e)
-            eak
+            break
