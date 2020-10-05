@@ -19,9 +19,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.25 2020/10/05 09:28:50 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.26 2020/10/05 14:58:58 teus Exp teus $
 
-CMD="$(basename $0) $(echo '$Revision: 1.25 $' | sed -e 's/\$//g' -e 's/ision://')"
+CMD="$(basename $0) $(echo '$Revision: 1.26 $' | sed -e 's/\$//g' -e 's/ision://')"
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
@@ -65,8 +65,9 @@ MYSQL="mysql --login-path=${DB:-luchtmetingen} -h ${DBHOST:-localhost} -N -B --s
 SENSORS=${SENSORS:-'(temp|rv)'}  # sensors to check for static values
 
 # sensors to check if there is data for them
-METEO='(temp|rv|luchtdruk)' # meteo type of sensors
-DUST='(pm10_cnt|pm25_cnt|pm1_cnt)'      # dust type of sensors
+METEO='(temp|rv|luchtdruk)'           # meteo type of sensors
+DUSTCNT='(pm10_cnt|pm25_cnt|pm1_cnt)' # dust count type of sensors
+DUST='(pm10|pm25|pm1)'                # dust mass type of sensors
 
 VERBOSE=${VERBOSE:-0}
 if [ -n "$DEBUG" ] ; then VERBOSE=3 ; fi
@@ -282,11 +283,15 @@ function NrValids() {
 # returns true/false and last date/time any sensed
 function LastMeasurement() {
     local AKIT="$1" STRT="$2" LST="$3"
-    local COLS COL SENSED
+    local COLS COL SENSED DUST_E="$DUSTCNT"
     declare -i DT
     declare -i RECENT=$(date --date="$STRT" '+%s') STRTi
     STRTi=$RECENT
-    COLS=$($MYSQL -e "DESCRIBE $AKIT" | awk '{ print $1; }' | grep -P "^(${DUST:-XYZ}|${METEO:-XxX})$")
+    if $MYSQL -e "SELECT description FROM Sensors WHERE project = '${AKIT/_*/}' AND serial = '${AKIT/*_/}' AND active ORDER BY datum DESC" | grep -q -P '(SDS011)' 
+    then
+        DUST_E="$DUST"
+    fi
+    COLS=$($MYSQL -e "DESCRIBE $AKIT" | awk '{ print $1; }' | grep -P "^(${DUST_E:-XYZ}|${METEO:-XxX})$")
     for COL in $COLS
     do
         DT=$($MYSQL -e "SELECT UNIX_TIMESTAMP(datum) FROM $AKIT WHERE datum >= '$STRT' AND datum <= '$LST' AND NOT ISNULL($COL) ORDER BY datum DESC LIMIT 1")
@@ -308,11 +313,17 @@ NotActiveSenses=()
 NotOperational=()
 function CheckSensors() {
     local AKIT="$1" STRT="$2" LST="$3"
-    local COLS COL QRY=''
+    local COLS COL QRY='' DUST_E="$DUSTCNT"
     ActiveSenses=()
     NotActiveSenses=()
     NotOperational=()
-    COLS=$($MYSQL -e "DESCRIBE $AKIT" | awk '{ print $1; }' | grep -P "^(${DUST:-XYZ}|${METEO:-XxX})$")
+    # some dust sensors do not have bin count
+    if $MYSQL -e "SELECT description FROM Sensors WHERE project = '${AKIT/_*/}' AND serial
+ = '${AKIT/*_/}' AND active ORDER BY datum DESC" | grep -q -P '(SDS011)' 
+    then
+        DUST_E="$DUST"
+    fi
+    COLS=$($MYSQL -e "DESCRIBE $AKIT" | awk '{ print $1; }' | grep -P "^(${DUST_E:-XYZ}|${METEO:-XxX})$")
     if [ -z "$COLS" ] ; then return 2 ; fi
     for COL in $COLS
     do
