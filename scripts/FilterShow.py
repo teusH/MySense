@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: FilterShow.py,v 2.1 2020/07/27 13:11:05 teus Exp teus $
+# $Id: FilterShow.py,v 2.2 2020/10/06 15:29:37 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -39,7 +39,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: FilterShow.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.1 $"[11:-2]
+__version__ = "0." + "$Revision: 2.2 $"[11:-2]
 
 try:
     import sys
@@ -85,6 +85,7 @@ except: pass
 # if window has less as "threshold" values the outlier removal is skipped
 # start/stop date-time will be converted to secs via Unix date command
 period = ['30 days ago','now',None] # last 30 days, window is full period
+startPM = None # start time PM NULL correction to overwrite period start
 pollutants = [
     # {
     #     'table': None,
@@ -368,6 +369,21 @@ def FindStatics(records, length=5):
         except: pass
     return Rslt
 
+# an awffull hack to avoid PM values marked as not valid if mass conversion fails
+def AdjustPM( table, pollutant, periodStrt, periodEnd, db=net):
+    global verbose, startPM, adjustPM
+
+    if not adjustPM: return False # adjust only when enabled by argument
+    if not pollutant.lower() in ['pm1','pm25','pm10']: return False
+    rts = db_query("SHOW COLUMNS FROM %s like '%s'" % (table,pollutant + '_cnt'),True, db=db)
+    if not rts or not rts[0]: return False
+    rts = db_query("SELECT count(datum) FROM %s WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %s AND ISNULL(%s) AND NOT ISNULL(%s_cnt)" % (table,startPM if startPM else periodStrt,periodEnd,pollutant,pollutant), True, db=db)
+    if not rts or not rts[0][0]: return False
+    if verbose:
+        print("%d %s Null measurements set to 0.013 and valid in this period started from %s." % (rts[0][0],pollutant,datetime.datetime.fromtimestamp(startPM if startPM else periodStrt).strftime('%d %b %Y %H:%M')))
+    db_query("UPDATE %s SET %s = 0.013, %s_valid = 1 WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %s AND ISNULL(%s) AND NOT ISNULL(%s_cnt)" % (table,pollutant,pollutant,startPM if startPM else periodStrt,periodEnd,pollutant,pollutant), False, db=db)
+    return True
+
 # invalidate cel value if values are NULL or are static (failing)
 # 
 def rawCleanUp(table, pollutants,period,cleanup=3,db=net):
@@ -381,6 +397,8 @@ def rawCleanUp(table, pollutants,period,cleanup=3,db=net):
           return rawCleanUp(table, pollutants,subperiod,cleanup=cleanup,db=net)
         except: return False
     for pollutant in pollutants:
+      if pollutant.lower() in ['pm1','pm25','pm10']: # hack
+        AdjustPM(table,pollutant,period[0],period[1],db=db)
       qry = 'SELECT count(*) FROM %s WHERE UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d AND isnull(%s) AND %s_valid' % \
         (table, period[0], period[1], pollutant, pollutant)
       totalNulls = db_query(qry,True, db=db)[0][0]
@@ -602,7 +620,8 @@ def get_arguments():
     global progname, debug, verbose, net, period
     global show, pngfile, showOutliers, alpha, ddof, test, lossy
     global reset, RESET, sigma, onlyShow, threshold
-    global cleanup, cleanup_only
+    global cleanup, cleanup_only, startPM, adjustPM
+
     parser = argparse.ArgumentParser(prog=progname, description='''
 Get from a database with "pollutant" values the measured (raw) values
 over a period of time.
@@ -666,6 +685,8 @@ Any script change remains free. Feel free to indicate improvements.''')
     parser.add_argument("--sigma", help="show graph with variance sigma. Sigma=0 no variance band is plotted. Default: sigma=%.1f" % sigma, default=sigma, type=float)
     parser.add_argument("-L", "--outliers", help="Do show in graph the outliers, default: outliers are shown", default=showOutliers, action='store_true')
     parser.add_argument("-f", "--file", help="generate png graph file, default: no png", default=pngfile)
+    parser.add_argument("--adjustPM", help="Adjust PM mass values NULL to 0.013 in database, default: no adjustment.", default=False, action='store_true')
+    parser.add_argument("--startPM", help="Overwrite period start time for PM NULL correction phase to database, default: period start.", default=None)
     parser.add_argument('args', nargs=argparse.REMAINDER, help="<Database table name>/[<pollutant or column name>[/<minimal:maximal>]] ... An empty name: the name of the previous argument will be used. No argument will give overview of available sensor kit table names. <table_name> as argument will print avaialable sensor type names for a table.")
     parser.add_argument("-d","--debug",help="Debugging on. Dflt %d" % debug, default=debug, action='store_true')
     parser.add_argument("-q","--quiet",help="Be silent. Dflt %d" % verbose, default=verbose, action='store_false')
@@ -694,6 +715,10 @@ Any script change remains free. Feel free to indicate improvements.''')
     pngfile = args.file
     cleanup = args.cleanup
     cleanup_only = args.cleanup_only
+    if args.startPM:
+        startPM = date2secs(args.startPM)
+        adjustPM = True
+    if args.adjustPM: adjustPM = True
     if pngfile != None: show = True
     if args.window:
         mult = 60*60  # default hours
