@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: FilterShow.py,v 2.2 2020/10/06 15:29:37 teus Exp teus $
+# $Id: FilterShow.py,v 2.3 2020/10/09 08:37:57 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -39,7 +39,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: FilterShow.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.2 $"[11:-2]
+__version__ = "0." + "$Revision: 2.3 $"[11:-2]
 
 try:
     import sys
@@ -371,9 +371,8 @@ def FindStatics(records, length=5):
 
 # an awffull hack to avoid PM values marked as not valid if mass conversion fails
 def AdjustPM( table, pollutant, periodStrt, periodEnd, db=net):
-    global verbose, startPM, adjustPM
+    global verbose, startPM
 
-    if not adjustPM: return False # adjust only when enabled by argument
     if not pollutant.lower() in ['pm1','pm25','pm10']: return False
     rts = db_query("SHOW COLUMNS FROM %s like '%s'" % (table,pollutant + '_cnt'),True, db=db)
     if not rts or not rts[0]: return False
@@ -397,7 +396,7 @@ def rawCleanUp(table, pollutants,period,cleanup=3,db=net):
           return rawCleanUp(table, pollutants,subperiod,cleanup=cleanup,db=net)
         except: return False
     for pollutant in pollutants:
-      if pollutant.lower() in ['pm1','pm25','pm10']: # hack
+      if adjustPM and (pollutant.lower() in ['pm1','pm25','pm10']): # hack
         AdjustPM(table,pollutant,period[0],period[1],db=db)
       qry = 'SELECT count(*) FROM %s WHERE UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d AND isnull(%s) AND %s_valid' % \
         (table, period[0], period[1], pollutant, pollutant)
