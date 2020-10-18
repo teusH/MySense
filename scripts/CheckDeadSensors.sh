@@ -19,9 +19,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.26 2020/10/05 14:58:58 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.27 2020/10/18 15:14:08 teus Exp teus $
 
-CMD="$(basename $0) $(echo '$Revision: 1.26 $' | sed -e 's/\$//g' -e 's/ision://')"
+CMD="$(basename $0) $(echo '$Revision: 1.27 $' | sed -e 's/\$//g' -e 's/ision://')"
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
@@ -424,6 +424,28 @@ function PrtCmd(){
     echo "Command $CMD" 1>&2
 }
 
+# get last 15 measurements of a kit from DB into error file
+function LastSensed() {
+    local NME=$1 ; shift
+    local FLE=$1 ; shift
+    if [ ! -s "$FLE" ] ; then return 0 ; fi
+    local POL=''
+    ACT=$(echo "${DUST//[()|]/ } ${METEO//[()|]/ }" | sed -e 's/^  *//' -e 's/  *$//' -e 's/  */ /g')
+    if [ -z "$1" ] ; then return 0 ; fi
+    while [ -n "$1" ]
+    do
+        if echo "$ACT" | grep -q "$1"
+        then
+            ACT=$(echo "$ACT" | sed -e "s/^$1 *//" -e "s/$1 *//")
+        fi
+        POL+=",$1 AS '$1*'"
+        shift
+    done
+    if [ -n "$ACT" ] ; then ACT=",$ACT" ; fi
+    echo "Last 15 measurements of $NME in database table for (*failing) pollutants:" >>$FLE
+    $MYSQL --table --column-names -e "SELECT datum as 'MET timestamp'${ACT// /,}$POL FROM $NME ORDER BY datum DESC LIMIT 15" >>$FLE
+    return $?
+}
 
 # check what to do
 KITS=''
@@ -474,7 +496,7 @@ do
       echo -e "\n$KIT: ${LOCATION:-${RED}no location${NOCOLOR} details defined}" 1>&2
       if (( $VERBOSE > 0 ))
       then
-        cat cat /var/tmp/Check$$ 1>&2
+        cat /var/tmp/Check$$ 1>&2
       fi
       if (( ${#ActiveSenses[@]} <= 0 ))
       then
@@ -483,6 +505,7 @@ do
       elif (( ${#NotActiveSenses[@]} > 0 ))
       then
         echo -e "${RED}$KIT has problems with sensor: ${NotActiveSenses[@]}!${NOCOLOR}" 1>&2
+        LastSensed $KIT /var/tmp/Check$$ ${NotActiveSenses[@]}
       fi
       if ! SendNotice "$KIT" "$SENSOR" /var/tmp/Check$$
       then
