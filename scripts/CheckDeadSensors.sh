@@ -19,9 +19,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.28 2020/10/19 09:35:59 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.29 2020/10/19 10:14:36 teus Exp teus $
 
-CMD="$(basename $0) $(echo '$Revision: 1.28 $' | sed -e 's/\$//g' -e 's/ision://')"
+CMD="$(basename $0) $(echo '$Revision: 1.29 $' | sed -e 's/\$//g' -e 's/ision://')"
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
@@ -427,7 +427,6 @@ function PrtCmd(){
 # get last 15 measurements of a kit from DB into error file
 function LastSensed() {
     local NME=$1 ; shift
-    local FLE=$1 ; shift
     local NR=$1 ; shift
     if [ ! -s "$FLE" ] ; then return 0 ; fi
     local POL=''
@@ -443,8 +442,8 @@ function LastSensed() {
         shift
     done
     if [ -n "$ACT" ] ; then ACT=",$ACT" ; fi
-    echo "Last 15 measurements of $NME in database table for (*failing) pollutants:" >>$FLE
-    $MYSQL --table --column-names -e "SELECT datum as 'MET timestamp'${ACT// /,}$POL FROM $NME ORDER BY datum DESC LIMIT ${NR:-15}" >>$FLE
+    echo "Last 15 measurements of $NME in database table for (*failing) pollutants:"
+    $MYSQL --table --column-names -e "SELECT datum as 'MET timestamp'${ACT// /,}$POL FROM $NME ORDER BY datum DESC LIMIT ${NR:-15}"
     return $?
 }
 
@@ -507,7 +506,7 @@ do
       if (( ${#NotActiveSenses[@]} > 0 ))
       then
         echo -e "${RED}$KIT has problems with sensor: ${NotActiveSenses[@]}!${NOCOLOR}" 1>&2
-        LastSensed $KIT /var/tmp/Check$$ 12 ${NotActiveSenses[@]}
+        LastSensed $KIT 12 ${NotActiveSenses[@]} | tee -a /var/tmp/Check$$ | head --lines=6 1>&2
       fi
       if ! SendNotice "$KIT" "$SENSOR" /var/tmp/Check$$
       then
