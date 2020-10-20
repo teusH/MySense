@@ -19,9 +19,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: CheckDeadSensors.sh,v 1.29 2020/10/19 10:14:36 teus Exp teus $
+# $Id: CheckDeadSensors.sh,v 1.30 2020/10/20 12:23:10 teus Exp teus $
 
-CMD="$(basename $0) $(echo '$Revision: 1.29 $' | sed -e 's/\$//g' -e 's/ision://')"
+CMD="$(basename $0) $(echo '$Revision: 1.30 $' | sed -e 's/\$//g' -e 's/ision://')"
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
@@ -424,11 +424,15 @@ function PrtCmd(){
     echo "Command $CMD" 1>&2
 }
 
-# get last 15 measurements of a kit from DB into error file
+# get last NR measurements of a kit from DB into error file
 function LastSensed() {
-    local NME=$1 ; shift
-    local NR=$1 ; shift
-    if [ ! -s "$FLE" ] ; then return 0 ; fi
+    local NME="$1" ; shift
+    if [ -z "$NME" ] || [ $($MYSQL -e "SHOW TABLES LIKE '$NME'") != "$NME" ]
+    then
+        echo "No DB table $NME found."
+        return 1
+    fi
+    local NR=${1:-12} ; shift
     local POL=''
     ACT=$(echo "${DUST//[()|]/ } ${METEO//[()|]/ }" | sed -e 's/^  *//' -e 's/  *$//' -e 's/  */ /g')
     if [ -z "$1" ] ; then return 0 ; fi
@@ -442,8 +446,8 @@ function LastSensed() {
         shift
     done
     if [ -n "$ACT" ] ; then ACT=",$ACT" ; fi
-    echo "Last 15 measurements of $NME in database table for (*failing) pollutants:"
-    $MYSQL --table --column-names -e "SELECT datum as 'MET timestamp'${ACT// /,}$POL FROM $NME ORDER BY datum DESC LIMIT ${NR:-15}"
+    echo "Last ${NR} measurements of $NME in database table for (*failing) pollutants:"
+    $MYSQL --table --column-names -e "SELECT datum as 'MET timestamp'${ACT// /,}$POL FROM $NME ORDER BY datum DESC LIMIT ${NR}"
     return $?
 }
 
