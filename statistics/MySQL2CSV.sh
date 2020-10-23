@@ -17,8 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySQL2CSV.sh,v 1.4 2020/10/23 14:09:29 teus Exp teus $
-CMD='MySQL2CSV.sh $Revision: 1.4 $'
+# $Id: MySQL2CSV.sh,v 1.5 2020/10/23 14:25:57 teus Exp teus $
+CMD='MySQL2CSV.sh $Revision: 1.5 $'
 
 # export measurements data from MySQL database to a csv file
 # use start and end time to limit amounts
@@ -441,10 +441,15 @@ function ExportData() {
             echo "# Measurements data dump DB ${DB:-luchtmetingen}, project:${INFO[0]}, kit serial:${INFO[1]}." >>"$ONE".$FRNT
             echo "# Sensors:${INFO[7]}; Data forwarding:${INFO[6]}" >>"$ONE".$FRNT
             echo "# Location:${INFO[3]},${INFO[4]},${INFO[5]},GPS(${INFO[2]})" >>"$ONE".$FRMT
-            echo "# Period:$START up to $END" >>"$ONE".$FRMT
 
             case $FRMT in
             csv)
+                if (( ${HOUR:-0} > 0 ))
+                then
+                    echo "# Average per hour. Period:$START up to $END" >>"$ONE".$FRMT
+                else
+                    echo "# Period:$START up to $END" >>"$ONE".$FRMT
+                fi
                 if ! MySQLdump2CSV "$ONE" "${HOUR:-0}" "${TSHIFT:-0}"  >>"$ONE".$FRMT
                 then
                     rm -f "$ONE.$FRMT"
