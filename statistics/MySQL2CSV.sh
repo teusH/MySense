@@ -17,8 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySQL2CSV.sh,v 1.5 2020/10/23 14:25:57 teus Exp teus $
-CMD='MySQL2CSV.sh $Revision: 1.5 $'
+# $Id: MySQL2CSV.sh,v 1.6 2020/10/25 12:23:28 teus Exp teus $
+CMD='MySQL2CSV.sh $Revision: 1.6 $'
 
 # export measurements data from MySQL database to a csv file
 # use start and end time to limit amounts
@@ -60,6 +60,10 @@ Arguments can be a an option: XYX=option eg:
   VERBOSE=0 verbosity what dump is doing.
   FIELDS='pm1 rv temp ...' Default: '', all pollutants in database for the kit(s).
               only for CSV file outout format
+    some pollutant names are:
+        pm1, pm25, pm10, pm05_cnt, pm1_cnt, pm5_cnt, pm25_cnt, pm10_cnt, grain,
+        rv, temp, luchtdruk, gas, aqi, o3, no2, nh3, co2, ...
+    only available pollutants will be exported.
   SORTED='${SORTED[@]}' sort CSV fiels follwing this template.
   HOUR_AVERAGE=$HOUR if 1 calculate average value per hour (only for CSV outout).
   TIMEFORMAT='' extra time format besides UNIX timestamp, default SQL std format local time
@@ -69,8 +73,11 @@ Arguments can be a an option: XYX=option eg:
   TIMESHIFT=0 timeshift in minutes for an offical station measurements
 Arguments are taken as full measurement node table name (project_serial or official table name) or as
     wildcard: eg SAN_ will dump all tables of project SAN,
+    available projects: HadM, SAN, RIVM, KIP, ...
     5ab96 will search for measurement kits with label ending 5ab96 measurement kits,
     123456abf will search for kit with serial 123456abf.
+ or as label (may be a wildcard): eg hadm-75e4 or bwlvc-7113 or 'bwlvc-' all with bwlvc label
+    label patterns ending on space or - char will also search for data of not active kits.
 Meta info may differ from MySense DB tables or national station DB tables.
 This is recognized from table name formats.
 EOF
@@ -379,8 +386,11 @@ function ExportData() {
     then # table name of official measurement station <ID>[<number>]
         KITS="$1"
         TSHIFT=${TIMESHIFT:-0}
+    elif echo "$1" | grep -q -P '(^[a-z]{3,6}[- ]$)'
+    then # Sensor label cases
+        KITS=$($MYSQL -e "SELECT concat(project,'_',serial) FROM Sensors WHERE label like '$1%'" | sort | uniq)
     elif echo "$1" | grep -q -P '(^[a-z]{3,6}[-_]|[-_][A-Fa-f0-9]{4}$)'
-    then # label case: single MySense kit with table name <project>_<serial>
+    then # DB table name or label xyz-abcd cases: single MySense kit with table name <project>_<serial>
         KITS=$($MYSQL -e "SELECT concat(project,'_',serial) FROM Sensors WHERE label like '%$1%' $ACTIVE" | sort | uniq)
     elif echo "$1" | grep -q -P '^[A-Za-z]+_$'  # project
     then # all kits of a project: <project>_
