@@ -1,9 +1,9 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.88 2020/05/19 07:53:13 teus Exp teus $
+# $Id: MySense.py,v 5.89 2020/10/26 18:54:28 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.88 $"[11:-2]
+__version__ = "0." + "$Revision: 5.89 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
@@ -746,7 +746,7 @@ def initMeteo(debug=False):
       else: return False
     elif Meteo['conf']['name'][:3] == 'SHT':
       import Adafruit_SHT31 as SHT
-      Meteo['lib'] = SHT.SHT31(address=Meteo['address'], i2c=Meteo[abus], calibrate=MyConfiguration['calibrate'])
+      Meteo['lib'] = SHT.SHT31(address=Meteo['conf']['address'], i2c=Meteo[abus], calibrate=MyConfiguration['calibrate'])
     else: # DHT serie deprecated
       if LED: LED.blink(5,0.3,0xff0000,l=True,force=True)
       raise ValueError("Unknown meteo %s type" % meteo)
