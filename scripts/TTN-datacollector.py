@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 3.44 2020/08/03 18:00:43 teus Exp teus $
+# $Id: TTN-datacollector.py,v 4.2 2020/11/09 14:47:06 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.44 $"[11:-2]
+__version__ = "0." + "$Revision: 4.2 $"[11:-2]
 
 try:
     import MyLogger
@@ -115,8 +115,10 @@ waiting = False          # waiting for telegram
 mid = None               # for logging: message ID
 telegrams = []           # telegram buffer, max length is 100     
 ErrorCnt = 0             # connectivity error cnt, slows down, >20 reconnect, >40 abort
+                         # Indicator of receiving/operating
+TelegramCnt = 0          # count of TTN records received so far.
 PingTimeout = 0          # last time ping request was sent
-Channels = []      # output channels
+Channels = []            # output channels
 DB = None                # shortcut to Output channel database dict
 ThreadStops = []         # list of stop routines for threads
 
@@ -185,7 +187,7 @@ Conf = {
     'AppId': '+',        # to be fixed regular expression to accept AppId to subscribe to
     'DevAddr': '+',      # to be fixed regular expression to accept DevAddr numbers
     'timeout': 2*60*60,  # timeout for this broker
-    'rate':    3*60,     # expected time(out) between telegrams published
+    'rate':    10*60,    # expected time(out) between telegrams published
                          # if data arrived < expected rate, throttling
                          # *2 is wait time to try to reconnect with MQTT server
     'check': ['luchtdruk','temp','rv','pm10','pm25'], # sensor fields for fluctuation faults
@@ -303,8 +305,8 @@ Conf = {
                 "producer":"TTN","group":"LoRa",
                 "fields":["event"],
                 "units": ["id"],"calibrations": [None]},
-            {  "type": "NEO",
-                "producer":"NEO-6","group":"GPS",
+            {  "type": "NEO-6",
+                "producer":"NEO","group":"GPS",
                 "fields":["longitude","latitude","altitude","gps"],
                 "units": ["degrees","degrees","m","lon,lat,alt"],
                 "calibrations": [[0,1],[0,1],[0,1],None]},
@@ -324,6 +326,11 @@ Conf = {
               "fields": ["accu","temperature","humidity","pressure","rain","prevrain","dayrain","winddir","windspeed"],
               "units": ["%","C","%","hPa","mm","mm","mm","degrees","m/sec"],
               "calibrations": [[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1]]},
+           { "type": "'windDIY1", # non mechanical wind measurement unit
+              "producer": "WindSonic", "group": "meteo",
+              "fields": ["winddir","windspeed"],
+              "units": ["degrees","m/sec"],
+              "calibrations": [[0,1],[0,1]]},
             # not yet activated
             { "type":"ToDo",
                 "producer":"Spect", "group":"gas",
@@ -377,7 +384,7 @@ Conf = {
               "fields": ["pm1","pm25","pm10","temperature","humidity","pressure","gas","aqi","time"],
               # + [0,0.000001],[0,0.000001],[0,0.1]
               "adjust": [[0,0.1],[0,0.1],[0,0.1],[-30,0.1],[0,0.1],[0,1],[0,1],[0,0.1],[0,1]],
-              "sensors": ["PMS7003","SDS011","BME680","BME280","NEO","PYCOM"]
+              "sensors": ["PMS7003","SDS011","BME680","BME280","NEO-6","PYCOM"]
             },
           "port3": {
                "packing": ">BBlll",
@@ -393,19 +400,29 @@ Conf = {
               # "fields": ["pm1","pm25","pm10","temperature","humidity","pressure","gas","aqi","time"],
               "fields": ["pm1","pm25","pm10","temperature","humidity","pressure","gas","aqi","time","latitude","longitude","altitude"],
               "adjust": [[0,0.1],[0,0.1],[0,0.1],[-30,0.1],[0,0.1],[0,1],[0,1],[0,0.1],[0,1]],
-              "sensors": ["PMS7003","SDS011","SPS30","BME680","BME280","NEO","PYCOM","ENERGY"]
+              "sensors": ["PMS7003","SDS011","SPS30","BME680","BME280","NEO-6","PYCOM","ENERGY"]
             },
-            "port10": {
-              # Libelium Waspmote void,id,void,accu,temp,...
-              #"packing": ["<B11sB7sBBBBBfBfBfBfBfBfBBBf"],
-              "packing": ["<B11sB7sBBBBBfBfBfBfBfBfBBBf"], # (id,value),...
-              # every field has sensor id one byte
-              "nr2field": {"35": None, "239": "node", "60": None, "52": "accu", "74": "temp", "76": "rv","77":"luchtdruk","158":"rain","159":"prevrain","160":"dayrain","157":"wr","156":"ws"},
-              "fields": ["accu","temp","rv","luchtdruk","rain","prevrain","dayrain","wr","ws"],
-              "adjust": [[0,1],[0,1],[0,1],[0,0.01],[0,1],[0,1],[0,1],[0,1],[0,1]],
-              "sensors": ["WASPMOTE"],
-              "meteo": ["unknown"]
-          }
+            # "port10": {
+            #   # Libelium Waspmote void,id,void,accu,temp,...
+            #   #"packing": ["<B11sB7sBBBBBfBfBfBfBfBfBBBf"],
+            #   "packing": ["<B11sB7sBBBBBfBfBfBfBfBfBBBf"], # (id,value),...
+            #   # every field has sensor id one byte
+            #   "nr2field": {"35": None, "239": "node", "60": None, "52": "accu", "74": "temp", "76": "rv","77":"luchtdruk","158":"rain","159":"prevrain","160":"dayrain","157":"wr","156":"ws"},
+            #   "fields": ["accu","temp","rv","luchtdruk","rain","prevrain","dayrain","wr","ws"],
+            #   "adjust": [[0,1],[0,1],[0,1],[0,0.01],[0,1],[0,1],[0,1],[0,1],[0,1]],
+            #   "sensors": ["WASPMOTE"],
+            #   "meteo": ["unknown"]
+            # },
+            # "port12": {
+            #    # DIY weather station: wind dir, wind speed, volt, temp, humidity, air pressure
+            #    # 2 bytes devided by 100.0
+            #    # this one s just stupid, it needs generalisation eg a la Libelium!
+            #    "packing": ["<hhhhhh"],
+            #    "fields": ["wr","ws","accu","temp","rv","luchtdruk"],
+            #    "adjust": [[0,0.01],[0,0.01],[0,0.01],[0,0.01],[0,0.01],[0,1.0]],
+            #    "sensors": ["ANEMO","BME280"],
+            #    "meteo": ["BME280"],
+            # }
         }
     ],
     # defs of used fields by MySense, do not change the keys
@@ -598,31 +615,31 @@ def Initialize():
             new = json.loads(new)
         except ValueError as e:
             MyLogger.log(modulename,'ERROR',"Json error in init file %s: %s" % (Conf['initfile'],e))
-            MyLogger.log(modulename,'ATTENT','Missing or errors in LoRa init json file with info for all LaRa nodes. Using defaults.')
-            # return
+            MyLogger.log(modulename,'ATTENT','Missing or errors in LoRa init json file with info for all LaRa nodes. Exiting.')
+            return False
             # example of content of admin node info file specified for TTN MQTT RIVM records
             # fields may be optional. Will be exported to Sensors and TTNtable in DB
-            Conf['nodes'] = {
-                'pmsensorN': {           # Device id TTN
-                    'GPS': {
-                        'longitude': 51.12345, 'latitude': 6.12345, 'altitude': 23, },
-                    'label': 'Jelle', 'street': 'Fontys nr 8',
-                    'village': 'Venlo', 'pcode': '5888 XY',
-                    'province': 'Limburg', 'municipality': 'Venlo',
-                    'date': '20-12-2017', # start date
-                    'comment': 'test device',
-                    # 'serial': None, if not defined use hash topic/device name
-                    "serial": "30aea4008438", # PyCom unique ID
-                    'AppSKEY': 'xyz',    # LoRa key from eg RIVM
-                    'NwkSKey': 'acacadabra', # LoRa key from eg RIVM
-                    # To Do: add calibration details
-                    'meteo': 'BME280',   # meteo sensor type
-                    'dust': 'SDS011',    # dust sensor type
-                    'gps': 'NEO-6',      # GPS sensor
-                    'luftdaten': False,     # forward to Open Data Germany?
-                    'active': False,
-                }
-            }
+            # Conf['nodes'] = {
+            #     'pmsensorN': {           # Device id TTN
+            #         'GPS': {
+            #             'longitude': 51.12345, 'latitude': 6.12345, 'altitude': 23, },
+            #         'label': 'Jelle', 'street': 'Fontys nr 8',
+            #         'village': 'Venlo', 'pcode': '5888 XY',
+            #         'province': 'Limburg', 'municipality': 'Venlo',
+            #         'date': '20-12-2017', # start date
+            #         'comment': 'test device',
+            #         # 'serial': None, if not defined use hash topic/device name
+            #         "serial": "30aea4008438", # PyCom unique ID
+            #         'AppSKEY': 'xyz',    # LoRa key from eg RIVM
+            #         'NwkSKey': 'acacadabra', # LoRa key from eg RIVM
+            #         # To Do: add calibration details
+            #         'meteo': 'BME280',   # meteo sensor type
+            #         'dust': 'SDS011',    # dust sensor type
+            #         'gps': 'NEO-6',      # GPS sensor
+            #         'luftdaten': False,     # forward to Open Data Germany?
+            #         'active': False,
+            #     }
+            # }
         dirtySensorCache = True
         # nodes info are exported to Database tables Sensors and TTNtable
         for item in ['project','sensors','firmware','classes','translate','LoRa','notice','from','SMTP','adminDB','nodes','initfile','noticefile']:
@@ -720,7 +737,7 @@ def checkFields(record):
     def recordTranslate(arecord):
         new = {}
         for item in arecord.items():
-            if item[1] == None: confinue
+            if item[1] == None: continue
             transltd = translate(item[0],ext=False)
             if item[1] or (transltd in ['temp','wr','ws']):
                 new[transltd] = item[1]
@@ -748,15 +765,64 @@ def checkFields(record):
     data = { 'sensors':[], 'fields':[]}
     for item in new_record.items():
         if item[1] == None: continue
+        if item[0] in ['sensors','fields','units']: continue
         data[item[0]] = item[1]
         data['fields'] = list(set(data['fields']+[item[0]]))
         sense = getTypes(SenseFlds,item[0])
         data['sensors'] = list(set(data['sensors']+list(sense)))
+        # to do add units
+    for item in new_record.items(): # overwrite 
+        if not item[0] in ['sensors','fields','units']: continue
+        data[item[0]] = item[1].split(',')
     return data
+
+# for internal MySense data record assembly style
+# extra fields: sensor product type, sensor types and units
+# arguments: LoRa payload in base64, LoRa port nr or rule ID (string),
+#            omit keys from data records, default measement value unit, add time stamp?
+Coding = None
+def MyDecode(payload,portNr, timestamp=None, omit=[], dfltunit='dflt'):
+    global Coding
+    if not Coding:
+        import LoRaCode
+        Coding = LoRaCode.LoRaCoding()  # use default port 10 and 12 decoding rules
+    sensors = []; rslt = {}; fields = {}
+    for( key, item) in Coding.Decode(payload,portNr,timestamp).items():
+        if key in omit: continue
+        if type(item) is dict:
+            sensors.append(key)
+            for (key,item) in item.items():
+              if type(item) is list: continue
+              if type(item) is dict:
+                for (key,item) in item.items():
+                  try:
+                   rslt[key] = item[0]
+                   fields[key] = 'dflt'
+                   if len(item) > 1: fields[key] = item[1]
+                  except: rslt[key] = item
+              elif type(item) is tuple:
+                  try:
+                   rslt[key] = item[0]
+                   fields[key] = dfltunit
+                   if len(item) > 1: fields[key] = item[1]
+                  except: rslt[key] = item
+              else:
+                  rslt[key] =  item
+                  fields[key] = dfltunit
+    if fields:
+        flds = []; units = []
+        for (key,item) in fields.items():
+          if item:
+            flds.append(key); units.append(item)
+        if flds:
+            rslt['fields'] = ','.join(flds)
+            rslt['units'] = ','.join(units)
+    if sensors: rslt['sensors'] = ','.join(sensors)
+    return(rslt)
 
 # unpack base64 TTN LoRa payload string into array of values NOT TESTED
 # architecture is changed!, To Do: unpack on length of received bytes!
-def payload2fields(payload, firmware, portNr):
+def payload2fields(payload, firmware, portNr, myID):
     global cached, Conf
     packing = None; port = 'port%d' % portNr
     load = base64.decodestring(payload)
@@ -775,26 +841,36 @@ def payload2fields(payload, firmware, portNr):
         else:
           load = list(struct.unpack(packing,load)); fnd = True
     except: pass
-    if not fnd:
-        MyLogger.log(modulename,'ERROR','Cannot find payload converter definition for id %s.' % firmware['id'])
+    if (not fnd) and (not portNr in [10,12]):
+        MyLogger.log(modulename,'ERROR','Cannot find payload converter definition for id %s. TTN topic %s, port %s' % (firmware['id'],myID,portNr))
         return {}
     rts = {}
-    if (firmware['id'] == 'LoPyNode') and (portNr != 10): declared += ['GPS','PYCOM']
+    if (firmware['id'] == 'LoPyNode') and (not portNr in [10,12]): declared += ['GPS','PYCOM']
     try:
-        # I do not like special cases
-        if (firmware['id'] == 'LoPyNode') and (portNr == 10): # Libelium case
-            if 'nr2field' in firmware.keys():
-                new = [None]*len(firmware['fields'])
-                for i in range(0,len(load),2):
-                    fldnr = '%d'%load[i]
-                    if fldnr in firmware['nr2field'].keys():
-                        if firmware['nr2field'][fldnr]:
-                          try:
-                            new[firmware['fields'].index(firmware['nr2field'][fldnr])] = load[i+1]
-                          except: pass
-                if 'sensors' in firmware.keys(): defined = list(set(firmware['sensors']))
-                load = new
-            else: raise ValueError("incomplete json def")
+        # next is deprecated
+        # # I do not like special cases
+        # if (firmware['id'] == 'LoPyNode') and (portNr in [10]): # Libelium case
+        #     if 'nr2field' in firmware.keys():
+        #         new = [None]*len(firmware['fields'])
+        #         for i in range(0,len(load),2):
+        #             fldnr = '%d'%load[i]
+        #             if fldnr in firmware['nr2field'].keys():
+        #                 if firmware['nr2field'][fldnr]:
+        #                   try:
+        #                     new[firmware['fields'].index(firmware['nr2field'][fldnr])] = load[i+1]
+        #                   except: pass
+        #         if 'sensors' in firmware.keys(): defined = list(set(firmware['sensors']))
+        #         load = new
+        #     else: raise ValueError("incomplete json def")
+        # elif (firmware['id'] == 'LoPyNode') and (portNr in [12]): # DIY weather station
+        #     if 'fields' in firmware.keys():
+        #         if 'sensors' in firmware.keys(): defined = list(set(firmware['sensors']))
+        #     else: raise ValueError("incomplete json def")
+        #     if len(load) != len(firmware['fields']): raise ValueError("incomplete json fields def")
+        if (firmware['id'] == 'LoPyNode') and (portNr in [10,12]):
+            rts = MyDecode(payload,portNr,omit=['ProdID'],timestamp=None)
+            if 'sensors' in rts.keys(): declared = rts['sensors']
+            load = None; declared = []
         elif (firmware['id'] == 'LoPyNode') and (portNr == 3):
             rts['sensors'] = []
             if (load[1] & 017) > 0:
@@ -809,20 +885,23 @@ def payload2fields(payload, firmware, portNr):
             load.insert(2,None); load.insert(3,None)
         else:
             rts['sensors'] = firmware['sensors']
-        for idx in range(len(load)):
+        if load:
+          for idx in range(len(load)):
             if firmware['adjust'][idx] != None:
                 rts[firmware['fields'][idx]] = calibrate(firmware['adjust'][idx],load[idx])
         # try to improve guess for sensor type via existing field value
-        rts = checkFields(rts)
+        rts = checkFields(rts) # check code for units!
         if declared:
             rts['sensors'] = list(set(rts['sensors'] + declared))
             for sensor in Conf['sensors']:
                 if (sensor['type'] in declared) or (sensor['type'].lower() in declared):
                     rts['fields'] = list(set(rts['fields']+sensor['fields']))
         if defined: rts['sensors'] = defined
-        rts['sensors'].sort(); rts['fields'].sort()
+        rts['sensors'].sort()
+        # to be done: add units per field!
+        rts['fields'].sort() # need to sort units as well!
     except:
-        MyLogger.log(modulename,'ERROR','Unpacking LoRa MQTT payload. Record skipped.')
+        MyLogger.log(modulename,'ERROR','Unpacking LoRa MQTT payload. Record from %s port %s skipped.' % (myID,portNr))
         raise ValueError
         return{}
     return rts
@@ -1345,7 +1424,7 @@ def AllowInterval(interval,now=None):
 
 # only once at startup time: get names operational defined kits silent for long period
 def DeadKits():
-    global DB
+    global DB, TelegramCnt
     if not DB: return
     # obtain all operational kits
     kitTbls = DB.db_query("SELECT DISTINCT Sensors.project, Sensors.serial FROM Sensors, TTNtable WHERE Sensors.active AND TTNtable.active ORDER BY Sensors.datum DESC", True)
@@ -1372,6 +1451,7 @@ def DeadKits():
         TTNid = DB.db_query("SELECT DISTINCT TTN_id FROM TTNtable WHERE project = '%s' AND serial = '%s' AND active" % (Selection[indx][1],Selection[indx][2]), True)
         if not len(TTNid) or not len(TTNid[0]): continue
         MyLogger.log(modulename,'ATTENT',"Kit TTN id %s, project %s, serial %s, not seen for a while. Last seen: %s." % (TTNid[0][0], Selection[indx][1],Selection[indx][2],datetime.datetime.fromtimestamp(Selection[indx][0]).strftime("%Y-%m-%d %H:%M")) )
+        if not TelegramCnt: continue  # sendNotices only when fully operating
         if diff <= 24*60*60:
           sendNotice("Kit TTN id %s (project %s, serial %s:\t last seen %dh:%dm:%ds ago.\nMaybe not connected?\nLast time seen: %s.\nMySense kit information: %s." % (TTNid[0][0],Selection[indx][1],Selection[indx][2],diff/3600,(diff%3600)/60,(diff%(3600*60))%60,datetime.datetime.fromtimestamp(Selection[indx][0]).strftime("%Y-%m-%d %H:%M"),MyId2Info(TTNid[0][0])),myID="all/%s" % TTNid[0][0])
         else:
@@ -1508,8 +1588,19 @@ def MyId2Info(myid):
         if not qry[0][i]: qry[0][i] = 'unknown'
     return "project: %s, serial: %s, location: %s, %s" % (qry[0][0],qry[0][1],qry[0][2],qry[0][3])
     
+# hack to delete PM mass None values when PM count is not zero
+# deprecate when LoRa compression is not mapping NaN values to 0
+def CheckPMmass( record ):
+    if not type(record) is dict or not len(record): return record
+    for item in ['pm1','pm25','pm10']:
+        try:
+            if record[item] == None and record[item+'_cnt'] > 0:
+                record[item] = 0.013
+        except: pass
+    return record
+
 # convert MQTT structure to MySense ident,value structure
-def convert2MySense( data, **sensor):
+def convert2MySense( data, **sensor): ###########################
     global Conf, cached, previous, debug, ProcessStart
     global updateCacheTime, ReDoCache, dirtyCache, ShowCached
     global DB, WRSSI, WSNR
@@ -1517,7 +1608,7 @@ def convert2MySense( data, **sensor):
     def recordTranslate(arecord):
         new = {}
         for item in arecord.items():
-            if item[1] == None: confinue
+            if item[1] == None: continue
             transltd = translate(item[0],ext=False)
             if item[1] or (transltd in ['temp','wr','ws']):
                 new[transltd] = item[1]
@@ -1565,6 +1656,9 @@ def convert2MySense( data, **sensor):
             try:
                 cached[myID]['port%d' % record['port']][key] = cached[myID]['firmware'][key]
             except: pass
+        cached[myID]['port%d' % record['port']]['decode'] = None # always decode?
+        try: cached[myID]['port%d' % record['port']]['decode'] = cached[myID]['firmware']['decode']
+        except: pass
         if 'sensors' in cached[myID]['firmware'].keys():
             if type(cached[myID]['firmware']['sensors']) is unicode:
                 cached[myID]['firmware']['sensors'] = str(cached[myID]['firmware']['sensors'])
@@ -1584,6 +1678,9 @@ def convert2MySense( data, **sensor):
                     cached[myID]['firmware']['sensors'].append(key)
         except: pass
 
+    try:
+        if cached[myID]['port%d' % record['port']]['decode']: data['payload']['payload_fields'] = {}
+    except: pass
     now = time()
     # seen the kit before? If so need to throttle the kit?
     if cached[myID]['last_seen']: # update datagram frequency and throttle if needed so
@@ -1603,11 +1700,13 @@ def convert2MySense( data, **sensor):
 
     # maybe a datagram from unknown wild kit
     if len(cached[myID]['firmware']['sensors']) <= 0: # unregistrated sensor kit
-        if cached[myID]['count'] <= 1:
-            MyLogger.log(modulename,'ATTENT','Unknown (new) kit: %s' % myID)
+        if not (cached[myID]['count']%50): # notice once in the 50 times
+            MyLogger.log(modulename,'ATTENT','Unknown (new) kit or port %d use: %s' % (myID,record['port']))
             # may need to send a notice
-            sendNotice('Unknown (new?) kit found: %s' % myID,myID=myID)
-        raise ValueError('unknown kit %s' % myID)  # skip this record
+            sendNotice('Unknown (new?) kit or port %d use found: %s' % (myID,record['port']),myID=myID)
+        cached[myID]['count'] += 1
+        # skip this record
+        raise ValueError('unknown kit %s or port %d' % (myID,record['port']))
 
     # is this kit interrupted?
     tstamp = ProcessStart
@@ -1626,6 +1725,7 @@ def convert2MySense( data, **sensor):
             previous.remove(myID)
     cached[myID]['last_seen'] = now # may be overwritten by datagram timestamp later
 
+    # some ports have errors in TTN Java Script decoding
     # make sure pay_load_fields have: keys types (sensors) and fields
     # this needs some rework! Too many fields and types!
     # collect sensor product names, cache them,
@@ -1689,10 +1789,10 @@ def convert2MySense( data, **sensor):
                     MyLogger.log(modulename,'ERROR',"Unable to find firmware for device %s using LoPyNode" % data['topic'][2])
             else:
                 firmware = cached[myID]['firmware']
-            data['payload']['payload_fields'] = payload2fields(data['payload']['payload_raw'],firmware,data['payload']['port'])
+            data['payload']['payload_fields'] = payload2fields(data['payload']['payload_raw'],firmware,data['payload']['port'],myID)
     else: return {}
     # side effect payload2fields: key sensors
-    for item in ['sensors','fields']:
+    for item in ['sensors','fields','units']:
       if item in data['payload']['payload_fields'].keys():
         if not item in cached[myID].keys():
             cached[myID][item] = []
@@ -1775,7 +1875,7 @@ def convert2MySense( data, **sensor):
             for t in ['meteo','dust','gps']:
                 if (t in values.keys()) and values[t]:
                     fnd = False
-                    if t == 'gps': values[t] = 'NEO'
+                    if t == 'gps': values[t] = 'NEO-6'
                     else: values[t] = str(values[t])
                     if values[t]:
                         for sensor in Conf['sensors']:
@@ -1877,7 +1977,7 @@ def convert2MySense( data, **sensor):
            MyLogger.log(modulename,'DEBUG','Record from not activated kit: ident: %s, values: %s' % (str(ident),str(values)))
            sendNotice('Not active (in test?) kit found: %s, project: %s, serial: %s' % (myID,ident['project'],ident['serial']),myID=myID)
            # gotMetaInfo = True
-        if not cached[myID]['active']: return {}
+        if (not cached[myID]['active']) and (not debug): return {}
     except Exception as e:
         MyLogger.log(modulename,'ERROR','Failure to convert record from %s: %s' % (myID,str(e)))
         return {}
@@ -1898,10 +1998,12 @@ def convert2MySense( data, **sensor):
             try:
                 if not FluctCheck(myID,item,values[item]): del values[item]
             except: pass
-    return { 'ident': ident, 'data': values, 'myID': myID}
+    # decomment next if LoRa decompression is improved for NaN values
+    # return { 'ident': ident, 'data': values, 'myID': myID}
+    return { 'ident': ident, 'data': CheckPMmass( values ), 'myID': myID}
 
 def getdata():
-    global Conf, ErrorCnt
+    global Conf, ErrorCnt, TelegramCnt
     if not Conf['input']: return True
     if ErrorCnt:
         if ErrorCnt > 20:
@@ -1945,6 +2047,7 @@ def getdata():
         if msg == None:
             ErrorCnt += 1
             return {}
+        TelegramCnt += 1
         ErrorCnt = 0
         msg['topic'] = msg['topic'].split('/')
         msg['payload'] = json.loads(msg['payload'])
@@ -2059,7 +2162,7 @@ def Configure():
     return True
 
 def ImportArguments():
-    global Conf, Channels
+    global Conf, Channels, debug
     # allow: cmd file=abc user=xyz password=acacadabra
     #            debug=True, console:output=False monitor:file=fifo=/tmp/Monitoring.pipe
     # and other Conf options
@@ -2097,6 +2200,7 @@ def ImportArguments():
                         if type(Conf[Match['key']]) is list: Match['value'].split(',')
                         Conf[Match['key']] =  Match['value']
                     sys.stderr.write("New value Conf[%s]: %s\n" %(Match['key'],str(Match['value'])))
+    debug = Conf['DEBUG']
     return True
 
 # synchronize Conf with Channels
