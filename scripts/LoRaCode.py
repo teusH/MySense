@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: LoRaCode.py,v 1.5 2020/11/08 18:34:06 teus Exp teus $
+# $Id: LoRaCode.py,v 1.6 2020/11/09 13:38:13 teus Exp teus $
 
 # WARNING do not use in full operational environment
 # subject to change without notice.
@@ -67,7 +67,7 @@ class LoRaCoding:
       # DefaultUnits: a list of defaukt unit types for measurement values. May be empty to force units in value tuple
       # defaults: percentage, Celcius, hecto pascal, mm per hour, seconds, Kilo Ohm,
       # mu gram per square meter, particles per cubic meter, meter per second
-      # PortMap: a dictionary to map port number to rule identification. Default see below
+      # PortMap: a map of port number to product ID, rule identification. Default see below
       # struct.pack(">f", float('nan')).encode("hex_codec") -> '7fc00000'
       # struct.unpack('>f','7fc00000'.decode("hex_codec")) -> (nan,)
       NANf = float('nan')
@@ -157,8 +157,8 @@ class LoRaCoding:
       # to do: usage of LoRa port number as type of compression is a bit strange
       # need to change this to some type of datagram header identification
       self.PortMap = {
-          12: self.LoRaCodeRules['weerDIY1'],
-          10: self.LoRaCodeRules['Libelium']
+          12: 'weerDIY1',
+          10: 'Libelium'
       }
       
     # search in format array row type sensor ID, return tuple IDnr, IDname, array compressie
@@ -205,22 +205,21 @@ class LoRaCoding:
     # data record is a dict with names of sensors,
     # each item is ordered list, or dict with types of sensed data, or single value
     # to do: variable size string with end of string mark (see Libelium header style)
-    def Encode(self, data, format ):
+    def Encode(self, data, ProdID ):
         import struct
         import base64
         rts = ''
-        if type(format) is int:
-            try: format = self.PortMap[format]
-            except:
-                print "Unknown port %d for en/decoding" % format
-                return rts
-        elif not format in self.LoRaCodeRules.keys():
-            print "Unknown encoding format: %s" % format
+        if type(ProdID) is int:
+            try: ProdID = self.PortMap[ProdID]
+            except: pass
+        if not ProdID in self.LoRaCodeRules.keys():
+            print "Unknown LoRa  payload coding product ID: %s" % format
             return rts
-        if format == 10:
+        if ProdID == 'Libelium':
             print("Libelium encoding is not yet supported")
             return rts
         if not type(data) is dict: return rts
+        format = self.LoRaCodeRules[ProdID]
     
         if not 'version' in data.keys(): data['version'] = [None]
         if not type(data['version']) is list: data['version'] = [data['version']]
@@ -277,23 +276,22 @@ class LoRaCoding:
                         break
         return (cnt, pck)
     
-    def Decode(self,raw,format,timestamp=None):
+    def Decode(self,raw,ProdID,timestamp=None):
         import base64
         import struct
         import datetime
         import dateutil.parser as dp
         from time import time
     
-        if type(format) is int:
-            try: frmt = self.PortMap[format]
-            except:
-                raise valueError("Unknown port %d for en/decoding" % format)
-        elif not format in self.LoRaCodeRules.keys():
-            raise valueError("Unknown encoding format: %s" % format)
-        else: frmt = self.LoRaCodeRules[format]
+        if type(ProdID) is int:
+            try: ProdID = self.PortMap[ProdID]
+            except: pass
+        if not ProdID in self.LoRaCodeRules.keys():
+            raise valueError("Unknown LoRa payload encoding product ID: %s" % ProdID)
+        frmt = self.LoRaCodeRules[ProdID]
         PackedData = base64.decodestring(raw)
     
-        i = -1; endian = frmt[0][0]; data = {}
+        i = -1; endian = frmt[0][0]; data = { 'ProdID': ProdID, }
         try:
           while i < len(PackedData):
             pck = ''; stype = None
