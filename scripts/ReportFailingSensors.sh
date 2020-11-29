@@ -19,9 +19,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: ReportFailingSensors.sh,v 1.31 2020/10/25 10:01:34 teus Exp teus $
+# $Id: ReportFailingSensors.sh,v 1.32 2020/11/13 08:07:10 teus Exp teus $
 
-CMD="$(basename $0) $(echo '$Revision: 1.31 $' | sed -e 's/\$//g' -e 's/ision://')"
+CMD="$(basename $0) $(echo '$Revision: 1.32 $' | sed -e 's/\$//g' -e 's/ision://')"
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
@@ -162,6 +162,10 @@ function SendNotice() {
         ATTENT[${KIT}@${SENS}]=$(date +%s)
         NOTICE=$($MYSQL -e "SELECT notice FROM Sensors WHERE active AND NOT isnull(notice) AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1")
         NOTICE=$(echo "$NOTICE" | sed -e 's/,* *slack:[^,]*//' -e 's/email: *//g' -e 's/^  *//' -e 's/  *$//')
+        if [ -z "${ATTENT[${KIT}@${SENS}]}" ]
+        then
+            echo "NEW failure for Sensor ${SENS}!" 1>&2
+        fi
     elif (( $VERBOSE > 0 ))
     then
         echo SendNotices skipped upto $(DATE $((${ATTENT[${KIT}@${SENS}]} + 3*24*60*60)) ) 1>&2
@@ -317,6 +321,8 @@ function CheckSensors() {
     ActiveSenses=()
     NotActiveSenses=()
     NotOperational=()
+    local MSG=''
+    declare -a DTS
     # some dust sensors do not have bin count
     if $MYSQL -e "SELECT description FROM Sensors WHERE project = '${AKIT/_*/}' AND serial
  = '${AKIT/*_/}' AND active ORDER BY datum DESC" | grep -q -P '(SDS011)' 
@@ -325,16 +331,14 @@ function CheckSensors() {
     fi
     COLS=$($MYSQL -e "DESCRIBE $AKIT" | awk '{ print $1; }' | grep -P "^(${DUST_E:-XYZ}|${METEO:-XxX})$")
     if [ -z "$COLS" ] ; then return 2 ; fi
-    for COL in $COLS
+    for COL in $COLS # collect last date timestamp for all searched for pollutants
     do
         if [ -n "$QRY" ] ; then QRY+=',' ; fi
         QRY+="(SELECT UNIX_TIMESTAMP(max(datum)) FROM $AKIT WHERE NOT ISNULL($COL) AND datum >= '$STRT' AND datum <= '$LST')"
     done
-    declare -a DTS
+    DTS=($($MYSQL -e "SELECT $QRY"))
     declare -i I=0
     declare -i LSTi=$(date --date="$LST" '+%s')
-    DTS=($($MYSQL -e "SELECT $QRY"))
-    local MSG=''
     declare -i NullCnt=0
     for COL in $COLS
     do

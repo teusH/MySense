@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: LoRaCode.py,v 1.6 2020/11/09 13:38:13 teus Exp teus $
+# $Id: LoRaCode.py,v 1.7 2020/11/11 09:00:56 teus Exp teus $
 
 # WARNING do not use in full operational environment
 # subject to change without notice.
@@ -113,6 +113,10 @@ class LoRaCoding:
               # 12 Sensirion SPS31 PM1 PM2.5 PM10 PM0.3 PM0.5 PM1 PM2.5 PM5 PM10 PMsize
               [19,'NEO-6',[['lon','f',NANf,[0,1.0],'degrees'],['lat','f',NANf,[0,1.0],'degrees'],['alt','L',NANL,[0,10.0],'m']] ], # degrees, degrees, meter (unsigned long)
               [20,'windDIY1',[['wr','H',NANh,[0,1.0],'degrees'],['ws','H',NANH,[0,10.0],'m/sec']] ],
+              # a mechanical simple wind fane, limited resolution of direction
+              [21,'Argent',[['wr','H',NANh,[0,1.0],'degrees'],['ws','H',NANH,[0,10.0],'m/sec'],['rain','H',NANh,[0,1.0],'mm']] ],
+              # wind dir, wind speed
+              [22,'Ultrasonic',[['wr','H',NANh,[0,1.0],'degrees'],['ws','H',NANH,[0,10.0],'m/sec']] ],
               # 21 cm3/h rain
               # 30 lux UV BH1750
               # 40 ppm CO2
