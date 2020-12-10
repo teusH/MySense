@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTNclient.py,v 2.3 2020/12/09 09:48:25 teus Exp teus $
+# $Id: MyTTNclient.py,v 2.5 2020/12/10 10:20:08 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -29,7 +29,11 @@
 # broker server: Debian: apt-get install mqtt
 
 """Simple test script for TTN MQTT broker access
+    Broker access is designed for multiple brokers data record MQTT downloads.
+    MQTT topics may be a list of topics.
+    Main routine is GetData() to start and handle data records downloads.
     Module can be used as library as well CLI
+
     command line (CLI) arguments:
         verbose=true|false or -v or --verbose. Default False.
         user=TTNuser user account name for TTN.
@@ -98,9 +102,11 @@ class TTN_broker:
             if len(record) > 25: # primitive way to identify incorrect records
               self.logger("WARNING TTN MQTT records overload. Skipping.")
             elif len(self.RecordQueue) > 100:
-              self.logger("WARNING exhausting record queue. Skip records.")
+              self.logger("WARNING exhausting record queue. Skip record: %s." % record['dev_id'])
             else:
-              with self.QueueLock: self.RecordQueue.append(record)
+              with self.QueueLock:
+                self.RecordQueue.append(record)
+                self.broker['timestamp']  = time.time()
             return True
         except Exception as e:
             # raise ValueError("Payload record is not in json format. Skipped.")
@@ -202,7 +208,7 @@ def MQTTstartup(MQTTbrokers,verbose=False,keepalive=180,logger=None):
         broker['restarts'] = 0   # nr of restarts with timing of 60 seconds
         broker['startTime'] = 0  # last time started
         broker['polling'] = 1    # number of secs to delay check for data
-        broker['waiting'] = 0    # last time record
+        broker['timestamp'] = 0    # last time record
       if not broker['fd']:
         broker['fd'] = TTN_broker(broker, MQTTFiFo, MQTTLock, verbose=verbose, keepalive=keepalive, logger=logger)
       if not broker['fd']:
@@ -213,7 +219,7 @@ def MQTTstartup(MQTTbrokers,verbose=False,keepalive=180,logger=None):
         logger("FATAL Unable to initialize TTN MQTT connection: %s." % str(broker))
         del MQTTbrokers[indx]
       elif not broker['startTime']:
-        broker['waiting'] = broker['startTime'] = time.time()
+        broker['timestamp'] = broker['startTime'] = time.time()
       MQTTindx = -1
     if not len(brokers): return False
     return True
@@ -266,19 +272,16 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
       for nr in range(len(MQTTbrokers)):
         MQTTindx = (MQTTindx+1)%len(MQTTbrokers)
         broker = MQTTbrokers[MQTTindx]
-        try:
-            if len(broker['fd'].RecordQueue): continue
-        except: pass
 
         # CONNECTED broker
         if broker['fd'].TTNConnected:
           # there was no record in the record queue
-          if (now - broker['waiting'] > 20*60) and (now - broker['startTime'] > 45*60):
-            logger("ERROR Waiting too long for data from broker %s. Stop connection." % str(broker))
-            broker['fd'].TTNStop()
+          if (now - broker['timestamp'] > 20*60) and (now - broker['startTime'] > 45*60):
+            logger("ERROR Waiting (waiting for %d secs, running %d seconds) too long for data from broker %s. Stop connection." % (now - broker['timestamp'], now - broker['startTime'], str(broker)))
+            broker['fd'].TTNstop()
             del MQTTbrokers[MQTTindx]
             # break  # break to while True loop
-          if not broker['waiting']: broker['waiting'] = now
+          if not broker['timestamp']: broker['timestamp'] = now
 
         # DISCONNECTED broker
         elif broker['restarts'] <= 3: # try simple restart
@@ -287,11 +290,11 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
             if now-broker['startTime'] > 15*60: # had run for minimal 5 minutes
               broker['restarts'] = 0
               broker['fd'] = None
-              broker['waiting'] = now
+              broker['timestamp'] = now
               # break # break to while True loop
             else:
               broker['restarts'] += 1  # try again and delay on failure
-              broker['waiting'] = now
+              broker['timestamp'] = now
         else:
             logger("ERROR: %s: Too many restries on broker %s" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S",str(broker))))
             broker['fd'].TTNstop()
@@ -299,24 +302,24 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
             broker = {}
 
         if not ToBeRestarted[1]:
-          ToBeRestarted = (broker['waiting'],broker,MQTTindx)
-        elif broker['waiting'] < ToBeRestarted[0]:
-          ToBeRestarted = (broker['waiting'],broker,MQTTindx)
+          ToBeRestarted = (broker['timestamp'],broker,MQTTindx)
+        elif broker['timestamp'] < ToBeRestarted[0]:
+          ToBeRestarted = (broker['timestamp'],broker,MQTTindx)
       
       if ToBeRestarted[1]:
-        if verbose:
-          if int(time.time()-timing) and logger == sys.stdout.write:
-            sys.stdout.write("\033[F") #back to previous line 
-            sys.stdout.write("\033[K") #clear line 
-          logger("Waiting %3d+%3d secs." % (time.time()-timing,max(ToBeRestarted[1]['waiting'] - now,sec2pol)))
-        time.sleep(max(ToBeRestarted[1]['waiting'] - now,sec2pol))
+        #if verbose:
+        #  LF = ''
+        #  if int(time.time()-timing) and logger == sys.stdout.write:
+        #    LF = "\033[F\033[K" #back to previous line and clear line 
+        #  logger("%sWaiting %3d+%3d secs." % (LF,time.time()-timing,max(ToBeRestarted[1]['timestamp'] - now,sec2pol)))
+        time.sleep(max(ToBeRestarted[1]['timestamp'] - now,sec2pol))
         MQTTindx = ToBeRestarted[2]-1
       else:
-        if verbose:
-          if int(time.time()-timing) and logger == sys.stdout.write:
-            sys.stdout.write("\033[F") #back to previous line 
-            sys.stdout.write("\033[K") #clear line 
-          logger("Awaiting %3d+%3d secs." % (time.time()-timing,sec2pol))
+        #if verbose:
+        #  LF = ''
+        #  if int(time.time()-timing) and logger == sys.stdout.write:
+        #    LF = "\033[F\033[K" #back to previous line and clear line 
+        #  logger("%sAwaiting %3d+%3d secs." % (LF,time.time()-timing,sec2pol))
         time.sleep(sec2pol)
       # and try again in the while True loop
 
@@ -365,9 +368,10 @@ if __name__ == '__main__':
 
     while True:
       try:
-        DataRecord = GetData(MQTTbrokers,verbose=verbose,keepalive=keepalive,logger=sys.stdout.write) 
+        timing = time.time()
+        DataRecord = GetData(MQTTbrokers,verbose=verbose,keepalive=keepalive,logger=None) 
         if DataRecord:
-          print("%s: received data record: %s" % (datetime.datetime.now().strftime("%m-%d %Hh%Mm%Ss"),str(DataRecord['dev_id'])))
+          print("%s: delay %d secs, received data record: %s" % (datetime.datetime.now().strftime("%m-%d %Hh%Mm%Ss"),time.time()-timing,str(DataRecord['dev_id'])))
           if show and show.match(DataRecord['dev_id']):
             print("%s" % str(DataRecord))
         else:
