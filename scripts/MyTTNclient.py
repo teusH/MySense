@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTNclient.py,v 2.5 2020/12/10 10:20:08 teus Exp teus $
+# $Id: MyTTNclient.py,v 2.6 2020/12/12 12:15:22 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -72,6 +72,8 @@ class TTN_broker:
         self.TTNclient = None     # TTN connection handle
         self.verbose = verbose    # verbosity
         self.broker = broker      # TTN access details
+        if not 'lock' in broker.keys(): # make sure timestamp sema is there
+            self.broker['lock'] = threading.RLock()
         self.KeepAlive = keepalive # connect keepalive in seconds, default 60
         self.logger = logger      # routine to print errors
     
@@ -79,18 +81,15 @@ class TTN_broker:
         if rc == 0:
             if self.verbose: self.logger("INFO Connected to broker")
             self.TTNconnected = True                # Signal connection 
+            with self.broker['lock']: self.broker['timestamp'] = time.time()
         else:
-            self.logger("ERROR Connection failed")
+            self.logger("ERROR Connect to MQTT broker failed: %s." % [ "successful", "internet connection broke up", "invalid client identifier", "server unavailable", "bad username or password", "not authorised"][rc])
             raise IOError("TTN MQTT connection failed")
     
     def _on_disconnect(self, client, userdata, rc):
-        if self.verbose:
-            self.logger("ERROR TTN disconnect rc=%d: %s." % (rc,[ "successful", "connection broke up", "invalid client identifier", "server unavailable", "bad username or password", "not authorised"][rc]))
-
-        if not rc:
-            self.logger("ERROR Disconnect from client site.")
-        else:
-            self.logger("ERROR Disconnect from MQTT broker: %s." % [ "successful", "internet connection broke up", "invalid client identifier", "server unavailable", "bad username or password", "not authorised"][rc])
+        if verbose:
+            self.logger("ERROR Disconnect rc=%d from broker %s" % (rc, self.broker))
+        self.logger("ERROR Broker disconnect: rc=%d." % rc)
         time.sleep(0.1)
         self.TTNconnected = False
      
@@ -106,7 +105,8 @@ class TTN_broker:
             else:
               with self.QueueLock:
                 self.RecordQueue.append(record)
-                self.broker['timestamp']  = time.time()
+                # in principle next should be guarded by a semaphore
+                with self.broker['lock']: self.broker['timestamp']  = time.time()
             return True
         except Exception as e:
             # raise ValueError("Payload record is not in json format. Skipped.")
@@ -142,6 +142,10 @@ class TTN_broker:
                         self.logger("FATAL Giving up.")
                         exit(1)
         else:
+            try:
+                self.broker['count'] += 1
+                time.sleep(self.broker['count']*60) # slow down a bit
+            except: self.broker['count'] = 1
             self.TTNclient.reinitialise()
             if self.verbose:
                 self.logger("INFO Reinitialize TTN MQTT client")
@@ -207,8 +211,9 @@ def MQTTstartup(MQTTbrokers,verbose=False,keepalive=180,logger=None):
         broker['fd'] = None      # class object handle
         broker['restarts'] = 0   # nr of restarts with timing of 60 seconds
         broker['startTime'] = 0  # last time started
-        broker['polling'] = 1    # number of secs to delay check for data
-        broker['timestamp'] = 0    # last time record
+        broker['count'] = 0      # number of secs to delay check for data
+        broker['timestamp'] = 0  # last time record
+        broker['lock'] = threading.RLock() # sema for timestamp
       if not broker['fd']:
         broker['fd'] = TTN_broker(broker, MQTTFiFo, MQTTLock, verbose=verbose, keepalive=keepalive, logger=logger)
       if not broker['fd']:
@@ -219,7 +224,8 @@ def MQTTstartup(MQTTbrokers,verbose=False,keepalive=180,logger=None):
         logger("FATAL Unable to initialize TTN MQTT connection: %s." % str(broker))
         del MQTTbrokers[indx]
       elif not broker['startTime']:
-        broker['timestamp'] = broker['startTime'] = time.time()
+        with broker['lock']:
+          broker['timestamp'] = broker['startTime'] = time.time()
       MQTTindx = -1
     if not len(brokers): return False
     return True
@@ -281,7 +287,8 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
             broker['fd'].TTNstop()
             del MQTTbrokers[MQTTindx]
             # break  # break to while True loop
-          if not broker['timestamp']: broker['timestamp'] = now
+          if not broker['timestamp']: 
+            with broker['lock']: broker['timestamp'] = now
 
         # DISCONNECTED broker
         elif broker['restarts'] <= 3: # try simple restart
@@ -290,11 +297,11 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
             if now-broker['startTime'] > 15*60: # had run for minimal 5 minutes
               broker['restarts'] = 0
               broker['fd'] = None
-              broker['timestamp'] = now
+              with broker['lock']: broker['timestamp'] = now
               # break # break to while True loop
             else:
               broker['restarts'] += 1  # try again and delay on failure
-              broker['timestamp'] = now
+              with broker['lock']: broker['timestamp'] = now
         else:
             logger("ERROR: %s: Too many restries on broker %s" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S",str(broker))))
             broker['fd'].TTNstop()
@@ -325,16 +332,18 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
 
 if __name__ == '__main__':
     # show full received TTN MQTT record foir this pattern
-    show = None
-    node = '+'          # TTN MQTT pattern for subscription device topic part
-    user = "1234567890abc"       # connection user name
+    show = None         # show details of data record for nodeID pattern
+    node = '+'          # TTN MQTT devID pattern for subscription device topic part
+    # user = "1234567890abc"       # connection user name
+    user = "201802215971az"        # Connection username
     verbose = False
     logger = None       # routine to print messages to console
     # Connection password
-    password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
-    keepalive = 60      # to play with keepalive connection settings
+    # password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
+    password = "ttn-account-v2.GW3msa6kBNZs0jx4aXYCcbPaK6r0q9iSfZjIOB2Ixts"
+    keepalive = 180     # play with keepalive connection settings, dflt 180 secs
     
-    for arg in sys.argv[1:]:
+    for arg in sys.argv[1:]: # change defualt settings arg: <type>=<value>
         if arg  in ['-v','--verbode']:
             verbose = True; continue
         Match = re.match(r'(?P<key>verbose|show|node|user|password|keepalive)=(?P<value>.*)', arg, re.IGNORECASE)
@@ -343,18 +352,21 @@ if __name__ == '__main__':
             if Match['key'].lower() == 'verbose':
                 if Match['value'].lower() == 'false': verbose = False
                 elif Match['value'].lower() == 'true': verbose = True
-            elif Match['key'].lower() == 'show': show = re.compile(Match['value'], re.I)
-            elif Match['key'].lower() == 'node':
+            elif Match['key'].lower() == 'show': # pattern show details record
+                show = re.compile(Match['value'], re.I)
+            elif Match['key'].lower() == 'node': # comma separated list of devID's
                 if node == '+': node = Match['value']
                 else: node += ',' + Match['value']
-            elif Match['key'].lower() == 'user': user = Match['value']
-            elif Match['key'].lower() == 'password': password = Match['value']
+            elif Match['key'].lower() == 'user':
+                user = Match['value']
+            elif Match['key'].lower() == 'password':
+                password = Match['value']
             elif Match['key'].lower() == 'keepalive':
                 if Match['value'].isdigit(): keepalive = int(Match['value'])
     
     # TTN MQTT broker access details
     topics = []
-    for topic in node.split(','):
+    for topic in node.split(','): # list of appID/devices/devID
         topics.append(("+/devices/" + topic + "/up",0))
     TTNbroker = {
         "address": "eu.thethings.network",  # Broker address
@@ -371,7 +383,7 @@ if __name__ == '__main__':
         timing = time.time()
         DataRecord = GetData(MQTTbrokers,verbose=verbose,keepalive=keepalive,logger=None) 
         if DataRecord:
-          print("%s: delay %d secs, received data record: %s" % (datetime.datetime.now().strftime("%m-%d %Hh%Mm%Ss"),time.time()-timing,str(DataRecord['dev_id'])))
+          print("%s:%s received data record: %s" % (datetime.datetime.now().strftime("%m-%d %Hh%Mm%Ss"), " delay %3d secs," % (time.time()-timing if verbose else ''),str(DataRecord['dev_id'])))
           if show and show.match(DataRecord['dev_id']):
             print("%s" % str(DataRecord))
         else:
