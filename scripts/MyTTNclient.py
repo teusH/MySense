@@ -334,13 +334,11 @@ if __name__ == '__main__':
     # show full received TTN MQTT record foir this pattern
     show = None         # show details of data record for nodeID pattern
     node = '+'          # TTN MQTT devID pattern for subscription device topic part
-    # user = "1234567890abc"       # connection user name
-    user = "201802215971az"        # Connection username
+    user = "1234567890abc"       # connection user name
     verbose = False
     logger = None       # routine to print messages to console
     # Connection password
-    # password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
-    password = "ttn-account-v2.GW3msa6kBNZs0jx4aXYCcbPaK6r0q9iSfZjIOB2Ixts"
+    password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
     keepalive = 180     # play with keepalive connection settings, dflt 180 secs
     
     for arg in sys.argv[1:]: # change defualt settings arg: <type>=<value>
