@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTNclient.py,v 2.6 2020/12/12 12:15:22 teus Exp teus $
+# $Id: MyTTNclient.py,v 2.7 2020/12/14 15:28:08 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -32,6 +32,8 @@
     Broker access is designed for multiple brokers data record MQTT downloads.
     MQTT topics may be a list of topics.
     Main routine is GetData() to start and handle data records downloads.
+    GetData() returns with the TTN MQTT data record in json/dict format, or
+    empty dict for no recort, or None for End of Records/Data.
     Module can be used as library as well CLI
 
     command line (CLI) arguments:
@@ -264,7 +266,8 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
             raise ValueError("Undefined broker %s" % str(broker))
           broker['fd'] = None
       if not len(MQTTbrokers) or not MQTTstartup(MQTTbrokers,verbose=verbose,keepalive=keepalive,logger=logger):
-        raise IOError("FATAL no MQTT broker available")
+        logger("INFO no MQTT broker available")
+        return None
       if MQTTindx == None: MQTTindx = -1
       now = time.time()
 
@@ -329,16 +332,19 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
         #  logger("%sAwaiting %3d+%3d secs." % (LF,time.time()-timing,sec2pol))
         time.sleep(sec2pol)
       # and try again in the while True loop
+    return None
 
 if __name__ == '__main__':
     # show full received TTN MQTT record foir this pattern
     show = None         # show details of data record for nodeID pattern
     node = '+'          # TTN MQTT devID pattern for subscription device topic part
-    user = "1234567890abc"       # connection user name
+    # user = "1234567890abc"       # connection user name
+    user = "201802215971az"        # Connection username
     verbose = False
     logger = None       # routine to print messages to console
     # Connection password
-    password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
+    # password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
+    password = "ttn-account-v2.GW3msa6kBNZs0jx4aXYCcbPaK6r0q9iSfZjIOB2Ixts"
     keepalive = 180     # play with keepalive connection settings, dflt 180 secs
     
     for arg in sys.argv[1:]: # change defualt settings arg: <type>=<value>
@@ -374,7 +380,7 @@ if __name__ == '__main__':
         "password": password,
         "topic": (topics[0][0] if len(topics) == 1 else topics), # topic to subscribe to
     }
-    MQTTbrokers = [ TTNbroker, ]
+    MQTTbrokers = [ TTNbroker, ] # may be a list of TTN/user brokers
 
     while True:
       try:
@@ -384,10 +390,12 @@ if __name__ == '__main__':
           print("%s:%s received data record: %s" % (datetime.datetime.now().strftime("%m-%d %Hh%Mm%Ss"), " delay %3d secs," % (time.time()-timing if verbose else ''),str(DataRecord['dev_id'])))
           if show and show.match(DataRecord['dev_id']):
             print("%s" % str(DataRecord))
+        elif record == None: break
         else:
           print("No data record received. Try again.")
       except Exception as e:
         print("End of get data record with exception: %s" % str(e))
         break
+
     MQTTstop(MQTTbrokers)
     exit(0)
