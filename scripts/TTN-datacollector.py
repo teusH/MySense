@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: TTN-datacollector.py,v 4.4 2020/12/15 13:15:39 teus Exp teus $
+# $Id: TTN-datacollector.py,v 4.5 2020/12/16 11:55:40 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: TTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 4.4 $"[11:-2]
+__version__ = "0." + "$Revision: 4.5 $"[11:-2]
 
 try:
     import MyLogger
@@ -179,11 +179,9 @@ MQTTdefaults = {
             # credentials to access broker
             'user': 'account_name',
             'password': 'ttn-account-v2.acacadabra',
-            'qos' : 0,           # MQTT dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
-            'cert' : None,       # X.509 encryption
-            # deprecated:
-            'errorCNT': 0,       # number of errors encountered for retry connect
-            'timeout': 2*60*60,  # timeout for this broker
+            # MQTT dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
+            # 'qos' : 0, # is default
+            # TODO: 'cert' : None,       # X.509 encryption
         }
 
 Conf = {
@@ -646,7 +644,7 @@ def Initialize():
             # }
         dirtySensorCache = True
         # nodes info are exported to Database tables Sensors and TTNtable
-        for item in ['project','sensors','firmware','classes','translate','LoRa','notice','from','SMTP','adminDB','nodes','initfile','noticefile','TTN']:
+        for item in ['project','sensors','firmware','classes','translate','notice','from','SMTP','adminDB','nodes','initfile','noticefile','TTN']:
             if item in new.keys():
                 Conf[item] = new[item]
                 MyLogger.log(modulename,'ATTENT','Overwriting dflt definitions for Conf[%s].' % item)

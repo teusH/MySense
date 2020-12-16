@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTNclient.py,v 2.7 2020/12/14 15:28:08 teus Exp teus $
+# $Id: MyTTNclient.py,v 2.8 2020/12/16 11:41:17 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -134,6 +134,8 @@ class TTN_broker:
             self.TTNclient.on_disconnect = self._on_disconnect  # attach function to callback
             for cnt in range(3):
                 try:
+                    # TODO: set_tls setting not yet supported
+                    # if 'cert' in self.broker.keys() do set ssl
                     self.TTNclient.connect(self.broker["address"], port=self.broker["port"], keepalive=self.KeepAlive) # connect to broker
                     break
                 except Exception as e:
@@ -180,7 +182,10 @@ class TTN_broker:
                     self.logger("INFO Wait for connection % 3.ds"% (cnt/10))
             cnt += 1
             time.sleep(0.1)
-        self.TTNclient.subscribe(self.broker['topic'])
+        qos = 0 # MQTT dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
+        try: qos = self.broker['qos']
+        except: pass
+        self.TTNclient.subscribe(self.broker['topic'], qos=qos)
         if self.verbose:
             self.logger("INFO TTN MQTT client started")
         return True
@@ -338,13 +343,11 @@ if __name__ == '__main__':
     # show full received TTN MQTT record foir this pattern
     show = None         # show details of data record for nodeID pattern
     node = '+'          # TTN MQTT devID pattern for subscription device topic part
-    # user = "1234567890abc"       # connection user name
-    user = "201802215971az"        # Connection username
+    user = "1234567890abc"       # connection user name
     verbose = False
     logger = None       # routine to print messages to console
     # Connection password
-    # password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
-    password = "ttn-account-v2.GW3msa6kBNZs0jx4aXYCcbPaK6r0q9iSfZjIOB2Ixts"
+    password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
     keepalive = 180     # play with keepalive connection settings, dflt 180 secs
     
     for arg in sys.argv[1:]: # change defualt settings arg: <type>=<value>
