@@ -17,8 +17,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MySQL2CSV.sh,v 1.6 2020/10/25 12:23:28 teus Exp teus $
-CMD='MySQL2CSV.sh $Revision: 1.6 $'
+# $Id: MySQL2CSV.sh,v 1.7 2020/12/27 19:28:05 teus Exp teus $
+CMD='MySQL2CSV.sh $Revision: 1.7 $'
+CMD_USED="$@"
 
 # export measurements data from MySQL database to a csv file
 # use start and end time to limit amounts
@@ -38,8 +39,9 @@ OUTPUT=KIT_DB_dump                                # name of output file
 declare -i VERBOSE=${VERBOSE:-1}                  # 0 be quiet
 HOUR=0         # calculate HOUR average of pollutant in CSV file
                # if 1 get average of measurements of a pollutant per HOUR
+ADDTIMESTAMPS='' # add timestamps on missing timestamps for average per hour CSV output
 TIMEFORMAT=''  # extra time format besides UNIX timestamp
-               # e.g. TIMEFORMAT='%Y, %M, %D %T' or TIMEFORMAT='%y/%m/%dT%H:%i:%s'§
+               # e.g. TIMEFORMAT='%Y, %M, %D %T' or TIMEFORMAT='%y/%m/%dT%H:%i:%s', MySQL format compliant!
 SEP='\t'       # CSV field separator, dflt TAB
 declare -i TIMESHIFT=0                            # time shift in minutes for official stations
                                                   # to do: must be made more flexible
@@ -67,10 +69,11 @@ Arguments can be a an option: XYX=option eg:
   SORTED='${SORTED[@]}' sort CSV fiels follwing this template.
   HOUR_AVERAGE=$HOUR if 1 calculate average value per hour (only for CSV outout).
   TIMEFORMAT='' extra time format besides UNIX timestamp, default SQL std format local time
-              e.g. TIMEFORMAT='%y/%m/%d %T' or TIMEFORMAT='%y/%m/%dT%H:%i:%s'§
-              only for CSV file format.
+              e.g. TIMEFORMAT='%y/%m/%d %T' or TIMEFORMAT='%y/%m/%dT%H:%i:%s'. Needs to be MySQL
+              time format compliant! Only for CSV file format.
   SEP='\t'      CSV separator, e.g. ';'. Default tab.
-  TIMESHIFT=0 timeshift in minutes for an offical station measurements
+  TIMESHIFT=0 timeshift in minutes for an offical station measurements.
+  ADDTIMESTAMPS='' If defined and average per hour is requested add intermediate in time empty records.
 Arguments are taken as full measurement node table name (project_serial or official table name) or as
     wildcard: eg SAN_ will dump all tables of project SAN,
     available projects: HadM, SAN, RIVM, KIP, ...
@@ -112,6 +115,9 @@ do # allow arguments with START='one month a ago" etc
     ;;
     HOUR_AVERAGE=*|HOUR=*|AVERAGE=*|AVG=*)
         HOUR="${1/*=/}"
+    ;;
+    ADDTIMESTAMPS=*)
+        ADDTIMESTAMPS=1
     ;;
     TIMEFORMAT=*|TIME=*|DATE=*)
         TIMEFORMAT="${1/*=/}"
@@ -279,7 +285,7 @@ FLDnames[temp]=temp
 FLDnames[rv]=RH
 FLDnames[luchtdruk]=pressure
 FLDnames[pm1]=PM1
-FLDnames[pm1_cnt]=PM1
+FLDnames[pm1_cnt]='#PM1'
 FLDnames[pm03]=PM0.3
 FLDnames[pm03_cnt]='#PM0.3'
 FLDnames[pm05]=PM0.5
@@ -302,6 +308,41 @@ function MySQLdump2SQL(){
     return 0
 }
 
+# add intermediate timestamps with empty rows if there is a time gap in data stream
+function add_rows() {
+    local TFRMT=$1 FS=${2:-@} HR=${3:-0}
+    # FS field separator to grep timestamp and date/hour fields
+    # TFRMT is date/hour time format description
+    # HR defines max time in hours gap between 2 records
+    if (( $HR == 0 )) # do not add empty records
+    then
+        cat
+        return
+    fi
+    if [ -z "$TFRMT" ] ; then TFRMT="%Y-%m-%d %H:%M:%s" ; fi
+    awk --field-separator "$FS" --assign TFRMT="$TFRMT" --assign HR=$HR '
+        BEGIN { CURTSTMP = 0; added = 0; }
+        /^[123456789][1234567890]{9}/{
+          # printf("Found %d fields\n", NF);
+          if( NF < 2 ) { print $0; next; }
+          if( CURTSTMP == 0 ) { CURTSTMP = $1; print $0; next; }
+          while ( $0 > (CURTSTMP + 2*HR*3600) ) {
+              CURTSTMP = CURTSTMP+HR*3600;
+              printf("%d%s\"%s\"", CURTSTMP, FS, strftime(TFRMT,CURTSTMP));
+              for(i=2; i < NF; i++) { printf("%s", FS) }
+              printf("\n"); added = added+1;
+          }
+          CURTSTMP = $1;
+          print $0; next;
+        }
+        { print $0; }
+        END { if( added > 0 ) { printf("Added %d empty time rows\n", added) > "/dev/stderr" ; } }
+        '
+}
+
+# convert MySQL rows to CSV file.
+# arguments: arg1 a MySQL data table, arg2 average/group per n hours, arg3 timeshift in minutes
+# currently only avg per n = 0 (no average), or 1 hour is supported
 function MySQLdump2CSV() {
     local ONE="$1" CNT
     declare -A FLDS=()
@@ -346,31 +387,38 @@ function MySQLdump2CSV() {
     then
         PRT="CONCAT(UNIX_TIMESTAMP(datum) + $TSHIFT,'@$S',datum + INTERVAL $TSHIFT SECOND,'$S'"
     else
-        PRT="CONCAT(UNIX_TIMESTAMP(datum) + $TSHIFT,'@$S',DATE_FORMAT(datum + INTERVAL $TSHIFT SECOND,'$TIMEFORMAT'),'$S'"
+        PRT="CONCAT(UNIX_TIMESTAMP(DATE_FORMAT(datum + INTERVAL $TSHIFT SECOND,'$TIMEFORMAT')),'@$S',DATE_FORMAT(datum + INTERVAL $TSHIFT SECOND,'$TIMEFORMAT'),'$S'"
     fi
     # sql concat() fails on NULL values!
+    local CEL_CNT='' # need this for row with empty cells
     for CNT in $(MySORT ${!COLS[@]} )
     do
         if (( ${COLS[$CNT]:-0} <= 0 )) ; then continue ; fi
         if [ -z "$AVG" ]
         then
-            PRT+=",'@',IF(ISNULL($CNT),'',ROUND($CNT,2))"
+            PRT+=",'@',IF(ISNULL($CNT),'',ROUND($CNT,2))" ; CEL_CNT+=@
             if (( $VALID > 0 ))
             then
-                PRT+=",'@',IF(ISNULL(${CNT}_valid),'',${CNT}_valid)"
+                PRT+=",'@',IF(ISNULL(${CNT}_valid),'',${CNT}_valid)" ; CEL_CNT+=@
             fi
         else
-            PRT+=",'@',IF(ISNULL(AVG($CNT)),'',ROUND(AVG($CNT),2))"
+            PRT+=",'@',IF(ISNULL(AVG($CNT)),'',ROUND(AVG($CNT),2))" ; CEL_CNT+=@
         fi
     done
     PRT+=')'
-    if ! $MYSQL -e "SELECT $PRT FROM $ONE WHERE datum + INTERVAL $TSHIFT SECOND >= '$START' AND datum + INTERVAL $TSHIFT SECOND <= '$END' $AVG"  | grep -v '^NULL$' | tr @ "$SEP"
+    local GAPS=${2:-0}  # add empty rows if there are missing records
+    if [ -z "$ADDTIMESTAMPS" ] ; then GAPS=0 ; fi
+    if ! $MYSQL -e "SELECT $PRT FROM $ONE WHERE datum + INTERVAL $TSHIFT SECOND >= '$START' AND datum + INTERVAL $TSHIFT SECOND <= '$END' $AVG"  | grep -v '^NULL$' | add_rows "$TIMEFORMAT" @ ${GAPS:-0} | tr @ "$SEP"
     then
         echo "Failed to dump $ONE in CSV format." 1>&2
         return 1
     fi
     if (( $VERBOSE > 0 )) ; then
-        echo "Collected measurements for kit $ONE with timeshift of $(($TSHIFT/60)) minutes into CSV format." 1>&2
+        echo -n "Collected measurements for kit $ONE into CSV format" 1>&2
+        if (( $TSHIFT > 0 ))
+        then echo " with timeshift of $(($TSHIFT/60)) minutes." 1>&2
+        else echo "." 1>&2
+        fi
     fi
     return 0
 }
@@ -466,7 +514,7 @@ function ExportData() {
                     echo "FAILURE in generating CSV file for $ONE. Skipped." 1>&2
                     return 1
                 fi
-                zip -uq "$OUTPUT.zip" "$ONE.$FRMT"
+                zip --update --quiet "$OUTPUT.zip" "$ONE.$FRMT"
                 rm -f "$ONE.$FRMT"
             ;;
             sql)
@@ -476,7 +524,7 @@ function ExportData() {
                     echo "FAILURE in generating SQL dump for $ONE. Skipped." 1>&2
                     return 1
                 fi
-                zip -uq "$OUTPUT.zip" "$ONE.$FRMT"
+                zip --update --quiet "$OUTPUT.zip" "$ONE.$FRMT"
                 rm -f "$ONE.$FRMT"
             ;;
             esac
@@ -492,15 +540,17 @@ do
 done
 if [ -f "$OUTPUT.zip" ]
 then
-    cat <<EOF | zip -z ${OUTPUT}.zip 2>/dev/null
-Dump made by $CMD
-MySQL DB dump from ${DB:-air quality} at server ${DBHOST:-localhost} period ${START} up to ${END}.
+    cat <<EOF | zip --archive-comment --quiet ${OUTPUT}.zip 2>/dev/null
+Dump made by $CMD.
+Command used: $CMD_USED
+MySQL DB dump from ${DB:-air quality} at server ${DBHOST:-localhost} period ${START} up to ${END} to ${FORMAT:-csv} format.
 The ${DB:-air quality} data is open data under conditions of FSF GPLV3
 (http://www.gnu.org/licenses/).
-In short: no warranty, only for non-commercial use, any changes, contributions, reports remain Open Source.
+License in short: no warranty, only for non-commercial use, any changes, contributions, reports remain Open Source.
 EOF
     if (( $VERBOSE > 0 )) ; then
-        echo "Zip ${FORMAT/ / and } measurements DB data files into archive $OUTPUT.zip" 1>&2  
+        echo "Zipped ${FORMAT/ / and } measurements DB data files into archive $OUTPUT.zip." 1>&2  
+        unzip -l $OUTPUT.zip 1>&2
     fi
 elif (( $VERBOSE > 0 )) ; then
     echo "No $FORMAT files to be exported." 1>&2
