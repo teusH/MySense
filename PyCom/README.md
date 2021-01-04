@@ -11,26 +11,26 @@ Goal: professional DIY durable simple low cost (ca €120) air quality sensor ki
 
 ## description
 
-Overview of wiring and modules using a PCB board with Grove connectors to avoid soldiering.
+Overview of wiring and modules using a PCB board with Grove connectors to avoid soldiering and ease sensor replacements and extensions.
 Included are the 3D print files for the housing/case as well PCB board electronic design as well PCB board manufacturing instructions.
 
 <img src="images/LoPy-MySense-modules.png" align=center width=400>
 <img src="images/MySense-LoRa-lantern-outside.png" align=right width=150>
 <img src="images/MySense-LoPy-OBO-T100-outside.png" align=right width=150>
 
-Comment: here we used the indoor dust sensor PMS7003. Use for outdoor the PMSx003 dust sensor.
+Comment: here we used the indoor dust sensor Plantower PMS7003. Use for outdoor the PMSx003 dust sensor. Other dust sensors as from Nova and Sensirion are supported.
 
 ## Shopping list (ca € 100-150):
 
 * PyCom LoPy-4 controller  PYCLOPY4 (Tinytronics  € 35.-)
-* optional LoPy Expansie board 2.0 PYCEXPBOARD2.0 (Tinytronics € 19.-) (development board)
+* optional LoPy Expansie board 2.0 PYCEXPBOARD3.1 (Tinytronics € 19.-) (development board)
 * alternative is a DIY PCB connector board with 6 Grove connectors (3 TTL and 3 I2C) ca € 10 (incl the  components (mosfet, resisters, pins).
-PCB board has optional components to be able to use solarcel power. Send email for drawing of the PCB.
-Our PCB has been made by Fontys Venlo GreenTechLab.
+PCB board has optional components to be able to use solarcel power. See schema and PCB manufacturing mall.
+Our PCB has been made by Fontys Venlo GreenTechLab and updated by Land van Cuijk initiative.
 * LoPy-Sigfox antenne kit 868 Mhz PYCLOSIAN868KIT (Tinytronics € 10.50)
 * optional SSD1306 I2C Yellow/Blue 128X64 oled display (AliExpress € 2.23, Tinytronics € 9.50)
 E.g. <a href="https://nl.aliexpress.com/item/0-96-inch-IIC-Seri-le-Geel-Blauw-OLED-Display-Module-128X64-I2C-SSD1306-12864-Lcd/32920071528.html?albbt=Google_7_shopping&isdl=y&slnk=&albslr=228849138&src=google&acnt=494-037-6276&aff_platform=google&crea=nl32920071528&netw=u&plac=&albcp=1626925412&mtctp=&aff_short_key=UneMJZVf&gclid=EAIaIQobChMI2czMspLr3wIVx8CyCh1c9AhwEAQYAiABEgKSl_D_BwE&albag=63599479084&albch=shopping&trgt=296904914040&device=c&gclsrc=aw.ds">Oled display</a>
-* optional Plantower PMS7003 laser PM sensor with G7 cable!) (AliExpress indoor: € 15.17)
+* Sensirion SPS30 indoor laser PM sensor (Antratek: € 45.95, <a HREF="https://nl.aliexpress.com/item/4001050822435.html?src=google&albch=shopping&acnt=494-037-6276&isdl=y&slnk=&plac=&mtctp=&albbt=Gploogle_7_shopping&aff_atform=google&aff_short_key=UneMJZVf&&albagn=888888&albcp=1706100219&albag=73428776544&trgt=539263010115&crea=nl4001050822435&netw=u&device=c&albpg=539263010115&albpd=nl4001050822435&gclid=Cj0KCQiAlsv_BRDtARIsAHMGVSZsWgS3vTCrzU1Q5hwbYTX1F9R93Jy3d8XziEdbwywLzvSygb_XrxoaAmQREALw_wcB&gclsrc=aw.ds">Ali Express</a> € 25,90)
 Advised because the unit displays raw PM counts values and can be used outdoor.
 Plantower has a new PMSx003 (black) which has cleaning support and tube inlet (€ 80).
 E.g. <a href="https://wholesaler.alibaba.com/product-detail/PMSX003-PM1-0-PM2-5-PM10_60805148973.html">PMSx003 dust sensor</a>
@@ -60,7 +60,6 @@ or use solarpower if no V230 is available (ca € 100):
 * solar power regulator (ca € 10)  e.g. <a href="https://www.banggood.com/nl/MPPT-5A-Solar-Panel-Regulator-Controller-Battery-Charging-9V-12V-24V-Automatic-Switch-p-1307801.html?gmcCountry=NL&currency=EUR&createTmp=1&utm_source=googleshopping&utm_medium=cpc_bgs&utm_content=frank&utm_campaign=pla-nl-ele-diy-mob-pc&gclid=EAIaIQobChMIubWf7fLj3wIVkoKyCh0okQPrEAQYBCABEgIYaPD_BwE&cur_warehouse=CN">Solar PR</a>
 Make sure to apply a diode over the power connectors and capacitor as a wild change in solar power or on/off connection may destroy your controller.
 WARNING: without a capacitor (eg 100 uF 16V) the accu/solar combination or loose contact may blow away your controller.
-Or the RTC of the controller will not wakeup the controller suddenly. Only to be revovered by a power cycle.
 Make sure to use a good regulator. We measured a peak of 11.4 V on the 5V stepdown regulator in such cases.
 * or battery load (ca € 10)  e.g. <a href="https://www.banggood.com/nl/MPPT-5A-Solar-Panel-Regulator-Controller-Battery-Charging-9V-12V-24V-Automatic-Switch-p-1307801.html?gmcCountry=NL&currency=EUR&createTmp=1&utm_source=googleshopping&utm_medium=cpc_bgs&utm_content=frank&utm_campaign=pla-nl-ele-diy-mob-pc&gclid=EAIaIQobChMIubWf7fLj3wIVkoKyCh0okQPrEAQYBCABEgIYaPD_BwE&cur_warehouse=CN">Solar power regulator</a>
 * battery pack (ca € 60)  e.g. <a href="https://www.conrad.nl/p/gnb-sonnenschein-dryfit-s1266-s-071-98-43200-solar-accu-12-v-66-ah-loodgel-b-x-h-x-d-152-x-99-x-66-mm-kabelschoen-4-110752">battery 12V</a> (needs 12V->5V).
@@ -71,14 +70,16 @@ ToDo:
 * software to use WiFi/MQTT for internet access connectivity if LoRa is not available
 * Over The Air (OTA) update via the <a href="https://docs.pycom.io/tutorials/all/ota.html">PyCom OTA method</a>.
 Currenty one can use WiFi AP access and Atom. If the WiFi AP is powered off by configuration the LoRa command 'W' will enable WiFi AP of the node again for one hour.
+* Solar power regulator with watch dog for battery level.
+Currently the PCB in use has battery level support and will force deepsleeps untill battery level is high enough to be operational.
 
 Some fixing materials:
-* small piece of plexiglas for cover oled display
 * 2 component glue
-* some fixing tool to stabalize the antenna
+* some fixing tool to stabalize the antenna. Or place the antenna inside the housing.
 * 4 cm tube for air inlet of PM module (SDS011 or PMSx003)
 * piece of wood to be able to attach the outdoor cable box on a wall.
 * some material to fixate the components and allow airflow in the box
+* or see 3-D print masks for double sided PVC housing contruction.
 
 One may need to extend those dust sensors without an inlet tube and inlet as well as ouytet on same side with some air separation guidence in order to avoid to measure only the dust circulating within the housing.
 
@@ -95,7 +96,7 @@ Another housing can be made with a V230 outdoor connector box e.g. OBO T100 box.
 A better housing can be made from PVC roof air outlet manufactured eg from BT Nyloplast Nld (€ 7.50).
 The components are mounted on a so called mother board from 3 mm plastic.
 To avoid solar heat use an internal PVC rain pipe.
-The motherboard can be fit in a 3D made socket.
+The motherboard can be fit in a 3D printer made socket.
 The oled display is fixed on the housing with a 3D printed container.
 The GPS antenna is glued inside the PVC pipe on a small table (3D print) and must point upwards.
 The LoRa antenna is fixated inside the PVC pipe as well.

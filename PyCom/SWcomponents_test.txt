@@ -17,40 +17,43 @@
 # These archived data is cleared/reset as follows:
 import MySense
 MySense.MyReset()
-# delete detected configuration surfiving reboots via deepsleep/RTC
+# delete detected configuration surfiving reboots
 import os
 os.remove('/flash/MySenseConfig.json')
-# show details in the PyCom LoPy flash memory
 # os.uname()  # show version PyCom controller
-# remove all installed user software from the LoPy
-# os.fsformat('/flash')   # remove all MySense firmware >= LoPy V1.19
-# os.mkfs('/flash')       # remove all MySense firmware <= LoPy V1.19
+# os.mkfs('/flash')   # remove all MySense firmware
 # 
-# in case of unexpected halt of the PyCom LoPy one may need to
-# get an idea what lately was going on:
-# Show all variables saved in nvs ram
-# AlarmWDT watch dog alarm program location indicator
-# LAT, LON, ALT latest/updated geo GPS coordinates
-# gps state GPS sensor
-# Vmax, Vmin max/min accu voltage measured during lifetime
-# count hour ticks to switch off wifi
-# myReset cause for MyReset() nvs mem / clear admin json file
-# AlarmSlp deepsleep seconds set
-# aLow accu low set
-# gps_next, info_next next time to: force GPS updates on static location, send meta info
-# from pycom import nvs_get, nvs_erase
-# for item in ['gps','LAT','LON','ALT','info_next','gps_next','AlarmWDT','Vmax','Vmin','count','myReset','AlarmSlp','aLow']:
-#    try: print("nvs var %s: %d" % (item,nvs_get(item)))
-#    except: pass
-# delete all frequently changed status nvs variables
+# delete frequently changed status variables
 from pycom import nvs_erase_all
 nvs_erase_all()
-# for item in ['gps','LAT','LON','ALT','info_next','gps_next']: nvs_erase(item)
+# for item in ['gps','mode','LAT','LON','ALT','info_next','gps_next']: nvs_erase(item)
 # delete LoRa saved status data
 from network import LoRa
 lora = LoRa(mode=LoRa.LORAWAN, region=LoRa.EU868)
 lora.nvram_erase()
 # END of erase all MySense from LoPy
+
+# use next console (USB with expansion board) on PyCom firmware update
+# on clean flash memory:
+# From firmware 1.20 (Jan 2020) PyCom introduced pybytes
+# and with that smart config. How to remain old boot style compatible
+# without using smart config:
+import pycom
+if not pycom.wifi_on_boot(): pycom.wifi_on_boot(True)
+ssid = 'lopy4-wlan'; pwd = 'www.pycom.io'
+#  if not pycom.wifi_ssid_ap():
+pycom.wifi_ssid_ap(ssid)
+pycom.wifi_pwd_ap(pwd)
+if pycom.pybytes_on_boot(): pycom.pybytes_on_boot(False)
+# if pycom.smart_config_on_boot(): pycom.smart_config_on_boot(False)
+# and reboot/reset or
+# and make sure old style wifi is immediately active
+from network import WLAN
+WLAN().deinit()
+from machine import unique_id
+import binascii
+ssid += '-' + binascii.hexlify(unique_id()).decode('utf-8')[-4:].lower()
+WLAN().init(mode=WLAN.AP, ssid=ssid, auth=(WLAN.WPA2,pwd), channel=7, antenna=WLAN.INT_ANT)
 
 ##### flashed configuration data
 # HW configuration is maintained in config (may come from archive json file in flash mem
@@ -289,8 +292,7 @@ import lora
 lora = LORA()
 lora.clear
 # remove everything from flash mem:
-os.mkfs('/flash') # LoPy firmware < V1.19
-# os.fsformat('/flash') # LoPy firmware >= V1.19
+os.mkfs('/flash')
 # activate MySense:
 # main.py:
 import MySense
@@ -300,17 +302,57 @@ MySense.runMe()
 # events from eg WatchDogTimer (similar to <cntrl>c key hit).
 # post mortum debugging variables, may fail if not (yet) set:
 from pycom import nvs_get
-nvs_get('AlarmWDT')	# point of last mark in loop, eg on WDT event
-nvs_get('AlarmSlp')     # last deepsleep in secs, dlft None
-nvs_get('myReset')      # secs of runMe loop or mark point in runMe() loop
-nvs_get('Vmax')/10.0	# maximum accu voltage, dflt None
-nvs_get('Vmin')/10.0	# minimum accu voltage, dflt None
-nvs_get('Accu')/10.0    # event accu voltage low (10.8V), dflt None
-nvs_get('count')	# number of measurements
-nvs_get('modus')        # Conf reset modus: 1 only devices, None/0 all on cold boot
-nvs_get('gps')	        # nr of satellites seen, -1 not set
-nvs_get('info_next')	# next time in sec for meta data to be sent, dflt once a day
-nvs_get('gps_next')	# next time in sec to check gps location, dflt once 4 hr
-nvs_get('LON')/1000000.0	# GPS longitude
-nvs_get('LAT')/1000000.0	# GPS latitude
-nvs_get('ALT')/10.0	# GPS altitude in meters
+nvs_get('AlarmWDT')	 # point of last mark in loop, eg on WDT event
+nvs_get('AlarmSlp')      # last deepsleep in secs, dlft None
+nvs_get('myReset')       # secs of runMe loop or mark point in runMe() loop
+nvs_get('Vmax')/10.0	 # maximum accu voltage, dflt None
+nvs_get('Vmin')/10.0	 # minimum accu voltage, dflt None
+nvs_get('Accu')/10.0     # event accu voltage low (10.8V), dflt None
+nvs_get('count')	 # number of measurements
+nvs_get('modus')         # Conf reset modus: 1 only devices, None/0 all on cold boot
+nvs_get('gps')	         # nr of satellites seen, -1 not set
+nvs_get('info_next')	 # next time in sec for meta data to be sent, dflt once a day
+nvs_get('gps_next')	 # next time in sec to check gps location, dflt once 4 hr
+nvs_get('LON')/1000000.0 # GPS longitude
+nvs_get('LAT')/1000000.0 # GPS latitude
+nvs_get('ALT')/10.0	 # GPS altitude in meters
+
+# simple check of I2C-bus devices: oled display, and meteo sensors
+# power on I2C bus turned on on PCB board
+pwr = 'P21' # PCB V2.x power pin It does not hurt to try this
+from machine import Pin
+Pin(pwr, mode=Pin.OUT, pull=None, alt=-1).value(1)
+# obtain I2C
+pins = ('P23','P22')     # (SDA pin, SCL pin)
+from machine import I2C
+i2c = I2C(0, I2C.MASTER, pins=pins)
+# I2C devices:
+for one in list(i2c.scan()): print("0x%x" % one)
+
+# import _thread
+# probe = _thread.allocate_lock()
+
+# oled display device
+import SSD1306 as OLED
+addr = 0x3c # check with i2c.scan()
+device = OLED.MyI2C(128,64,i2c,address=addr, probe=None, debug=False)
+device.fill(1) ; device.show()  # full turned on
+device.fill(0) ; device.show()  # turned off
+
+# meteo devices:
+# SHT: addr in [0x44,0x45]
+addr = 0x44 # or 0x45           # check with i2c.scan()
+import SHT31 as MET
+# BME: addr in addr in [0x77,0x76]
+import BME680 as MET
+addr = 0x77 # or 0x76           # check with i2c.scan()
+import BME280 as MET
+addr = 0x76 # or 0x77           # check with i2c.scan()
+# init object and probe the address
+device = MET.MyI2C(i2c, address=addr, probe=True, lock=None, debug=False, calibrate=None)
+device.temperature
+device.humidity
+device.pressure # SHT -> None
+# device.gas
+# device.gasBase(debug=True)  # get gas base
+# device.AQI

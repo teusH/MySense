@@ -3,6 +3,9 @@ A description of the MySense PyCom based measurement kit, data collection and da
 
 ## Handy info to access the MyCom (LoPy) controller
 
+MySense is tested on PyCom firmware. Make sure one uses the latest firmware as interfaces to PyCom library routines may change over time.
+PyCom *firmware release 1.20.1* and higher introduced smart configuration (device configuration with a PyCom smart phone app and Pybytes. From this firmware release wifi LoPy AP will not be permanently activated. One has to disable smart configuration and activate wifi at boot time first once. See SWcomponents.txt or MySense boot.py for a howto or upload MySense boot.py to the LoPy-4 via the PyCom Expansion board first.
+
 The easiest way is to install Atom/PyMakr on your computer. See the PyCom documentation first.
 Atom in fact will use a telnet and ftp approach to access the PyCom controller either via USB or WiFi.
 Without the MySense scripts loaded the wifi SSID/PASS is LoPy-wlan-HHHH/www.pycom.io.
