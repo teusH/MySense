@@ -4,7 +4,7 @@
         "hostname": "eu.thethings.network",
         "port": 1883,
         "devices": "201159az",
-        "account": "ttn-account-v2.GW3ms6a0jx4akBNZsXYC6r0q9icbPaKSfZjIOB2Ixts"
+        "account": "ttn-account-v2.AcacadabraAcacadabraAcacadabraAcacadabra"
        },
 // send notices node pattern, to...
 // more dynamic way to get notice addresses periodically
@@ -12,7 +12,7 @@
 "notice": [
         [".*", "email:<ts+TTN@tnis.rog>"],
         [".*event.*", "email:<te+TTNevent@tnis.rog>"],
-        // , "slack:hooks.slack.com/services/TGAH/BG8DFG1TNDP7CZ/QpNRRkAOJK1KxdYBwufylWl0", "slack:hooks.slack.com/services/T9W3RBL45EGNM/K730A/WkLjhxCj8urLQPN6G5eaBeSQ" ],
+        // , "slack:hooks.slack.com/services/AcacadabraAcacadabraTNDP7CZ/AcacadabraAcacadabraAcacadabra0", "slack:hooks.slack.com/services/AcacadabraAcacadabraK730Acacadabra" ],
         ["test.*", "email:<tes+TTNtest@tnis.rog>" ],
     ],
 "from": "Notice from TTN data collector <noreply@arel.ln>",
@@ -178,17 +178,6 @@
                 "gps": ["unknown","NEO"],
                 "meteo": ["unknown","PPD42NS","SDS011","PMS7003","SPS30"],
                 "dust": ["unknown","DHT11","DHT22","BME280","BME680"]
-          },
-          "port10": {
-              // Libelium Wasnodes void,id,void,accu,temp,...
-              //"packing": ["<B11sB7sBBBBBfBfBfBfBfBfBBBf"],
-              "packing": ["<B11sB7sBBBBBfBfBfBfBfBfBBBf"], // (id,value),...
-              // every field has sensor id one byte
-              "nr2field": {"35": null, "239": "node", "60": null, "52": "accu", "74": "temp", "76": "rv","77":"luchtdruk","158":"rain","159":"prevrain","160":"dayrain","157":"wr","156":"ws"},
-              "fields": ["accu","temp","rv","luchtdruk","rain","prevrain","dayrain","wr","ws"],
-              "adjust": [[0,1],[0,1],[0,1],[0,0.01],[0,1],[0,1],[0,1],[0,1],[0,1]],
-              "sensors": ["WASPMOTE"],
-              "meteo": ["unknown"]
           }
         }
     ],
