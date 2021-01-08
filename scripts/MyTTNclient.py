@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTNclient.py,v 2.8 2020/12/16 11:41:17 teus Exp teus $
+# $Id: MyTTNclient.py,v 2.9 2021/01/08 09:08:19 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -89,7 +89,7 @@ class TTN_broker:
             raise IOError("TTN MQTT connection failed")
     
     def _on_disconnect(self, client, userdata, rc):
-        if verbose:
+        if self.verbose:
             self.logger("ERROR Disconnect rc=%d from broker %s" % (rc, self.broker))
         self.logger("ERROR Broker disconnect: rc=%d." % rc)
         time.sleep(0.1)
@@ -343,11 +343,13 @@ if __name__ == '__main__':
     # show full received TTN MQTT record foir this pattern
     show = None         # show details of data record for nodeID pattern
     node = '+'          # TTN MQTT devID pattern for subscription device topic part
-    user = "1234567890abc"       # connection user name
+    # user = "1234567890abc"       # connection user name
+    user = "201802215971az"        # Connection username
     verbose = False
     logger = None       # routine to print messages to console
     # Connection password
-    password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
+    # password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
+    password = "ttn-account-v2.GW3msa6kBNZs0jx4aXYCcbPaK6r0q9iSfZjIOB2Ixts"
     keepalive = 180     # play with keepalive connection settings, dflt 180 secs
     
     for arg in sys.argv[1:]: # change defualt settings arg: <type>=<value>
