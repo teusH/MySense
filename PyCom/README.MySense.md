@@ -71,9 +71,21 @@ Via LoRaWan one can send the command 'W' to the MySense node. If the WiFi AP was
 
 To Do: use the <a href="https://docs.pycom.io/tutorials/all/ota.html">PyCom OTA</a> update method.
 
-### Scripts to test devices (sensors)
+### Scripts to test devices and configuration (sensors)
 
 MySense has provided several simple XYZ_test.py python scripts to test the sensor modules for needed libraries and check of wiring.
+For every sensor type (dust, gps, oled, meteo) and 'bus' (I2C and UART) there is a script which uses the same interfaces to device libraries, device and config data structures.
+So any change in a device driver, device type discovery, etc. should be tested with these scripts before putting the measurement in full operation or do a manual MySense run. After a 'run' for the test script one is advised to do a soft reboor (<cntrl>D short cut key).
+The scripts are designed to be able to run via REPL and copy/paste each test statement.
+The scripts have a support for setting 'debug' (switch debug on (dflt) or off) and 'update' (update configuration (dflt True) in the json configuration file in flash memory) environment variables.
+E.g. before running the XYZ_test script file define debug=False or upadte=False at the REPL prompt.
+
+There is no need to flash the test files on the LoPy. If needed one can delete the test file on the LoPy-4 as follows:
+```python
+>>>import os
+>>>os.remove('/flash/XYZ_test.py')
+```
+
 Make sure to configure the right pin ID's in `Config.py` configuration file for the test scripts if you use other pins as the defaults.
 
 ### REPL modus
