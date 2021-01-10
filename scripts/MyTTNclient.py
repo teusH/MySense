@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTNclient.py,v 2.9 2021/01/08 09:08:19 teus Exp teus $
+# $Id: MyTTNclient.py,v 2.10 2021/01/10 11:25:32 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -66,7 +66,7 @@ import json
 #        "topic": "+" , # topic or list of topics to subscribe to
 #    }
 class TTN_broker:
-    def __init__(self, broker, fifo, lock, verbose=False, keepalive=180, logger=sys.stdout.write):
+    def __init__(self, broker, fifo, lock, verbose=False, keepalive=180, logger=None):
         self.TTNconnected = None  # None=ont yet, False from disconnected, True connected
         self.message_nr = 0       # number of messages received
         self.RecordQueue = fifo   # list of received data records
@@ -79,19 +79,23 @@ class TTN_broker:
         self.KeepAlive = keepalive # connect keepalive in seconds, default 60
         self.logger = logger      # routine to print errors
     
+    def _logger(self, pri, message):
+        try: self.logger('MyTTNclient',pri,message)
+        except: sys.stdout.write("MyTTNclient %s: %s.\n" % (pri, message)) 
+
     def _on_connect(self, client, userdata, flags, rc):
         if rc == 0:
-            if self.verbose: self.logger("INFO Connected to broker")
+            if self.verbose: self._logger("INFO","Connected to broker")
             self.TTNconnected = True                # Signal connection 
             with self.broker['lock']: self.broker['timestamp'] = time.time()
         else:
-            self.logger("ERROR Connect to MQTT broker failed: %s." % [ "successful", "internet connection broke up", "invalid client identifier", "server unavailable", "bad username or password", "not authorised"][rc])
+            self._logger("ERROR","Connect to MQTT broker failed: %s." % [ "successful", "internet connection broke up", "invalid client identifier", "server unavailable", "bad username or password", "not authorised"][rc])
             raise IOError("TTN MQTT connection failed")
     
     def _on_disconnect(self, client, userdata, rc):
         if self.verbose:
-            self.logger("ERROR Disconnect rc=%d from broker %s" % (rc, self.broker))
-        self.logger("ERROR Broker disconnect: rc=%d." % rc)
+            self._logger("ERROR","Disconnect rc=%d from broker %s" % (rc, self.broker))
+        self._logger("ERROR","Broker disconnect: rc=%d." % rc)
         time.sleep(0.1)
         self.TTNconnected = False
      
@@ -99,11 +103,11 @@ class TTN_broker:
         self.message_nr += 1
         try:
             record = json.loads(message.payload)
-            # self.logger("INFO %s: Message %d received: " % (datetime.datetime.now().strftime("%m-%d %Hh%Mm"),self.message_nr) + record['dev_id'] + ', port=%d' % record['port'] + ', raw payload="%s"' % record['payload_raw'])
+            # self._logger("INFO","%s: Message %d received: " % (datetime.datetime.now().strftime("%m-%d %Hh%Mm"),self.message_nr) + record['dev_id'] + ', port=%d' % record['port'] + ', raw payload="%s"' % record['payload_raw'])
             if len(record) > 25: # primitive way to identify incorrect records
-              self.logger("WARNING TTN MQTT records overload. Skipping.")
+              self._logger("WARNING","TTN MQTT records overload. Skipping.")
             elif len(self.RecordQueue) > 100:
-              self.logger("WARNING exhausting record queue. Skip record: %s." % record['dev_id'])
+              self._logger("WARNING","exhausting record queue. Skip record: %s." % record['dev_id'])
             else:
               with self.QueueLock:
                 self.RecordQueue.append(record)
@@ -112,8 +116,8 @@ class TTN_broker:
             return True
         except Exception as e:
             # raise ValueError("Payload record is not in json format. Skipped.")
-            self.logger("ERROR it is not json payload, error: %s" % str(e))
-            self.logger("INFO \t%s skipped message %d received: " % (datetime.datetime.now().strftime("%m-%d %Hh%Mm"),self.message_nr) + 'topic: %s' % message.topic + ', payload: %s' % message.payload)
+            self._logger("ERROR","it is not json payload, error: %s" % str(e))
+            self._logger("INFO","\t%s skipped message %d received: " % (datetime.datetime.now().strftime("%m-%d %Hh%Mm"),self.message_nr) + 'topic: %s' % message.topic + ', payload: %s' % message.payload)
             return False
 
     @property
@@ -125,7 +129,7 @@ class TTN_broker:
             # may need this on reinitialise()
             self.TTNclientID = "ThisTTNtestID" if not 'clientID' in self.broker.keys() else self.broker['clientID']
             if self.verbose:
-                self.logger("INFO Initialize TTN MQTT client ID %s" % self.TTNclientID)
+                self._logger("INFO","Initialize TTN MQTT client ID %s" % self.TTNclientID)
             # create new instance, clean session save client init info?
             self.TTNclient = mqttClient.Client(self.TTNclientID, clean_session=True)
             self.TTNclient.username_pw_set(self.broker["user"], password=self.broker["password"])    # set username and password
@@ -139,11 +143,11 @@ class TTN_broker:
                     self.TTNclient.connect(self.broker["address"], port=self.broker["port"], keepalive=self.KeepAlive) # connect to broker
                     break
                 except Exception as e:
-                    self.logger("INFO %s connection failure." % datetime.datetime.now().strftime("%m-%d %Hh%Mm:"))
-                    self.logger("ERROR Try to (re)connect failed to %s:%s with error: %s" % (self.broker["address"],str(self.broker["topic"]), str(e)))
+                    self._logger("INFO","%s connection failure." % datetime.datetime.now().strftime("%m-%d %Hh%Mm:"))
+                    self._logger("ERROR","Try to (re)connect failed to %s:%s with error: %s" % (self.broker["address"],str(self.broker["topic"]), str(e)))
                     time.sleep(60)
                     if cnt >= 2:
-                        self.logger("FATAL Giving up.")
+                        self._logger("FATAL","Giving up.")
                         exit(1)
         else:
             try:
@@ -152,7 +156,7 @@ class TTN_broker:
             except: self.broker['count'] = 1
             self.TTNclient.reinitialise()
             if self.verbose:
-                self.logger("INFO Reinitialize TTN MQTT client")
+                self._logger("INFO","Reinitialize TTN MQTT client")
         return True
     
     def TTNstart(self):
@@ -163,23 +167,23 @@ class TTN_broker:
         else: self.TTNclient.reinitialise(client_id=self.TTNclientID)
         cnt = 0
         if self.verbose:
-            self.logger("INFO Starting up TTN MQTT client.")
+            self._logger("INFO","Starting up TTN MQTT client.")
         self.TTNclient.loop_start()
         time.sleep(0.1)
         while self.TTNconnected != True:    # Wait for connection
             if cnt > 250:
                 if self.verbose:
-                    self.logger("FAILURE waited for connection too long.")
+                    self._logger("FAILURE","waited for connection too long.")
                 self.TTNstop()
                 return False
             if self.verbose:
                 if not cnt:
-                    self.logger("INFO Wait for connection")
+                    self._logger("INFO","Wait for connection")
                 elif (cnt%10) == 0:
                     if self.logger == sys.stdout.write:
                         sys.stdout.write("\033[F") #back to previous line 
                         sys.stdout.write("\033[K") #clear line 
-                    self.logger("INFO Wait for connection % 3.ds"% (cnt/10))
+                    self._logger("INFO","Wait for connection % 3.ds"% (cnt/10))
             cnt += 1
             time.sleep(0.1)
         qos = 0 # MQTT dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
@@ -187,12 +191,12 @@ class TTN_broker:
         except: pass
         self.TTNclient.subscribe(self.broker['topic'], qos=qos)
         if self.verbose:
-            self.logger("INFO TTN MQTT client started")
+            self._logger("INFO","TTN MQTT client started")
         return True
     
     def TTNstop(self):
         if not self.TTNclient: return
-        if self.verbose: self.logger("ERROR STOP TTN connection")
+        if self.verbose: self._logger("ERROR","STOP TTN connection")
         try:
             self.TTNclient.loop_stop()
             self.TTNclient.disconnect()
@@ -200,6 +204,10 @@ class TTN_broker:
         self.TTNconnected = False
         self.TTNclient = None  # renew MQTT object class
         time.sleep(60)
+
+def _logger(self, pri, message, logger=None):
+    try: logger('MyTTNclient',pri,message)
+    except: sys.stdout.write("MyTTNclient %s: %s.\n" % (pri, message)) 
 
 MQTTindx = None
 MQTTFiFo = []    # first in, first out data records queue
@@ -224,11 +232,11 @@ def MQTTstartup(MQTTbrokers,verbose=False,keepalive=180,logger=None):
       if not broker['fd']:
         broker['fd'] = TTN_broker(broker, MQTTFiFo, MQTTLock, verbose=verbose, keepalive=keepalive, logger=logger)
       if not broker['fd']:
-        logger("ERROR Unable to initialize TTN MQTT class for %s" % str(broker))
+        _logger("ERROR","Unable to initialize TTN MQTT class for %s" % str(broker),logger=logger)
         del MQTTbrokers[indx]
         continue
       if not broker['fd'] or not broker['fd'].TTNstart():
-        logger("FATAL Unable to initialize TTN MQTT connection: %s." % str(broker))
+        _logger("FATAL","Unable to initialize TTN MQTT connection: %s." % str(broker),logger=logger)
         del MQTTbrokers[indx]
       elif not broker['startTime']:
         with broker['lock']:
@@ -255,7 +263,6 @@ def logging(string):
 #     logger: fie to lo, sec2pol: wait on record
 def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
     global MQTTindx, MQTTFiFo, MQTTLock
-    if logger == None: logger = logging
     timing = time.time()
     while True:
       # find brokers who are disconnected
@@ -271,7 +278,7 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
             raise ValueError("Undefined broker %s" % str(broker))
           broker['fd'] = None
       if not len(MQTTbrokers) or not MQTTstartup(MQTTbrokers,verbose=verbose,keepalive=keepalive,logger=logger):
-        logger("INFO no MQTT broker available")
+        _logger("INFO","no MQTT broker available",logger=logger)
         return None
       if MQTTindx == None: MQTTindx = -1
       now = time.time()
@@ -291,7 +298,7 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
         if broker['fd'].TTNConnected:
           # there was no record in the record queue
           if (now - broker['timestamp'] > 20*60) and (now - broker['startTime'] > 45*60):
-            logger("ERROR Waiting (waiting for %d secs, running %d seconds) too long for data from broker %s. Stop connection." % (now - broker['timestamp'], now - broker['startTime'], str(broker)))
+            _logger("ERROR","Waiting (waiting for %d secs, running %d seconds) too long for data from broker %s. Stop connection." % (now - broker['timestamp'], now - broker['startTime'], str(broker)),logger=logger)
             broker['fd'].TTNstop()
             del MQTTbrokers[MQTTindx]
             # break  # break to while True loop
@@ -300,7 +307,7 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
 
         # DISCONNECTED broker
         elif broker['restarts'] <= 3: # try simple restart
-            logger("ERROR: %s: Connection died. Try again." % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            _logger("ERROR"," %s: Connection died. Try again." % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),logger=logger)
             broker['fd'].TTNstop()
             if now-broker['startTime'] > 15*60: # had run for minimal 5 minutes
               broker['restarts'] = 0
@@ -311,7 +318,7 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
               broker['restarts'] += 1  # try again and delay on failure
               with broker['lock']: broker['timestamp'] = now
         else:
-            logger("ERROR: %s: Too many restries on broker %s" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S",str(broker))))
+            _logger("ERROR"," %s: Too many restries on broker %s" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S",str(broker))),logger=logger)
             broker['fd'].TTNstop()
             broker['fd'] = None
             broker = {}
@@ -326,7 +333,7 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
         #  LF = ''
         #  if int(time.time()-timing) and logger == sys.stdout.write:
         #    LF = "\033[F\033[K" #back to previous line and clear line 
-        #  logger("%sWaiting %3d+%3d secs." % (LF,time.time()-timing,max(ToBeRestarted[1]['timestamp'] - now,sec2pol)))
+        #  _logger("INFO","%sWaiting %3d+%3d secs." % (LF,time.time()-timing,max(ToBeRestarted[1]['timestamp'] - now,sec2pol)), logger=logger)
         time.sleep(max(ToBeRestarted[1]['timestamp'] - now,sec2pol))
         MQTTindx = ToBeRestarted[2]-1
       else:
@@ -334,7 +341,7 @@ def GetData(MQTTbrokers, verbose=False,keepalive=180,logger=None, sec2pol=10):
         #  LF = ''
         #  if int(time.time()-timing) and logger == sys.stdout.write:
         #    LF = "\033[F\033[K" #back to previous line and clear line 
-        #  logger("%sAwaiting %3d+%3d secs." % (LF,time.time()-timing,sec2pol))
+        #  _logger("INFO","%sAwaiting %3d+%3d secs." % (LF,time.time()-timing,sec2pol),logger=logger)
         time.sleep(sec2pol)
       # and try again in the while True loop
     return None
