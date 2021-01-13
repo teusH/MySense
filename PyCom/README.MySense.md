@@ -210,3 +210,37 @@ Initialy the maximum is set on cold boot to accu voltage level.
 If accu voltage is lower as 85% of maximum MySense will enter first a 15 minute and later a 60 minutes deepsleep loop till the accu voltage level of 85% is reached.
 An accu low event will be sent via LoRa every 15 minutes.
 To Do: do not wakeup on low accu at night till sunrise.
+
+# MySense firmware upgrades
+## MySense release up to 3
+Using Processor Connector Board from Fontys GTL Venlo: no power management on TTL and I2C-bus sockets.
+
+## MySense release 4
+* Using Processor Connector Board from Fontys GTL Venlo: power management on TTL and I2C sockets.
+* Preparation of solar panel energy handling and battery load level management
+
+## MySense release 5
+* Using Processor Connector Board from stichting Burgerwetenschappers Land van Cuijk with better power management, accu level management, REPL mode via hall magnetic sensor
+* software watch dogs introduced for post mortum debugging reasons
+* wifi power management. Default wifi off after 1 hour.
+* deepsleep energie management improvements
+
+## MySense release 6 (major release update)
+* sensor device drivers update (mainly I2C Adafruit origin)  to solve 32-bit bugs and I2C interface standardisation issues.
+Added I2C semaphone support to avoid simultanius master access on I2C-bus.
+* support added for multiple  I2C-busses.
+* generalisation of I2C and TTL interfaces.
+* start with multiple senosor support of same type.
+* LoPy firmware 1.20.1 and later (pybytes, smart configuration) compatability changes.
+* energy saving on wifi while using deepsleep and enabling wifi with power cycle.
+* improved battery level watchdog
+* updated different test scripts for TTL and I2C, and meteo/display/gps/dust sensor drivers. These XYZ_test.py files are only meant for operational initial tests and can be deleted from LoPy-4 flash file system when approved.
+
+## To Do
+* support for more sensors of same type
+* standardisation e.g. use of LoRa payload compression engine
+* use of standard internal data stream structure (json/python dict) format.
+* use of Bluetooth for satelite sensor kits e.g. wind speed/direction and rain.
+* mesh measurement support
+* enforcing calibration of connected sensors (per type, and between manufaturer)
+* support for better remote firmware updates eg via wifi (already supported) or Bluetooth.
