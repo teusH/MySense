@@ -1,7 +1,7 @@
 # Copyright 2019, Teus Hagen, GPLV3
 # search I2C busses for devices and check presence of installed support libs
 
-__version__ = "0." + "$Revision: 6.1 $"[11:-2]
+__version__ = "0." + "$Revision: 6.2 $"[11:-2]
 __license__ = 'GPLV3'
 
 from time import sleep
@@ -70,10 +70,10 @@ for addr in addrs:
           print("Try as BME280/680 device")
           try: bmeID = BME_ID(i2c, address=addr)
           except: bmeID = None
-          if bmeID is BME680_ID:
+          if bmeID == BME680_ID:
             import BME680 as MET1
             devices.append(('BME680',MET1.MyI2C(i2c, address=addr, probe=probe, lock=lock, debug=False, calibrate=None),addr))
-          elif bmeID is BME280_ID:
+          elif bmeID == BME280_ID:
             import BME280 as MET2
             devices.append(('BME280',MET2.MyI2C(i2c, address=addr, probe=probe, lock=lock, debug=False, calibrate=None),addr))
           else:

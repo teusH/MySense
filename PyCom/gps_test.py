@@ -9,7 +9,7 @@ Use update = False not to update meteo in json config file.
 from time import time, sleep_ms
 import sys
 
-__version__ = "0." + "$Revision: 6.2 $"[11:-2]
+__version__ = "0." + "$Revision: 6.3 $"[11:-2]
 __license__ = 'GPLV3'
 
 try: debug
@@ -34,7 +34,7 @@ FndDevices = []
 if config[abus]:
   print("Found archived %s configuration for:" % abus)
   for dev in config[abus].keys():
-    if dev is 'updated': continue
+    if dev == 'updated': continue
     FndDevices.append(dev)
     print("\t%s: " % dev, config[abus][dev])
   if not atype in FndDevices:

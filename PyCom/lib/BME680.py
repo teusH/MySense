@@ -57,7 +57,7 @@ try:
 except ImportError:
     import ustruct as struct
 
-__version__ = "0." + "$Revision: 6.2 $"[11:-2]
+__version__ = "0." + "$Revision: 6.3 $"[11:-2]
 __repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_BME680.git"
 
 
@@ -169,7 +169,7 @@ class Adafruit_BME680:
         if (not raw) and (type(calibrate) is dict):
           for k in calibrate.keys():
             if not k in self.calibrate.keys(): continue
-            if (not k is 'gas_base') and (not type(calibrate[k]) is list):
+            if (k != 'gas_base') and (not type(calibrate[k]) is list):
               continue
             self.calibrate[k] = calibrate[k]
 
