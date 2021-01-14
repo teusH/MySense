@@ -23,6 +23,8 @@ SET_PRECHARGE       = const(0xd9)
 SET_VCOM_DESEL      = const(0xdb)
 SET_CHARGE_PUMP     = const(0x8d)
 
+# MySense changes: deleted SPI support
+# need to add thread lock
 
 class SSD1306:
     def __init__(self, width, height, external_vcc):
@@ -101,10 +103,17 @@ class SSD1306:
         self.framebuf.text(string, x, y, col)
 
 
-class SSD1306_I2C(SSD1306):
-    def __init__(self, width, height, i2c, addr=0x3c, external_vcc=False):
-        self.i2c = i2c
-        self.addr = addr
+class MyI2C(SSD1306):
+    def __init__(self, width, height, i2cBus, address=0x3c, probe=False, lock=None, debug=False, external_vcc=False):
+        if not lock: # I2C sema
+            import _thread
+            lock = _thread.allocate_lock()
+
+        from i2c_device import I2CDevice
+        self._i2c = I2CDevice(i2cBus, address, probe=probe, lock=lock) #
+        self._debug = debug
+        self.addr = address
+
         self.temp = bytearray(2)
         # Add an extra byte to the data buffer to hold an I2C data/command byte
         # to use hardware-compatible I2C transactions.  A memoryview of the
@@ -120,50 +129,19 @@ class SSD1306_I2C(SSD1306):
     def write_cmd(self, cmd):
         self.temp[0] = 0x80 # Co=1, D/C#=0
         self.temp[1] = cmd
-        self.i2c.writeto(self.addr, self.temp)
+        # self.i2c.writeto(self.addr, self.temp)
+        with self._i2c as i2c:
+            i2c.write(self.temp)
 
     def write_framebuf(self):
         # Blast out the frame buffer using a single I2C transaction to support
         # hardware I2C interfaces.
-        self.i2c.writeto(self.addr, self.buffer)
+        #self.i2c.writeto(self.addr, self.buffer)
+        with self._i2c as i2c:
+            i2c.write(self.buffer)
 
     def poweron(self):
         pass
 
 
-class SSD1306_SPI(SSD1306):
-    def __init__(self, width, height, spi, dc, res, cs, external_vcc=False):
-        self.rate = 10 * 1024 * 1024
-        self.spi = spi
-        self.dc = Pin(dc)
-        self.res = Pin(res)
-        self.cs = Pin(cs)
-        self.dc.init(self.dc.OUT, value=0)
-        self.res.init(self.res.OUT, value=0)
-        self.cs.init(self.cs.OUT, value=1)
-        self.buffer = bytearray((height // 8) * width)
-        self.framebuf = framebuf.FrameBuffer1(self.buffer, width, height)
-        super().__init__(width, height, external_vcc)
-
-    def write_cmd(self, cmd):
-        self.spi.init(baudrate=self.rate, polarity=0, phase=0)
-        self.cs(1)
-        self.dc(0)
-        self.cs(0)
-        self.spi.write(bytearray([cmd]))
-        self.cs(1)
-
-    def write_framebuf(self):
-        self.spi.init(baudrate=self.rate, polarity=0, phase=0)
-        self.cs(1)
-        self.dc(1)
-        self.cs(0)
-        self.spi.write(self.buffer)
-        self.cs(1)
-
-    def poweron(self):
-        self.res(1)
-        time.sleep_ms(1)
-        self.res(0)
-        time.sleep_ms(10)
-        self.res(1)
+# deleted class SSD1306_SPI(SSD1306):

@@ -1,13 +1,14 @@
 # PyCom Micro Python / Python 3
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
 # some code comes from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: MySense.py,v 5.89 2020/10/26 18:54:28 teus Exp teus $
+# $Id: MySense.py,v 6.2 2021/01/14 12:07:47 teus Exp teus $
 
-__version__ = "0." + "$Revision: 5.89 $"[11:-2]
+__version__ = "0." + "$Revision: 6.2 $"[11:-2]
 __license__ = 'GPLV3'
 
 import sys
 from time import sleep_ms, time
+from micropython import const
 try:
   from pycom import wifi_on_boot
 except: pass
@@ -41,7 +42,6 @@ AlarmWDT = const(14)      # watchdog sensor event, has marks
 AlarmReset = const(15)    # unexpected exit of runMe()
 
 import struct
-from micropython import const
 Threading = True
 if Threading:
   import _thread
@@ -190,28 +190,20 @@ def deepsleepMode():
   except: return False
 
 def setWiFi(reset=False,debug=False):
-  global MyConfiguration
-  try:
-    if MyConfiguration['power']['wifi']: # no wifi during boot
-      if wifi_on_boot():
-        from network import WLAN
-        wlan = WLAN(); wlan.deinit() # switch wifi off
-        wifi_on_boot(False)
-    if not wifi_on_boot(): return False
-  except: pass
+  global MyConfiguration, wokeUp
   cnt = 0
   try: cnt = nvs_get('count')
   except: pass
   if not cnt: cnt = 0
-  cntHour = 4
-  try: cntHour = int(4500/MyConfiguration['interval']['interval'])
+  periods = 4
+  try: periods = int(4500/MyConfiguration['interval']['interval'])
   except: pass
   if reset:
     nvs_set('count',0)
-    if cnt > cntHour: cnt = cntHour # enable wifi
+    if cnt > periods: cnt = periods # enable wifi
     else: cnt = 0
   else: nvs_set('count',cnt+1)
-  if cnt == cntHour: # after ca 1 Hr turn wifi off or give it new ssid/pass
+  if cnt == periods: # after nr periods turn wifi off or give it new ssid/pass
     from network import WLAN
     wlan = WLAN()
     try:
@@ -220,6 +212,9 @@ def setWiFi(reset=False,debug=False):
         if MyConfiguration['power']['wifi']:
           wlan.deinit() # switch wifi off
           display("WiFi AP: off",xy=(0,0))
+          if wokeUp:
+            import pycom
+            if pycom.wifi_on_boot(): pycom.wifi_on_boot(False)
           return False
         try: from Config import W_SSID
         except: pass
@@ -309,13 +304,16 @@ def getPinsConfig(debug=False):
   if not MyConfig: initConfig()
   deepsleepMode() # deepsleep pin conf
 
+# check to send low accu level event
 def accuLow():
-  # too low: do deepsleep
-  volts = getVoltage()  # may raise accu alarm
+  global MyConfiguration
+  # too low: led flash red, deepsleep only via main.py
+  if not 'accuLevel' in MyConfiguration.keys(): return False
+  volts = getVoltage()
   cnt = None
   try: cnt = nvs_get('aLow')
   except: pass
-  if 0.1 < volts[1] < 11.3:
+  if 0.1 < volts[1] <= MyConfiguration['accuLevel']+0.2:
     MyMark(13)
     from pycom import rgbled
     for i in range(5):
@@ -323,12 +321,12 @@ def accuLow():
       sleep_ms(100); pycom.rgbled(0x000000)
     if not cnt: cnt = 0
     cnt += 1
-    if cnt < 4: 
+    if cnt < 4:  # max events sent
       global Alarm, AlarmAccu # show event
       Alarm = (AlarmAccu,int(volts[1]*10))
     elif cnt > 10: cnt = 1
     nvs_set('aLow',cnt)
-  elif cnt != None and (volts[1] > 11.8):
+  elif cnt != None and (volts[1] > MyConfiguration['accuLevel']+0.2):
     nvs_erase('aLow') # back to normal
   return False
 
@@ -680,8 +678,8 @@ def initDisplay(debug=False):
         import SSD1306 as DISPLAY
         width = 128; height = 64  # display sizes
         # display may flicker on reload
-        Display['lib'] = DISPLAY.SSD1306_I2C(width,height,
-                             Display['i2c'], addr=Display['conf']['address'])
+        Display['lib'] = DISPLAY.MyI2C(width,height,
+                             Display['i2c'], address=Display['conf']['address'],probe=True,lock=Display['lock'])
         if debug:
           print('Oled %s: (SDA,SCL,Pwr)=%s pwr is %s' % (Display['conf']['name'],str(Display['conf']['pins'][:3]),PinPower('display')))
       else:
@@ -723,10 +721,10 @@ def initMeteo(debug=False):
     if Meteo['conf']['name'][:3] == 'BME':
       if Meteo['conf']['name'] == 'BME280':
         import BME280 as BME
-        Meteo['lib'] = BME.BME_I2C(Meteo[abus], address=Meteo['conf']['address'], debug=debug, calibrate=MyConfiguration['calibrate'])
+        Meteo['lib'] = BME.MyI2C(Meteo[abus], address=Meteo['conf']['address'], probe=True, lock=Meteo['lock'], debug=debug, calibrate=MyConfiguration['calibrate'])
       elif Meteo['conf']['name'] == 'BME680':
-        import BME_I2C as BME
-        Meteo['lib'] = BME.BME_I2C(Meteo[abus], address=Meteo['conf']['address'], debug=debug, calibrate=MyConfiguration['calibrate'])
+        import BME680 as BME
+        Meteo['lib'] = BME.MyI2C(Meteo[abus], address=Meteo['conf']['address'], probe=True, lock=Meteo['lock'], debug=debug, calibrate=MyConfiguration['calibrate'])
         if not 'gas_base' in Meteo['conf'].keys():
           global MyConfig
           try:
@@ -739,14 +737,16 @@ def initMeteo(debug=False):
         if not Meteo['lib'].gas_base:
           display('AQI wakeup')
           Meteo['lib'].AQI # first time can take a while
-          Meteo['conf']['gas_base'] = Meteo['lib'].gas_base
-          MyConfig.dirty = True
-        display("Gas base: %0.1f" % Meteo['lib'].gas_base)
+          if Meteo['lib'].gas_base:
+            Meteo['conf']['gas_base'] = Meteo['lib'].gas_base
+            MyConfig.dirty = True
+            display("Gas base: %0.1f" % Meteo['lib'].gas_base)
+          else: display("Gas base not set.")
         # Meteo['lib'].sea_level_pressure = 1011.25
       else: return False
     elif Meteo['conf']['name'][:3] == 'SHT':
-      import Adafruit_SHT31 as SHT
-      Meteo['lib'] = SHT.SHT31(address=Meteo['conf']['address'], i2c=Meteo[abus], calibrate=MyConfiguration['calibrate'])
+      import SHT31 as MET
+      Meteo['lib'] = SHT.MyI2C(Meteo[abus], address=Meteo['conf']['address'], probe=True, lock=Meteo['lock'], debug=debug, calibrate=MyConfiguration['calibrate'])
     else: # DHT serie deprecated
       if LED: LED.blink(5,0.3,0xff0000,l=True,force=True)
       raise ValueError("Unknown meteo %s type" % meteo)
@@ -1183,6 +1183,13 @@ def initAccu():
     MyConfiguration['accuPin'] = accuPin
   else: accuPin = MyConfiguration['accuPin']
   if not accuPin: return False
+  if not 'accuLevel' in MyConfiguration.keys():
+    accuLevel = 11.8
+    try: from Config import accuLevel
+    except: pass
+    MyConfig.dump('accuLevel',accuLevel)
+    MyConfiguration['accuLevel'] = accuLevel
+  else: accuLevel = MyConfiguration['accuLevel']
   atype = 'accu'
   if not atype in MyDevices.keys():
     from machine import ADC

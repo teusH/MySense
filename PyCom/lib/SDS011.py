@@ -1,12 +1,15 @@
-'''
-Created on 24 Apr 2017
+#
+#Created on 24 Apr 2017
+#
+#@author: rxf
+#
 
-@author: rxf
-'''
 # comes from https://github.com/rexfue/Feinstaub_LoPy
 # changes by teus license GPLV3
 # Frank Heuer wrote a better and more extensive script
-# $Id: SDS011.py,v 5.3 2019/09/18 10:51:18 teus Exp teus $
+# $Id: SDS011.py,v 6.1 2021/01/11 19:48:15 teus Exp teus $
+
+__version__ = "0." + "$Revision: 6.1 $"[11:-2]
 
 from time import sleep
 try:
@@ -249,3 +252,26 @@ class SDS011:
     if self.interval - SampleTime > 60*1000:
       self.Standby()    # switch fan OFF
     return PM_sample
+
+if __name__ == "__main__":
+    from time import time, sleep
+    interval = 5*60
+    sample = 60
+    debug = True
+    try:
+      from machine import UART, Pin
+      pins = ('P4','P3','P19')
+      print("Using pins: %s" % str(pins))
+      Pin(pins[2],mode=Pin.OUT).value(1); sleep(1)
+      port = UART(1,baudrate=9600,pins=pins[:2],timeout_chars=20)
+    except:
+      import sys
+      port = sys.argv[1]
+    sps30 = SPS30(port=port, debug=debug, sample=sample, interval=interval)
+    for i in range(4):
+        lastTime = time()
+        print(sps30.getData(debug=debug))
+        now = interval + time() -lastTime
+        if now > 0: sleep(now)
+
+

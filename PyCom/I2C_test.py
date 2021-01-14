@@ -1,7 +1,7 @@
 # Copyright 2019, Teus Hagen, GPLV3
 # search I2C busses for devices and check presence of installed support libs
 
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 6.1 $"[11:-2]
 __license__ = 'GPLV3'
 
 from time import sleep
@@ -50,58 +50,67 @@ def BME_ID(i2c, address=0x77):
         i2c.readfrom_mem(address, BME_ID_ADDR, 1),'little') & 0xFF
 
 i2c = I2C(0, I2C.MASTER, pins=pins)
+# I2C sema
+import _thread
+lock = _thread.allocate_lock()
+probe = True # test if hooked up
+
 
 print("Find and install I2C devices via I2C bus scan")
 addrs = i2c.scan()
+devices = []
 print("Registers of devices on I2C bus: ", addrs)
 
 for addr in addrs:
     print("Try I2C addr: 0x%X" % addr)
     try:
-        if (addr == 0x77) or (addr == 0x76):
+        if addr in [0x77,0x76]:
           BME280_ID = const(0x60)
           BME680_ID = const(0x61)
           print("Try as BME280/680 device")
           try: bmeID = BME_ID(i2c, address=addr)
           except: bmeID = None
-          if bmeID == BME680_ID:
-            name = 'BME680'
-            import BME_I2C as LIB
-            device = LIB.BME_I2C(i2c, address=addr, debug=False, calibrate=None)
-          elif bmeID == BME280_ID:
-            name = 'BME280'
-            import BME280 as LIB
-            device = LIB.BME_I2C(i2c, address=addr, debug=False, calibrate=None)
+          if bmeID is BME680_ID:
+            import BME680 as MET1
+            devices.append(('BME680',MET1.MyI2C(i2c, address=addr, probe=probe, lock=lock, debug=False, calibrate=None),addr))
+          elif bmeID is BME280_ID:
+            import BME280 as MET2
+            devices.append(('BME280',MET2.MyI2C(i2c, address=addr, probe=probe, lock=lock, debug=False, calibrate=None),addr))
           else:
             print("Unknown BME chip ID=0x%X" % bmeID)
             break
-        elif (addr == 0x44) or (addr == 0x45):
-          name = 'SHT31'
-          import Adafruit_SHT31 as LIB
-          device = LIB.SHT31(address=addr, i2c=i2c, calibrate=None)
-        elif (addr == 0x3c):
-          name = 'SSD1306'
-          import SSD1306
-          device = SSD1306.SSD1306_I2C(128,64,i2c,addr=addr)
+        elif addr in [0x44,0x45]:
+          import SHT31 as MET3
+          devices.append(('SHT31',MET3.MyI2C(i2c, address=addr, probe=probe, lock=lock, debug=False, calibrate=None),addr))
+        elif addr in [0x3c]:
+          import SSD1306 as OLED
+          devices.append(('SSD1306',OLED.MyI2C(128,64,i2c,address=addr,probe=probe, lock=lock),addr))
         else:
-          print("Unknown addr: 0x%X" % addr)
+          print("Unknown device at addr: 0x%X" % addr)
           continue
     except OSError as e:
-        print("Error at addr 0x%X: %s" % (addr, str(e)))
+        print("Error at addr 0x%X: %s" % (addr, e))
         i2c.init(0,pins=pins)
         sleep(1)
         continue
     except RuntimeError as e:
-        print("Failure on devive driver: %s" % str(e))
+        print("Failure on device driver: %s" % e)
         continue
-    print("Try simple operation on device %s" % name)
-    try:
-        if name[:3] == 'SSD':
-            print("Oled SSD1306")
-            device.fill(1) ; device.show()
-            sleep(1)
-            device.fill(0); device.show()
-        else:
-            print("Meteo %s: temp: %.2f oC" % (name,device.temperature))
-    except Exception as e:
-        print("Device operation error: %s" % str(e))
+
+print("Try simple operation on connected I2C devices:")
+for device in devices:
+  try:
+    if device[0][:3] == 'SSD':
+        print("  - Oled %s display on address 0x%x is blinking?" % (device[0],device[2]))
+        for i in range(2):
+          sleep(1)
+          device[1].fill(1) ; device[1].show()
+          sleep(1)
+          device[1].fill(0); device[1].show()
+    elif device[0][:3] in ['BME','SHT']:
+        print("  - Meteo %s on address 0x%x:" % (device[0],device[2]))
+        print("\ttemp: %.2f oC," % device[1].temperature)
+        print("\thumidity: %.2f%%," % device[1].humidity)
+        print("\tair pressure: %.2f hPa." % (device[1].pressure if not device[1].pressure is None else 0))
+    else: print("  - Unknown device %s on address 0x%x:" % (device[0],device[2]))
+  except Exception as e: print("Device operation error: %s" % e)

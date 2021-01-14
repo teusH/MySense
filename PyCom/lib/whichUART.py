@@ -7,7 +7,7 @@
 from time import sleep_ms
 from machine import UART
 
-__version__ = "0." + "$Revision: 5.13 $"[11:-2]
+__version__ = "0." + "$Revision: 6.1 $"[11:-2]
 __license__ = 'GPLV3'
 
 # Config.py definitions preceed
@@ -202,7 +202,8 @@ class identification:
       self.index += 1
       self.devices[atype]['enabled'] = self.conf[atype]['use']
       self.Power(self.conf[atype]['pins'], on=power)
-      if self.debug: print("%s device: " % atype, self.devices[atype])
+      if self.debug:
+        print("%s/%s device, TTL %d: " % (atype,self.conf[atype]['name'],self.devices[atype]['index']), self.devices[atype])
     return self.devices[atype]
 
   # search UARTs for sensor types

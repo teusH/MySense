@@ -1,101 +1,116 @@
-# test script for GPS location sensor
 # Copyright 2019, Teus Hagen MySense GPLV3
+''' simple test to identify dust and GPS TTL devices.
+Side effect: if device is found it is added to configuration file.
+Next can be done before running this module.
+Use update = False not to update meteo in json config file.
+    debug = False to disable.
+'''
 
+from time import time, sleep_ms
 import sys
-from time import sleep_ms, ticks_ms
 
-__version__ = "0." + "$Revision: 5.11 $"[11:-2]
+__version__ = "0." + "$Revision: 6.2 $"[11:-2]
 __license__ = 'GPLV3'
 
-# dflt pins=(Tx-pin,Rx-pin,Pwr-pin): wiring Tx-pin -> Rx GPS module
-# Pwr dflt None (not switched) 3V3 DC
-# dflt: for gps pins = ('P4','P3','P19' or None)
-# default UART(port=1,baudrate=9600,timeout_chars=2,pins=('P3','P4',None))
-
-# useGPS and pins overwrite via Config (wichUART), or json conf (ConfigJson)
+try: debug
+except: debug=True
 abus = 'ttl'
 atype = 'gps'
+confFile = '/flash/MySenseConfig.json'
+#try:
+#    import os
+#    os.remove(confFile)
+#except: pass
+try: update
+except: update = True
+finally:
+  print("%s %s MySense configuration." % ('Updating' if update else 'No update',atype))
 
-debug = True
 import ConfigJson
 config = {abus: {}}
 MyConfig = ConfigJson.MyConfig(debug=debug)
 config[abus] = MyConfig.getConfig(abus=abus)
 FndDevices = []
 if config[abus]:
-  print("Found archived configuration for:")
+  print("Found archived %s configuration for:" % abus)
   for dev in config[abus].keys():
+    if dev is 'updated': continue
     FndDevices.append(dev)
-    print("%s: " % dev, config[abus][dev])
+    print("\t%s: " % dev, config[abus][dev])
+  if not atype in FndDevices:
+    print("Sensor %s not found in conf  %s file." % (atype, confFile))
+  if atype in FndDevices and update:
+    del config[abus][dev]; FndDevices.remove(atype)
 
-import whichUART
-if config[abus] and (atype in config[abus].keys()):
-  which = whichUART.identification(identify=True,config=config[abus], debug=debug)
-else: # look for new devices
-  which =  whichUART.identification(identify=True, debug=debug)
-  config[abus] = which.config
-  FndDevices = []
-for dev in config[abus].keys():
-  if not dev in FndDevices:
-    if dev != 'updated':
-      print("Found device %s: " % dev, config[abus][dev])
-      if dev == atype:
-        MyConfig.dump(dev,config[abus][dev],abus=abus)
-        print("Store %s config in flash" % dev)
-
-print("config[%s] devices: %s" % (abus,str(config[abus].keys())))
-print("which.config[%s]: %s" % (abus,str(which.config)))
-if not config[abus][atype]['use']:
-  print("%s config: not use %s" % (atype,config[abus]['name']))
+import whichUART as DEV
+try:
+  if config[abus] and (atype in config[abus].keys()):
+    which = DEV.identification(identify=True,config=config[abus], debug=debug)
+  else: # look for new devices
+    which =  DEV.identification(identify=True, debug=debug)
+    config[abus] = which.config
+    for dev in which.devices.keys():
+      FndDevices.append(dev)
+      # config[abus][dev]['conf']['use'] = True
+      print("New %s: " % dev, config[abus][dev])
+      MyConfig.dump(dev,config[abus][dev],abus=abus)
+except Exception as e:
+  print("%s identification error: %s" % (abus.upper(),str(e)))
+  print("%s configuration error in Config.py?" % abus.upper())
   sys.exit()
 
-print("Using %s: " % atype, which.devices[atype])
+if not atype in config[abus].keys() or not config[abus][atype]['use']:
+  print("No %s found on bus %s or use is disabled." % (atype,abus))
+  sys.exit()
 
-device = None
+device = {}
+#sys.exit()
 try:
-  device = which.getIdent(atype=atype)
-  if debug: print("Found %s device, type %s on bus %s: " % (which.GPS,atype,abus), device)
+  device = which.getIdent(atype=atype, power=True)
+  nr = device['index']
+  #ser = which.openUART(atype)
+  ser =  device[abus]
+  baud = device['conf']['baud']
+  pins = which.Pins(atype)
   name = which.GPS
-  pins = which.Pins(atype=atype)
+  print("%s on %s is actived" % (name,abus))
 except Exception as e:
   print("Error: %s" % e)
-finally:
-  if not device:
-    print("Unable to find %s device" % atype)
-    sys.exit()
+  sys.exit()
 
-print('GPS: using %s nr 1: Rx->pin %s, Tx->pin %s, Pwr->' % (which.GPS,pins[0],pins[1]),pins[2])
+print('Using %s: device=%s, TTL=%d, %d baud: Rx->pin %s, Tx->pin %s, Pwr-> %s' % (atype,name,nr,baud,pins[0],pins[1],str(pins[2])))
 
 try:
-    print("Next can wait several minuets."); print("GPS raw:")
-    prev = which.Power(pins, on=True)
-    if not prev: print("Power ON pin %s." % pins[2])
-    #ser = which.openUART(atype)
-    ser = device[abus]
+    print("Next can wait several minuets."); print("GPS raw data:")
     for cnt in range(20):
        if ser.any(): break
        if cnt > 19: raise OSError("GPS not active")
-       sleep_ms(200); print('.',end='')
-    print("%s on %s is active" % (name,abus))
+       if not cnt: print("Waiting for satelites in sight.")
+       sleep_ms(2000); print('.',end='')
     for cnt in range(10):
       try:
         x = ser.readline()
       except:
         print("Cannot read GPS data")
         break
-      print(x)
-      sleep_ms(200)
-    # which.closeUART(atype)
-    which.Power(pins, on=prev)
-    if not prev: print("powered OFF")
+      if not x is None: print(x)
+      else: print('.',end='')
+      sleep_ms(1000)
 
+    # which.closeUART(atype)
+    #which.Power(pins, on=False)
+    #print("%s powered OFF for 2 secs." % name)
+    #sleep_ms(2000)
+
+    from time import ticks_ms
     prev = which.Power(pins, on=True)
     print("Next can take several minutes...")
     print("Using GPS Dexter for location fit:")
     import GPS_dexter as GPS
-    #gps = GPS.GROVEGPS(port=1,baud=9600,debug=False,pins=pins[:2])
+    # gps = GPS.GROVEGPS(port=nr,baud=baud,debug=debug,pins=pins[:2])
+    gps = GPS.GROVEGPS(port=ser,debug=False)
+    device['lib'] = gps
     timing = ticks_ms()
-    gps = device['lib'] = GPS.GROVEGPS(port=device[abus],debug=debug)
     # for cnt in range(0,20):
     #    if ser.any(): break
     #    if cnt > 19: raise OSError("GPS not active")
@@ -121,29 +136,37 @@ try:
       else:
         print("Satellite search time: %d min, %d secs" % (timing/60,timing%60))
         print('No satellites (%d) found for a qualified (%d) fit' % (gps.satellites,gps.quality))
-        print('Turn on debugging')
+        print('Turn on GPS debugging')
         gps.debug = True
 
 except ImportError:
     print("Missing Grove GPS libraries")
 except Exception as e:
     print("Unable to get GPS data on port with pins", pins, "Error: %s" % e)
-device[abus].deinit()
-which.Power(pins, on=prev)
-if not prev: print("Power OFF pin %s." % pins[2])
+
+which.Power(pins, on=False)
+ser.deinit(); del ser
 #which.closeUART(atype)
-
 if MyConfig.dirty:
-  print("Config file needs to be updated")
-  from machine import Pin
-  apin = 'P18'  # deepsleep pin 
-  if not Pin(apin,mode=Pin.IN).value():
-    print("Update config in flash mem")
-    MyConfig.store
-
-import sys
+  print("Updating configuration json file %s:" % confFile)
+  try:
+    for dev in config[abus].keys():
+      if dev is None or dev is 'updated': continue
+      if not dev in FndDevices:
+        print("Found new %s device %s: " % (abus,dev), config[abus][dev])
+  except: pass
+  # from machine import Pin
+  # apin = 'P18'  # deepsleep pin
+  # if not Pin(apin,mode=Pin.IN).value():
+  if MyConfig.dirty and MyConfig.store:
+    print("Updated config json file in %s." % confFile)
+  else: print("Update config json file in %s NOT needed." % confFile)
+del MyConfig
+del which
+del device
+del config
+print("DONE %s-uart test for %s sensor %s" % (abus.upper(),atype,name))
 sys.exit()
-
 
 # raw  GPS output something like
 '''

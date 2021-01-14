@@ -1,9 +1,26 @@
-__version__ = "0." + "$Revision: 5.9 $"[11:-2]
-__license__ = 'GPLV3'
+# Copyright 2019, Teus Hagen, GPLV3
+
 ''' basis PyCom LoPy controller and PCB test.
+    get: S/N, json config file, RGB led, accu and voltage, Hall (REPL modus),
+    sleep modus, LoRa and some LoRa tries.
     if deepsleep pin not is enabled, no update of config file will be done.
     If no accu is attached and deepsleep pin is enabled flashed config file will be cleared.
 '''
+
+__version__ = "0." + "$Revision: 6.1 $"[11:-2]
+__license__ = 'GPLV3'
+
+try: debug
+except: debug=True
+confFile = '/flash/MySenseConfig.json'
+#try:
+#    import os
+#    os.remove(confFile)
+#except: pass
+try: update
+except: update = True
+
+atype = 'lopy'
 
 from machine import deepsleep, wake_reason, PWRON_WAKE
 wokeUp = wake_reason()[0] != PWRON_WAKE
@@ -12,13 +29,19 @@ else: print("Cold reboot")
 
 ################## json flashed configuration
 # roll in archive configuration
-try: import ConfigJson
-except:
-  print("Missing library led and/or ConfigJson")
-  sys.exit()
-MyConfig = ConfigJson.MyConfig(archive=(not wokeUp), debug=False)
+import ConfigJson
+MyConfig = ConfigJson.MyConfig(archive=(not wokeUp), debug=debug)
+config = {}
 config = MyConfig.getConfig() # configuration
-if config: print("Got config from flash: %s" % str(config))
+if config:
+  print("Got config from flash: %s" % str(config))
+  for abus in ['ttl','i2c']:
+    if not abus in config.keys(): continue
+    print("Found archived %s configuration for:" % abus)
+    for dev in config[abus].keys():
+      if dev is 'updated': continue
+      print("\t%s: " % dev, config[abus][dev])
+else: print("No json configuration file found")
 
 ####################### RGB led
 import sys
@@ -32,7 +55,7 @@ try:
   LED = led.LED()
 except: pass
 
-################# S/N number
+####3333############## S/N number
 import os
 uname = os.uname()
 print("Pycom %s" % uname.machine)
@@ -45,7 +68,7 @@ except Exception as e:
     print("Failure: %s" % e)
 print("Firmware version: %s" % uname.version)
 
-################## accu
+##################### accu
 # Read accu voltage out
 adc_bat = None
 def getBatVoltage():
@@ -94,7 +117,7 @@ def sleepMode():
     else: sleepPin = config['sleepPin']
     from machine import Pin
     sleeping = Pin(sleepPin,mode=Pin.IN)
-  return not sleeping.value()
+  return sleeping.value()
 
 sleepMode()
 
@@ -122,7 +145,9 @@ else:
 # found oled, try it and blow RGB led wissle
 
 ##################### LoRa
+oldStat = [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1]
 def LoRaStatus(net): # print LoRa status
+   global oldStat
    try:
       if not net.lora.has_joined():
           print("LoRa not joined!")
@@ -133,15 +158,16 @@ def LoRaStatus(net): # print LoRa status
       return
    print('LoRaWan status:')
    # status[0] last datagram time stamp msec
-   print("  RSSI           %d dBm" % status[1])
-   print("  SNR            %.1f dB" % status[2])
-   print("  Tx datarate    %d" % status[3])
-   print("  Rx datarate    %d" % status[4])
-   print("  Tx trials      %d" % status[5])
-   print("  Tx power       %d" % status[6])
-   print("  Tx time on air %d msec" % status[7])
-   print("  Tx count       %d" % status[8])
-   print("  Rx frequency   %.1f MHz" % (status[9]/1000000.0))
+   if status[1] != oldStat[1]: print("  RSSI           %d dBm" % status[1])
+   if status[2] != oldStat[2]: print("  SNR            %.1f dB" % status[2])
+   if status[3] != oldStat[3]: print("  Tx datarate    %d" % status[3])
+   if status[4] != oldStat[4]: print("  Rx datarate    %d" % status[4])
+   if status[5] != oldStat[5]: print("  Tx trials      %d" % status[5])
+   if status[6] != oldStat[6]: print("  Tx power       %d" % status[6])
+   if status[7] != oldStat[7]: print("  Tx time on air %d msec" % status[7])
+   if status[8] != oldStat[8]: print("  Tx count       %d" % status[8])
+   if status[9] != oldStat[9]: print("  Rx frequency   %.1f MHz" % (status[9]/1000000.0))
+   oldStat = status
 
 if not wokeUp:
   Network = ''
@@ -159,6 +185,7 @@ myLoRa = LORA()
 
 info = None
 method = {}
+dr = 5 # sf=7 default LoRa
 if initLoRa:
   # OTAA keys
   try:
@@ -173,12 +200,21 @@ if initLoRa:
     MyConfig.dump('LoRa','ABP')
   except: pass
   if not len(method): raise ValueError("No LoRa keys configured or LoRa config error")
-  print("Using %s LoRa methods from Config." % ', '.join(method.keys()))
+  dr = 0
+  try:
+    from Config import DR_join
+    if 0 <= DR_join <= 5: dr = DR_join # 0=SF12, 5=SF7 (dflt)
+  except: pass
+  print("Using %s LoRa methods from Config with sf=%d." % (', '.join(method.keys()),12-dr))
 
-if not myLoRa.connect(method, ports=2, myLED=LED, debug=True):
+if not myLoRa.connect(method, ports=2, myLED=LED, dr=dr, debug=debug):
   print("Failed to connect to LoRaWan TTN")
   if LED: LED.blink(5,0.3,0xff0000,False)
   sys.exit(0)
+elif LED:
+  sleep(2)
+  LED.blink(5,0.3,0x0000FF,False)
+else: pycom.heartbeat(True)
 
 ################### LoRa
 def SendInfo(port,data):
@@ -244,29 +280,38 @@ for cnt in range(3):
     print('Fake data nr %d of 3 is sent. Tx count %d. Joined: %s' % ((cnt+1),myLoRa.status,str(myLoRa.lora.has_joined())))
     if LED: LED.blink(5,0.3,0x00ff00,False)
     LoRaStatus(myLoRa)
+print("Clearing LoRa nvs ram.")
+myLoRa.clear
+del myLoRa
+del data
 
-if (not sleepMode()) or wokeUp: # woke up from deepsleep or no deepsleep pin strap
-  print('Done')
-else:
+if sleepMode() and not wokeUp: # woke up from deepsleep or no deepsleep pin strap
   if LED: LED.blink(5,0.3,0x0000ff,True)
   print("Go into deepsleep for 3 secs")
   deepsleep(3000)
   ####################
   print("Should not arrive here")
 
-if MyConfig.dirty:
-  print("Config file needs to be updated")
-  if sleepMode():
-    print("Update config in flash mem")
-    MyConfig.store
-    if LED: LED.blink(5,0.3,0x00ff00,False)
-
 # Reset flashed configuration
-if (accu < 0.1) and sleepMode():
-  if LED: LED.blink(10,0.3,0xff0000,False)
-  print("strap on pin %s and NO accu attached:" % MyConfig.config['sleepPin'])
-  print("WARNING: RESET config in mem and LoRa nvram")
-  MyConfig.clear; config = MyConfig.getConfig()
-  # myLoRa.clear
+if MyConfig.dirty:
+  print("Updating configuration json file %s:" % confFile)
+  try:
+    for dev in config[abus].keys():
+      if dev is 'updated': continue
+      if not dev in FndDevices:
+        print("Found new %s device %s: " % (abus,dev), config[abus][dev])
+    print("Add this gas base to Config.py: %.1f" % device['fd'].gas_base)
+  except: pass
+  # from machine import Pin
+  # apin = 'P18'  # deepsleep pin
+  # if not Pin(apin,mode=Pin.IN).value():
+  if MyConfig.dirty and MyConfig.store:
+    print("Updated config json file in %s." % confFile)
+  else: print("Update config json file in %s NOT needed." % confFile)
+
+del MyConfig
+del config
 pycom.heartbeat(True)
+print("DONE LoPy test: MySense LoRa, pins, etc.")
 sys.exit()
+

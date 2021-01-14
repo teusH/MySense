@@ -4,19 +4,23 @@
 #          and i2c devices with lib, i2c ref, index, and pins
 from time import sleep_ms
 from machine import I2C
+from _thread import allocate_lock
+"""
+Builds internal data structs: config[types] and devices[types][conf]
+"""
 
-__version__ = "0." + "$Revision: 5.5 $"[11:-2]
+__version__ = "0." + "$Revision: 6.1 $"[11:-2]
 __license__ = 'GPLV3'
 
 # Config.py definitions preceed
 # if MyPins array of [(SDA,SCL[,Pwr]) tuples to identify pins for devices
 class identification:
-  def __init__(self, i2c=0, MyPins=[], identify=True, config={}, devs={}, debug=False):
+  def __init__(self, MyPins=[], identify=True, config={}, devs={}, debug=False):
     self.myTypes = { 'meteo': ['BME','SHT'], 'display': ['SSD']}
     if not type(MyPins) is list: MyPins = []
-    self.pins = []
+    self.pins = []; self.locks = []
     self.devices = devs
-    max = 3 # max 3 busses
+    max = 3 # max 3 I2C busses
     if config: # import config
       for item in config.keys():
         if len(self.pins) == max: break
@@ -39,7 +43,10 @@ class identification:
         MyPins[i] = tuple(MyPins[i])
         if not MyPins[i] in self.pins:
           self.pins.append(MyPins[i])
-    if not self.pins: self.pins=[('P23','P22',None)] # dflt
+          self.locks.append(allocate_lock())
+    if not self.pins:
+        self.pins=[('P23','P22',None)] # dflt
+        self.locks = [allocate_lock()]
     self.debug = debug
     if identify: self.identify()
     if self.debug:
@@ -137,7 +144,7 @@ class identification:
              except: pass
              self.conf['calibrate'] = calibrate
           if this == atype: rts = True
-          if self.debug: print("I2C new %s found: " % this, self.conf[this])
+          if self.debug: print("I2C new conf[%s]: " % this, self.conf[this])
       cur_i2c.deinit()
       self.Power(self.pins[index], cur_i2c, on=power)
     return rts
@@ -152,9 +159,11 @@ class identification:
         print("Unable to find config for %s" % atype)
         return None
     if atype in self.devices.keys():
-      if self.debug: print("%s device: " % atype, self.devices[atype])
+      index = self.devices[atype]['index']
+      self.devices[atype]['i2c'] = I2C(index, I2C.MASTER, pins=tuple(self.pins[index][:2])) # master
+      if self.debug: print("%s I2C device: " % atype, self.devices[atype])
       return self.devices[atype]
-    self.devices[atype] = {'i2c': None, 'index': None, 'lib': None,
+    self.devices[atype] = {'i2c': None, 'lock': None, 'index': None, 'lib': None,
                            'enabled': None, 'conf': self.conf[atype]}
     self.conf[atype]['pins'] = tuple(self.conf[atype]['pins'])
     try: index = self.pins.index(self.conf[atype]['pins'])
@@ -164,21 +173,22 @@ class identification:
         if item[1]['index'] == index: # on same bus
           self.devices[atype]['i2c'] = item[1]['i2c'] ; break
       except: pass
-    if self.devices[atype]['i2c'] == None:
-      self.devices[atype]['i2c'] = I2C(index, I2C.MASTER, pins=tuple(self.pins[index][:2])) # master
     self.devices[atype]['index'] = index
+    #if not type(self.devices[atype]['i2c']) is I2C:
+    self.devices[atype]['i2c'] = I2C(index, I2C.MASTER, pins=tuple(self.pins[index][:2])) # master
+    try: self.devices[atype]['lock'] = self.locks[index]
+    except: pass
     self.devices[atype]['enabled'] = self.conf[atype]['use']
     self.Power(self.conf[atype]['pins'], self.devices[atype]['i2c'], on=power)
-    if self.debug: print("%s device: " % atype, self.devices[atype])
+    if self.debug: print("new %s I2C device: " % atype, self.devices[atype])
     return self.devices[atype]
 
   # search I2C for sensor types
   def identify(self,types=None):
-    if types == None: types = self.myTypes
+    if types == None: types = self.myTypes.keys()
     for atype in types:
       if not atype in self.devices.keys():
         self.getIdent(atype=atype)
-    # self.devices['oled'] = self.devices['display']
     return self.devices
 
   def Device(self,atype='meteo'):

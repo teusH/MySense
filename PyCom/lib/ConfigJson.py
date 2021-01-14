@@ -1,6 +1,6 @@
 # Copyright 2019, Teus Hagen, GPLV3
 # search for I2C devices and get supporting libraries loaded
-__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__version__ = "0." + "$Revision: 6.1 $"[11:-2]
 __license__ = 'GPLV3'
 
 import ujson
@@ -40,10 +40,13 @@ class MyConfig:
         if self.debug: print("No archived config: %s" % self.file)
         return {}
       except Exception as e:
-        print("Json config error: %s. File deleted." % e)
+        print("Json config error: %s." % e)
         #with open(self.file, 'r') as config_file:
         #  print("File content error: ", config_file.read())
-        if not self.debug: self.remove
+        if not self.debug:
+          self.remove
+          print("File %s deleted." % self.file)
+        else: print("Json file: %s." % self.file)
         return {}
       if self.debug: print("Found config file: %s" % self.file, self.config)
     if (abus == None) and (atype == None): return self.config
@@ -74,7 +77,7 @@ class MyConfig:
        value = avalue[:]
     else: value = avalue
     if abus != None:
-      if not type(self.config) is dict:
+      if self.debug:
         print("dump(%s,%s,%s): type: " % (str(atype),str(avalue),str(abus)), type(self.config),"\ncontent:\n",self.config)
       if not abus in self.config.keys(): self.config[abus] = {'updated': True}
       self.config[abus][atype] = value # is probably dict
@@ -94,16 +97,30 @@ class MyConfig:
   def DiffDict(self, a, b):
     eq = (a == b)
     if not self.debug: return eq
-    print("a == b? ", eq)
     if eq: return eq
     if (not type(a) is dict) or (not type(b) is dict):
-      print("a or b is not dict")
       return eq
     for item in list(set(a).intersection(set(b))):
-        if a[item] != b[item]:
+        if self.debug and a[item] != b[item]:
           print("item %s value a(%s) != b(%s)", (item,str(a[item]),str(b[item])) )
-    print("keys a-b: ",set(a).difference(set(b))," keys b-a: ", set(b).difference(set(a)))
+          print("keys a-b: ",set(a).difference(set(b))," keys b-a: ", set(b).difference(set(a)))
     return eq
+
+  # delete clean json content
+  def JsonCleanup(self, adict):
+    for item,val in adict.items():
+        if type(val) is dict:
+            self.JsonCleanup(val)
+            continue
+        elif type(val) is list or \
+            type(val) is tuple or \
+            type(val) is bool or \
+            type(val) is str or \
+            type(val) is float or \
+            type(val) is int or \
+            val is None:
+              continue
+        del adict[item]
 
   # dump to json config file in flash mem
   def export(self,force=False):
@@ -114,25 +131,26 @@ class MyConfig:
          del self.config[bus]['update']
     if not 'Version' in self.config.keys():
       self.config['Version'] = self.version
-    if not force:
-      if not self.dirty: return True
+    if not force  and not self.dirty: return False
     # add explicit flg if present in dust
     if not 'explicit' in self.config.keys():
       try: self.config['explicit'] = self.config['ttl']['dust']['explicit']
       except: pass
     self.dirty = False
     if not self.check and self.DiffDict(self.config,self.check):
-      print("MyConfig is not dirty")
+      if self.debug: print("MyConfig is not dirty")
       return False
     if self.stored > 5: # safeguard
       print("Too many writes on %s" % self.file)
       return False
     self.stored += 1
     self.check = self.config.copy()
+    self.JsonCleanup(self.check)
     try:
       with open(self.file,'w') as config_file:
-        c = config_file.write(ujson.dumps(self.config))
-      print("Flashed config %d bytes to %s" % (c,self.file))
+        c = config_file.write(ujson.dumps(self.check))
+      if self.debug: print("Updated %s with config:\n\t" % self.file,self.check)
+      else: print("Flashed %d bytes to config file %s." % (c,self.file))
     except Exception as e:
       print("Json flash file dump failed: %s" % e)
       return False
@@ -140,10 +158,10 @@ class MyConfig:
 
   @property
   def store(self):
-    if self.doArchive: self.export(force=False)
+    if self.doArchive: return self.export(force=False)
 
   @property
-  def archive(self): self.export(force=True)
+  def archive(self): return self.export(force=True)
 
   @property
   def updated(self): return self.dirty

@@ -1,7 +1,7 @@
 # from https://github.com/DexterInd/GrovePi
 # Software/Python/dexter_gps
 # changed for micropython
-# $Id: GPS_dexter.py,v 5.9 2019/09/18 10:51:18 teus Exp teus $
+# $Id: GPS_dexter.py,v 6.2 2021/01/14 12:13:29 teus Exp teus $
 
 import re
 try:

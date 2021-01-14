@@ -1,5 +1,18 @@
+# Copyright 2019, Teus Hagen, GPLV3
+'''Simple test script for testing LoRa join connection with Spreadings Factor SF
+'''
+
+__version__ = "0." + "$Revision: 6.1 $"[11:-2]
+__license__ = 'GPLV3'
+
+# increase spreadings factor if gateway is further away
+# SF can be defined before running this script
+try: SF
+except: SF=7 # LoRa spreadings factor may be one of 7(dflt) to 12(max)
+
 def LoRaStatus(net):
    status = net.stats()
+   print("Spreadings Factor used: %d" % SF)
    # status[0] last datagram time stamp msec
    print("RSSI           %d dBm" % status[1])
    print("SNR            %.1f dB" % status[2])
@@ -10,9 +23,10 @@ def LoRaStatus(net):
    print("Tx time on air %d" % status[7])
    print("Tx count       %d" % status[8])
    print("Rx frequency   %d" % status[9])
+
 from network import LoRa
-lora = LoRa(mode=LoRa.LORAWAN, region=LoRa.EU868)
-print('Reset LoRa status in nvram')
+lora = LoRa(mode=LoRa.LORAWAN, region=LoRa.EU868, sf=SF)
+print('Using LoRa SF=%d\nReset/clear LoRa status in nvram' % SF)
 lora.nvram_erase()
 import time
 import binascii
@@ -27,23 +41,28 @@ app_key = binascii.unhexlify(app_key)
 # join a network using OTAA (Over the Air Activation)
 lora.join(activation=LoRa.OTAA, auth=(dev_eui, app_eui, app_key), timeout=0)
 # wait until the module has joined the network
-for cnt in range(10):
+for cnt in range(1,151):
+   print('Join try %d: 15 secs waiting for join ' % cnt, end='')
    for i in range(5):
-      print('.', end='')
-   print('')
-   if lora.has_joined():
+      time.sleep(3)
+      print('.', end=''); cnt += 3
+      if lora.has_joined():
+         break
+   else:
+      print('Waited %d secs for join.' % cnt)
       break
-   print('Not yet joined... %d' % cnt)
-   print('Retry after 15 secs ', end='')
-   for i in range(10):
-      time.sleep(1)
-      print('.', end='')
+   print('')
 
-if cnt < 19:
-   print('TTN LoRa JOIN')
+if cnt < 150:
+   print('TTN LoRa JOIN success.')
    LoRaStatus(lora)
-
 else:
    print("NOT JOINED!!!")
-   import sys
-   sys.exit()
+
+del lora
+del dev_eui
+del app_eui
+del app_key
+del cnt
+import sys
+sys.exit()

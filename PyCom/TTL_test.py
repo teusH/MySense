@@ -3,7 +3,7 @@
 '''Simple test script for searching on TTL/UART channels for UART devices
 '''
 
-__version__ = "0." + "$Revision: 1.3 $"[11:-2]
+__version__ = "0." + "$Revision: 6.2 $"[11:-2]
 __license__ = 'GPLV3'
 
 from time import sleep
@@ -27,10 +27,11 @@ activations = [
       ]
 
 names = []; found = []; serial = None
-verbose = False
+verbose = True
 for i in range(len(TTL)):
   ttl = TTL[i]
   if ttl['baud'][0] == None: continue
+  pin = None
   if ttl['pins'][2]: # power TTL support
     pin = Pin(ttl['pins'][2], mode=Pin.OUT)
     if pin.value():
@@ -87,7 +88,7 @@ for i in range(len(TTL)):
             if line[idx+5]: value = line[idx+5:-3].decode()
           if activate[0][4] == 0x01:
             fnd = ('SPS30','dust')
-            info = 'name' 
+            info = 'name'
           elif activate[0][4] == 0x02:
             fnd = ('SPS30','dust')
             info = 'code'
@@ -105,5 +106,8 @@ for i in range(len(TTL)):
           else:
             print("%s(%s)%s at baudrate %d" % (fnd[1],fnd[0],firmware,baudrate))
         break
+
+  if pin: # power off
+    pin.value(0); pin = None
 
 sys.exit()

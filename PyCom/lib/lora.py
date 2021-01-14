@@ -2,15 +2,15 @@
 """
 
 # script from https://github.com/TelenorStartIoT/lorawan-weather-station
-# $Id: lora.py,v 5.13 2020/05/18 10:31:44 teus Exp teus $
+# $Id: lora.py,v 6.1 2021/01/11 19:27:09 teus Exp teus $
 
 import socket
 from network import LoRa
 from time import sleep_ms
 
-class LORA(object,dr=2):
+class LORA(object):
   'Wrapper class for LoRa'
-  def __init__(self):
+  def __init__(self,dr=2):
     # LoRa and socket instances
     # Initialize LoRa in LORAWAN mode
     self.lora = LoRa(mode = LoRa.LORAWAN, region=LoRa.EU868)
@@ -74,12 +74,14 @@ class LORA(object,dr=2):
       app_key = method['OTAA'][2]; app_key = unhexlify(app_key)
       self.lora.join(activation = LoRa.OTAA, auth = (dev_eui, app_eui, app_key), timeout = 0, dr=dr)
       # Wait until the module has joined the network
+      if myLED: myLED.blink(4, 2.5, 0x04acf6)
+      else: sleep_ms(10000)
       while not self.lora.has_joined():
-        if myLED: myLED.blink(1, 2.5, 0xff0000)
-        else: sleep_ms(2500)
-        if count > 20: break  # machine.reset()?
+        if count > 15: break  # machine.reset()?
         print("Wait for OTAA join: " ,  count)
         count += 1
+        if myLED: myLED.blink(2, 2.5, 0xff0000)
+        else: sleep_ms(5000)
       if self.lora.has_joined():
         count = 1
         print("LoRa OTAA join.")
