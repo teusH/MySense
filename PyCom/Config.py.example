@@ -107,4 +107,5 @@ UARTpins=[('P4','P3','P19'),('P11','P10','P9')]
 
 # various pins sensors
 #accuPin  = 'P17'      # ADC accu level watch dog > 5V
+#accuLevel = 11.8      # battery too low level
 #sleepPin = 'P18'      # enabled (0) deepsleep (dflt 15 minutes)
