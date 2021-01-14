@@ -1,5 +1,5 @@
 # Copyright 2021, Teus Hagen, ver. Behoud de Parel, GPLV3
-# $Id: boot.py,v 6.2 2021/01/13 14:02:08 teus Exp teus $
+# $Id: boot.py,v 6.3 2021/01/14 19:51:40 teus Exp teus $
 
 # disable pybytes and smart config
 import pycom
@@ -9,23 +9,25 @@ try:
 except: pass
 
 def set_wifi():
+  from network import WLAN
+  # if WLAN.isconnected(): return
   from machine import unique_id
   import binascii
   ssid = 'MySense-' + binascii.hexlify(unique_id()).decode('utf-8')[-4:].lower()
   pwd = 'www.pycom.io'
-  from network import WLAN
   try:
     WLAN().scan()
-  except: # mode AP
-    if (pycom.wifi_ssid_ap() is ssid) and (pycom.wifi_pwd_ap() is pwd): return
+  except: # mode AP, need a compare length
+    # if (pycom.wifi_ssid_ap() == ssid) and (pycom.wifi_pwd_ap() == pwd): return
+    pass
   from time import sleep
   try:
-    WLAN().deinit(); sleep(2)
+    WLAN().deinit(); sleep(1)
   except: pass
   pycom.wifi_ssid_ap(ssid); pycom.wifi_pwd_ap(pwd)
   # turn on wifi on power on
   WLAN().init(mode=WLAN.AP, ssid=ssid, auth=(WLAN.WPA2,pwd), channel=7, antenna=WLAN.INT_ANT)
-  sleep(2)
+  sleep(1)
 
 try: # MySense wifi AP
   from machine import wake_reason, RTC_WAKE

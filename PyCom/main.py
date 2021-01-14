@@ -1,26 +1,30 @@
 # Copyright 2018, Teus Hagen, ver. Behoud de Parel, GPLV3
-# $Id: main.py,v 6.2 2021/01/14 12:07:41 teus Exp teus $
+# $Id: main.py,v 6.3 2021/01/14 19:44:36 teus Exp teus $
 
 from machine import wake_reason, PWRON_WAKE, RTC_WAKE
+import sys
+from time import sleep_ms
 
 def setWiFi():
   import time
   from pycom import wifi_pwd_ap, wifi_ssid_ap
   try:
     W_SSID =  'MySense-AAAA'
-    try: from Config import W_SSID
-    except: pass
+    #try: from Config import W_SSID
+    #except: pass
     if W_SSID[-4:] == 'AAAA':
         from machine import unique_id
         import binascii
         W_SSID = W_SSID[:-4]+binascii.hexlify(unique_id()).decode('utf-8')[-4:].lower()
     PASS = 'www.pycom.io' # only for 1 hr, then powered off (dflt) or changed
-    if (not PASS is wifi_pwd_ap()) or (not W_SSID is wifi_ssid_ap()): 
+    print("WiFi: %s/%s (SSID/pwd)" % (wifi_ssid_ap(),wifi_pwd_ap()))
+    if (PASS != wifi_pwd_ap()) or (W_SSID != wifi_ssid_ap()): 
+      print("Reset wifi: %s/%s (SSID/pwd)" % (W_SSID,PASS))
       from network import WLAN
       wlan = WLAN()
-      wlan.deinit(); time.sleep(5)
-      wifi_pwd_ap(W_SSID); wifi_ssid_ap(PASS)
+      wifi_ssid_ap(W_SSID); wifi_pwd_ap(PASS)
       wlan.init(mode=WLAN.AP,ssid=W_SSID, auth=(WLAN.WPA2,PASS), channel=7, antenna=WLAN.INT_ANT)
+      sleep_ms(2000)
   except: pass
 
 def ReplMode():
@@ -57,6 +61,7 @@ def WatchAccu():
   try: from Config import accuLevel
   except: pass
   from machine import deepsleep
+  print("Battery level %.2f < %.2f?" % (volt,accuLevel))
   if volt < accuLevel-1.0: # long wait for sun
     deepsleep(60*60*1000)
   elif volt < accuLevel: # wait for sun
@@ -68,7 +73,7 @@ if not ReplMode():
     runMySense()
   elif wake_reason()[0] != PWRON_WAKE:
     runMySense()
-  else: # work around fake wakeup
+  else: # PWRON_WAKE
     try:
       from pycom import nvs_get
       from time import ticks_ms
@@ -80,7 +85,7 @@ if not ReplMode():
 
 # go into REPL mode, wifi On
 try:
-  setWiFi() # might be switched off after 60 min
+  setWiFi() # MySense.runMe() may switch it off after 60 min
 except: pass
 
 print("No auto MySense start\nTo start MySense loop (reset config, cleanup nvs):")
@@ -91,9 +96,9 @@ try:
   if not wifi_on_boot(): wifi_on_boot(True)
   heartbeat(False)
   for x in range(3):
-    rgbled(0xf96015); sleep(0.1)
-    rgbled(0x0); sleep(0.1)
-    rgbled(0x0000ff); sleep(0.1)
-    rgbled(0x0); sleep(0.4)
+    rgbled(0xf96015); sleep_ms(100)
+    rgbled(0x0); sleep_ms(100)
+    rgbled(0x0000ff); sleep_ms(100)
+    rgbled(0x0); sleep_ms(400)
   heartbeat(True)
 except: pass
