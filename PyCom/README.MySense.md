@@ -112,6 +112,11 @@ All test script will finish with a soft controller reset.
 
 LoRa may change some values in memory. So a restart of the lora test script may fail. After the LoRa test do a power cycle to clean up the LoRa values in memory.
 
+Hint: Pymakr uploads default all files with e.g. .py, .txt, .log, .json, .xml in the default working directory. This may result in unexpected upoad of files onto the LoPy-4. Make sure to have a clean working directory with only those files needed on the LoPy-4.
+
+Hint: Pymakr settings allow a so called Pyignore list. It is handy to use the following list of files which are only used in test sensor device situation, and are runprimary via the 'run' button in Pymakr: `dust_test.py,lopy_test.py,meteo_test.py,TTL_test.py,gps_test.py,I2C_test.py,lora_test.py,oled_test.py`.
+Or create a test directory and use the directory name in the Pyignore list.
+
 ### TEST the main script MySense.py
 The `MySense.py` script uses for every device type (Gps, Dust, Meteo, Network, Display) a python dict to kjeep track of the device status: use (can be used), enabled (operational), fd (file descriptor: loaded access library of the device), name (device name) and optional some other attributes as e.g. cnt (show PM counts), i2c (I2C bus handle), etc.
 
