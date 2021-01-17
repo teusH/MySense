@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN-datacollector.py,v 4.5 2020/12/16 12:36:44 teus Exp teus $
+# $Id: MyTTN-datacollector.py,v 4.6 2021/01/17 14:24:33 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -85,7 +85,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: MyTTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 4.5 $"[11:-2]
+__version__ = "0." + "$Revision: 4.6 $"[11:-2]
 
 try:
     import MyLogger
@@ -1862,8 +1862,11 @@ def TTN2MySense( data, **sensor): ###########################
     # sendNotice('Got record ident: %s, data: %s' % (str(ident),str(values)), myID=myID)
     if 'monitor' in Conf.keys():
         if re.match(Conf['monitor'],ident['project']+'_'+ident['serial']):
+            timestamp = time()
+            if 'time' in values.keys() and values['times']:
+              timestamp = int(values['time'])
             monitorPrt("%-66.65s #%4.d%s" % (
-                '%s %s (%s_%s):' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),
+                '%s %s (%s_%s):' % (datetime.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M"),
                 myID.split('/')[1], ident['project'], ident['serial']),
                 cached[myID]['count'],
                 (' at %dm%ds' % (cached[myID]['interval']/60,(cached[myID]['interval']%60))) if (cached[myID]['interval'] < 60*60) else ''
