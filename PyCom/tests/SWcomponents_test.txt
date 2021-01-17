@@ -274,12 +274,19 @@ MyConf.remove
 
 # once tests are working one does not need them in flash anymore
 # or use them via atom and 'run'
+# test files may also reside in the '/flash/tests/' folder
 import os
+# for F in ['meteo','dust','oled','lora','lopy','gps',I2C','TTL']:
+#   try: os.remove('/flash/tests/' + F + '_test.py')
+#   except: pass
 os.remove('/flash/meteo_test.py')
 os.remove('/flash/dust_test.py')
 os.remove('/flash/oled_test.py')
+os.remove('/flash/lora_test.py')
 os.remove('/flash/lopy_test.py')
 os.remove('/flash/gps_test.py')
+os.remove('/flash/I2C_test.py')
+os.remove('/flash/TTL_test.py')
 
 # clean up LoPy chip
 # clear nvs_memory
@@ -291,8 +298,12 @@ for var in ['modus','LAT','LON','ALT','gps_next','info_next']:
 import lora
 lora = LORA()
 lora.clear
+
 # remove everything from flash mem:
-os.mkfs('/flash')
+import os
+os.fsformat('/flash')
+# depreciated os.mkfs('/flash')
+
 # activate MySense:
 # main.py:
 import MySense
