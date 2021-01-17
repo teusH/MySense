@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyDB.py,v 3.27 2020/06/29 11:14:32 teus Exp teus $
+# $Id: MyDB.py,v 3.28 2021/01/17 14:05:33 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -27,7 +27,7 @@
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.27 $"[11:-2]
+__version__ = "0." + "$Revision: 3.28 $"[11:-2]
 
 try:
     import sys
@@ -555,7 +555,7 @@ def Topic2IDs(topic, active=None):
     # [SensorsTbl id,TTNtable id,POSIX time last measurement,measurements DB table]
     rts = [0,0,0,'']
     try:
-        qry = db_query("SELECT UNIX_TIMESTAMP(id) FROM TTNtable WHERE TTN_id = '%s' %s ORDER BY id DESC LIMIT 1" % (topic[indx:],active), True)
+        qry = db_query("SELECT UNIX_TIMESTAMP(id) FROM TTNtable WHERE TTN_id = '%s' %s ORDER BY active DESC, id DESC LIMIT 1" % (topic[indx:],active), True)
         if len(qry) and qry[0][0]:
             rts[1] = qry[0][0]
             qry = db_query("SELECT UNIX_TIMESTAMP(Sensors.id), concat(TTNtable.project,'_',TTNtable.serial) FROM Sensors, TTNtable WHERE Sensors.project = TTNtable.project AND Sensors.serial = TTNtable.serial AND UNIX_TIMESTAMP(TTNtable.id) = %d %s ORDER BY Sensors.active DESC, Sensors.datum DESC LIMIT 1" % (rts[1],active), True)
