@@ -18,7 +18,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: MyTTN-datacollector.py,v 4.6 2021/01/17 14:24:33 teus Exp teus $
+# $Id: MyTTN-datacollector.py,v 4.7 2021/01/18 15:33:45 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -75,17 +75,25 @@
     Configuration from CLI level:
     Various output channels can be reconfigured as eg:
     luftdaten:output=true (default) luftdaten:debug=true (dflt false)
+    luftdaten:projects=(SAN|HadM|RIVM|KIP) (default forwarding data for these projects)
     monitor:output=false (default)
+    monitor:projects=(test|SAN) (dflt: '([A-Za-z]+)')
+    monitor:serials=(A-Fa-f0-9]+) (default) only output project_serial for this channel
     console:output=false (default)
-    database: output=true (default)
+    console:projects=([A-Za-z]+) (default)
+    console:serials=(A-Fa-f0-9]+) (default)
+    database:output=true (default)
+    database:debug=false (default)
     notices:output=true (default)
     logger:print=true (default) print in colored format
-    as database acces credential settings: host=xyz, user=name, password=acacadabra
-    Or use command environment settings: DBHOST, DBUSER, DBPASS, or DB
+    file=RestoredDataFile only restoire data from this dump file
+    debug=true (default false) switch debugging on
+    Or database acces credential settings: host=xyz, user=name, password=acacadabra
+    Or use command CLI environment settings: DBHOST, DBUSER, DBPASS, or DB
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: MyTTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 4.6 $"[11:-2]
+__version__ = "0." + "$Revision: 4.7 $"[11:-2]
 
 try:
     import MyLogger
@@ -195,7 +203,6 @@ Conf = {
                          # *2 is wait time to try to reconnect with MQTT server
     'check': ['luchtdruk','temp','rv','pm10','pm25'], # sensor fields for fluctuation faults
                          # if measurement values do not fluctuate send notice sensor is broken
-    'monitor': '.*_.*',  # monitor <project>_<serial>
     'DEBUG': False,      # debug modus
 
     # defines nodes, LoRa, firmware, classes, etc. for Configure info
@@ -520,7 +527,8 @@ def monitorPrt(test, color=0): # default color is black
     global monitor
     if not monitor: return
     try:
-        monitor.MyPrint(test, color=color)
+        if not monitor['output']: return
+        monitor['output'].MyPrint(test, color=color)
         return
     except: pass
     try: sys.stdout(test+'\n')
@@ -1241,6 +1249,9 @@ def sendNotice(message,myID=None):
         if not len(Conf['notice'][0]): return True
     except: return True
     if not notices: return True
+    try:
+        if not notices['output']: return
+    except: pass
     nodeNotice = []; info = []
     if myID:
         try:
@@ -1860,10 +1871,13 @@ def TTN2MySense( data, **sensor): ###########################
         return {}
     # assert len(values) > 0, len(ident) > 6
     # sendNotice('Got record ident: %s, data: %s' % (str(ident),str(values)), myID=myID)
-    if 'monitor' in Conf.keys():
-        if re.match(Conf['monitor'],ident['project']+'_'+ident['serial']):
+    if monitor:
+      if type( Conf['monitor'] ) is str:
+        Conf['monitor'] = re.compile(Conf['monitor'])
+      try:
+        if Conf['monitor'].match(ident['project']+'_'+ident['serial']):
             timestamp = time()
-            if 'time' in values.keys() and values['times']:
+            if 'time' in values.keys() and values['time']:
               timestamp = int(values['time'])
             monitorPrt("%-66.65s #%4.d%s" % (
                 '%s %s (%s_%s):' % (datetime.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M"),
@@ -1871,6 +1885,7 @@ def TTN2MySense( data, **sensor): ###########################
                 cached[myID]['count'],
                 (' at %dm%ds' % (cached[myID]['interval']/60,(cached[myID]['interval']%60))) if (cached[myID]['interval'] < 60*60) else ''
             ), 34)
+      except: pass
     if ('check' in Conf.keys()) and (type(Conf['check']) is list):
         for item in values.keys(): # out of band values
             if not ValidValue(myID,item,values[item]): del values[item]
@@ -1980,17 +1995,20 @@ def Configure():
                 'monitor': False,  # monitoring correct publish data
             }
         },
-        {   'name': 'monitor', 'timeout': time()-1,
+        {   'name': 'monitor', 'timeout': time()-1, # build in module
             'Conf': {
                 'output': False, 'file': sys.stdout, 'print': True,
                 'date': True, # prepend with timing
                 'monitor': False,  # monitoring correct publish data
+                'serials': '([a-fA-F0-9]+)',  # only these serials
+                'projects': '([a-zA-Z]{3,6})',# only for these projects
             }
         },
-        {   'name': 'notices', 'timeout': time()-1,
+        {   'name': 'notices', 'timeout': time()-1, # build in module
             'Conf': {
                 'output': True,
                 'monitor': False,  # monitoring correct publish data
+                # to do: add notices filtering in sendNotices
             }
         },
         {   'name': 'console', 'script': 'MyCONSOLE', 'module': None,
@@ -1999,6 +2017,8 @@ def Configure():
                 'output': False, 'timeout': time()-1,
                 'file': sys.stdout, 'print': True,
                 'monitor': False,  # monitoring correct publish data
+                'serials': '([a-fA-F0-9]+)',  # only these serials
+                'projects': '([a-zA-Z]{3,6})',# only for these projects
             }
         },
         {   'name': 'database', 'script': 'MyDB', 'module': 0, # 0 enable nodes info export to DB
@@ -2009,6 +2029,8 @@ def Configure():
                 'hostname': None, 'database': 'luchtmetingen', # overwritten by DB, DBHOST
                 'user': None, 'password': None, # overwritten bij DBUSER, DBPASS
                 'monitor': False,  # monitoring correct publish data
+                # 'serials': '([a-fA-F0-9]+)',  # only these serials
+                # 'projects': '([a-zA-Z]{3,6})',# only for these projects
                 'DEBUG': False
             }
         },
@@ -2024,8 +2046,8 @@ def Configure():
                 'serials': '(cc50e3|130aea|30[aA][eE][aA]4|3c71bf|788d27|807[dD]3[aA]|b4e62[fd]|D54990|e101e8)[A-Fa-f0-9]{4,6}', # serials numbers allowed to be forwarded
                 'projects': '(HadM|SAN|KIP|RIVM)',  # expression to identify projects to be posted
 
-                'active': True,        # output to luftdaten is also activated
-                'DEBUG' : False,        # show what is sent and POST status
+                'active': True,    # output to luftdaten is also activated
+                'DEBUG' : False,   # show what is sent and POST status
                 'monitor': False,  # monitoring correct publish data
             }
         },
@@ -2089,11 +2111,28 @@ def UpdateChannelsConf():
                 if Channels[indx]['Conf']['file'].find('fifo=') == 0:
                   fifo = True
                   Channels[indx]['Conf']['file'] = Channels[indx]['Conf']['file'][5:]
-              monitor = MyPrint.MyPrint(output=Channels[indx]['Conf']['file'], color=Channels[indx]['Conf']['print'], fifo=fifo, date=False)
-              ThreadStops.append(monitor.stop)
+              #monitor = MyPrint.MyPrint(output=Channels[indx]['Conf']['file'], color=Channels[indx]['Conf']['print'], fifo=fifo, date=False)
+              monitor = Channels[indx]['Conf']
+              monitor['output'] = MyPrint.MyPrint(output=Channels[indx]['Conf']['file'], color=Channels[indx]['Conf']['print'], fifo=fifo, date=False)
+              ThreadStops.append(monitor['output'].stop)
+              if not 'monitor' in Conf.keys() or not Conf['monitor']:
+                Conf['monitor'] = '.*'
+                try: # only once
+                  Conf['monitor'] = monitor['projects'] + '_' + monitor['serials']
+                except: pass
+              if type( Conf['monitor'] ) is str:
+                Conf['monitor'] = re.compile(Conf['monitor'])
           except: Channels[indx]['Conf']['output'] = False
         elif Channels[indx]['name'] == 'notices':
-          if Channels[indx]['Conf']['output']: notices = True
+          if Channels[indx]['Conf']['output']:
+            notices = Channels[indx]['Conf']
+            if not 'notices' in Conf.keys() or not Conf['notices']:
+              Conf['notices'] = '.*'
+              try: # only once
+                Conf['notices'] = notices['projects'] + '_' + notices['serials']
+              except: pass
+            if type( Conf['notices'] ) is str:
+              Conf['notices'] = re.compile(Conf['notices'])
         elif Channels[indx]['name'] == 'logger':
           for item in Channels[indx]['Conf'].keys():
             MyLogger.Conf[item] = Channels[indx]['Conf'][item]
@@ -2103,8 +2142,19 @@ def UpdateChannelsConf():
           MyLogger.log(modulename,'INFO',"Starting up %s, logging level %s" % (modulename,MyLogger.Conf['level']))
           if MyLogger.Conf['stop']: ThreadStops.append(MyLogger.Conf['stop'])
           continue
-        MyLogger.log(modulename,'INFO','Output for %s: channel is %s' % (Channels[indx]['name'], 'enabled' if Channels[indx]['Conf']['output'] else 'DISABLED'))
-        if not 'script' in Channels[indx].keys(): continue
+        if Channels[indx]['Conf']['output']:
+          filterMsg = 'Output NOT filtered'
+          if 'projects' in Channels[indx]['Conf'].keys() and 'serials' in Channels[indx]['Conf'].keys():
+            filterMsg = "Output FILTER: '%s'" %  (Channels[indx]['Conf']['projects'] + '_' +  Channels[indx]['Conf']['serials'])
+          MyLogger.log(modulename,'INFO','Output for "%s":\n\tOutput channel is %s\n\t%s' % (Channels[indx]['name'], 'enabled', filterMsg))
+        else:
+          MyLogger.log(modulename,'INFO','NO output for "%s":\n\tOutput channel is %s' % (Channels[indx]['name'], 'DISABLED'))
+        if not 'script' in Channels[indx].keys():
+          continue
+        Channels[indx]['filter'] = None
+        try:
+            Channels[indx]['filter'] = re.compile(Channels[indx]['Conf']['projects'] + '_' + Channels[indx]['Conf']['serials'])
+        except: pass
         Channels[indx]['net'] = {'module':False,'connected':Channels[indx]['Conf']['output']}
         if (not Channels[indx]['Conf']['output']) and (Channels[indx]['module'] == None):
           continue
@@ -2229,17 +2279,25 @@ def RUNcollector():
                 RsltOK = False
                 try: RsltOK = Channels[indx]['Conf']
                 except: pass
+                Rslt = True; filtered = False
                 try:
-                    Rslt = Channels[indx]['module'].publish(
-                        ident = record['ident'],
-                        data = record['data'],
-                        internet = Channels[indx]['net']
-                        )
+                    # check if output is filtered for this channel
+                    if 'filter' in Channels[indx].keys() and Channels[indx]['filter'] and not Channels[indx]['filter'].match(record['ident']['project']+'_'+record['ident']['serial']):
+                        filtered = True # do not publish if defined not to
+                    if not filtered:
+                        Rslt = Channels[indx]['module'].publish(
+                            ident = record['ident'],
+                            data = record['data'],
+                            internet = Channels[indx]['net']
+                            )
                     # failures without an exception event will not be queued for a retry
-                    if type(Rslt) is bool:
+                    if type(Rslt) is bool and not filtered:
                         if Rslt == True:
-                          if RsltOK:
-                            monitorPrt("    %-50.50s OK" % ('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),4)
+                          if RsltOK and monitor:
+                            try:
+                              if Conf['monitor'].match(record['ident']['project']+'_'+record['ident']['serial']):
+                                monitorPrt("    %-50.50s OK" % ('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),4)
+                            except: pass
                         else:
                           MyLogger.log(modulename,'ATTENT','Kit %s/%s data no output to %s' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name']))
                           monitorPrt("    %-50.50s FAILED" % ('Kit %s/%s data no output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),1)
@@ -2251,8 +2309,11 @@ def RUNcollector():
                             try: Rslt = ', '.join(Rslt)
                             except: Rslt = str(Rslt)
                             if len(Rslt):
-                              if RsltOK:
-                                monitorPrt("    %-50.50s OK for %s" % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),31)
+                              if RsltOK and monitor and not filtered:
+                                try:
+                                  if Conf['monitor'].match(record['ident']['project']+'_'+record['ident']['serial']):
+                                    monitorPrt("    %-50.50s OK for %s" % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),31)
+                                except: pass
                             else:
                               MyLogger.log(modulename,'ATTENT','Kit %s/%s data output to %s: %s' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'],str(Rslt)))
                               monitorPrt("    %-50.50s NO output." % (('Kit %s/%s data output to %s:' % (record['ident']['project'],record['ident']['serial'],Channels[indx]['name'])),str(Rslt)),1)
