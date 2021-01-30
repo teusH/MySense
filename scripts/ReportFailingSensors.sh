@@ -19,7 +19,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: ReportFailingSensors.sh,v 2.21 2021/01/30 16:10:02 teus Exp teus $
+# $Id: ReportFailingSensors.sh,v 2.22 2021/01/30 20:21:43 teus Exp teus $
 CMD=$(echo '$RCSfile: ReportFailingSensors.sh,v $' | sed -e 's/.*RCSfile: \(.*\),v.*/\1/')
 
 SENSORS=${SENSORS:-'(temp|rv)'}  # sensors to check for static values
@@ -41,7 +41,7 @@ declare -i PRTCMD=0 # PrtCmd should be called only once
 function PrtCmd(){
     if (( $PRTCMD > 0 )) ; then return ; fi
     PRTCMD=1
-    echo "Reporting command: $CMD $(echo '$Revision: 2.21 $' | sed -e 's/\$//g' -e 's/ision://')"
+    echo "Reporting command: $CMD $(echo '$Revision: 2.22 $' | sed -e 's/\$//g' -e 's/ision://')"
 }
 
 if [ "${1/*-h*/help}" == help ]
@@ -267,7 +267,8 @@ function SendEmail() {
         CNTNT=/var/tmp/FailReport$$
         cat >$CNTNT
     fi
-    for ADDR in $@
+    # make bare email addresses as user@host.dom ... from arguments
+    for ADDR in $(echo " $@ " | sed -r -e 's/,/ /g' -e 's/ [a-zA-Z][a-zA-Z\._-]+ / /g' -e 's/[<>]//g')
     do
         if  [ -z "${ATTENT[$ADDR]}" ] || (( "${ATTENT[$ADDR]}" < $NOW-(3600*24*30) ))
         then
@@ -292,8 +293,8 @@ function SendEmail() {
             
 # email a notice on failure
 function SendNotice() {
-    local AKIT=$1 ALBL=$2 SENS=$3 FILE=$4
-    local NOTICE
+    local AKIT="$1" ALBL="$2" SENS="$3" FILE="$4"
+    local ADDRESS
     if [ ! -s $FILE ] ; then return 0 ; fi
     if [ -n "$DEBUG" ] || (( $VERBOSE > 1 ))
     then
@@ -311,36 +312,37 @@ function SendNotice() {
     then
         ATTENT[${AKIT}@COMMENT]="First failure for MySense measuring kit: $(date --date=@${ATTENT[${AKIT}@INITIATED]} +%y/%m/%dT%H:%M )"
     fi
+    ADDRESS=$($MYSQL -e "SELECT notice FROM Sensors WHERE active AND NOT isnull(notice) AND project = '${AKIT/_*/}' AND serial = '${AKIT/*_/}' LIMIT 1")
+    ADDRESS=$(echo "$ADDRESS" | sed -e 's/,* *slack:[^,]*//' -e 's/email: *//g' -e 's/^  *//' -e 's/  *$//' -e 's/NULL//' -e 's/^  *$//')
+    ADDRESS=$(echo " $ADDRESS " | sed -r -e 's/,/ /g' -e 's/ [a-zA-Z][a-zA-Z\._-]+ / /g' -e 's/[<>]//g' -e 's/^  *//' -e 's/  *$//')
     if (( $NOW > (${ATTENT[${AKIT}@NOTICE]} + 3*24*60*60) )) # only once in 3 days
     then
         ATTENT[${AKIT}@NOTICE]=$NOW
-        NOTICE=$($MYSQL -e "SELECT notice FROM Sensors WHERE active AND NOT isnull(notice) AND project = '${AKIT/_*/}' AND serial = '${AKIT/*_/}' LIMIT 1")
-        NOTICE=$(echo "$NOTICE" | sed -e 's/,* *slack:[^,]*//' -e 's/email: *//g' -e 's/^  *//' -e 's/  *$//')
     elif (( $VERBOSE > 0 ))
     then
-        echo "SendNotices skipped upto $(DATE $((${ATTENT[${AKIT}@NOTICE]} + 3*24*60*60)) )" 1>&2
+        echo "SendNotices to ${ADDRESS// /, } skipped upto $(DATE $((${ATTENT[${AKIT}@NOTICE]} + 3*24*60*60)) )" 1>&2
         return 0
     fi
     if [ -n "$DEBUG" ] || (( ${NOMAIL:-0} > 0 ))
     then
-        if [ -n "$NOTICE" ]
+        if [ -n "$ADDRESS" ]
         then
-            echo "${CMD/ */}: Would have sent email notice to '$NOTICE'" 1>&2
-            NOTICE=''
+            echo "${CMD/ */}: Would have sent email notice to '$ADDRESS'" 1>&2
+            ADDRESS=''
         fi
     fi
     if (( ${ATTENT[${AKIT}@NOTICE]} == 0 ))
     then
         unset ATTENT[${AKIT}@NOTICE]; unset ATTENT[${AKIT}@NEW]
     fi
-    if [ -n "${NOTICE}" ]
+    if [ -n "${ADDRESS}" ]
     then
         if [ -z "${ATTENT[${AKIT}@LOCATION]}" ] ; then ATTENT[${AKIT}@LOCATION]=$(GetLblLocation "$AKIT") ; fi
-        if (PrtAttent "$AKIT"  $ALBL ; cat $FILE ) | SendEmail "ATTENT: MySense kit $AKIT sensor $SENS ${LOCATION:-Location is not defined.}" $NOTICE
+        if (PrtAttent "$AKIT"  $ALBL ; cat $FILE ) | SendEmail "ATTENT: MySense kit $AKIT sensor $SENS ${LOCATION:-Location is not defined.}" $ADDRESS
         then
             if (( $VERBOSE > 0 ))
             then
-                echo "Sent email notice to '$NOTICE'" 1>&2
+                echo "Sent email notice to '$ADDRESS'" 1>&2
                 if (( $VERBOSE > 1 ))
                 then
                     echo -e "Email content: " 1>&2
@@ -826,8 +828,8 @@ do
       fi
 
       # send email individual notice
-      LABEL=$($MYSQL -e "SELECT notice FROM Sensors WHERE active AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1")
-      if ! SendNotice "$KIT" "$LABEL" "$(echo ${NotActiveSensors[@]} | sed 's/ /,/g')" /var/tmp/Check$$
+      LABEL=$($MYSQL -e "SELECT label FROM Sensors WHERE active AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1")
+      if ! SendNotice "$KIT" "${LABEL/NULL/}" "$(echo ${NotActiveSensors[@]} | sed 's/ /,/g')" /var/tmp/Check$$
       then
            echo -e "${RED}FAILURE to send Notice${NOCOLOR} about kit $KIT, failing sensors ${NotActiveSensors[@]}" 1>&2
       fi
@@ -843,7 +845,7 @@ do
         echo -e "$KIT is not operational! No measurements in period $START up to $LAST." >>/var/tmp/Check$$
       elif (( "${#SENSORS_FAILED[@]}" > 0 ))
       then
-        echo -e "MySense kit $KIT has problems with sensors:\n\t${RED}$(echo "${SENSORS_FAILED[@]}${NOCOLOR}" | sed -e 's/ /,/g' -e 's/,,,*/,/g' -e 's/pm/PM/g' -e 's/_cnt/ count/g' -e 's/temp/oC/g' -e 's/luchtdruk/hPa/g' -e 's/rv/RH/g' -e 's/PM\([02]\)/PM\1./g' -e 's/,/, /g' -e 's/, *$//' )!" | LOGGING
+        echo -e "MySense kit ${BLUE}$KIT${NOCOLOR} has maybe problems with sensors:\n\t${RED}$(echo "${SENSORS_FAILED[@]}${NOCOLOR}" | sed -e 's/ /,/g' -e 's/,,,*/,/g' -e 's/pm/PM/g' -e 's/_cnt/ count/g' -e 's/temp/oC/g' -e 's/luchtdruk/hPa/g' -e 's/rv/RH/g' -e 's/PM\([02]\)/PM\1./g' -e 's/,/, /g' -e 's/, *$//' )!" | LOGGING
         LastSensed $KIT 12 "$(echo ${ActiveSensors[@]})" "$(echo ${SENSORS_FAILED[@]})" | perl -pe "s/NULL/${RED}NULL${NOCOLOR}/g; s/\\*/${RED}*${NOCOLOR}/g" | tee -a /var/tmp/Check$$ | head --lines=6 | LOGGING
       fi
       rm -f /var/tmp/Check$$
