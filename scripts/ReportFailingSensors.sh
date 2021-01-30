@@ -19,7 +19,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: ReportFailingSensors.sh,v 2.18 2021/01/29 19:21:30 teus Exp teus $
+# $Id: ReportFailingSensors.sh,v 2.20 2021/01/30 12:38:35 teus Exp teus $
 CMD=$(echo '$RCSfile: ReportFailingSensors.sh,v $' | sed -e 's/.*RCSfile: \(.*\),v.*/\1/')
 
 SENSORS=${SENSORS:-'(temp|rv)'}  # sensors to check for static values
@@ -41,7 +41,7 @@ declare -i PRTCMD=0 # PrtCmd should be called only once
 function PrtCmd(){
     if (( $PRTCMD > 0 )) ; then return ; fi
     PRTCMD=1
-    echo "Command $CMD $(echo '$Revision: 2.18 $' | sed -e 's/\$//g' -e 's/ision://')"
+    echo "Reporting command: $CMD $(echo '$Revision: 2.20 $' | sed -e 's/\$//g' -e 's/ision://')"
 }
 
 if [ "${1/*-h*/help}" == help ]
@@ -224,7 +224,7 @@ function GetLblLocation() {
 function PrtAttent() {
     local AKIT="$1" ALBL I S
     if [ -z "$AKIT" ] ; then return ; fi
-    if [ -n "$2" ] ; then ALBL=" ($2)" ; fi
+    if [ -n "${2/NULL/}" ] ; then ALBL=" ($2)" ; fi
     declare -A LINES
     LINES["LOCATION"]="Location of the MySense${ALBL} kit:\n\t"
     LINES["INITIATED"]="Initial fail timestamp: "
@@ -657,7 +657,7 @@ function LastSensed() {
         POL="$NONACT"
     fi
     if [ -z "$POL" ] ; then return ; fi
-    echo -e "A selection of recent (${RED}*${NOCOLOR} is ${BOLD}failing${NOCOLOR}) measurements of $NME in database table:"
+    echo -e "Following overview is a selection of most recent and may not show previous failures. Failures are denoted as ${RED}*${NOCOLOR}  or NULL in the measurements of $NME in database table:"
     POL=$(echo "$POL" | sed -e 's/temp as/ROUND(temp,1) as/' -e 's/rv as/ROUND(rv) as/' -e 's/luchtdruk as/ROUND(luchtdruk) as/' -e 's/\(pm_*[0-9][0-9]*\) as/ROUND(\1,1) as/g' -e 's/\(pm[0-9][0-9]*_cnt\) as/ROUND(\1) as/g')
     $MYSQL --table --column-names -e "SELECT DATE_FORMAT(datum, '%d-%c-%y %H:%i') as 'timestamp', $POL FROM $NME ORDER BY datum DESC LIMIT ${NR}"
     return $?
@@ -843,7 +843,7 @@ do
       elif (( "${#SENSORS_FAILED[@]}" > 0 ))
       then
         echo -e "MySense kit $KIT has problems with sensors:\n\t${RED}$(echo "${SENSORS_FAILED[@]}" | sed 's/ /,/g')!" | LOGGING
-        LastSensed $KIT 12 "$(echo ${ActiveSensors[@]})" "$(echo ${SENSORS_FAILED[@]})" | tee -a /var/tmp/Check$$ | head --lines=6 | perl -pe "s/NULL/${RED}NULL${NOCOLOR}/g; s/\\*/${RED}*${NOCOLOR}/g" | LOGGING
+        LastSensed $KIT 12 "$(echo ${ActiveSensors[@]})" "$(echo ${SENSORS_FAILED[@]})" | perl -pe "s/NULL/${RED}NULL${NOCOLOR}/g; s/\\*/${RED}*${NOCOLOR}/g" | tee -a /var/tmp/Check$$ | head --lines=6 | LOGGING
       fi
       rm -f /var/tmp/Check$$
   else # no failure detected, clean up ATTENT for this kit
