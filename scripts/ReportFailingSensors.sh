@@ -19,7 +19,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: ReportFailingSensors.sh,v 2.20 2021/01/30 12:38:35 teus Exp teus $
+# $Id: ReportFailingSensors.sh,v 2.21 2021/01/30 16:10:02 teus Exp teus $
 CMD=$(echo '$RCSfile: ReportFailingSensors.sh,v $' | sed -e 's/.*RCSfile: \(.*\),v.*/\1/')
 
 SENSORS=${SENSORS:-'(temp|rv)'}  # sensors to check for static values
@@ -41,7 +41,7 @@ declare -i PRTCMD=0 # PrtCmd should be called only once
 function PrtCmd(){
     if (( $PRTCMD > 0 )) ; then return ; fi
     PRTCMD=1
-    echo "Reporting command: $CMD $(echo '$Revision: 2.20 $' | sed -e 's/\$//g' -e 's/ision://')"
+    echo "Reporting command: $CMD $(echo '$Revision: 2.21 $' | sed -e 's/\$//g' -e 's/ision://')"
 }
 
 if [ "${1/*-h*/help}" == help ]
@@ -244,7 +244,8 @@ function PrtAttent() {
         S="${ATTENT[${AKIT}@$I]}"
         case $I in
         SENSORS|NEW) # make sensor ids human
-           S=$(echo "${S}" | sed -e 's/ /,/g' -e 's/,,,*/,/g' -e 's/pm/PM/g' -e 's/_cnt/ count/g' -e 's/temp/oC/g' -e 's/luchtdruk/hPa/g' -e 's/rv/RH/g' -e 's/PM\([02]\)/PM\1./g' -e 's/,/, /g' -e 's/, *$//')
+           S=$(echo "${S}" | sed -e 's/,/ /g' -e 's/   */ /g' -e 's/pm/PM/g' -e 's/_cnt/ count/g' -e 's/temp/oC/g' -e 's/luchtdruk/hPa/g' -e 's/rv/RH/g' -e 's/PM\([02]\)/PM\1./g' -e 's/^ //' -e 's/ $//' -e 's/ /, /g')
+           S="${RED}${S}${NOCOLOR}"
         ;;
         esac
         echo -e "${LINES[$I]}$S"
@@ -760,7 +761,7 @@ do
       # combine : copy failing ones and mark new ones
       S=" $(echo ${ATTENT[${KIT}@SENSORS]} | sed 's/,/ /g') " ; SN=''
       N=" $(echo ${ATTENT[${KIT}@NEW]} | sed 's/,/ /g') " ; NN=''
-      for F in $(echo "${ATTENT[${KIT}@SENSORS]}" | sed -e 's/,//g')
+      for F in $(echo "${ATTENT[${KIT}@SENSORS]}" | sed -e 's/,/ /g')
       do
         if ! echo " $S " | grep -q " $F "
         then
@@ -842,7 +843,7 @@ do
         echo -e "$KIT is not operational! No measurements in period $START up to $LAST." >>/var/tmp/Check$$
       elif (( "${#SENSORS_FAILED[@]}" > 0 ))
       then
-        echo -e "MySense kit $KIT has problems with sensors:\n\t${RED}$(echo "${SENSORS_FAILED[@]}" | sed 's/ /,/g')!" | LOGGING
+        echo -e "MySense kit $KIT has problems with sensors:\n\t${RED}$(echo "${SENSORS_FAILED[@]}${NOCOLOR}" | sed -e 's/ /,/g' -e 's/,,,*/,/g' -e 's/pm/PM/g' -e 's/_cnt/ count/g' -e 's/temp/oC/g' -e 's/luchtdruk/hPa/g' -e 's/rv/RH/g' -e 's/PM\([02]\)/PM\1./g' -e 's/,/, /g' -e 's/, *$//' )!" | LOGGING
         LastSensed $KIT 12 "$(echo ${ActiveSensors[@]})" "$(echo ${SENSORS_FAILED[@]})" | perl -pe "s/NULL/${RED}NULL${NOCOLOR}/g; s/\\*/${RED}*${NOCOLOR}/g" | tee -a /var/tmp/Check$$ | head --lines=6 | LOGGING
       fi
       rm -f /var/tmp/Check$$
