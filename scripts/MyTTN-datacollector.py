@@ -3,22 +3,23 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 # 
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
+# Open Source Initiative  https://opensource.org/licenses/RPL-1.5
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+#   Unless explicitly acquired and licensed from Licensor under another
+#   license, the contents of this file are subject to the Reciprocal Public
+#   License ("RPL") Version 1.5, or subsequent versions as allowed by the RPL,
+#   and You may not copy or use this file in either source code or executable
+#   form, except in compliance with the terms and conditions of the RPL.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
+#   All software distributed under the RPL is provided strictly on an "AS
+#   IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, AND
+#   LICENSOR HEREBY DISCLAIMS ALL SUCH WARRANTIES, INCLUDING WITHOUT
+#   LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+#   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
+#   language governing rights and limitations under the RPL.
+__license__ = 'RPL-1.5'
 
-# $Id: MyTTN-datacollector.py,v 4.7 2021/01/18 15:33:45 teus Exp teus $
+# $Id: MyTTN-datacollector.py,v 5.1 2021/02/07 14:45:05 teus Exp teus $
 
 # Broker between TTN and some  data collectors: luftdaten.info map and MySQL DB
 # if nodes info is loaded and DB module enabled export nodes info to DB
@@ -93,7 +94,7 @@
     See Conf dict declaration for more details.
 """
 modulename='$RCSfile: MyTTN-datacollector.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 4.7 $"[11:-2]
+__version__ = "0." + "$Revision: 5.1 $"[11:-2]
 
 try:
     import MyLogger

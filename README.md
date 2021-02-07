@@ -1,521 +1,492 @@
-<img src="RPi/images/MySense-logo.png" align=right width=100>
+<img src="images/MySense-logo.png" align=right width=100>
 
-# MySense
-Last update of the README on 2nd of Februar 2020
+# PyCom LoPy or WiPy  BME280/BME680 SDS011/PMS7003/SPS30 GPS  MySense sensor kit
 
-## Description
-Software Infrastructure or framework for managing environmental sensors and data aquisition.
+Status: *rc1* 2019/02/25
 
-### Outline
-A description of the MySense PyCom based measurement kit, data collection and data visualisation is provided in a presentation at Meetkoppelting20 conference in Amersfoort, Jan 2020. The PDF slides can be found at <a href=""http://behouddeparel.nl/sites/behouddeparel.nl/files/20200125-Koppelting-WAR-Amersfoort.pdf" alt="an How To build a kit and show the results">"Measuring Air Quality in an Agri Region: an How To"</a> (PDF 3 MB).
+Copyright: 2019, Teus Hagen
+To enable further developments is is common in the Open Source world to support a public domain project financially or otherwise. Certainly if your product is based on this type of public domain licensed software.
 
-### MySense Raspberry Pi controller
+*Licensing*: Open Source Initiative  https://opensource.org/licenses/RPL-1.5
+   Unless explicitly acquired and licensed from Licensor under another
+   license, the contents of this file are subject to the Reciprocal Public
+   License ("RPL") Version 1.5, or subsequent versions as allowed by the RPL,
+   and You may not copy or use this file in either source code or executable
+   form, except in compliance with the terms and conditions of the RPL.
 
-<img src="RPi/images/MySenseCase-Pi.png" align=right height=100>
-MySense is able to act as *air quality measurement kit* or *node broker* (Pi based).
-As measurement kit MySense will collect measurements from dust,
-gas and/or gas sensors and location sensor,
-and forward the data to an external data concentrator(s) (database(s), as well as data broker as eg mosquitto and influx),
-files eg spreadsheets,
-and display (Adafruit tiny display or console).
+   All software distributed under the RPL is provided strictly on an "AS
+   IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, AND
+   LICENSOR HEREBY DISCLAIMS ALL SUCH WARRANTIES, INCLUDING WITHOUT
+   LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
+   language governing rights and limitations under the RPL.
 
-As dataconcentrator MySense will connect to other data concentrator instead of collecting the data from sensors.
+Goal: professional DIY durable simple low cost (ca €120) air quality sensor kits.
 
-Two different controllers for the kits are supported:
-1. Raspberry Pi for a high degree of functionality and easy block building reasons, while using lan/wifi/G4 as communication channel and
-2. ESP32 LoPy controller (micro python) from PyCom when only a very few sensors can be hooked up. This kit uses LoRaWan as communication infrastructure via a public TTN server.
-This measurement kit is in beta test since June 2019. The PyCom folder will show latest firmware snapshot.
+## description
 
-The bus used for sensors are: USB (Pi: serial), TTL, GPIO (SPI) and I2C.
-The scripts are all written in Python 2/3.
+Overview of wiring and modules using a PCB board with Grove connectors to avoid soldiering and ease sensor replacements and extensions.
+Included are the 3D print files for the housing/case as well PCB board electronic design as well PCB board manufacturing instructions.
 
-Visual feedback is provided with led/button (power On/Off) and optional an Oled display (64X128).
+<img src="images/LoPy-MySense-modules.png" align=center width=400>
+<img src="images/MySense-LoRa-lantern-outside.png" align=right width=150>
+<img src="images/MySense-LoPy-OBO-T100-outside.png" align=right width=150>
 
-### MySense LoPy-4 PyCom controller
+Comment: here we used the indoor dust sensor Plantower PMS7003. Use for outdoor the PMSx003 dust sensor. Other dust sensors as from Nova and Sensirion are supported.
 
-<img src="PyCom/images/dubbelwandige-LantaarnType-MySense-3.png" align=right height=100>
-<img src="PyCom/images/SDS011-BME280-SSD1306.png" align=right height=100>
-MySense sensor kits can also be applied as *air quality satellite* sensorkits. E.g. using LoPy or WiPy PyCom controllers with GPS, dust and meteo sensors.
-In this case the data will be forwarded to <a href="https://www.thethingsnetwork.org/docs/lorawan/">LoRaWan</a> dataconcentrators as eg The Things Network or Mosquitto server.
-The LopY has support for SiGFox (due to proprietary chracter of this method it has been deprecated).
-The upload of uptaes to the firmware via PyCom OTA is planned.
-Currently OTA (Over the Air update) is supported via a new firmware load via wifi.
+## Shopping list (ca € 100-150):
 
-MySense (Pi based) in data concentrator mode has the possiblity to collect these measurements data from e.g. the TTN MQTT dataconcentrator.
+* PyCom LoPy-4 controller  PYCLOPY4 (Tinytronics  € 35.-)
+* optional LoPy Expansie board 2.0 PYCEXPBOARD3.1 (Tinytronics € 19.-) (development board)
+* alternative is a DIY PCB connector board with 6 Grove connectors (3 TTL and 3 I2C) ca € 10 (incl the  components (mosfet, resisters, pins).
+PCB board has optional components to be able to use solarcel power. See schema and PCB manufacturing mall.
+Our PCB has been made by Fontys Venlo GreenTechLab and updated by Land van Cuijk initiative.
+* LoPy-Sigfox antenne kit 868 Mhz PYCLOSIAN868KIT (Tinytronics € 10.50)
+* optional SSD1306 I2C Yellow/Blue 128X64 oled display (AliExpress € 2.23, Tinytronics € 9.50)
+E.g. <a href="https://nl.aliexpress.com/item/0-96-inch-IIC-Seri-le-Geel-Blauw-OLED-Display-Module-128X64-I2C-SSD1306-12864-Lcd/32920071528.html?albbt=Google_7_shopping&isdl=y&slnk=&albslr=228849138&src=google&acnt=494-037-6276&aff_platform=google&crea=nl32920071528&netw=u&plac=&albcp=1626925412&mtctp=&aff_short_key=UneMJZVf&gclid=EAIaIQobChMI2czMspLr3wIVx8CyCh1c9AhwEAQYAiABEgKSl_D_BwE&albag=63599479084&albch=shopping&trgt=296904914040&device=c&gclsrc=aw.ds">Oled display</a>
+* Sensirion SPS30 indoor laser PM sensor (Antratek: € 45.95, <a HREF="https://nl.aliexpress.com/item/4001050822435.html?src=google&albch=shopping&acnt=494-037-6276&isdl=y&slnk=&plac=&mtctp=&albbt=Gploogle_7_shopping&aff_atform=google&aff_short_key=UneMJZVf&&albagn=888888&albcp=1706100219&albag=73428776544&trgt=539263010115&crea=nl4001050822435&netw=u&device=c&albpg=539263010115&albpd=nl4001050822435&gclid=Cj0KCQiAlsv_BRDtARIsAHMGVSZsWgS3vTCrzU1Q5hwbYTX1F9R93Jy3d8XziEdbwywLzvSygb_XrxoaAmQREALw_wcB&gclsrc=aw.ds">Ali Express</a> € 25,90)
+Advised because the unit displays raw PM counts values and can be used outdoor.
+Plantower has a new PMSx003 (black) which has cleaning support and tube inlet (€ 80).
+E.g. <a href="https://wholesaler.alibaba.com/product-detail/PMSX003-PM1-0-PM2-5-PM10_60805148973.html">PMSx003 dust sensor</a>
+* Alternative is Nova SDS011 (bigger, less PM types, but has air inlet tube connection)
+E.g. <a href="https://nl.aliexpress.com/item/Nova-PM-sensor-SDS011-High-precision-laser-pm2-5-air-quality-detection-sensor-module-Super-dust/32606349048.html">SDS011 Nova dust sensor</a>
+* optional GY-NE06MV2 NEO-6M GPS module TTL connection (AliExpress € 3.15)
+E.g. <a href="https://nl.aliexpress.com/item/Free-Shipping-1PC-Ublox-NEO6MV2-GPS-Module-Aircraft-Flight-Controller-For-Arduino-New/1765564932.html?spm=a2g0z.10010108.1000014.1.6bbe5745MX6VBm&pvid=8a1a37bb-4e68-40af-8a6b-66145261e6b5&gps-id=pcDetailBottomMoreOtherSeller&scm=1007.13338.80878.000000000000000&scm-url=1007.13338.80878.000000000000000&scm_id=1007.13338.80878.000000000000000">NEO6MV2 GPS module</a>
+* optional Sensirion SHT31 (AliExpress € 2), BME280 (AliExpress € 3),
+E.g. <a href="https://nl.aliexpress.com/item/Free-shipping-SHT31-Temperature-SHT31-D-Humidity-Sensor-module-Breakout-Weather-for-Arduino/32695064184.html">Sensirion SHT31 meteo sensor</a>
+* or better BME680 I2C (has interesting gas sensor, AliExpress € 10.50) meteo sensor (do not use I2C/TTL BME680, I2C bus errors)
+E.g. <a href="https://nl.aliexpress.com/item/1-stks-Ultra-kleine-Druk-CJMCU-680-BME680-Temperatuur-Vochtigheid-Druk-Sensor-voor-Drone-Accessoires-Hoge/32847670390.html?spm=a2g0s.9042311.0.0.2b344c4dRa5gbW">BME680 meteo sensor</a>
+* wiring: per module 4 wires: female/male for 4 modules:
+<a href="https://www.seeedstudio.com/Grove-4-pin-Female-Jumper-to-Grove-4-pin-Conversion-Cable-5-PCs-per-PAc-p-1020.html">Grove to female jumper 4 wire conversion cable</a> 5 per pack Seed Studio  € 5.00.
+<img src="images/LoPy-PCB-V1-wiring.png" align=right width=250>
+Remark: better to create a UART/I2C connector shield with Grove sockets and connectors. See the picture. Board design with Grove sockets is available.
+See the SVG file (and the picture) of the alternative PCB LoPy expansion board designed by Fontys Venlo GreenTechLab as example.
+* assortiment thrink tubes (2.5 mm and bigger) (€ 3.45 Ben's Electronics)
+* V220 outdoor cablebox 10X12.5 cm, larger is better eg OBO T100 or T160. (electroshop.nl € 5.39)
+Or use PVC pipes and roof air outlet exhaust. Advised is to paint it white and use double pipes for heat isolation. A double PVC pipe will lower the LoRa signal strength a bit. Make sure no wires are near the antenna.
 
-The bus used for sensors are: UART (serial), I2C and GPIO.
+Energy V230 supply (ca € 4):
+* long USB adapter cable 2-3 meter (Action € 1.50)
+* USB V220 AC - 5V dc adapter 1A (Action € 2.10)
+ 
+or use solarpower if no V230 is available (ca € 100):
+* 12V to 5V step down (ca € 1): e.g. <a href="https://nl.aliexpress.com/item/9V-12V-24V-to-5V-3A-USB-step-down-voltage-regulator-module-DC-DC-Converter-Phone/32815945754.html?spm=a2g0z.search0104.3.58.518b4ea1g4V7Iq&ws_ab_test=searchweb0_0,searchweb201602_3_10065_10068_319_317_10696_10084_453_454_10083_10618_431_10304_10307_10820_10821_10301_537_536_10843_10059_10884_10887_100031_321_322_10103,searchweb201603_2,ppcSwitch_0&algo_expid=ee417a9f-b67e-4414-8df8-60f29a8a5a9e-8&algo_pvid=ee417a9f-b67e-4414-8df8-60f29a8a5a9e&transAbTest=ae803_4">5V USB</a>
+* solar power regulator (ca € 10)  e.g. <a href="https://www.banggood.com/nl/MPPT-5A-Solar-Panel-Regulator-Controller-Battery-Charging-9V-12V-24V-Automatic-Switch-p-1307801.html?gmcCountry=NL&currency=EUR&createTmp=1&utm_source=googleshopping&utm_medium=cpc_bgs&utm_content=frank&utm_campaign=pla-nl-ele-diy-mob-pc&gclid=EAIaIQobChMIubWf7fLj3wIVkoKyCh0okQPrEAQYBCABEgIYaPD_BwE&cur_warehouse=CN">Solar PR</a>
+Make sure to apply a diode over the power connectors and capacitor as a wild change in solar power or on/off connection may destroy your controller.
+WARNING: without a capacitor (eg 100 uF 16V) the accu/solar combination or loose contact may blow away your controller.
+Make sure to use a good regulator. We measured a peak of 11.4 V on the 5V stepdown regulator in such cases.
+* or battery load (ca € 10)  e.g. <a href="https://www.banggood.com/nl/MPPT-5A-Solar-Panel-Regulator-Controller-Battery-Charging-9V-12V-24V-Automatic-Switch-p-1307801.html?gmcCountry=NL&currency=EUR&createTmp=1&utm_source=googleshopping&utm_medium=cpc_bgs&utm_content=frank&utm_campaign=pla-nl-ele-diy-mob-pc&gclid=EAIaIQobChMIubWf7fLj3wIVkoKyCh0okQPrEAQYBCABEgIYaPD_BwE&cur_warehouse=CN">Solar power regulator</a>
+* battery pack (ca € 60)  e.g. <a href="https://www.conrad.nl/p/gnb-sonnenschein-dryfit-s1266-s-071-98-43200-solar-accu-12-v-66-ah-loodgel-b-x-h-x-d-152-x-99-x-66-mm-kabelschoen-4-110752">battery 12V</a> (needs 12V->5V).
+* solar panel (ca 16)  e.g. <a href="https://nl.aliexpress.com/item/LEORY-5-w-18-VSolar-Panel-Outdoor-Polykristallijne-Zonnecellen-Module-Oplader-Voor-12-v-Batterij-Toegepast/32950222836.html?spm=a2g0z.search0104.3.31.428b4308R8hYQd&ws_ab_test=searchweb0_0%2Csearchweb201602_4_10065_10068_10890_319_10546_317_10548_10696_453_10084_454_10083_10618_431_10304_10307_10820_537_536_10843_10059_10884_10887_100031_321_322_10103%2Csearchweb201603_51%2CppcSwitch_0&algo_pvid=76244851-1e26-4f2d-9e9e-23f152f6603a&algo_expid=76244851-1e26-4f2d-9e9e-23f152f6603a-4">Solar Panel</a>
+* housing/case for the power
 
-The scripts are written in (embedded) micro Python. Micro python has more functionality as the language C e.g. used with Arduino boards.
+ToDo:
+* software to use WiFi/MQTT for internet access connectivity if LoRa is not available
+* Over The Air (OTA) update via the <a href="https://docs.pycom.io/tutorials/all/ota.html">PyCom OTA method</a>.
+Currenty one can use WiFi AP access and Atom. If the WiFi AP is powered off by configuration the LoRa command 'W' will enable WiFi AP of the node again for one hour.
+* Solar power regulator with watch dog for battery level.
+Currently the PCB in use has battery level support and will force deepsleeps untill battery level is high enough to be operational.
 
-The Marvin ESP controller has been deprecated due to a problem with on board LoRa antenna in outdoor conditions.
+Some fixing materials:
+* 2 component glue
+* some fixing tool to stabalize the antenna. Or place the antenna inside the housing.
+* 4 cm tube for air inlet of PM module (SDS011 or PMSx003)
+* piece of wood to be able to attach the outdoor cable box on a wall.
+* some material to fixate the components and allow airflow in the box
+* or see 3-D print masks for double sided PVC housing contruction.
 
-Visual feedback is provided with RGB led and optional an 128X64 oled display.
+One may need to extend those dust sensors without an inlet tube and inlet as well as ouytet on same side with some air separation guidence in order to avoid to measure only the dust circulating within the housing.
 
-The LoPy based measurement kit supports to run with a solarcel and accu. For enabling this the architecture has had a major redesign. The softwqare manages accu load as well tries to minimilize energy as much as possible.
+### LoPy kit casing
+A simple housing case is made with a piece of plexiglas 61 X 230 mm (see for the dril mask for 3 mm dril the SVG file in the images directory).
+<img src="images/PVC-luchtpijpcase.png" align=right height=200>
+This plexiglas can be fixated within an PVC roof air outlet (length 300 mm diameter 80 mm) and some mosquito bait with PVC ring (socket).
+One may locate the LoRa antenna in the pipe or on the outside attached to the PVC ring.
+Make sure to paint the housing white and avoid direct sun on the kit.
 
-The LoRa directory will give information to build a DIY TTN LoRa gateway.
+<img src="images/MySense-LantaarnType-2019-11.png" align=right width=150>
+Another housing can be made with a V230 outdoor connector box e.g. OBO T100 box.
 
-The `INSTALL.sh` RPi configuration script will support to install GPS, oled display, RGB led, WiFi remote access, G4 access and other standard functionality to a Raspberry Pi based gateway e.g. RAK831, RAK833 or IC880a-PSI and Pi based gateway for a small budget TTN gateway.
-Have a look at the RAK7258 LoRa gateway. A complete (indoor and outdoor) gateway for about €140 (AliExpress). As such providing you with more functionality as commercial offered gateways without a subscription fee.
-If needed use a (€ 40) SIM router to connect the gateway to mobile data access.
+A better housing can be made from PVC roof air outlet manufactured eg from BT Nyloplast Nld (€ 7.50).
+The components are mounted on a so called mother board from 3 mm plastic.
+To avoid solar heat use an internal PVC rain pipe.
+The motherboard can be fit in a 3D printer made socket.
+The oled display is fixed on the housing with a 3D printed container.
+The GPS antenna is glued inside the PVC pipe on a small table (3D print) and must point upwards.
+The LoRa antenna is fixated inside the PVC pipe as well.
 
-At this moment we have 20 measurements MySense LoRa kits in the region running.
-Seven kits run with solar cells around a cattle enterprise. The entrepeneur uses the outcome of data to minimize the emissions.
+<img src="images/Motherboard-3DprintComponentsLanternHousing.png" align=right width=150>images/Motherboard-3DprintComponentsLanternHousing.png</img>
+All 3D printed components and mother board are found in the images folder ( 3D .stl en dcx (FreeCAD) files):
+* 3D print GPS mounting table: <a href="images/GPS tafel a.stl">images/GPS tafel a.stl</a>
+* 3D print oled display window: <a href="images/Oled  inw 2.stl">images/Oled  inw 2.stl</a>, and <a href="images/Oled  inw 2.1.stl">images/Oled  inw 2.1.stl</a>.
+* 3D print oled display mounting: <a href="images/Oled buiten uitw c.stl">images/Oled buiten uitw c.stl</a>
+* 3D print motherboard socket: <a href="images/houder mb.stl">images/houder mb.stl</a>.
+* CAD CAM mill mold: the mounting board: <a href="images/moederframe2.2.dxf">images/moederframe2.2.dxf</a>
+These stl and dxf files: Copyright 2019, Joan Marsman, the Netherlands licensed as GPL V3.
 
-## Goal
-Provide a generalised dynamic high quality Open Source based air quality monitoring infrastructure to allow:
-* environmental measurements with high end standard off the shelf sensors
-* data acquisition
-* dynamic transport of data to other data systems: e.g. databases, mosquitto, Influx,...
-* data storage and archiving
-* access for free visualisation of local emissions
-* free availability  of the data
-* free availability of all software (under GPLV3 license, improvements of software remains in the public domain)
+### TTN gateway
 
-The project is run by volunteers on a non-profit basis.
+DIY or buy one.
 
-## Supported functionalities
-Major functionalities will be added on the fly.
-Much is dependent on the quality of the applied sensors and visualisation possibilities of the data.
-* supported dust sensors: Nova (only PM2.5, PM10), Plantower (PM1, PM2.5, PM10, counters PM0.3 up to PM10, average grain size, advised), Sensirion (PM1, PM2.5,PM10, counters PM0.3 up to PM10, average grain size, advised).
-PM count data is needed to allow a much improved calibration. PM sensors providing only mass values are discouraged. PM sensors (some Plantowers and Sensirion sensors) for outdoor and non condensing conditions are encouraged.
-* meteo sensors: Adafruit (DHT: temperature and humidity, deprecated due to humidity problems), Bosh (BME: temperature, humidity, air pressure and air quality), Sensirion (SHT: temperature, humidity). Humidity is a must for calibration of dust measurement.
-* TTL or I2C interface to other sensors using standard Grove connectors. Use the standard API to standard product driver via Python. E.g. I2C anemometer, I2C/TTL gas sensors, etc.
-* solarcel and battery management (deepsleep and battery low level warning).
-* calibration on product base as well on measurement base to enable calibration.
-* GPS to support proper localisation. Mobile is supported.
-* communication with LAN, Wifi (discouraged due to high failure rate), G4 mobile data, and (TTN) IoT LoRaWan.
-* visualisation of the measurements and current status via a display.
-* auto detection of connected sensors: plug and play
-* remote control and wakeup
-* remote OTA update
-* dynamic sampling and interval of measurements
-* notices based warning system
-* visualisation of graphs for (Drupal) website with HighCharts garaphics
-* measurement and kist configuration archiving with MySql database.
-* scalability
-* simple adaptation of new sensors
-* modular architecture and high level programming (scripting) to remain state of the art
-* stanbard data interfaces (e.g. json, mosquitto, influx)
+You may be unlucky and do not have a TTN infrastructure in the neighbourhood. However it is easy to build one your self with Pi controller, an IC880-SPI or RAK831 concentrator, pigtail and antenna in some  casing, ca € 2000-230, Ideetron.nl or AliExpress) or buy one (ca € 350 (TTN gateway via Ideetron.nl) or higher € 450-1.200).
+See for how-to instructions:
+* IC880a-SPI concentrator: https://github.com/ttn-zh/ic880a-gateway/wiki
+* https://github.com/Lora-net/lora_gateway#readme
+* RAK831 concentrator: https://www.thethingsnetwork.org/labs/story/rak831-lora-gateway-from-package-to-online
+* RAK7258 (TTN) gateway: cheap, complete, OpenWRT based for ca € 160.
 
-## Discussion
-MySense supports calibration of every single sensor. Sensor values will differ between the sensors within a branche and between branches. Correlation software is included. Advised is to calibrate the sensors regularly for a test period of several days (conditions should vary in the test period).
+For MySense we changed the `/opt/ttn-gateway/bin/start.sh`, added WiFi access point for WEBMIN (use `INSTALL.sh WEBMIN` and Raspberry Pi OS configuration (see `INSTALL.sh help`), and to log concentraor log messages to the oled display via the filter `GatewayLogDisplay.py`. The scripts can be found in the map LoRa.
+See the map LoRa (or Google to The Things Network) for more details and functionality add-on's to build a DIY TTN gateway.
 
-Dust measurements are done by counting the particles. The most common dust sensor is the Nova SDS011. The Plantower PMSn003 (PMS7003 indoor and PMSx007 outdoor) and Sensirion SPS30 are however 1/3 in size and counts more classes of particles as well provides also the raw (real partical count) values. All have a fan and laser which are powered off in idle state.
-The SPS30 is small, use less energy but has air inlet and outlet aside of each other.
-Outdoor PM sensors have a higher cost price (2X or even 4X higher).
+The TTN ZH Pi based shopping list (we bought a ready to go gateway Pi2 based from IMST and changed the software to TTN for € 250):
+* Pi Zero or 3, poweradapter, minimal 4GB SDcard € 42 Tinytronics.nl 
+* iC880A-SPI concentrator board (<a href="http://shop.imst.de/wireless-modules/lora-products/8/ic880a-spi-lorawan-concentrator-868-mhz" alt="IMST webshop">IMST websop CH</a>) € 120 (ideetron.nl).
+* 868 MHz anternna and pigtail € 10
+* 7 Dupont wires (female/female) € 1
+* enclosure e.g. OBO T160 V220 cable box € 10
+* optional outdoor antenna with fuse(!) € 75 (ideetron.nl)
 
-Dust measurements are (expnential) influenced by humidity.
-A correction algorithm to enable to compare the dust measurements with reference sensor equipment (e.g. MetOne BAM-1020) is in beta test (start of 2019).
-There is a plan for scientific statistical calibration report together with Uni Leiden, RIVM and Scapeler.
-The plan is to be able to forecast PM levels for a short coming period as well.
+or:
+* RAK831 in case via AliExpress, which has GPS antenna and a too small LoRa antenna: € 178.
+The alluminium case does not allow WiFi signal of the on board chip to reach outside of the case. For WiFi you may need a USB WiFi dongle. If so make sure the dongle is able to be used as WiFi access point as well as WiFi client.
+* 6 dB glasfiber antenna via AliExpress: € 29
+For Europe make sure you have a 868MHz version (use with AliExpress the color option).
 
-<div style='vertical-align: top; clear: both'>
-<figure>
-<img src="RPi/images/MySense-kit-1.png" align=left height=200>
-<img src="RPi/images/MySense-kit-2.png" height=200>
-<br />MySense sensor kits examples
-</figure>
-</div>
-<p>
+For both types of boards install the ttn-gateway software from `apt install git; git clone https://github.com/ttn-zh/ic880a.git/ ~/ic880a-gateway`.
+Make always sure antenna is placed before you start to use the gateway! A start without the antenna connected will distroy the concentrator board.
+Configuration hint for software: make sure the right reset pin number of GPIO Pi is used (see start.sh shell command file, and do not use initialy the remote concentrator configuration.
+The concentrator board needs always to be reset before starting up the forwarding software.
 
-## How to start MySense on the RPi
-* Create MySense user e.g. `ios` and login as this user.
-* Install the software on e.g. the Raspberry Pi 3 on a new user e.g. `ios` in the directory e.g. `MySense`. Use `INSTALL.sh` to install all dependencies and startup scripts.
-* Configure MySense.conf using MySense.conf.example as a lead.
-* Test one by one the input and output scripts in the python debugger as standalone e.g. `pdb MySDS011.py`. Once this is tested, go to the next step.
-* command line start and control (<cntrlZ> followed by kill %1 will stop the process): Run Mysense as follows `python MySense.py` and you will see all output on your screen.
-* If you use a tiny display: start the display server: `python MyDisplayServer.py start`
-* Start as daemon process. Start up MySense: `python MySense.py start`
-When first started make sure you configure console output channel, logging to stdout or stderr and logging debug level.
+## DESCRIPTION
+The sensor kits are build with PyCom (loPy-4 and WiPy-3) ESP controllers and PyCom expansion board.
+<img src="images/PVC-luchtpijpcase.png" align=right height=150>
+<img src="images/SDS011-BME280-SSD1306.png" align=right height=150>
+The controller has on board WiFi, BlueTooth and for LoPy LoRa. Use an external LoRa Wan 868/915 LoRa antenna on the LoPy.
+The PyCom controller can be programmed via embedded micropython.
+To access the board use the Atom with the Pymakr plugin.
+Atom is interfacing either via WiFi (192.168.4.1) or serial (USB) connection to the controller.
 
-If needed See the README files and documentation files in `docs` for more detailed info.
+The goal is to use the PyCom ESP as controller for MySense sensor satallite kits. Measuring dust, rel. humidity and GPS to forward this to Mosquitto database (WiFi) or LoRa data concentrator. From which the MySense configured as proxy can pick up sensor data to the MySense databases.
 
-If you installed a led switch (controlled by `/usr/local/bin/poweroff`:
-* Pressing the switch longer as 20 seconds will poweroff the Pi
-* Pressing the switch longer as 10 seconds will reboot the Pi
-* Pressing the switch 6 seconds will restart a search for wired or wifi internet connectivity.
-* If the Pi is powered off a disconnect and connect of the adapter will boot the Pi.
+Datacommunication is done via WiFi (Mosquitto), or LoRa (TTN MQTT data concentrator) and MySense Raspberry Pi  in server mode.
+One may send data via MySense Pi server to RIVM in the Netherlands as well Luftdata in Germany.
 
-Without internet connectivity the MySense software will not be started on a reboot.
+### measurement data
+The MySense kit will collect measurements from dust (Nova SDS011, Plantower PMSn003 serie and Sensirion SPS30) sensors and meteo (BME280 or BME680 with air quality support) sensors and send this data either via wifi or LoRaWan (TTN) Mosquitto (MQTT) dataconcentrator, e.g. `TTN-datacollector.py` with different output backends. Dust measurements will be collected over a sample time (default 1 minute) and send to the data concentrator at interval (default 5 minutes) periods of time. Fan and laser of the dust sensors will be powered off in the idle periods of time.
+To ease the calibration of dust sensor one is advised to use sensors which beside the mass values also show the PM count values.
 
-The `@reboot /home/ios/MySense/MyStart.sh` in the ios crontab table will automatically start MySense on a reboot. Comment this out in the test phase.
+The MySense server will collect this information from the MQTT servers and formward these measurements and meta data to e.g. a MySQL database, spreadsheet or another data stream service.
 
-## Sensor RPi kit case
+One may need to clean the fan, or even lenses, e.g. on the event on high unexpected values. See <a href="https://www.mistywest.com/posts/teardown-sensirion-particle-matter-sensor/" alt="how to teardown SPS30">how to teardown the Sensirion SPS30</a>.
+### remote management
+The LoRa MySense part is supporting remote control via TTN. The following remote commands are supported yet:
+* '?': send version, configuration and location details to TTN MQTT server
+* 'O': switch the oled display if present OFF (dflt ON)
+* 'S': stop processing (to do: put node to deep sleep)
+* 'i'-value : change the sample interval time to value seconds (dflt: 5 minutes)
+* 'd' or 'D': turn dust sensor calibration OFF or ON
+* 'm' or 'M': turn meteo sensor calibration OFF or ON
+* 'w' or 'W': turn dust sensor to weight modus
+* '#': turn dust sensor to partical count modus (if dust sensor supports it)
+* to be extended e.g. meta updateMin and updateMax information frequencies.
 
-<div style='vertical-align: top; clear: both'>
-<img src="RPi/images/MySense-2-kast.png" align=left height=100>
-The main sensor kit case carrying the Raspberry Pi and all sensor/GPS modules is build from PVC roof gutter pieces: gutter end pieces for keeping the air in and the rain out, and overflow gutter box as casing.
-The case has a poweroff button and small window to show a tiny display with current measurements.
-The sensors are fixated on a Lego plate to allow flexibility of sensor changes.
-</div>
-See for a How To: README.case.md
-<p>
+### Meta information
+The PyCom MySense kit will send on start and at specific `updateMax` (default 6 hours) intervals *kit information* (type of used sensors) and *GPS location* separately from the data stream to the data concentrator (LoRa port 3).
+If the GPS modules is installed the controller will (re)sent this location information at the moment (`updateMin`: dfault minimal frequency is 7 minutes) a location change is detected (default 50 meters).
 
-## RPi MySense Scripts
-All scripts are written in Python 2. Python 3 is supported.
-The PyCom related scripts are written in micro Python (Python 3).
+## PyCom programming
+The PyCom boards are using MicroPython (see http://docs.micropython.org/en/latest/pyboard/).
+MicroPython is an embedded Python 3 alike scripting language.
 
-The RPi scripts have been tested on ARM based Raspberry Pi (2 and 3) running Wheezy, Jessie and Stretch Debian based OS.
-Scripts have a -h (help) option. With no arguments the script will be started in interactive mode. Arguments: *start*, *status*, *stop*.
-The main script is MySense.py.
+A guide to set up (your first steps with the Pycom module) the PyCom Lopy is available from the PyCom website: <a href="https://docs.pycom.io/gettingstarted/introduction.html">Getting Started"</a>. Make sure to install the latest PyCom firmware. Try to <a href="https://docs.pycom.io/gettingstarted/programming/examples.html">print 'Hello World'</a> from micro python `>>> print("Hello World")`, <a href="https://docs.pycom.io/gettingstarted/programming/first-project.html">blink the RGB led and erase/cleanup the PyCom `/flash' file system</a>.
 
-The LoRa scripts are tested on PyCom LoPy-4 (an ESP32 based controller with 8MB ram/8MB flash).
-The are various device test scripts. The main script is in MySense.py, the runMe(debug=False) script.
+## WiFi SECURITY
+Default the PyCom board will enable WiFi as Access Point with standard public known access passwords en telnet/ftp credentials. MAKE SURE you change this to avoid the use of the controller by anyone. See how to's:
+* https://docs.pycom.io/chapter/tutorials/all/wlan.html
+* Adafruit and https://mike632t.wordpress.com/2017/04/11/connecting-my-wipy-to-my-wifi/:
 
-### Support RPi scripts
-* MyLed.py: control the Pi with button to power off and put it in wifi WPA mode. Pi will set up a wifi access point `MySense` if no internet connectivity could be established via wifi or LAN.
-* MyDisplayServer.py, a display service: messages received will be shown on a tiny 128X64 oled (I2C) display.
+How to connect the PyCom to your own network (defeat: you will ONLY be able to control the PyCom from remote within the range of your wifi).
+Hint: only change ftp/telnet user/password ...
 
-### Main script
-The main python script is MySense.py. It acts as intermediate beween input plugins and output channels. It uses `MySense.conf` (RPi) or Config.py (LoPy).
-See MySense.conf.example or Config.py.example to configure the kit yourself.
-The MySense configuration file defines all plugins available for the MySense.py main script.
-
-* input (modules) plugins: temperature, dust, etc. sensor device modules and brokers
-* RPi: output (modules) channels: console output, (MySQL) database, (CSV/gspread) spreadsheets, and brokers (mosquitto, InFlux, ...).
-
-RPi: Try `./MySense.py --help` to get an overview or LoPy: MySense.runMe(debug=True).
-
-On the RPi command line the option --input and --output plugins can be switched on (all other configured plugins are disabled).
-
-#### operation phases
-MySense starts with a configuring phase (options, arguments, reading configuration, loading modules), whereafter in the `readsensors()` (RPi) or main loop (LoPy) routine it will first access the input modules to obtain measurement values, combine them into an internal buffer cache per output channel or LoRaWan, and finally it tries per output channel on the RPi to empty the previously queued records.
-
-The output of sensor values to an output channel or LoRaWan will always on startup to send an identification (meta data) json info record.
-Each configurable interval period of time MySense will send (input) measurements values to all enabled output channels.
-
-Rpi:
-For each output channel connected via internet MySense will keep a queue in the case the connection will be broken.
-If the queue is exceeding memory limits the oldest records in the queue will be deleted first.
-If the configured *interval* time is reached it will redo the previous loop.
-If switched on and configured an email with identification information will be sent to the configured user.
-Make sure one obeys the <a heref="http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-122.pdf">Personally Identifiable Information</a> (PII) privacy rulings.
-
-### RPi Plugin configuration 
-MySense.conf is the configuration/init file from which plugin or modules are imported into the MySense process. See the `MySense.conf.example` for all plugins (sections) and the plugin options.
-
-For every plugin module there is an README.plugin with explanations of the input/output plugin.
-The input from sensors is read asynchronous (in parallel) via the module MyTHREAD.py.
-If needed it can be switched to read only in sync with the other input sensors.
-
-A working example of MySense script in todays operation:
+Create a `boot.py` file with the following content:
+```Python
+    import os
+    import machine
+    import network
+    import time
+   
+    # Duplicate output on UART
+    uart = machine.UART(0, 115200)
+    os.dupterm(uart)
+  
+    # Disable telnet and FTP server before connecting to the network
+    server = network.Server()
+    server.deinit()
+   
+    # Connect to WLAN
+    wlan = network.WLAN()
+    wlan = network.WLAN(mode=network.WLAN.STA)
+    nets = wlan.scan()
+    for net in nets:
+      if net.ssid == '<YOUR OWN PYCOM ssid>':
+        wlan.connect(net.ssid, auth=(net.sec, '<YOUR WiFi wireless-password>'),
+          timeout=5000)
+      while not wlan.isconnected():
+        machine.idle() # save power while waiting
+  
+    # Enable telnet and FTP server with new settings
+    server.init(login=('<YOU/user>', '<YOU/password>'), timeout=600)
+    time.sleep(10) # Wait 10 seconds before continuing
 ```
-          remote access             |  INTERNET (wired/wifi, wifi-G3/4 mobile)
-          syst.mgt.     webmin -----||_ wifi AP -- webmin/ssh system mgt
-                    ssh tunnel -----||_ BlueTooth -- terminal access
-   TeamView/Remot3 (Weaved)IoT -----|
-                                    |
-                                    |    
-    INPUT PLUGINs                   |        OUTPUT CHANNELS    GATEWAY/BROKER
-                               | ///|\\\ |
-    DHT11/22-meteo ---GPIO --->||       ||>- CSV                _____
-    GPS-locator -Uart USB  --->|=MySense=|>- console           ///|\\\  
-    RSSI-wifi signal-strength >||  Pi3  ||>- MYSQL           |=MySense=|>-gspread
-                               ||Pi ZeroW|
-    Dylos-dust -USB-- RS232--->||Stretch||>- Mosquitto pub-->|| Debian||>-MySQL
-    Grove-loudness ---GPIO---->||       ||>- HTTP-Post       || Linux ||>-CSV
-    BME280 -meteo ---- I2C --->|| ARM   ||>- email info      | \\\|/// |>-console
-    BME680 -meteo+gas--I2C --->||       ||                   | server  |
-    SHT21/31 - planned-I2C --->| \\\|/// |                   |         |
-    PPD42NS -dust-Arduino-USB->|    |    |>- InFlux publish  |_________|>-InFlux pub
-    Nova SDS011 -dust -USB --->|    |    |>- oled display SSD1306 (SPI/I2C)
-    Plantower PMSn003 -USB --->|    |    |>- Google gspread (alpha, deprecated)
-    Sensirion SPS30   -USB --->|    |    |   (see LoPy Feb 2019)
-    O3,NO2,CO SPEC UART USB -->|    |    |   (beta test April 2018)
-    NH3 - AlphaSense - I2C --->|    |    |   (planned Jun 2018)
-    Adafruit rain -----GPIO -->|    |    |   (planned Aug 2018)
-                               |    |    |    
-    LoRaWan (TTN MQTT) ------->|    |    |>- broker? (planned)
-    Mosquitto sub ----server ->|    |    |>- LoRaWan (planned TTN)
-    InFlux subscribe -server ->|    |    |>- Bluetooth (planned)
-    LoRa TTN MQTT ----server ->|    |    |>- Luftdaten.info databases
-                                    |
-                                    |>-raw measurement values -> InFlux server or file
-                                           calibration
+And load up via FTP the boot.py to the board.
+
+### How to interact with the PyCom board?
+Install *atom* from http:atom.io (PyCom): for Debian systems download the IDE application with extension .deb and install via `dpkg -i atom-XYZ.deb` and the pymakr plugin from the PyMakr github: `git clone https://github.com/pycom/Pymakr` (read the README.md!), optionally install *apm*, and run in the cloned directory `apm install`. Copy all contents to a new directory `~/.atom/packages/PyMakr`. This will install a PyCom board IDE (development tooling).
+
+Or use an alternative *rshell* (Python 3 tool)from: https://github.com/dhylands/rshell. Read the rshell README file how one can use this command line tool to upload, download and use REPL.
+
+The PyCom controller will run on power ON `/flash/boot.py' and `/flash/main.py`. If not you can interact via atom with the controller. In the directory `/flash` ('home' directory) your scripts should reside.
+Push and keep it pushed the *user* button on the expansion board first and while pushing push the *reset* button on the controller will reboot the controller but will not run boot.py as well main.py. The other way is to press <cntrl>C on the keypboard (keyboard interrupt).
+
+In the PyCom folder you will see some main scripts. The libraries for the sensor modules are in the lib folder. Copy the main scripts to the 'LoRa/firmware' directory, as well the needed libraries (see the statement *import* in the used scripts) to the *lib* directory. Point *atom* as new project to the configured *firmware* directory and press 'sync' or 'reload' button to load the files into the PyCom controller.
+
+The PyCom board can be accessed to change the firmware either via WiFi (see the lopy-191228 PDF's and PCB manufacturer zip documentation; Contributed by Ad de Jong) and/or USB of the PyCom expansion board.
+* Debian: make sure you have access to `/dev/ttyACM0` or `/dev/ttyUSB0`. Use the Linux command `lsusb` and see if *Microchip Technology, Inc.* is present. If not see what the problem might be via `/var/log/syslog`. In one occation we had to do create the `/etc/udev/rules.d/49-micropython.rules` with the content:
 ```
-<img src="RPi/images/dubbelwandige-LantaarnType-MySense-3.png" height=150>
-<img src="RPi/images/SDS011-BME280-SSD1306.png" height=150>
-
-MySense LoRa air quality measurement kit:
+# idVendor=04d8, idProduct=ef98 PyCom
+ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="ef98", ENV{ID_MM_DEVICE_IGNORE}="1"
+ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="ef98", ENV{MTP_NO_PROBE}="1"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="ef98", MODE:="0666"
+KERNEL=="ttyACM*", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="ef98", MODE:="0666"
 ```
-          Arduino/Atom/Makr WiFi/USB --|-- WiFi / BlueTooth
-                                    ___-__________
-    DHT11/22-meteo ---GPIO---->|   /               \
-    BME680 -meteo+gas--I2C --->|= <  PyCom LoPy     >|-LoRa TTN MQTT >-< MySense >
-    BME280 - meteo ----I2C --->|   | PyCom WiPy     >|-SigFox IoT (planned)
-                                   | (Marvin)        |                 
-    Nova SDS011 -dust -Uart -->|   \ ESP8266       /
-    Plantower PMS7003 -Uart -->|    --------------
-    Sensirion SPS30 ---Uart -->|
-    Grove GPS ---------Uart -->|       |
-                               |       |
-    commands - LoRA TTN     -->|       |
-                               |       |
-    solarcel power switching<->|       |> SSD1306 128X64 oled display
+Disconnecet the PyCom USB cable, issue `sudo udevadm control --reload-rules` and reconnect the USB cable to the expansion board. 
+
+## MySense satellite sensor kits
+The MySense satellite sensor kits are less powerfull and build around the Marvin and PyCom ESP controllers.
+The PyCom scripts have the following structure: 
+* sensor module scripts which reside in the lib folder
+* Config.py which describes which module is used and how it is wired. It is used by the other scripts
+* sensor test scripts named as {meteo,dust,gps,ssd1306}_test.py for testing the harware
+* the main script *MySense.py* for operational use.
+
+### tested MySense sensor modules
+Choose one meteo and one dust sensor: MySense modules in development are:
+* Sensirion SHT31 meteo: temp and humidity on I2C bus
+* Bosch BME280 meteo: temp, humidity and pressure on I2C bus
+* Bosch BME680 meteo: temp, humidity, pressure and air quality on I2C bus
+  One serie of BME680 I2C/TTL modules are causing I2C bus errors.
+  Advantage of BME680 is the gas (AQI) sensor as gas indication.
+* Plantower PMS7003/PMSx003 (indoor and outdoor version) dust mass and count: PM1, PM2.5 and PM10 on UART TTL (no USB)
+* Nova SDS011 dust mass only: PM2.5 and PM10 on UART TTL (no USB)
+* Sensirion SPS30 dust mass and count: PM1, PM2.5, PM4 and PM10 on UART/I2C
+* GPS location: UART TTL (no USB)
+* SSD1306 tiny oled display: 128X64 pixels on GPIO bus or I2C (preferred) bus.
+* LoRaWan: using TTN MQTT server
+* MQTT via WiFi: not implemented yet
+
+Comment: do not use eg UART Rx on pin 12. Pin 12 high on reset will cause to omit executing boot.py and main.py.
+Maximum of UART modules is 2 (e.g. dust and GPS modules).
+
+To test I2C wiring use the following EXP commands:
 ```
-LoRa TTN server is also used e.g. to change sample/interval timings, to force information, (dis)enable display, stop processing, or enable wifi AP of the kit for updates, etc to be sent to the MySense LoRa sensor kit.
+    SDA='P23'
+    SCL='P22'
+    from machine import I2C
+    i2c = I2C(0,I2C.MASTER,pins=(SDA,SCL))
+    i2c.scan()
+```
+This should return the I2C registers as e.g. `[60]` (decimal!) for the I2C address of a BME280. If `[]` there is no I2C module attached to the pins. Or if it hangs wiring is wrong.
+If the scan produces unexpected extra register address values please check your I2C modules to avoid I2C bus errors.
 
-## Configuration
-### Configuration of MySense RPi
-See `MySense.conf.example for an example of `MySense.conf`.
+From release version 3 MySense will auto detect I2C devices on maximal 3 I2C busses.
 
-Use for configuration of plugins/outputchannels the `section` (plugin name in lowercase) and section options.
-The option `input = True or False` and `output = T/F` will define resp input plugin and output channel
-to be imported and to be switched on or off.
-Input plugins as for gas and dust (particle counts) will have a configurable sample time (time to get vales) and interval time (time (interval minus sample) to wait before the next sample).
-The MySense main loop has an own `interval` time within input plugin sensor values will be collected (sliding average from sample values) and push values to output channels.
+### wiring PyCom <-> devices
+Advised is to use strict colors: *red* for 5V, *orange* for 3V3 and *black* for Ground.
+Use *white* (SCL or controller Rx) and *yellow* (SDA or controller Tx) for data wires.
+We use Grove connectors with female Dupont connectors. Our connector board has Grove sockets which lead to the right pins of the PyCom controller: TTL (5V or 3V3) and I2C devices (3V3).
+#### Uart or TTL devices
+E.g. GPS (3V3) and dust sensors (5V). 
+Examples:
+```
+    GPS 3V3, Tx yellow wire - PyCom Rx Pin P10 (unused)
+             Rx white wire  - PyCom Tx Pin P11
+    Dust 5V, Tx yellow wire - PyCom Rx Pin P3
+             Rx white wire  - PyCom Tx Pin P4
+'''
+The PyCom has P0 Tx pin and P1 Rx pin (expansion board USB connected) for a 3rd TTL e.g. Spec TTL NO2 sensor. To Do: add Spec gas sensor driver.
 
-### Configuration of MySense LoRa kit (LoPy or WiPy)
-See for an example the file `Config.py`. Make sure useXXX and the *pins* are defined and wired correctly.
-Change WiFi AP ssid/password to your will.
+MySense support auto UART device recognition for GPS and dust sensors (SDS011, PMSx007 serie, and SPS30). See the `Config.py` file for details how to enable/disable ato configuration.
+The UART pins may be defined (tuples: (white wire Tx,yellow wire Rx) -> device (Rx,Tx)) if not default pins (P4,P3),(P11,P10) are used.
 
-## Interaction data format
-Interaction with plugins and output channels is done in json datastructure:
-Example of json to display a measurement on the console (and others):
-```javascript
-     { "time": UNIXtimeStamp,
-        "temp": 23.2,
-        "rh": 30.2,
-        "pm": 234.2,
-        "o3": None }
+#### I2C for sensors and oled display
+All I2C are parallel in this example. SDA is I2C data wire, SCL is I2C clock wire.
+```
+    device 3V3, SDA white wire  PyCom SDA Pin P23
+                SCL yellow wire PyCom SCL Pin P22
+```
+MySense will scan the I2C bus(ses) for auto configuration of known I2C devices (oled display and various meteo sensors). I2C pins are defined as tuples (white wire SDA, yellow wire SCL), default: (P23,P22).
+
+## remarks
+BME280 or BME680 meteo sensors are tuned for indoor applications. Lifetime of sensors differ much because of this. The DHT11 or DHT22 are worse for outdoor application usage and should not be applied.
+An alterrnative is to use the Sensirion SHT21 or SHT31 I2C module (only temp and RH). The SHT sensor seems to cause I2C bus errors regularly.
+
+The dust sensors have a fan and laser. Both have a limited time of life. Hence the fan and laser are powered off in idle state. It is unclear if this method will help to improve the lifetime.
+
+To Do: auto detect UART devices.
+
+### RTC clock
+MySense will use GPS to initilyse the Real Time Clock module. Every time the GPS location is looked up the RTC clock will be updated automatically.
+This will allow MySense to timestamp measurements more precise.
+
+### MySense satellite LoRa kit configuration
+Use the file `Config.py` to define which sensors are configured for the kit. Have a good look at the *pin*s definitions and bus used for the sensor. The `Config.py` file should reside in the *firmware* directory in order to upload it to the controller.
+
+If `dev_eui, app_eui and app_key` is defined in `Config.py` the LoRaWan On The Air Authentication (OTAA) method will be tried first to join with 4 X 15 secs a wait for authorisation.
+If not defined or the join did not complete the ABP method will be used with the configured `dev_addr, nwk_swkey and app_swkey` in `Config.py`. With method ABP MySense will not wait for authorisation.
+
+The file `Config.py` will show default configuration items in comments. Make sure to define the correct LoRa (The Things Network) keys.
+
+In order to support solarcel as energy source MySense supports the *deepsleep* functionality. In order to do so there are 3 ways to keep the configuration details:
+* `Config.py` to allow a clean cold start (powerup boot).
+* `a json file in flash memory` to keep track of stable configurations and discovered devices. This allows mainly a warm reboot from eg a deepsleep.
+* `nvs ram` values to survive a powercycle e.g. LoRa keys and counters, different alarm settings.
+
+The auto maintained configuration data can be cleared as followed:
+```python
+    import pycom
+    # 0 for clear flash configuration and nvs ram variables on cold (re)boot
+    # as well clear all nvs ram variables
+    pycom.nvs_set('modus',0)
+    # modus 1: for clear ttl/i2c device conf
+    # modus 2: do not clear assembled configuration (advised)
+```
+The json configuration will be updated if via remote command the configuration item is changed. So the change will survive a reboot.
+
+Configuration item `power` will define if between deepsleeps de bus will be unpowered. E.g. deactivate GPS device fully. The kit will go into deepsleep if AND deepsleep pin is enabled AND `power` attribute `sleep` is True. On a cold boot with deepsleep pin enabled the default startup `power` configuration will be with `ttl`, `i2c` and `sleep` defined as *True*.
+
+Configuration dictionary `interval` will define e.g. sample times ('sample': dflt 1 minute), and interval timings ('interval': dflt 15 minutes). As well next time meta information ('gps': 'gps_next', 'info': 'info_next': xyz_next values will be stored in nvs ram to survive a reboot) will be sent or GPS will be tried to find GPS location and set day time. 
+Configuration dictionary 'power' will define, True is power off, to enable/disable power on 'ttl' (dflt: False), 'i2c' (dflt: False), 'led' (rgb led) (dflt: False), 'wifi' (dflt: True) and 'display' (dflt: False). As well 'sleep' to enable (dflt: False) a soft deepsleep (without sleep pin use).
+Using remote LoRa commands one may change this at run time (see MySense.py CallBack routine for details).
+
+Alternate WiFi AP SSID and PASS can be configured via Config.py configuration file.
+Default SSID `MySense-HHHH` with PASS `www.pycom.io`.
+With a cold reboot (power cycle) and with WiFi power management off (False) the configured password will be effectuated after 1 hour.
+Unless 'power' item 'wifi' is defined as True. In which case the WiFi will be turned off.
+
+Configuration dictionary 'calibration' will define Taylor calibration rules for corection of 'temperatue', 'humidity', 'pressure', 'gas', 'pm1', 'pm25', pm10', and define 'gas_base' for AQI calculations.
+
+Use of Dext or Dexplicit (default False) will cause dust count values to be taken as inclusive previous size (Sensirion style or valuation; and cause average grain size to be calculated). True will; define Plantower style of valuation (sizes biger as underbound).
+
+There is a wealth of configuration possiblities. Not all have been tested. See the scripts to see what they are about.
+
+LoRa keys and package counter (important for ABP LoRa connectivity) are saved and maintained in nvs memory. As well last gps location and next meta info and next gps location check are kept in nvs memory.
+
+How To clear the configuration in flash memory: on a cold reboot with deepsleep pin enabled and no accu attached to accu load management pin the json configuration file (dflt: `MySenseConfig.json`) in flash memory will be cleared and a new configuration will be detected. Use this procedure when new keys of sensors are attached to the controller.
+
+*Deepsleep ESP problem?*
+In our experience we discovered with deepsleep: the LoPy would not wake up at a random deepsleep calls. This might be a bug in the ESP hardware or software. A work around seems to be delay for 500 msecs the ESP. This work around is under investigation.
+
+Question: how can I force a deepsleep without an accu attached to the kit? Answer: start without the deepsleep pin enabled. After trhe first interval install then the deepsleep pin.
+
+### Testing hardware
+MySense has provided several simple XYZ_test.py python scripts to test the sensor modules for needed libraries and check of wiring.
+Make sure to configure the right pin ID's in `Config.py` configuration file for the test scripts.
+Default pins are defined as follows:
+* I2Cpins: 'P23' (SDA, white), 'P22' (SCL, yellow) and 'P21' (dflt None, Pwr enable/disable)
+* UARTpins: TTL3 ('P1' Rx yellow, 'P0' Tx white, 'P20' (dflt None) Pwr), TTL2 ('P4' Rx yellow, 'P3' Tx white, 'P19' (dflt None) Pwr), and TTL1 ('P11' Rx white, 'P10' Tx yellow, 'P9' (dflt None) Pwr). Tx/Rx is controiller side. At devices side Tx is yellow, and Rx is white wire.
+* other pins: 'P17' and ground for keeping track of accu voltage. And 'P18' so called deep sleep pin (force deepsleep).
+
+Test your setup one by one before trying out the main wrapper `MySense.py` via *MySense.runMe()* or `main.py`.
+A more detailed readme about the way `MySense.py` and other test script maybe of help can be found in the file `README.MySense.md`.
+
+## Your First Steps
+* visit the PyCom.io website and follow the installation guide
+The following is an outline how we do the developments and module testing:
+* Add the expansion board to the PyCom LoPy or WiPy module. Make sure about the orientations.
+* hook up the module (USB or via wifi) to your desktop and upgrade the firmware.
+* disconnect the expansion/PyCom module from power and only wire up one module.
+* Install hardware and sonfware one by one: say the first one is XXX (e.g. BME280)
+* copy the dependent XXX_test.py, Config.py and library module XXX.py to resp. XxPy/firmware and XxPy/firmware/lib.
+* adjust the Config.py for the right pin setup wiring. And check this twice.
+* Click on the *Upload* button of atom to load the scripts into the PyCom module. This will synchronise all files in the firmware directory of your desktop with the PyCom ESP controller.
+* fireup XXX_test as follows:
+```python
+>>>import XXX_test
+```
+* if not successfully copy/paste the statements of XXX_test.py one by one via atom REPL.
+
+* on success do the next module e.g. PMS7003 wiring and redo the test cycle.
+* on success try out `MySense.py` and finally install `main.py`:
+```python
+    import MySense
+    MySense.runMe()
+```
+* and give feedback
+
+## MySense scripts
+The main micropython script which drives the sensor kit is `MySense.py`. Use `main.py` to import MySense.py and run `MySense.runMe()` to run the kit.
+
+The micropython (looks like Python 3) script uses the Adafruit BME280 and BME680 (I2C-bus) python module, SDS011 (Uart 1) module from Rex Fue Feinstaub `https://github.com/rexfue/Feinstaub_LoPy` and Telenor weather station `https://github.com/TelenorStartIoT/lorawan-weather-station` and SSD1306 (Adafruit tiny display SPI-bus).
+
+In the test phase one should not download main.py to the LoPy controller. Use `MySense.py` in this phase instead and rename it to main.py later.
+Use (open) the directory `firmware` as base for the atom project and upload all file by pressing the upload key.
+On the console prompt `>>>` use the following:
+```python
+import MySense
+MySense.runMe()
+```
+After this initial test rename MySense.py to main.py. And upload main.py to the LoPy.
+
+## I2C bus errors
+The I2C together with SPI will cause I2C bus errors. After using the SPI SSD1306 display before the I2C bus can be used initialize the I2C bus first.
+
+### how to reset the controller
+You can delete old firmware using the instruction by PyCom. Usualy you only need to delete all uploaded file as follows:
+
+Use the reset button on the LoPy to get the atom prompt `>>>` and do the following:
+```python
+    import os
+    os.mkfs('/flash')
+```
+And upload your new files.
+
+How to delete or enable previous firmware? Connect Pin P12 to 3V3: 1-3 sec (safe boot), 4-6 secs (previous user update selected), 7-9 secs (safe boot factory firmware).
+P2 - Gnd low level bootloader (needed to update factory firmware upgrade).
+
+The controller can always be reached via the network. Upload wifi (`www.pycom.io`) an empty main.py into `flash` folder with ftp (insecure version) ore `filezilla` (MacOs; can take some minutes to establish connection) in passive mode to `192.168.4.1` and user/pass `micro/python` to obtain access via telnet (or netcat) or USB.
+
+### test PyCom controller
+The PyCom will initiate the wifi. Use Wifi AO with pass: www.pycom.io and telnet (192.168.4.1) access user/password micro/python.
+
+Make sure you have to upgrade the PyCom controller first. However upgrading LoPy-4 failed somehow.
+
+Simple test to silence the blue flashing, at the prompt `>>>`:
+```python
+    import pycom
+    pycom.heartbeat(False) # silence the blue flash
+    pycom.rgbled(0x99ff55) # some color
+    pycom.rgbled(0x000000) # led OFF
 ```
 
-At the startup RPi MySense.py will start with an identification record providing details of the version, the location if available, a unique identifier, sensor types and measurement unit, etc.
-This information will define eg the first row of a spreadsheet or the database table with all sensor info (called Sensors).
+## MySense controller status
+The console will print status as will the flashing led on the LoPy will flash different collors: red to establish LoRa connectivity, blue when LoRa is ready, green when measuremnts are arriving, and blue when data is sent, and white when SDS011 fan is turned off to save the fan and laser as well LoPy is in idle state. LoPy will send every 5 minutes (`sleep_time`) a measurement sample  to the TTN data concentrator.
 
-Towards a broker the output will consist of an (updated e.g. GPS location) combination of the data json record and the infomration json record:
-```javascript
-    { "ident": id-record, "data": data-record }
-```
-See for an example the file: `testdata/Output_test_data.py`
+## controller wiring
 
-The input sensor plugins provide (sliding window of a per plug definable buffer size)) averages in a per input plugin defined interval time in seconds. The output is done on a general interval period timing using the average time of input timings.
+<img src="images/PyCom-wiring-BME-SDS-PMS-SSD-GPS.png" align=center height=250>
 
-Typical input rate from a sensor is 60 seconds (can be tuned) and for brokers it is 60 minute interval (can be tuned).
+See for examples of wiring the `README.LopY.md` (LoRaWan TTN, BME280, SDS011 and SSD1306) or `README.WiPy.md` (wifi MQTT, BME680, PMS7003, SSD1306) readme's.
 
-## Brokers
-MySense can act either *sensor manager* or as *input from broker manager* to a set (dynamic) of output channels. 
+Its is handy to use a 'connector board': a simple PCB which has a row of say Grove connectors for the sensor devices and 'foot' for the LoPy controller. The electronic scheme using mosfets to power sensor devices and ready scheme to send to a board producer can be found in the documentation directory.
 
-Available input plugins:
-* Dust: Dylos DC1100 or 1700 via serial interface, Shinyei GPIO (e.g. Grove dust sensor), Nova SDS011, Plantower PMS5003/7003/x003, Sensirion SPS30.
-* Temperature/humidity: Adafruit DHT11/22, AM3202 and Grove variants, Bosch BME280 or BME680 (has indoor aq gas sensor), Sensirion SHT31-D.
-* RSSI (strength of wifi signal): via the platform
-* Location: GPS (GPS Ultimate from Adafruit/Grove) via TTL serial interface
+ATTENTION: we discovered that the wifi beacon is causing in some circumstances a 2ms drop of the power to the ESP8266 controller below 3.3V every 100ms interval. Some dust laser sensors are influenced and produce unexpected high measurements because of this. Suggested is to use a good powerfull adapter, and/or apply a 1000 uF capacitor or configure MySense to switch off the wifi after one hour (see Config.py for a how to).
 
-To Do: SHT31 and others one can heat the chip up e.g. on high humidity. Or use temp alert.
+## To Do
+Add more sensor modules. The Shiney PPD42NS (unreliable and too much errors), DHT22 and DHT11 (too much peaks and outdoor time to live too short) meteo sensor are depricated. Sensirion SHT31 (only temperature and RH, not very precise).
+Note: The Plantower PMS7003 and SPS30 are much smaller and consume less energy as the Nova SDS011 (but it has a nice air inlet). The Plantower PMSx003 has a detachable fan, air tube inlet, cleanable inlet, and is more robust for outdoor application.
 
-## Remote management
-The Pi allows to install a wifi connectivity with internet as well a virtual wifi Access Point. A backdoor configuration is provided via direct access to `webmin` and `ssh` (Putty), as well via a proxy as *ssh tunneling* and/or using the proxy service of Weaved (`https://www.remot3.it/web/index.html`).
+## Licensing
+If not noted the scripts and changes to external scripts are GPL V3.
 
-If no access to Internet either via LAN or WiFi is obtained a WiFi AccessPoint is started (SSID MySense-XYZ, and default password) which enable you to use `ssh ios@192.168.2.1` command to obtain shell access. Correct in `/etc/wpa_supplicant/wpa_supplicant.conf` the SSID and psk password phrase to your local access point.
-
-## Hardware Platform
-Sensors have a hardware interface to I2C, GPIO: those sensors are tested on RaspBerry Pi (and Arduino Uno)
-Sensors with USB serial are tested on Linux Debian platforms which run Python.
-
-The GrovePi+ shield is used to ease hardware installation by just using 4-wired connectors and avoid mistakes. No soldiering, nor DuPont wires which are easily get disconnected. The GrovePi+ shield has 3 I2C connectors.I2C connectors are all in parallel. Use eg a Grove I2C 4-port connector to extent the amount if needed.
-
-Install GrovePi+ Dexter libraries as user *pi* with the following command:
-```bash
-    curl -kL dexterindustries.com/update_grovepi | bash
-```
-and reboot/poweroff the pi. Install the shield and proceed.
-
-We use small USB cables with a 90 degrees connector and/or USB hub with 4 USB connectors with 10-15 cm wires to ease fixation of the wiring. As well use a Lego board and Lego stones to fixate all modules and sensors on the Lego board.
-
-## Installation
-See README.pi for installation of the Raspberry Pi platform.
-MySense plugins: Use the shell file `INSTALL.sh [DHT GPS DB plugin ...]` to download all dependent modules.
-
-The sensor plugins, and output modules can be tested in *standalone mode*, e.g. for BME280 Bosch chip, use `python MyBME280.py`. Or use the Python debugger `pdb` in stead. See the script for the use of sync and debug options at the end of the script to test.
-
-If the Pi supports BlueTooth one could also use BlueTooth terminal access by installing BlueTooth terminal service: `./INSTALL.sh BLUETOOTH`. This type of accesss is not recommanded.
-
-## Documentation
-See the README's and docs directory for descriptions how to prepair the HW, python software and Pi OS for the different modules.
-
-`CONTENT.md` will give an overview of the files and short description.
-
-## Operation status
-See the various README/docs directory for the plugin's and modules for the status of operation, development status, or investigation.
-
-Failures on internet connectivity and so retries of access is provided.
-
-## Extensive test support
-Use the following first if one uses MySense for the first time: test each sensor input or output channel one at a time first.
-Use the Conf dictionary to set configuration for the test of the module.
-
-The sensor plugin as well the output pugin channels *all* have a `__main__` test loop in the script.
-This enables one to test each plugin (one at a time) in standalone modus: `pdb MyPLUGIN.py`.
-Use for the sensor input plugins `Conf['sync']=False` (to disable multithreading) and switch debug on: `Conf['debug']=True`.
-Set the python debugger `pdb` to break on `break getdata` (input plugin) or `break publish` for stepping through the script. Failures in configuration are shown in this way easily.
-
-After you have tested the needed input/output modules: To test the central script `MySense.py` use first the Python debugger `pdb`. The main routine after the initiation and configuration phase is `sensorread`, in `pdb` use `break sensorread`. Continue to this break point and use `print Conf` to show you the configuration settings. Step to the first `getdata` call or `publish` call to go into the input or output module.
-Note that the `getdata()` input routine may need some time in order to allow the module to collect measurement(s) from the sensor.
-
-## Current development focus
-
-<img src="RPi/images/SensorKit.png" width=300 align=right>
-The MySense framework/infrastructure is operational as lab test model (beta phase).
-
-By default Rpi and LoRa MySense uses a so called lightweight process (multithreaded) to allow sensor data to be collected asynchronously.
-Input is tested with serial, I2C-bus and GPIO sensors (meteo,dust,geo,audio, (gas in September 2017).
-The focus is to allow Grove based sensors (easier to plugin to the MySense system) and weather resistent cases for the system.
-
-The gas sensor development (NO2, O3, NH3, CO) is just (Febr 2017) started, Aug 2017 alpha tests.
-Due to limited finances the gas sensor development has been postponed. There is for the RPi limited support for ALphaSense (NH3) and Spec (O3, NO2, COx, NOx) USB gas sensors.
-
-## Calibration
-Calibration of dust counters like Shinyei, Nova SDS011 and Dylos is started in May/June 2017.
-Outdoor correlation tests started Sept 2017.
-Indoor calibration tests with Plantower PMS7003, Nova SDS011 and BME280/BME680 were done in April 2018.
-Outdoor calibration is due in spring 2019.
-
-The use of the DHT22 has been deprecated after a 3 month period beginning of 2018 with 10 sensots kits equipted with Marvin LoRa/DHT22/SDS011 sensors.
-The DHT22 differ too much from one to the other are much influenced by higher rel. humidity. As well the I2C bus (e.g. BME280) seems more reliable and is easier to use.
-Due to higher rel. humidity the Marvin LoRa antenna was defective after ca 6 months.
-The application of the LoRa Marvin controller has been deprecated.
-
-All laser dust sensors are exponential influenced by rel. humidity of 80% and higher: exponential overestimating dust counts.
-In study with RIVM and an initiative in Berghaven (Nld) is a recalculation scheme to correct the values.
-We hope to get some research done to improve the calibration algorithm.
-The Plantower and Sensirion dust sensors provide also the raw particle counts. This will be used to calibrate these sensors. Report is due in spring 2019 or later.
-
-Calibration of Alpha Sense gas sensors is a problematic area. Probably Sept 2017. First tests show Alpha Sense O3, CO2 are OK, NO2 not successfull, NH3 prosponed.
-
-To facilitate measurements for calibration purposes all sensor plugins are optionaly (set `raw` option to `True` for the particular sensor in `MySense.conf` (RPi) or `Config.py` (LoRa)) able to output on file or to e.g. on the RPi an InFlux DB server the *raw* measurements values, as follows:
-```
-    raw,sensor=<type> <field1>=<value1>,<field2>=<value2>,... <nano timestamp>
-```
-This is an InFlux type of telegram, where the UNIX timestamp is in nano seconds. Example for database BdP_02345pa0:
-```
-    raw,sensor=bme280 temp=25.4,rh=35.6,pha=1024 1496503325005000
-    raw,sensor=dylos pm25=250,pm10=15 1496503325045000
-```
-E.g. on the RPi download the *serie* for eg correlation calculation from this server or into a CVS file (`awk` maybe your friend in this).
-Or use a file, say `MyMeasurements_BdP_02345pa0.influx`.
-```shell
-    # send the file to the InFluxdb server via e.g.
-    curl -i -XPOST 'http://localhost:8086/write?db=BdP_02345pa0&u=myname&p=acacadabra' --data-binary @MyMeasurements_BdP_02345pa0.influx
-```
-InFlux query reference manual:
-* https://docs.influxdata.com/influxdb/v1.2/query_language/
-
-Using the Influx CLI (command line interface) one is able to convert the columnized output into whatever format, e.g. to CSV:
-```
-    influx --format csv | tee InFlux.csv
-    >auth myname acacadabra
-    >use db_name
-    >show series
-    >select * from raw order by time desc limit 1
-    >select * from raw where time > now() - 2d and time < now() - 1d order by time desc
-    >quit
-```
-
-After the correlation calculation set for the sensor the `calibration` option: e.g. `calibration=[[25.3,-0.5],[13.5,63.203,0.005]]` for here two fields with a linear regression: `<calibrated value> = 25.3 - 0.5 * <measured value>` for the first field values. The second field has a 2-order polynomial as calibration.
-
-To avoid *outliers* the MySense input multi threading module will maintain a sliding average of a window using the buffersize and interval as window parameters. Python numpa is used to delete the outliers in this window. The parameters for this filtering technique are default set to a spread interval of 25% (minPerc MyThreading class parameter)) - 75% (maxPerc). Set the parameters to 0% and 100% to disable outlier filtering. Set busize to 1 to disable sliding average calculation of the measurements.
-
-### Calibration tool
-For calibration the Python tool `statistics/Calibration.py` has been developped. The script uses pyplot and is based on numpy (numeric analyses library). The calibration uses values from two or more database columns, or (XLSX) spreadsheets, or CSV files as input and provides a best fit polynomial (dflt order 1/linear), the R square and shows the scattered plot and best fit graph to visualize the difference between the sensors. Make sure to use a long period of measurements in a fluctuating environment (a fixed indoor temperature measurement comparison between two temp sensors does not make much sense).
-
-### Test remarks and experience
-
-#### meteo
-The DHT meteo sensors show intermittant lots of read errors. The DHT is deprecated.
-Humidity: outdoor use of the sensor will show after a while 99.5% rel. humidity all the time. Allow the sensor to dry.
-The meteo sensor BME280/680 might be a better alternative. Tests show a linear correlation between this sensor and the DHT. However the chip seems to build up heat and shows a higher temperature as it should be. Airpressure seems very reliable. The current focus however is on the Sensirion SHT31 chip. Which has promissing specifications.
-
-Calibration test results (April 2018) with 3 sensor kits, indoor (temperature and humidity does not vay much) test of 32 weeks with 5 minute samples:
-1. reference kit with BME680
-2. BME680:
-    * gas R2=0.85, correction 3.192e2, 5.650e-1 (56% of ref BME680)
-    * temp R2=0.843, correction -4.703, 8.528e-1 (85% of ref BME680)
-    * humidity R2= 0.972, correction -2.99e0, 0.519e-1 (5% of ref BME680!)
-    * pressure R2=0.99, correction 1.238e1, 9.820e-1 (-2%)
-3. BME280:
-    * temp R2=0.98, correction -1.662e0, 9.310e-1 (93% of ref BME680)
-    * humidity R2=0.625, correction -4.824e0, 1.404e0 (14 X BME680!)
-    * pressure R2=0.9779, correction 1.291e2, 8.753e-1 (only an offset, -13% of ref)
-In short: air pressure values correlate fine (high R2) and need some correction. R2 for temperature and humidity are just ok. But the SDS011 need corrections to the BME680. Previous tests with DHT22 show a far lower R2 and higher (linear) corrections.
-
-#### dust
-The Shiney PPD42NS (tested 3 sensors) gave lots of null reading on low PM10 values. The sensor values are not stable enough in comparison with newer sensors from Nova and Plantower as well the bulky Dylos handhelt.
-
-Due to airflow the sensors need to be cleaned periodically. The Plantower sensor is hard to clean as it cannot be opened.
-
-Plantower dust sensor measures also PM0.3, PM0.5, PM1 and PM5 as PM counts.
-
-Both Plantower and Nova dust sensors use USB bus. The values are provided in mass values. The conversion from particle count to mass is not made public. 
-
-All these PM counting based sensors show an exponential overcalculated value on higher rel. humidity. Research is going on to correct it to values which are compatible with e.g. BAM1020 reference sensors.
-
-Calibration test results (April 2018) with 3 sensor kits, indoor test of 2 weeks with 5 minute samples:
-1. reference kit with PMS7003
-2. PMS7003:
-    * PM0.1 R2=0.9664, correction 8.635e-3, 1.096e0 (no difference)
-    * PM2.5 R2=0.9638, correction 5.626e-1, 1.092e0 (no difference)
-    * PM10  R2=0.9564, correction 6.630e-1, 1.174e0 (not much difference)
-3. SDS011:
-    * PM2.5 R2=0.9473, correction -5.141e-1, 2.615e0 (ca twice PMS7003)
-    * PM10  R2=0.8805, correction 8.967e-1, 2.704e0 (ca twice PMS7003)
-In short: about no difference (high R2), correction between the Plantower is about none (PM0.1 1%, PM2.5 1%, PM10 17%). Plantower with Nova SDS011 differ not much (high R2), correction is linear (PM2.5 260%, PM10 270%).
-
-#### gas
-Tghe Alpha Sense gas sensors have a high cost level (ca 80 euro per gas). NH3 is hard to test and still planned. NO2 give too many errors in the field. The sensors have a very limited time.
-
-#### GPS
-The Grove GPS sensors is applied via USB bus connection and the standard Debian GPS deamon. The location is not precise enough. The wait is for the Galileo GPS sensors availability.
-
-#### Raspberry Pi
-The tests are done with the Raspberry Pi 3. With the GrovePi+ shield and the big V5/2.5A adapter it gets bulky. The new Raspberry Pi Zero V1.3 is half size, uses far less power and costs only 25% of the Pi3.
-We expect the Zero might be more applicable.
-The Raspberry Pi is using WiFi as data communication channel.
-Due to communication reliability the current focus is to use LoRaWan as communication channel. Which is less easy and pricing wise to apply with a Pi.
-
-### PyCom LoPy-4
-The LoPy-4 of PyCom is used as controller for situations where LoRaWan can be used and wireless distances are needed beyond 30 meters up to 2.5km. The main focus currently is to use a LoPy-4 in the measurements kit. Currently there are about 35 measurement kits operational. 50% is powered from solar panels.
-
-## Costs
-There is no funding (costs and development time is above personal budget level).
-Costs at start are high due to failures on tests of common sensors (Arduino is skipped due to too low level of functionality; Shiney and DHT sesnors failures, application of smaller adaptors, Marvin controller is skipped due to humidity problems, etc.).
-Money is lacking for sensors research and travel expenses coverage to meet other initiatives.
-
-July 2017: local government is asked to subsidy operational phase: distribution of sensors kits and maintenance.
-They refused ('there are other initiatives'). A neighboring local government seems to be willing to sponsor. A technical high school has started now a second project with MySense.
-
-July 2019: LoPy-4 based measurement kit have a hardware costs of about 150 euro. With solar the costs are about 200 euro (solar panel and regulator).
-
-## Licensing:
-FSF GPLV4. All improvements and additions should remain in the public domain.
-Feedback of improvements, or extentions to the software are required.
-* Copyright: Teus Hagen, ver. Behoud de Parel, the Netherlands, 2017-2020.
-
-If any part is used in a commercial setting has to contribute to this project
-in either financial, code, or other ways and mention MySense in the product or service based
-on any part of this MySense project information.
-
-## References
-At a Koppelting conference we explained how to build the measurment kit and how to visualize the data. A PDF of this presentation:  <a href=""http://behouddeparel.nl/sites/behouddeparel.nl/files/20200125-Koppelting-WAR-Amersfoort.pdf" alt="an How To build a kit and show the results">"Measuring Air Quality in an Agri Region: an How To"</a>.
-
-There is a huge list of literature available on the web. Some project were financed by the European Union. However we were not able to use there current developemnt due to the closed nature.
-A list of references for the documentation and/or code used in MySense.py:
-* Open Data Stuttgart ESP8266 controller oriented: https://github.com/opendata-stuttgart
-* MIT Clairity CEE Senior Capstone Project report V1 dd 15-05-14
-* https://www.challenge.gov/challenge/smart-city-air-challenge/ Smart City Air Challenge (2016, USA GOV)
-See also: https://developer.epa.gov/air-pollution/
-* http://opensense.epfl.ch/wiki/index.php/OpenSense_2
-* http://mysensors.org
-* http://opensensors.io
-* http://mydevices.org (Cayenne)
-* https://waag.org/nl/project/urban-airq Waag Society Amsterdam Smart Citizens Lab Urban AirQ
-* http://www.citi-sense.eu/ Citi-Sense EU project
-* http://waag.org/nl/project/smart-citizen-kit Smart-Citizen-Kit Waag Society
-* http://smartemission.ruhosting.nl/ Smart Emission, Maps 4 Society Nijmegen
-* https://github.com/guyzmo/polluxnzcity Pollux NZcity, NZ
-* https://github.com/HabitatMap/AirCastingAndroidClient AirCasting on Android Client
-* https://mosquitto.org/ Mosquitto (MQTT) broker
-* https://docs.influxdata.com/influxdb/v1.2/ documentation from InFluxData.com
-* https://cdn.hackaday.io/files/21912937483008/Thomas_Portable_Air_Quality.pdf interesting overview of sensors
-* on github see also MarcoKull/MySense : PyCom/LoPy-4 python development based on MySense.
+## some references
+* https://kapusta.cc/2017/12/02/home-made-air-quality-monitoring-using-wipy/

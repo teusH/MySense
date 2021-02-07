@@ -4,22 +4,23 @@
 # Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 #
 # Copyright (C) 2020, Behoud de Parel, Teus Hagen, the Netherlands
+# Open Source Initiative  https://opensource.org/licenses/RPL-1.5
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+#   Unless explicitly acquired and licensed from Licensor under another
+#   license, the contents of this file are subject to the Reciprocal Public
+#   License ("RPL") Version 1.5, or subsequent versions as allowed by the RPL,
+#   and You may not copy or use this file in either source code or executable
+#   form, except in compliance with the terms and conditions of the RPL.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#   All software distributed under the RPL is provided strictly on an "AS
+#   IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, AND
+#   LICENSOR HEREBY DISCLAIMS ALL SUCH WARRANTIES, INCLUDING WITHOUT
+#   LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+#   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
+#   language governing rights and limitations under the RPL. 
 #
 
-# $Id: ReportFailingSensors.sh,v 2.22 2021/01/30 20:21:43 teus Exp teus $
+# $Id: ReportFailingSensors.sh,v 3.1 2021/02/07 14:08:33 teus Exp teus $
 CMD=$(echo '$RCSfile: ReportFailingSensors.sh,v $' | sed -e 's/.*RCSfile: \(.*\),v.*/\1/')
 
 SENSORS=${SENSORS:-'(temp|rv)'}  # sensors to check for static values
@@ -37,16 +38,14 @@ export DB=${DB:-luchtmetingen}
 export DBUSER=${DBUSER:-$USER}
 export DBHOST=${DBHOST:-localhost}
 
-declare -i PRTCMD=0 # PrtCmd should be called only once
 function PrtCmd(){
-    if (( $PRTCMD > 0 )) ; then return ; fi
-    PRTCMD=1
-    echo "Reporting command: $CMD $(echo '$Revision: 2.22 $' | sed -e 's/\$//g' -e 's/ision://')"
+    echo -n "Reporting command: $CMD $(echo '$Revision: 3.1 $' | sed -e 's/\$//g' -e 's/ision://')"
 }
 
 if [ "${1/*-h*/help}" == help ]
 then
     PrtCmd 1>&2
+    echo 1>&2
     echo "
 Example of command:
 check kit SAN_1234567abc and all active kits of project HadM:
@@ -258,7 +257,9 @@ function SendEmail() {
     local CNTNT RTS=0 ADDR
     if (( ${NOMAIL:-0} > 0 )) ; then return 0 ; fi
     local SUBJECT="${1:-MySense kit failure message}" ; shift
-    local PRE="This is an automatic sent email with MySense kit sensor failure information.\nIf you do not want to receive any more notices or want to change your email adress please reply to the sender.\n"
+    local PRE="This is an automatic sent email with MySense kit sensor failure report service ($(PrtCmd)).\nIf you do not want to receive any more notices or want to change your email adress please reply to the sender.\n"
+    PRE+="The report will be reported after 3 days or sooner if new failures are discovered. The overview report will be repeated every week.\n"
+    local PREFRST=''
     if [ -s "${1}" ]
     then
         CNTNT=${1}   # else read from stdin
@@ -273,9 +274,10 @@ function SendEmail() {
         if  [ -z "${ATTENT[$ADDR]}" ] || (( "${ATTENT[$ADDR]}" < $NOW-(3600*24*30) ))
         then
             ATTENT[$ADDR]=$NOW
-            PRE+="This might be the first time you receive this message.\nThe notices email software is in beta test. So the message may have misinformation or errors. Please send a reply if so.\nAny positive response in this period is very helpfull.\n"
+            PREFRST="This might be the first time you receive this message.\nThe notices email software is in beta test. So the message may have misinformation or errors. Please send a reply if so.\nAny positive response in this period is very helpfull.\n"
+        else PREFRST=''
         fi
-        if ! (echo -e "$PRE" ; cat $CNTNT ) |  perl -pe 's/\033\[(1;)*[0-9]+m//g' | mail -r "$EMAILFROM" -s "$SUBJECT" $ADDR
+        if ! (echo -e "$PRE$PREFRST" ; cat $CNTNT ) |  perl -pe 's/\033\[(1;)*[0-9]+m//g' | mail -r "$EMAILFROM" -s "$SUBJECT" $ADDR
         then
             RTS=1
             echo -e "${CMD/ */}: ${RED}ERROR${NOCOLOR} sending email to $ADDR"
@@ -791,7 +793,6 @@ do
   # make noise if there are failing sensors detected
   if [ -s /var/tmp/Check$$ ] # there is a failure message
   then
-      PrtCmd | LOGGING
       if [ -n "${ATTENT[${KIT}@NEW]}" ] # new fail detected?
       then
           echo -e "\tNEW - since previous check" | LOGGING

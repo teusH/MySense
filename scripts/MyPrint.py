@@ -1,13 +1,28 @@
 #
+# Copyright: Teus Hagen, 2017, RPL-1.5
+# Open Source Initiative  https://opensource.org/licenses/RPL-1.5
+#
+#   Unless explicitly acquired and licensed from Licensor under another
+#   license, the contents of this file are subject to the Reciprocal Public
+#   License ("RPL") Version 1.5, or subsequent versions as allowed by the RPL,
+#   and You may not copy or use this file in either source code or executable
+#   form, except in compliance with the terms and conditions of the RPL.
+#
+#   All software distributed under the RPL is provided strictly on an "AS
+#   IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, AND
+#   LICENSOR HEREBY DISCLAIMS ALL SUCH WARRANTIES, INCLUDING WITHOUT
+#   LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+#   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
+#   language governing rights and limitations under the RPL.
+__license__ = 'RPL-1.5'
 
-# $Id: MyPrint.py,v 1.4 2020/04/11 11:33:37 teus Exp teus $
+# $Id: MyPrint.py,v 4.1 2021/02/07 14:37:26 teus Exp teus $
 
 # print lines to /dev/stdout, stderr or FiFo file
 # thread buffer (max MAX).
 """ Threading to allow prints to fifo file or otherwise
 """
-__version__ = "0." + "$Revision: 1.4 $"[11:-2]
-__license__ = 'GPLV4'
+__version__ = "0." + "$Revision: 4.1 $"[11:-2]
 
 import threading
 #import atexit
