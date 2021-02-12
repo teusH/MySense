@@ -20,7 +20,7 @@
 #   language governing rights and limitations under the RPL. 
 #
 
-# $Id: ReportFailingSensors.sh,v 3.1 2021/02/07 14:08:33 teus Exp teus $
+# $Id: ReportFailingSensors.sh,v 3.2 2021/02/08 10:43:04 teus Exp teus $
 CMD=$(echo '$RCSfile: ReportFailingSensors.sh,v $' | sed -e 's/.*RCSfile: \(.*\),v.*/\1/')
 
 SENSORS=${SENSORS:-'(temp|rv)'}  # sensors to check for static values
@@ -39,7 +39,7 @@ export DBUSER=${DBUSER:-$USER}
 export DBHOST=${DBHOST:-localhost}
 
 function PrtCmd(){
-    echo -n "Reporting command: $CMD $(echo '$Revision: 3.1 $' | sed -e 's/\$//g' -e 's/ision://')"
+    echo -n "Reporting command: $CMD $(echo '$Revision: 3.2 $' | sed -e 's/\$//g' -e 's/ision://')"
 }
 
 if [ "${1/*-h*/help}" == help ]
@@ -232,7 +232,7 @@ function PrtAttent() {
     LINES["COMMENT"]="Fail message(s):\n\t"
     LINES["NEW"]="${BOLD}New${NOCOLOR} failing sensors since last notice: "
     LINES["STOPPED"]="${RED}Mysense sensor kit stopped measuring${NOCOLOR}: "
-    echo -e "\n${BOLD}Status info MySense kit${NOCOLOR} ${BLUE}$AKIT${NOCOLOR}:"
+    echo -e "\n****** ${BOLD}Status info MySense kit${NOCOLOR} ${BLUE}$AKIT${NOCOLOR} ******"
     for I in  LOCATION INITIATED NOTICE STOPPED SENSORS NEW COMMENT
     do
       if [ -z "${ATTENT[${AKIT}@$I]}" ] ; then continue ; fi
@@ -258,13 +258,14 @@ function SendEmail() {
     if (( ${NOMAIL:-0} > 0 )) ; then return 0 ; fi
     local SUBJECT="${1:-MySense kit failure message}" ; shift
     local PRE="This is an automatic sent email with MySense kit sensor failure report service ($(PrtCmd)).\nIf you do not want to receive any more notices or want to change your email adress please reply to the sender.\n"
-    PRE+="The report will be reported after 3 days or sooner if new failures are discovered. The overview report will be repeated every week.\n"
     local PREFRST=''
     if [ -s "${1}" ]
-    then
+    then # overview is sent to one or more recepients
+        PRE+="This overview report of failing measurement kits is sent every week.\n"
         CNTNT=${1}   # else read from stdin
         shift
-    else
+    else # from stdin, one kit notice is sent
+        PRE+="If the failure persists this report will be sent again after 3 days or sooner if new failures are discovered.\n"
         CNTNT=/var/tmp/FailReport$$
         cat >$CNTNT
     fi
