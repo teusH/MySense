@@ -9,6 +9,22 @@ Software Infrastructure or framework for managing environmental sensors and data
 ### Outline
 A description of the MySense PyCom based measurement kit, data collection and data visualisation is provided in a presentation at Meetkoppelting20 conference in Amersfoort, Jan 2020. The PDF slides can be found at <a href=""http://behouddeparel.nl/sites/behouddeparel.nl/files/20200125-Koppelting-WAR-Amersfoort.pdf" alt="an How To build a kit and show the results">"Measuring Air Quality in an Agri Region: an How To"</a> (PDF 3 MB).
 
+### Licensing
+   Open Source Initiative  https://opensource.org/licenses/RPL-1.5
+   Unless explicitly acquired and licensed from Licensor under another
+   license, the contents of this file are subject to the Reciprocal Public
+   License ("RPL") Version 1.5, or subsequent versions as allowed by the RPL,
+   and You may not copy or use this file in either source code or executable
+   form, except in compliance with the terms and conditions of the RPL.
+
+   All software distributed under the RPL is provided strictly on an "AS
+   IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, AND
+   LICENSOR HEREBY DISCLAIMS ALL SUCH WARRANTIES, INCLUDING WITHOUT
+   LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
+   language governing rights and limitations under the RPL.
+
+
 ### MySense Raspberry Pi controller
 
 <img src="RPi/images/MySenseCase-Pi.png" align=right height=100>
@@ -70,7 +86,7 @@ Provide a generalised dynamic high quality Open Source based air quality monitor
 * data storage and archiving
 * access for free visualisation of local emissions
 * free availability  of the data
-* free availability of all software (under GPLV3 license, improvements of software remains in the public domain)
+* free availability of all software (under GPLV3 or Open Source reciprocal license, improvements of software remains in the public domain)
 
 The project is run by volunteers on a non-profit basis.
 
