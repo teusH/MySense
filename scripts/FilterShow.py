@@ -4,21 +4,24 @@
 # 
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# To enable further developments is is common in the Open Source world to support a public domain project financially or otherwise. Certainly if your product is based on this type of public domain licensed software.
+# 
+# Licensing: Open Source Initiative  https://opensource.org/licenses/RPL-1.5
+#   Unless explicitly acquired and licensed from Licensor under another
+#   license, the contents of this file are subject to the Reciprocal Public
+#   License ("RPL") Version 1.5, or subsequent versions as allowed by the RPL,
+#   and You may not copy or use this file in either source code or executable
+#   form, except in compliance with the terms and conditions of the RPL.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#   All software distributed under the RPL is provided strictly on an "AS
+#   IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, AND
+#   LICENSOR HEREBY DISCLAIMS ALL SUCH WARRANTIES, INCLUDING WITHOUT
+#   LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+#   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
+#   language governing rights and limitations under the RPL.
 #
 
-# $Id: FilterShow.py,v 2.3 2020/10/09 08:37:57 teus Exp teus $
+# $Id: FilterShow.py,v 3.1 2021/02/27 13:34:36 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -39,7 +42,8 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: FilterShow.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.3 $"[11:-2]
+__version__ = "0." + "$Revision: 3.1 $"[11:-2]
+__License__ = 'Open Source Initiative RPL-1.5'
 
 try:
     import sys
@@ -408,11 +412,11 @@ def rawCleanUp(table, pollutants,period,cleanup=3,db=net):
             datetime.datetime.fromtimestamp(period[1]).strftime('%d %b %Y %H:%M'), \
             totalNulls))
       if totalNulls:
-        qry = 'UPDATE %s SET %s_valid = 0 WHERE isnull(%s) AND UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d AND %s_valid' % \
+        qry = 'UPDATE %s SET %s_valid = NULL WHERE ISNULL(%s) AND UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d AND NOT ISNULL(%s_valid)' % \
             (table, pollutant, pollutant, period[0], period[1], pollutant)
         if not db_query(qry,False,db=net): return False
       # search for static values in this period
-      qry = 'SELECT count(%s), min(UNIX_TIMESTAMP(datum)), max(UNIX_TIMESTAMP(datum)) FROM %s WHERE NOT isnull(%s) AND UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d' % \
+      qry = 'SELECT count(%s), min(UNIX_TIMESTAMP(datum)), max(UNIX_TIMESTAMP(datum)) FROM %s WHERE NOT ISNULL(%s) AND UNIX_TIMESTAMP(datum)>= %d AND UNIX_TIMESTAMP(datum) <= %d' % \
         (pollutant, table, pollutant, period[0], period[1])
       total = db_query(qry, True, db=db)
       if not len(total) or not len(total[0]) or int(total[0][0]) < 15:
@@ -515,7 +519,7 @@ def Zscore(table,pollutant,period,db=net):
             datetime.datetime.fromtimestamp(period[1]).strftime('%d %b %Y %H:%M'), \
             len(data)))
         return None
-    data = np.array([float(data[i][0]) for i in range(0,len(data))])
+    data = np.array([(None if data[i][0] is None else float(data[i][0])) for i in range(0,len(data))])
     result = grubbs(np.array(data),test=test, alpha=alpha, ddof=ddof)
     if result:
         if result['liers']:

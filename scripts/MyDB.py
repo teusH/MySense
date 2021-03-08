@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDB.py,v 4.1 2021/02/07 14:37:26 teus Exp teus $
+# $Id: MyDB.py,v 3.30 2021/02/27 13:45:59 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
@@ -28,7 +28,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 modulename='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 4.1 $"[11:-2]
+__version__ = "0." + "$Revision: 3.30 $"[11:-2]
 
 try:
     import sys
@@ -166,6 +166,7 @@ def CreateSensors():
           ADD COLUMN province VARCHAR(50) DEFAULT NULL,
           ADD COLUMN municipality VARCHAR(50) DEFAULT NULL,
           ADD COLUMN region VARCHAR(20) DEFAULT NULL,
+          ADD COLUMN operational BOOL DEFAULT 1 COMMENT 'generating measurements',
           ADD COLUMN last_check DATETIME DEFAULT CURRENT_TIMESTAMP,
           CHANGE datum datum datetime DEFAULT current_timestamp ON UPDATE current_timestamp
         """, False):
