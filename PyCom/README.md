@@ -4,8 +4,22 @@
 
 Status: *rc1* 2019/02/25
 
-Copyright: 2019, Teus Hagen, Software license GPLV3. Improvements and additions should remain GPLV3 and be sent to the authors.
+Copyright: 2019, Teus Hagen
 To enable further developments is is common in the Open Source world to support a public domain project financially or otherwise. Certainly if your product is based on this type of public domain licensed software.
+
+*Licensing*: Open Source Initiative  https://opensource.org/licenses/RPL-1.5
+   Unless explicitly acquired and licensed from Licensor under another
+   license, the contents of this file are subject to the Reciprocal Public
+   License ("RPL") Version 1.5, or subsequent versions as allowed by the RPL,
+   and You may not copy or use this file in either source code or executable
+   form, except in compliance with the terms and conditions of the RPL.
+
+   All software distributed under the RPL is provided strictly on an "AS
+   IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, AND
+   LICENSOR HEREBY DISCLAIMS ALL SUCH WARRANTIES, INCLUDING WITHOUT
+   LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
+   language governing rights and limitations under the RPL.
 
 Goal: professional DIY durable simple low cost (ca €120) air quality sensor kits.
 
@@ -25,7 +39,7 @@ Comment: here we used the indoor dust sensor Plantower PMS7003. Use for outdoor 
 * PyCom LoPy-4 controller  PYCLOPY4 (Tinytronics  € 35.-)
 * optional LoPy Expansie board 2.0 PYCEXPBOARD3.1 (Tinytronics € 19.-) (development board)
 * alternative is a DIY PCB connector board with 6 Grove connectors (3 TTL and 3 I2C) ca € 10 (incl the  components (mosfet, resisters, pins).
-PCB board has optional components to be able to use solarcel power. See schema and PCB manufacturing mall.
+PCB board has optional components to be able to use solar panel power. See schema, PCB manufacturing mall, and battery guard schema and mall `pwrsafe11`.
 Our PCB has been made by Fontys Venlo GreenTechLab and updated by Land van Cuijk initiative.
 * LoPy-Sigfox antenne kit 868 Mhz PYCLOSIAN868KIT (Tinytronics € 10.50)
 * optional SSD1306 I2C Yellow/Blue 128X64 oled display (AliExpress € 2.23, Tinytronics € 9.50)
@@ -58,6 +72,7 @@ Energy V230 supply (ca € 4):
 or use solarpower if no V230 is available (ca € 100):
 * 12V to 5V step down (ca € 1): e.g. <a href="https://nl.aliexpress.com/item/9V-12V-24V-to-5V-3A-USB-step-down-voltage-regulator-module-DC-DC-Converter-Phone/32815945754.html?spm=a2g0z.search0104.3.58.518b4ea1g4V7Iq&ws_ab_test=searchweb0_0,searchweb201602_3_10065_10068_319_317_10696_10084_453_454_10083_10618_431_10304_10307_10820_10821_10301_537_536_10843_10059_10884_10887_100031_321_322_10103,searchweb201603_2,ppcSwitch_0&algo_expid=ee417a9f-b67e-4414-8df8-60f29a8a5a9e-8&algo_pvid=ee417a9f-b67e-4414-8df8-60f29a8a5a9e&transAbTest=ae803_4">5V USB</a>
 * solar power regulator (ca € 10)  e.g. <a href="https://www.banggood.com/nl/MPPT-5A-Solar-Panel-Regulator-Controller-Battery-Charging-9V-12V-24V-Automatic-Switch-p-1307801.html?gmcCountry=NL&currency=EUR&createTmp=1&utm_source=googleshopping&utm_medium=cpc_bgs&utm_content=frank&utm_campaign=pla-nl-ele-diy-mob-pc&gclid=EAIaIQobChMIubWf7fLj3wIVkoKyCh0okQPrEAQYBCABEgIYaPD_BwE&cur_warehouse=CN">Solar PR</a>
+* battery guard to switch kit off if battery level is too low (DIY € 3). See pwrsafe1 schema.
 Make sure to apply a diode over the power connectors and capacitor as a wild change in solar power or on/off connection may destroy your controller.
 WARNING: without a capacitor (eg 100 uF 16V) the accu/solar combination or loose contact may blow away your controller.
 Make sure to use a good regulator. We measured a peak of 11.4 V on the 5V stepdown regulator in such cases.
@@ -237,6 +252,7 @@ Push and keep it pushed the *user* button on the expansion board first and while
 In the PyCom folder you will see some main scripts. The libraries for the sensor modules are in the lib folder. Copy the main scripts to the 'LoRa/firmware' directory, as well the needed libraries (see the statement *import* in the used scripts) to the *lib* directory. Point *atom* as new project to the configured *firmware* directory and press 'sync' or 'reload' button to load the files into the PyCom controller.
 
 The PyCom board can be accessed to change the firmware either via WiFi (see the lopy-191228 PDF's and PCB manufacturer zip documentation; Contributed by Ad de Jong) and/or USB of the PyCom expansion board.
+To monitor the power level of the battery powered by a solar panel there is a tiny board available which guard overload of the battery and drain of the battery. The regulator switches between 3.2V and 3.8V. See technical schema and zip documentation `pwrsafe1.jpg` and `pwrsafe1.zip` (contributed by Ad de Jong).
 * Debian: make sure you have access to `/dev/ttyACM0` or `/dev/ttyUSB0`. Use the Linux command `lsusb` and see if *Microchip Technology, Inc.* is present. If not see what the problem might be via `/var/log/syslog`. In one occation we had to do create the `/etc/udev/rules.d/49-micropython.rules` with the content:
 ```
 # idVendor=04d8, idProduct=ef98 PyCom
@@ -332,7 +348,7 @@ If not defined or the join did not complete the ABP method will be used with the
 
 The file `Config.py` will show default configuration items in comments. Make sure to define the correct LoRa (The Things Network) keys.
 
-In order to support solarcel as energy source MySense supports the *deepsleep* functionality. In order to do so there are 3 ways to keep the configuration details:
+In order to support solar panel as energy source MySense supports the *deepsleep* functionality. In order to do so there are 3 ways to keep the configuration details:
 * `Config.py` to allow a clean cold start (powerup boot).
 * `a json file in flash memory` to keep track of stable configurations and discovered devices. This allows mainly a warm reboot from eg a deepsleep.
 * `nvs ram` values to survive a powercycle e.g. LoRa keys and counters, different alarm settings.
