@@ -17,21 +17,29 @@
 #   LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 #   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
 #   language governing rights and limitations under the RPL.
+
+# $Id: MyAdmin.py,v 1.2 2021/03/17 14:45:37 teus Exp teus $
+
 __license__ = 'RPL-1.5'
+__modulename__='$RCSfile: MyAdmin.py,v $'[10:-4]
+__version__ = "0." + "$Revision: 1.2 $"[11:-2]
 
-# $Id: MyAdmin.py,v 1.1 2021/03/13 14:33:28 teus Exp teus $
-
-# script to add meta info from json admin file into Sensors and TTNtable
-# measurements database table.
+# script to add  and visualize meta info
+#    from json admin file into Sensors and TTNtable measurements database table
+#    of collect meta info from database Sensors and TTNtable into json format.
 #
 # the measurement kit may update meta data automatically for sensors, ordinates
 # json admin file should be something like:
 # Nominatum Open Streetmap is used to search for missing entries
+#
+# Example and explanation of info for a device node
 #{                                        // optional
 #"bwlvc-9cd5": {                          // TTN topic id
 #    // project and serial are keys in data base to search and store data
 #    "project": "SAN",                    // required project name
 #    "serial": "b4e6d2f94dcc",            // required serial nr measurement kit
+#
+#    // Sensors table info
 #    "label":"bwlvc-9cd5",                // optional for ref uses
 #    "first": "28-05-2020",               // optional first date kit operational
 #    "comment": "MySense V0.5.76",        // optional usual MySense version
@@ -43,7 +51,24 @@ __license__ = 'RPL-1.5'
 #    "meteo": "BME680", "dust": "PMSx003", "gps": "NEO-6", // optional
 #    "description": "hw: abcdefh, automatically updated", // optional
 #
+#    // measurement kit home information is valid (Sensors table)
+#    "active": true,                      // optional
+#
+#    // measurement kit home location details
+#    // home kit GPS coordinates may be overwritten by first measurements kit
+#    // optional if missing street nr, village will be used to define GPS
+#    // internally only geohash (max precision 10) is used for ordinates.
+#    "GPS": { "altitude":18, "latitude":51.604740722, "longitude":5.8702053},
+#    // or
+#    "altitude":18, "latitude":51.604740722, "longitude":5.8702053,
+#    // or "geohash": "u124ghi7",         // geohash precision used is max 10
+#    "street": "Vletweg 7",               // optional may need to find GPS
+#    "village": "Oploo", "pcode": "5481AS", // optional, Nominatum search
+#    "province": "Brabant", "municipality": "Oploo", // optional, Nominatum search
+#
+#    // TTNtable info
 #    // The Things Network details:
+#    "TTNactive": true,                   // accept data from TTN
 #    "TTN_id": "bwlvc-9cd5",              // optional overwrites TTN topic id
 #    // TTN keys ABP or OTAA only for administrative/archiving needs
 #    "DevEui": "AAAAB46EF24DC9D5",        // optional TTN, usualy based on serial
@@ -52,59 +77,160 @@ __license__ = 'RPL-1.5'
 #    "AppEui": "70B3D57ED000A4D3",        // optional TTN app id
 #    "AppSKEY": "C93B59540749288CF75A06084E95550E", // optional TTN secret key
 #
-#    // measurement kit home location details:
-#    // home kit GPS coordinates may be overwritten by first measurements kit
-#    // optional if missing street nr, village will be used to define GPS
-#    // internally only geohash (max precision 10) is used for ordinates.
-#    "GPS": { "altitude":18, "latitude":51.604740722, "longitude":5.8702053},
-#    // or
-#    "altitude":18, "latitude":51.604740722, "longitude":5.8702053,
-#    // or "geohash": "u124ghi7",         // geohash precision used is max 10
-#    "street": "Vletweg 7",              // optional may need to find GPS
-#    "village": "Oploo", "pcode": "5481AS", // optional, Nominatum search
-#    "province": "Brabant", "municipality": "Oploo", // optional, Nominatum search
-#
 #    // data and graphs forwarding details
 #    "website": false,                    // optional, publisize data on website
-#    "active": false,                     // optional, measurements push in DB
-#    "luftdaten.info": false              // optional, forwarding measurements
+#    // valid False: no output to database, None kit is in repair
+#    "valid": true,                       // optional, validate measurements in DB
+#    // sensors.community forwarding
+#    "luftdaten.info": false,             // optional, forwarding measurements
 #    "luftdatenID": "1234567"             // optional if dflt kit serial differs
 #    }
-#}                                        // optional
-
-modulename='$RCSfile: MyAdmin.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.1 $"[11:-2]
+#}
 
 try:
     import sys
-    import os
-    import datetime
-    from time import time
-    import MyGPS
+    import MyDB
 except ImportError as e:
     sys.exit("FATAL: One of the import modules not found: %s"% e)
 
+# columns needed for meta info per DB table of measurement kit
+JsonKeys = {
+    "Sensors": [
+           "project", "serial", "label", "first", "comment", "notice",
+           "description", "sensors", "comment",
+           "coordinates", # deprecated
+           "longitude", "latitude", "altitude", "geohash",
+           "street", "village", "pcode", "province", "municipality", "region",
+           "active",
+        ],
+    "TTNtable": [
+           "valid", # previously called active
+           "TTN_id", "DevEui", "NwkSKEY", "AppEui", "AppSKEY", "DevAdd",
+           "luftdaten.info", "luftdatenID", "TTNactive",
+           "website",
+        ],
+    }
+_JsonKeys = None # columns in tables have been checked?
+_JsonSkip = ["sensors","coordinates","geohash"]
+
+# detect sensor type from hw description and push it to admin json dict
+def HW2Chip(admin,value, verbose=False):
+    global _JsonSkip
+    chipTypes = {  # types of data producers and communication
+        'dust': ['SPS','SDS','PMS',],
+        'meteo': ['BME','SHT','DHT',],
+        'gps': ['NEO',],  # TIME is implicit
+        'net': ['TTN','WIFI',],
+    }
+    hasOnly = None
+    indx = value.find(';hw: ')
+    if not indx: hasOnly = True
+    if indx < 0: return False
+    indx = value[indx+5:]
+    try:
+        indx = indx[:indx.index(';')]
+        hasOnly = False
+    except: pass
+    indx = indx.split(',')
+    rts = False
+    for item, types in chipTypes.items():
+        for one in types:
+          for i in indx:
+            if i[:3].lower() == one.lower():
+              if not item in _JsonSkip:
+                admin[item] = i
+                if verbose:
+                  sys.stderr.write("    %s: %s (sensor type)\n" % (item,i))
+              rts = True
+              break
+        else: continue
+        break
+    if not hasOnly: rts = False  # there is more info do not skip description
+    return rts
+
+def CheckTables(verbose=False, db=None):
+    global _JsonKeys
+    if _JsonKeys: return
+    if not db: db = MyDB
+    if db.Conf['fd'] == None and not db.db_connect():
+        db.Conf['log'](__modulename__,'FATAL','Unable to connect to DB')
+        raise IOError("Database connection fialure")
+
+    for tbl in JsonKeys.keys():
+      cols = []
+      rslts = db.db_query("DESCRIBE %s" % tbl, True)
+      for col in rslts:
+        if str(col[0]) in JsonKeys[tbl]: cols.append(str(col[0]))
+      if verbose:
+        sys.stderr.write("Deprecated columns in table %s: %s\n" % (tbl, ', '.join(list(set(JsonKeys[tbl]).difference(set(cols)))) ))
+      JsonKeys[tbl] = cols
+    _JsonKeys = True
+
+#o collect meta info from Sensors and TTNtable for a measurement kit
+# returns with dict in admin json style
+def getCurInfo(project,serial,db=None, verbose=False):
+    global _JsonSkip
+    import datetime
+    if not db: db = MyDB
+    if db.Conf['fd'] == None and not db.db_connect():
+        db.Conf['log'](__modulename__,'FATAL','Unable to connect to DB')
+        raise IOError("Database connection failure")
+    CheckTables(verbose=verbose,db=db)
+    Admin = {}; TTN_id = ''
+    bools = ['active','website','TTNactive','valid'] # boolean column cell values
+    for tbl in sorted(JsonKeys.keys()):
+        qry = ', '.join(JsonKeys[tbl])
+        add = []
+        if 'geohash' in JsonKeys[tbl]:
+            # JsonKeys[tbl].remove('geohash')
+            if not 'longitude' in JsonKeys[tbl]:
+                add = ['longitude','latitude']
+                qry += ', longitude, latitude'
+            qry = qry.replace('longitude','(IF(ISNULL(geohash),NULL,ST_LongFromGeoHash(geohash)))')
+            qry = qry.replace('latitude','(IF(ISNULL(geohash),NULL,ST_LatFromGeoHash(geohash)))')
+        Rslt = db.db_query("SELECT %s FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY datum DESC, %s DESC LIMIT 1" % (qry, tbl, project, serial,('active' if tbl == 'Sensors' else 'valid')),True)
+        if not Rslt:
+          if verbose: sys.stderr.write("Attent: No database values found in table %s  for project %s, serial %s\n" % (tbl,project,serial))
+          continue
+        if tbl == 'Sensors':
+            TTN_id = Rslt[0][JsonKeys[tbl].index('label')]
+            if verbose:
+              sys.stderr.write('Measurement kit label "%s": label may be overwritten by TTN_id value defined in TTNtable.\n' % str(TTN_id))
+        if verbose: sys.stderr.write("Update info for table %s." % tbl)
+        for key, value in zip(JsonKeys[tbl]+add,Rslt[0]):
+            if value == None and not key in bools: continue
+            if key == 'geohash': # this will hide geohash
+               if verbose: sys.stderr.write("Skip geohash value = %s\n" % str(value))
+               continue
+            if type(value) is datetime.datetime:
+               value = str(value).replace(' 00:00:00','')
+            else: value = str(value) # DB float, int, unicode string, None
+            if key in bools and not value is None: # tinyint conversion to bool
+                value = True if value else False
+            if key == 'TTN_id': TTN_id = value
+            if verbose: sys.stderr.write('    %s: %s\n' % (key,str(value)) )
+            if key == 'description': # ;hw: will indicate sensor types definitions
+                if HW2Chip(Admin,value, verbose=verbose): continue
+                # else output description
+            if not value == None:
+                if not key in _JsonSkip: Admin[key] = value
+            elif key == 'valid': Admin[key] = None  # None says in repair
+    if not Admin: return {}
+    return { TTN_id: Admin }
+            
 # push info dict into tables of DB: Sensors (Sensor kit location info) and TTN LoRa info
 # only used once to ship json info to database
 def putNodeInfo(info,db=None, adebug=False):
-    if not hasattr(putNodeInfo,"DB"):
-        import MyDB    # to di: make MyDB a python class
-        putNodeInfo.DB = MyDB
-        # use default Conf. if defined DBUSER, DBHOST, DBPASS, DB will overwrite
-        MyDB.Conf['output'] = True
-        MyDB.Conf['hostname'] = 'localhost'         # host InFlux server
-        MyDB.Conf['database'] = 'luchtmetingen'     # the MySql db for test usage, must exists
-        MyDB.Conf['user'] = 'IoS'                   # user with insert permission of InFlux DB
-        MyDB.Conf['password'] = 'acacadabra'        # DB credential secret to use InFlux DB
+    import MyGPS
     if not db:
-        db = putNodeInfo.DB
-    # if db is None: raise ValueError("No dabase access routines defined")
+        db = MyDB
+        # use default Conf. if defined DBUSER, DBHOST, DBPASS, DB will overwrite
     if db.Conf['fd'] == None and not db.db_connect():
-        db.Conf['log'](modulename,'FATAL','Unable to connect to DB')
-        exit(1)
+        db.Conf['log'](__modulename__,'FATAL','Unable to connect to DB')
+        raise IOError("Database connection fialure")
     for item in ['project','serial']:
         if not item in info.keys():
-            db.Conf['log'](modulename,'ERROR','Node info has no key item %s: %s' % (item,str(info)))
+            db.Conf['log'](__modulename__,'ERROR','Node info has no key item %s: %s' % (item,str(info)))
             return False
 
     # convert special cases
@@ -118,7 +244,7 @@ def putNodeInfo(info,db=None, adebug=False):
           try:
             info[item] = int(mktime(parse(info[item], dayfirst=True, yearfirst=False).timetuple()))
           except ValueError:
-            db.Conf['log'](modulename,'ERROR', 'Unable to parse date %s from node info: %s. SKIPPED.' % (info[item],str(info)))
+            db.Conf['log'](__modulename__,'ERROR', 'Unable to parse date %s from node info: %s. SKIPPED.' % (info[item],str(info)))
             return False
 
     # handle home location, search missing info location items
@@ -148,13 +274,13 @@ def putNodeInfo(info,db=None, adebug=False):
     sensors = []; descript = []    # convert sensor types to ;hw: string
     if 'description' in info.keys():
         descript = info['description'].split(';')
-    for item in ('dust','meteo','gps'):
+    for item in ('dust','meteo','gps','net'):
         try:
           sensors.append(info[item].upper().strip())
           if item == 'gps' and info[item]: sensors.append('TIME')
         except: pass
+    if len(sensors):  # add used sensor types into Sensors description
         sensors.sort()
-    if len(sensors):
         for i in range(len(descript)-1,-1,-1):
             descript[i] = descript[i].strip()
             if descript[i].find('hw:') >= 0  or not descript[i]:
@@ -181,7 +307,7 @@ def putNodeInfo(info,db=None, adebug=False):
             extra = ', pcode, street, active, geohash, altitude'
 
         # get latest info from database to check need to update meta and access info
-        rts = db.db_query("SELECT UNIX_TIMESTAMP(id)%s FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % (extra,table,info['project'],info['serial']), True)
+        rts = db.db_query("SELECT UNIX_TIMESTAMP(id)%s FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY %s DESC, datum DESC LIMIT 1" % (extra,table,info['project'],info['serial'],('active' if table == 'Sensors' else 'valid')), True)
         # only for Sensors database table, there is an entry in the Sensors table
         if len(rts) and table == 'Sensors':
             # may need new entry if location changed (use geohash for aproximate)
@@ -217,7 +343,7 @@ def putNodeInfo(info,db=None, adebug=False):
                 # deactivate previous entry
                 query = "UPDATE Sensors set active = 0 WHERE id = FROM_UNIXTIME(%s)" % id
                 if adebug:
-                  print("Could update DB Sensors qry: %s" % query)
+                  sys.stderr.write("Could update DB Sensors qry: %s\n" % query)
                 else:
                   db.db_query(query, False)
                   flds = ','.join(list(set(db.TableColumns('Sensors')) - set(['street','pcode','village','municipality','region','geohash','altitude','active','datum','id']))) # default active = True
@@ -228,17 +354,17 @@ def putNodeInfo(info,db=None, adebug=False):
             except: pass  
 
         if not len(rts): # insert a new row entry
-            db.Conf['log'](modulename,'ATTENT','Insert new entry in %s table for %s/%s.' % (table,info['project'],info['serial']))
+            db.Conf['log'](__modulename__,'ATTENT','Insert new entry in %s table for %s/%s.' % (table,info['project'],info['serial']))
             query = "INSERT INTO %s (datum, project, serial, active) VALUES(now(),'%s','%s',%d)" % (table,info['project'],info['serial'], 1 if 'active' in info.keys() and info['active'] else 0)
             if adebug:
-              print("Could change DB with: %s" % query); rts = [(1001,)]
+              sys.stderr.write("Could change DB with: %s\n" % query); rts = [(1001,)]
             else:
               sleep(2) # make sure id timestamp is unique
               # TO DO: new entry in TTNtable with default values?
               if not db.db_query(query, False):
-                db.Conf['log'](modulename,'ERROR','Cannot insert new row in table %s for project %s, serial %s' % (table,info['project'],info['serial']))
+                db.Conf['log'](__modulename__,'ERROR','Cannot insert new row in table %s for project %s, serial %s' % (table,info['project'],info['serial']))
                 continue
-              rts = db.db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY active DESC, datum DESC LIMIT 1" % (table,info['project'],info['serial']), True)
+              rts = db.db_query("SELECT UNIX_TIMESTAMP(id) FROM %s WHERE project = '%s' AND serial = '%s' ORDER BY %s DESC, datum DESC LIMIT 1" % (table,info['project'],info['serial'],('active' if table == 'Sensors' else 'valid')), True)
 
         qry = []
         for item in (set(db.TableColumns(table)) & set(info.keys())) - set(['project','serial','id']):
@@ -248,62 +374,173 @@ def putNodeInfo(info,db=None, adebug=False):
             #    qry.append("%s = NULL" % item)  # deprecated
             #    continue
             elif type(info[item]) is int:
-              qry.append( "%s = %d" % (item,info[item]))
+              qry.append( "%s = %d" % (str(item),info[item]))
             elif type(info[item]) is bool:
-              qry.append( "%s = %d" % (item, (1 if info[item] else 0)))
+              qry.append( "%s = %d" % (str(item), (1 if info[item] else 0)))
+            elif type(info[item]) is list:
+              qry.append("%s = '%s'" % (str(item),','.join(info[item])))
             elif info[item]: 
-              qry.append("%s = '%s'" % (item,info[item]))
-            else: qry.append("%s = NULL" % item)
+              qry.append("%s = '%s'" % (str(item),info[item]))
+            else: qry.append("%s = NULL" % str(item))
         if not len(qry): continue
         update = "UPDATE %s SET %s WHERE UNIX_TIMESTAMP(id) = %d" % (table,', '.join(qry),rts[0][0])
-        if adebug: print("Could update DB Sensors qry: %s" % update)
+        if adebug: sys.stderr.write("Could update DB Sensors qry: %s\n" % update)
         else:
           if not db.db_query(update, False):
-            db.Conf['log'](modulename,'ERROR','Updating node info (%s) for %s SN %s' % (', '.join(qry),info['project'],info['serial']))
+            db.Conf['log'](__modulename__,'ERROR','Updating node info (%s) for %s SN %s' % (', '.join(qry),info['project'],info['serial']))
     # To Do: "UNLOCK TABLES"
     return True
     
+# get a list of measurement kits which match a pattern by project/serial or label
+def getList(pattern,db=None,active=False,label=False):
+    if not db: db = MyDB
+    if db.Conf['fd'] == None and not db.db_connect():
+        db.Conf['log'](__modulename__,'FATAL','Unable to connect to DB')
+        raise IOError("Database connection fialure")
+    Rts = []
+    import re
+    ptrn = re.compile(pattern, re.I)
+    for one in db.db_query("SELECT CONCAT(project,'_',serial), label FROM Sensors%s" % (' WHERE active' if active else ''),True):
+      if label: match = ptrn.match(one[1])
+      else: match = ptrn.match(one[0])
+      if match and not one[0] in Rts: Rts.append(one[0])
+    return Rts
+
+# show difference between two json admin dicts for a device node
+def showDifference(prev, updated):
+    if not updated: return False
+    rts = False
+    for node in updated.keys():
+        if not node in prev.keys():
+          sys.stderr.write("**** New entry: %s\n" % node)
+          for item, value in sorted(updated[node].items()):
+            sys.stderr.write("    %s: %s\n" % (item, value))
+            rts = True
+          continue
+        sys.stderr.write("---- Updated entry: %s\n" % node)
+        for item in list(set(prev[node].keys())|set(updated[node].keys())):
+          val1 = None; val2 = None
+          if item in prev[node].keys(): val1 = str(prev[node][item])
+          if item in updated[node].keys(): val2 = str(updated[node][item])
+          if val1 == val2: continue
+          sys.stderr.write("  %s: '%15.15s' -> '%s'\n" % (item,val1,val2))
+          rts = True
+    return rts
+
 # test main loop
 if __name__ == '__main__':
-    from time import sleep
-    if not len(sys.argv) > 1: exit(0)
+   from os import path
+   verbose = False
+   jsonOut = False
+   active = True
+   label = False
+   showDiff = True
+   help = """
+   Command: python %s [arg] ...
+   --help    | -h       This message
+   --verbose | -v       Be more verbose (std err channel)
+   --output  | -o       Output json records on stdout in pretty print
+   --output=filename    Output json records on file in pretty print
+   --all     | -a       Also List not active measurement kits in search
+   --label   | -l       Search by label not by PROJECTid_SERIALnr
+   --nodiff  | -n       Do not show update json admin diffs (default: show)
 
-    # get nodes info from a json file and update node info to DB
-    if  sys.argv[1:][0] != 'test':
-        from jsmin import jsmin     # tool to delete comments and compress json
-        import json
-        try:
-            new = {}
-            with open(sys.argv[1:][0]) as _typeOfJSON:
-                print('Importing nodes from json file %s' % sys.argv[1:][0])
-                new = jsmin(_typeOfJSON.read())
-            if new[0] != '{': new = '{' + new + '}'
-            new = new.replace(",}","}") # python style dict to json style
-            new = json.loads(new)
-        except IOError:
-            print('WARNING No node json file %s found' % sys.argv[1:][0])
-            exit(1)
-        except ValueError as e:
-            print('ERROR Json error in admin nodes file %s: %s' % (sys.argv[1:][0],e))
-            exit(1)
-        # if not MyDB.db_connect():
-        #     print('ERROR Unable to connect to DB via Conf: %s' % str(Conf))
-        #     exit(1)
-        for item in new.items():
-            print('Importing node info for node %s' % item[0])
-            if not 'TTN_id' in item[1].keys(): item[1]['TTN_id'] = item[0]
-            if not putNodeInfo(item[1]):
-                print('ERROR importing node %s info to DB' % item[0])
-        exit(0)
+   Import meta information from so called json admin file into Sensors and TTNtable
+   of measurements database.
+   Or if not a file show meta info from meta info tables as json admin.
+   In this case use argument <project expresion>_<serial expression>.
+   E,g. SAN_123.* (all 12.* serials in project SAN, or .* (all kit info.
 
-    print("TEST modus with test measurement data.")
+   Output json records are in pretty print. Default (None/NULL) database
+   values are not defined in the json file.
+""" % __modulename__
+   argv = []
+   for i in range(1,len(sys.argv)):
+     if sys.argv[i] in ['--help', '-h']:      # help, how to use CLI
+       sys.stderr.write(help); exit(0)
+     elif sys.argv[i] in ['--verbose', '-v']: # be more verbose
+       verbose = True
+     elif sys.argv[i][:9] == '--output=': # be more verbose
+       jsonOut = sys.argv[i][10:]
+     elif sys.argv[i] in ['--output', '-o']:  # output json records
+       jsonOut = True
+     elif sys.argv[i] in ['--all', '-a']:     # only json Sensors active records
+       active = False
+     elif sys.argv[i] in ['--nodiff', '-n']:  # show admin json differences on update
+       showDiff = False
+     elif sys.argv[i] in ['--label', '-l']:  # json records with label search
+       label = True
+     elif sys.argv[i][0] == '-':             # unsupported option
+       sys.exit("Unsupported option %s. Try: %s --help" % (sys.argv[i],sys.argv[0]))
+     else: argv.append(sys.argv[i])
 
-    for i in range(1,len(sys.argv)):
-        if sys.argv[i] == 'TTN':
-            print(Topic2IDs("applicaties/gtl-kipster-k1"))
-            continue
-        if sys.argv[i] == 'Sensors':
-            print(getNodeFields(0,['street','municipality'], project="KIP", serial="788d27294ac5"))
-            print(getNodeFields(0,['TTN_id','datum'], table='TTNtable', project="KIP", serial="788d27294ac5"))
-            continue
-    
+   # MyDB.Conf['output'] = True
+   # MyDB.Conf['hostname'] = 'localhost'         # host InFlux server
+   if not MyDB.Conf['database']:
+     MyDB.Conf['database'] = 'luchtmetingen'     # the MySql db for test usage, must exists
+   # MyDB.Conf['user'] = 'IoS'                   # user with insert permission of InFlux DB
+   # MyDB.Conf['password'] = 'acacadabra'        # DB credential secret to use InFlux DB
+   if not verbose: MyDB.Conf['level'] = 'WARNING' # log level less verbose
+
+   output = {}
+   for one in argv:
+     if path.exists(one):
+       # get nodes info from a json file and update node info to DB
+       from jsmin import jsmin     # tool to delete comments and compress json
+       import json
+       try:
+         new = {}
+         with open(one) as _typeOfJSON:
+           sys.stderr.write('Importing nodes from json file %s\n' % sys.argv[1:][0])
+           new = jsmin(_typeOfJSON.read())
+         if new[0] != '{': new = '{' + new + '}'
+         new = new.replace(",}","}") # python style dict to json style
+         new = json.loads(new)
+       except IOError:
+         sys.stderr.write('WARNING No node json file %s found\n' % sys.argv[1:][0])
+         continue
+       except ValueError as e:
+         sys.stderr.write('ERROR Json error in admin nodes file %s: %s\n' % (sys.argv[1:][0],e))
+         continue
+       # if not MyDB.db_connect():
+       #     sys.exit('ERROR Unable to connect to DB via Conf: %s\n' % str(Conf))
+       for item in new.items():
+         sys.stderr.write('Importing node info for node %s\n' % item[0])
+         if not 'TTN_id' in item[1].keys(): item[1]['TTN_id'] = item[0]
+         if not 'project' in item[1].keys() or not 'serial' in item[1].keys():
+           sys.stderr.write("No project/serial of measurekit labeled as '%s' defined. Skipped." % item[0])
+           continue
+         prev = {}
+         if verbose: sys.stderr.write("Most Recent entry for '%s':\n" % item[0])   
+         if showDiff or verbose:
+           prev = getCurInfo(item[1]['project'],item[1]['serial'],db=MyDB, verbose=verbose)
+         if not putNodeInfo(item[1],db=MyDB):
+           sys.stderr.write('ERROR importing node %s info to DB\n' % item[0])
+         elif verbose:
+           sys.stderr.write("Updated entry for '%s':\n" % item[0])   
+         if verbose or jsonOut or showDiff:
+           updated = getCurInfo(item[1]['project'],item[1]['serial'],db=MyDB, verbose=verbose)
+           if not updated:
+             sys.stderr.write("ATTENT: empty json info for %s/%s\n" % (item[1]['project'],item[1]['serial']))
+             continue
+           if jsonOut: output.update(updated)
+           if showDiff and not showDifference(prev,updated):
+             try:
+               sys.stderr.write("ATTENT: no changes in DB for project %s, serial %s with label %s\n" % (item[1]['project'],item[1]['serial'],item[1]['label']))
+             except: pass
+           updated = {}
+       continue
+     else: # information is needed for a measurement(s) kit defined as pattern
+       for item in getList(one,db=MyDB,active=active,label=label):
+         output.update(getCurInfo(item.split('_')[0],item.split('_')[1],db=MyDB, verbose=verbose))
+         if not jsonOut: output = {}
+
+   if output:
+     import json
+     if type(jsonOut) is str:
+       jsonOut = open(jsonOut,'w')
+       jsonOut.write(json.dumps(output, indent=2, sort_keys=True))
+       jsonOut.close()
+     else: # to stdout
+       print(json.dumps(output, indent=2, sort_keys=True))
+        
