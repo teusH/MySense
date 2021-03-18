@@ -18,11 +18,11 @@
 #   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
 #   language governing rights and limitations under the RPL.
 
-# $Id: MyAdmin.py,v 1.2 2021/03/17 14:45:37 teus Exp teus $
+# $Id: MyAdmin.py,v 1.3 2021/03/18 14:08:22 teus Exp teus $
 
-__license__ = 'RPL-1.5'
+__license__   = 'RPL-1.5'
 __modulename__='$RCSfile: MyAdmin.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__   = "0." + "$Revision: 1.3 $"[11:-2]
 
 # script to add  and visualize meta info
 #    from json admin file into Sensors and TTNtable measurements database table
@@ -35,55 +35,67 @@ __version__ = "0." + "$Revision: 1.2 $"[11:-2]
 # Example and explanation of info for a device node
 #{                                        // optional
 #"bwlvc-9cd5": {                          // TTN topic id
-#    // project and serial are keys in data base to search and store data
-#    "project": "SAN",                    // required project name
-#    "serial": "b4e6d2f94dcc",            // required serial nr measurement kit
-#
-#    // Sensors table info
-#    "label":"bwlvc-9cd5",                // optional for ref uses
-#    "first": "28-05-2020",               // optional first date kit operational
-#    "comment": "MySense V0.5.76",        // optional usual MySense version
-#    // event and notices methods: via email and/or Slack notices. Comma separated
-#    "notice": "email:sensor <sensor@mail.com>", // optional
-#
-#    // sensors types may be overwritten by measurement kit first use
-#    // support for: BME280, BME680, SHT31, SDS011, SPS30, PMS?003
-#    "meteo": "BME680", "dust": "PMSx003", "gps": "NEO-6", // optional
-#    "description": "hw: abcdefh, automatically updated", // optional
-#
-#    // measurement kit home information is valid (Sensors table)
-#    "active": true,                      // optional
-#
-#    // measurement kit home location details
-#    // home kit GPS coordinates may be overwritten by first measurements kit
-#    // optional if missing street nr, village will be used to define GPS
-#    // internally only geohash (max precision 10) is used for ordinates.
-#    "GPS": { "altitude":18, "latitude":51.604740722, "longitude":5.8702053},
-#    // or
-#    "altitude":18, "latitude":51.604740722, "longitude":5.8702053,
-#    // or "geohash": "u124ghi7",         // geohash precision used is max 10
-#    "street": "Vletweg 7",               // optional may need to find GPS
-#    "village": "Oploo", "pcode": "5481AS", // optional, Nominatum search
-#    "province": "Brabant", "municipality": "Oploo", // optional, Nominatum search
-#
-#    // TTNtable info
-#    // The Things Network details:
-#    "TTNactive": true,                   // accept data from TTN
-#    "TTN_id": "bwlvc-9cd5",              // optional overwrites TTN topic id
-#    // TTN keys ABP or OTAA only for administrative/archiving needs
-#    "DevEui": "AAAAB46EF24DC9D5",        // optional TTN, usualy based on serial
-#    "NwkSKEY": "A...", "DevAdd": "A...", // ABP case, optional for TTN ABP use
-#    // OTAA LoRa keys
-#    "AppEui": "70B3D57ED000A4D3",        // optional TTN app id
-#    "AppSKEY": "C93B59540749288CF75A06084E95550E", // optional TTN secret key
-#
-#    // data and graphs forwarding details
-#    "website": false,                    // optional, publisize data on website
-#    // valid False: no output to database, None kit is in repair
-#    "valid": true,                       // optional, validate measurements in DB
-#    // sensors.community forwarding
-#    "luftdaten.info": false,             // optional, forwarding measurements
-#    "luftdatenID": "1234567"             // optional if dflt kit serial differs
+JsonBeatyPrt = [
+     # sorted, (key,example,comment)
+     (None,None,"// project and serial are keys in data base to search and store data"),
+     ("project","SAN","\t// required project name"),
+     ("serial","b4e6d2f94dcc","\t// required serial nr measurement kit"),
+     (None,None,None),
+     (None,None,"// Sensors table info"),
+     ("label","bwlvc-9cd5","\t// optional for ref uses"),
+     ("first","28-05-2020","\t// optional first date kit operational"),
+     ("comment","MySense V0.5.76","\t// optional usual MySense version"),
+     (None,None,"// event and notices methods: via email and/or Slack notices. Comma separated"),
+     ("notice","email:sensor <sensor@mail.com>","\t// optional"),
+     (None,None,None),
+     (None,None,"// sensors types may be overwritten by measurement kit first use"),
+     (None,None,"// support for: BME280, BME680, SHT31, SDS011, SPS30, PMS?003i"),
+     ("meteo","BME680","\t// optional type of meteo sensor"),
+     ("dust","PMSx003","\t// optional type of dust sensor"),
+     ("gps","NEO-6","\t// optional type of GPS chip eg NEO-6"),
+     ("net","TTN","\t// optional type of connectivity TTN, WIFI"),
+     ("description","temp(degrees celsius","\t// ... automatically updated, optional"),
+     (None,None,None),
+     (None,None,"// measurement kit home information is valid (Sensors table)"),
+     ("active",'true',"\t// optional"),
+     (None,None,None),
+     (None,None,'// measurement kit home location details'),
+     (None,None,'// home kit GPS coordinates may be overwritten by first measurements kit'),
+     (None,None,'// optional if missing street nr, village will be used to define GPS'),
+     (None,None,'// internally only geohash (max precision 10) is used for ordinates.'),
+     (None,None,'// deprecated ("GPS",{ "altitude":13, "latitude":51.6040722, "longitude":5.02053}'),
+     ("altitude","8","\t// in meters, optional"),
+     (None,None,"// GPS is search for via street, village if defined. geohash will be calculated from long/lat ordinates."),
+     ("longitude","5.8702053","\t// optional, -180,180 degrees in decimal"),
+     ("latitude","51.604740722","\t// optional, -90,90 degrees in decimal"),
+     ("geohash","u124ghi7","\t// optional, geohash precision used is max 10"),
+     (None,None,"// searched for via Nominated via GPS"),
+     ("street","Vletweg 7","\t// optional may need to find GPS"),
+     ("village","Oploo","\t// optional may need to find GPS"),
+     ("pcode","5481AS","\t// optional, Nominatum search"),
+     ("province","Brabant","\t// optional"),
+     ("municipality","Oploo","\t// optional, searched for via Nominatum"),
+     (None,None,None),
+     (None,None,"// TTNtable info"),
+     (None,None,"// The Things Network details:"),
+     ("TTNactive",'true',"\t// accept data from TTN"),
+     ("TTN_id","bwlvc-9cd5","\t// optional overwrites TTN topic id"),
+     (None,None,"// TTN keys ABP or OTAA only for administrative/archiving needs"),
+     ("DevEui","AAAAB46EF24DC9D5","\t// optional TTN, usualy based on serial"),
+     ("NwkSKEY","AC93B59540749288CF75A06084E95550","\t// ABP key optional"),
+     ("DevAdd","70B3D57ED000A4D3","\t// ABP optional"),
+     (None,None,"// OTAA LoRa keys:"),
+     ("AppEui","70B3D57ED000A4D3","\t// optional TTN app id"),
+     ("AppSKEY","C93B59540749288CF75A06084E95550E","\t// optional TTN secret key"),
+     (None,None,None),
+     (None,None,"// data and graphs forwarding details"),
+     ("website",'false',"\t// optional, publisize data on website"),
+     (None,None,"// valid False: no output to database, None kit is in repair"),
+     ("valid",'true',"\t// optional, validate measurements in DB"),
+     (None,None,"// sensors.community forwarding"),
+     ("luftdaten.info",'false',"\t// optional, forwarding measurements"),
+     ("luftdatenID","1234567","\t// optional if dflt kit serial differs"),
+     ]
 #    }
 #}
 
@@ -457,7 +469,17 @@ if __name__ == '__main__':
    argv = []
    for i in range(1,len(sys.argv)):
      if sys.argv[i] in ['--help', '-h']:      # help, how to use CLI
-       sys.stderr.write(help); exit(0)
+       sys.stderr.write(help)
+       sys.stderr.write('Example of json admin record:\n{ "TTN_ID": {\n')
+       for key, example, comment in JsonBeatyPrt:
+         try:
+           if key: sys.stderr.write('    "'+key+'": ')
+           if example: sys.stderr.write('"'+example+'",')
+           if comment: sys.stderr.write(comment)
+           sys.stderr.write("\n")
+         except: pass
+       sys.stderr.write("\n\tnull }\n")
+       exit(0)
      elif sys.argv[i] in ['--verbose', '-v']: # be more verbose
        verbose = True
      elif sys.argv[i][:9] == '--output=': # be more verbose
