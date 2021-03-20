@@ -18,11 +18,11 @@
 #   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
 #   language governing rights and limitations under the RPL.
 
-# $Id: MyAdmin.py,v 1.3 2021/03/18 14:08:22 teus Exp teus $
+# $Id: MyAdmin.py,v 1.5 2021/03/20 17:28:42 teus Exp teus $
 
 __license__   = 'RPL-1.5'
 __modulename__='$RCSfile: MyAdmin.py,v $'[10:-4]
-__version__   = "0." + "$Revision: 1.3 $"[11:-2]
+__version__   = "0." + "$Revision: 1.5 $"[11:-2]
 
 # script to add  and visualize meta info
 #    from json admin file into Sensors and TTNtable measurements database table
@@ -32,72 +32,71 @@ __version__   = "0." + "$Revision: 1.3 $"[11:-2]
 # json admin file should be something like:
 # Nominatum Open Streetmap is used to search for missing entries
 #
-# Example and explanation of info for a device node
-#{                                        // optional
-#"bwlvc-9cd5": {                          // TTN topic id
-JsonBeatyPrt = [
-     # sorted, (key,example,comment)
-     (None,None,"// project and serial are keys in data base to search and store data"),
-     ("project","SAN","\t// required project name"),
-     ("serial","b4e6d2f94dcc","\t// required serial nr measurement kit"),
-     (None,None,None),
-     (None,None,"// Sensors table info"),
-     ("label","bwlvc-9cd5","\t// optional for ref uses"),
-     ("first","28-05-2020","\t// optional first date kit operational"),
-     ("comment","MySense V0.5.76","\t// optional usual MySense version"),
-     (None,None,"// event and notices methods: via email and/or Slack notices. Comma separated"),
-     ("notice","email:sensor <sensor@mail.com>","\t// optional"),
-     (None,None,None),
-     (None,None,"// sensors types may be overwritten by measurement kit first use"),
-     (None,None,"// support for: BME280, BME680, SHT31, SDS011, SPS30, PMS?003i"),
-     ("meteo","BME680","\t// optional type of meteo sensor"),
-     ("dust","PMSx003","\t// optional type of dust sensor"),
-     ("gps","NEO-6","\t// optional type of GPS chip eg NEO-6"),
-     ("net","TTN","\t// optional type of connectivity TTN, WIFI"),
-     ("description","temp(degrees celsius","\t// ... automatically updated, optional"),
-     (None,None,None),
-     (None,None,"// measurement kit home information is valid (Sensors table)"),
-     ("active",'true',"\t// optional"),
-     (None,None,None),
-     (None,None,'// measurement kit home location details'),
-     (None,None,'// home kit GPS coordinates may be overwritten by first measurements kit'),
-     (None,None,'// optional if missing street nr, village will be used to define GPS'),
-     (None,None,'// internally only geohash (max precision 10) is used for ordinates.'),
-     (None,None,'// deprecated ("GPS",{ "altitude":13, "latitude":51.6040722, "longitude":5.02053}'),
-     ("altitude","8","\t// in meters, optional"),
-     (None,None,"// GPS is search for via street, village if defined. geohash will be calculated from long/lat ordinates."),
-     ("longitude","5.8702053","\t// optional, -180,180 degrees in decimal"),
-     ("latitude","51.604740722","\t// optional, -90,90 degrees in decimal"),
-     ("geohash","u124ghi7","\t// optional, geohash precision used is max 10"),
-     (None,None,"// searched for via Nominated via GPS"),
-     ("street","Vletweg 7","\t// optional may need to find GPS"),
-     ("village","Oploo","\t// optional may need to find GPS"),
-     ("pcode","5481AS","\t// optional, Nominatum search"),
-     ("province","Brabant","\t// optional"),
-     ("municipality","Oploo","\t// optional, searched for via Nominatum"),
-     (None,None,None),
-     (None,None,"// TTNtable info"),
-     (None,None,"// The Things Network details:"),
-     ("TTNactive",'true',"\t// accept data from TTN"),
-     ("TTN_id","bwlvc-9cd5","\t// optional overwrites TTN topic id"),
-     (None,None,"// TTN keys ABP or OTAA only for administrative/archiving needs"),
-     ("DevEui","AAAAB46EF24DC9D5","\t// optional TTN, usualy based on serial"),
-     ("NwkSKEY","AC93B59540749288CF75A06084E95550","\t// ABP key optional"),
-     ("DevAdd","70B3D57ED000A4D3","\t// ABP optional"),
-     (None,None,"// OTAA LoRa keys:"),
-     ("AppEui","70B3D57ED000A4D3","\t// optional TTN app id"),
-     ("AppSKEY","C93B59540749288CF75A06084E95550E","\t// optional TTN secret key"),
-     (None,None,None),
-     (None,None,"// data and graphs forwarding details"),
-     ("website",'false',"\t// optional, publisize data on website"),
-     (None,None,"// valid False: no output to database, None kit is in repair"),
-     ("valid",'true',"\t// optional, validate measurements in DB"),
-     (None,None,"// sensors.community forwarding"),
-     ("luftdaten.info",'false',"\t// optional, forwarding measurements"),
-     ("luftdatenID","1234567","\t// optional if dflt kit serial differs"),
+# Example and explanation of info for dict keys in a device node record
+# This also defines the supported keys in MySense meta node info
+import re
+JsonBeautyPrt = [
+     # sorted, (key,example,comment,default,type value, reg. expression)
+     # regular expression is used for value evaluation
+     (None,None,"project and serial are keys in data base to search and store data",None,None,None),
+     ("project","SAN","required project name",None,str,re.compile(r'^\w{3,6}$',re.I)),
+     ("serial","b4e6d2f94dcc","required serial nr measurement kit", None,str,re.compile(r'[a-f\d]{6,15}',re.I)),
+     (None,None,None,None,None,None),
+     (None,None,"Sensors table info",None,None,None),
+     ("label","bwlvc-9cd5","optional for ref uses. Dflt empty.",None,str,re.compile(r'^\w{2,}-?[a-z\d]*$',re.I)),
+     ("first","28-05-2020","first date kit operational.","Optional. Dflt current date.",str,re.compile(r'\d{2,4}-\d{2}-\d{2,4}(\s\d{2}:\d{2}(:\d{2})?)?')),
+     ("comment","MySense V0.5.76","usual MySense version.","Optional. Dflt empty.",str,None),
+     (None,None,"event and notices methods: via email and/or Slack notices. Comma separated",None,None,None),
+     ("notice","email:sensor <sensor@mail.com>","Send events to","Optional. Dflt empty.",str,re.compile(r'^(((email:([^<]*<)*\w+[\w\.\-]+@([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}>?|slack:\s*slack:hooks.slack.com/services/\w{10-25}){1,})[\s,]*)+$',re.I)),
+     (None,None,None,None,None,None),
+     (None,None,"sensors types may be overwritten by measurement kit first use",None,None,None),
+     (None,None,"support for: BME280, BME680, SHT31, SDS011, SPS30, PMS?003i",None,None,None),
+     ("meteo","BME680","type of meteo sensor.","Optional. Dflt empty.",str,re.compile(r'^(BME[26]80|SHT3\d|DHT\d\d)$',re.I)),
+     ("dust","PMSx003","type of dust sensor.","Optional. Dflt empty.",str,re.compile(r'^(SDS011|SPS3\d|PMS\w003\w*)$',re.I)),
+     ("gps","NEO-6","type of GPS chip eg NEO-6.","Optional. Dflt empy.",str,re.compile(r'NEO(-6)?',re.I)),
+     ("net","TTN","type of connectivity TTN, WIFI.","Optional. Dflt TTN.",str,re.compile(r'^(TTN|WiFi)$',re.I)),
+     ("description","temp(C),rv(%),luchtdruk(hPa),gas(kOhm),aqi(%),...","... automatically updated","Optional. Dflt empty.",str,None),
+     (None,None,None,None,None,None),
+     (None,None,"measurement kit home information is valid (Sensors table)",None,None,None),
+     ("active",False,"operational","Optional. Dflr true.",bool,None),
+     (None,None,None,None,None,None),
+     (None,None,'measurement kit home location details',None,None,None),
+     (None,None,'home kit GPS coordinates may be overwritten by first measurements kit',None,None,None),
+     (None,None,'if missing street nr, village will be used to define GPS',None,None,None),
+     (None,None,'internally only geohash (max precision 10) is used for ordinates.',None,None,None),
+     (None,None,'deprecated ("GPS",{ "altitude":13, "latitude":51.6040722, "longitude":5.02053}',None,None,None),
+     ("altitude",8,"in meters","Optional. Dflt 0.",float,None),
+     (None,None,"GPS is search for via street, village if defined. geohash will be calculated from long/lat ordinates.",None,None,None),
+     ("longitude",5.8702053,"ordinate -180,180 degrees in decimal","Optional. Dflt from street/village.",float,None),
+     ("latitude",51.604740722,"ordinate -90,90 degrees in decimal","Optonal. Dflt from street/village.",float,None),
+     ("geohash","u124ghi7","geohash precision used is max 10. Calculated from ordinates","Optional. Dflt from ordinates.",str,re.compile(r'^[a-z0-9]{6,12}$')),
+     (None,None,"searched for via Nominated via GPS",None,None,None),
+     ("street","Veeweg 7","may be searched from GPS","Optional. Dflt from geohash.",str,re.compile(r'^[\w]+(\s+[\w\-]+)*(\s+\d+[a-z]*)*$',re.I)),
+     ("village","Oploo","may be searched from GPS","Optional. Dflt from geohash.",str,re.compile(r'^\w+(\s+\w+)*$',re.I)),
+     ("pcode","5481AS","may be searched from Nominatum","Optional. Dflt from geohash.",str,re.compile(r'^\d{4}\s?[A-Z]{2}$',re.I)),
+     ("province","Brabant","state may be search from Nominatum", "Optional. Dflt from geohash.",str,re.compile(r'^[A-Z]+$',re.I)),
+     ("municipality","Oploo","searched via Nominatum","Optional. Dflt from geohash.",str,re.compile(r'^\w+(\s+\w+)*$',re.I)),
+     (None,None,None,None,None,None),
+     (None,None,"TTNtable info",None,None,None),
+     (None,None,"The Things Network details:",None,None,None),
+     ("TTNactive",True,"accept data from TTN","Optional. Dflt true",bool,None),
+     ("TTN_id","bwlvc-9cd5","defines TTN topic id","Optional. Dflt from record key.",str,re.compile(r'([a-f\d]{6,14}|lopy.*\d+)$',re.I)),
+     (None,None,"TTN keys ABP or OTAA only for administrative/archiving needs",None,None,None),
+     ("DevEui","AAAAB46EF24DC9D5","optional TTN, usualy based on serial","Optional. Dflt empty.",str,re.compile(r'[A-F\d]{16}$')),
+     ("NwkSKEY","AC93B59540749288CF75A06084E95550","ABP key","Optional. Dflt empty.",str,re.compile(r'[A-F\d]{32}$')),
+     ("DevAdd","70B3D57ED000A4D3","ABP device address","Optional. Dflt empty.",str,re.compile(r'^[A-F\d]{16}$')),
+     (None,None,"OTAA LoRa keys:",None,None,None),
+     ("AppEui","70B3D57ED000A4D3","TTN app id","Optional. Dflt empty.",str,re.compile(r'^[A-F\d]{16}$',re.I)),
+     ("AppSKEY","C93B59540749288CF75A06084E95550E","TTN secret key","Optional. Dflt empty.",str,re.compile(r'^[A-F\d]{32}$',re.I)),
+     (None,None,None,None,None,None),
+     (None,None,"data and graphs forwarding details",None,None,None),
+     ("website",False,"publisize data on website","Optional. Dflt false.",bool,None),
+     (None,None,"valid False: no output to database, None kit is in repair. Dflt true.",None,None,None),
+     ("valid",True,"validate measurements in DB, if in test null","Optional. Dflt true.",bool,None),
+     (None,None,"sensors.community forwarding",None,None,None),
+     ("luftdaten.info",False,"forwarding measurements","Optional. Dflt null",bool,None),
+     ("luftdatenID","1234567","needed if dflt kit serial differs","Optional. Dflt use kit serial nr.",str,re.compile(r'^[a-f\d]{10,}$',re.I)),
      ]
-#    }
-#}
 
 try:
     import sys
@@ -109,7 +108,8 @@ except ImportError as e:
 JsonKeys = {
     "Sensors": [
            "project", "serial", "label", "first", "comment", "notice",
-           "description", "sensors", "comment",
+           # "description", "sensors", # only internally used and updated
+           "comment",
            "coordinates", # deprecated
            "longitude", "latitude", "altitude", "geohash",
            "street", "village", "pcode", "province", "municipality", "region",
@@ -207,16 +207,24 @@ def getCurInfo(project,serial,db=None, verbose=False):
         if tbl == 'Sensors':
             TTN_id = Rslt[0][JsonKeys[tbl].index('label')]
             if verbose:
-              sys.stderr.write('Measurement kit label "%s": label may be overwritten by TTN_id value defined in TTNtable.\n' % str(TTN_id))
-        if verbose: sys.stderr.write("Update info for table %s." % tbl)
+              sys.stderr.write('##################  "%s"\t######\n' % str(TTN_id))
+              sys.stderr.write('# This kit label may be overwritten by TTN_id value as defined in TTNtable.\n')
+        if verbose: sys.stderr.write("  # Info for DB table %s.\n" % tbl)
         for key, value in zip(JsonKeys[tbl]+add,Rslt[0]):
             if value == None and not key in bools: continue
             if key == 'geohash': # this will hide geohash
-               if verbose: sys.stderr.write("Skip geohash value = %s\n" % str(value))
+               if verbose: sys.stderr.write("    # geohash: %s (calculated)\n" % str(value))
                continue
+            if key == 'coordinates':
+               if str(value) == '0,0,0': continue
+               elif verbose: sys.stderr.write("    # coordinates (%s) is deprecated\n" % str(value))
             if type(value) is datetime.datetime:
                value = str(value).replace(' 00:00:00','')
-            else: value = str(value) # DB float, int, unicode string, None
+            elif type(value) is unicode:
+                value = str(value)
+            else:
+                value = str(value)
+                if value.replace('.','').isdigit(): value = float(value)
             if key in bools and not value is None: # tinyint conversion to bool
                 value = True if value else False
             if key == 'TTN_id': TTN_id = value
@@ -240,10 +248,18 @@ def putNodeInfo(info,db=None, adebug=False):
     if db.Conf['fd'] == None and not db.db_connect():
         db.Conf['log'](__modulename__,'FATAL','Unable to connect to DB')
         raise IOError("Database connection fialure")
-    for item in ['project','serial']:
+
+    # check json node record
+    for item in ['project','serial']: # required keys
         if not item in info.keys():
             db.Conf['log'](__modulename__,'ERROR','Node info has no key item %s: %s' % (item,str(info)))
             return False
+    ok = True
+    for item in info.keys():          # strange keys
+        if not item in [one[0] for one in JsonBeautyPrt]:
+          sys.stderr.write("Unknown key '%s' found in node admin record." % str(item))
+          ok = False
+    if not ok: sys.exit("Node %s has errors." % str(info))
 
     # convert special cases
     from dateutil.parser import parse
@@ -410,13 +426,46 @@ def getList(pattern,db=None,active=False,label=False):
         db.Conf['log'](__modulename__,'FATAL','Unable to connect to DB')
         raise IOError("Database connection fialure")
     Rts = []
-    import re
     ptrn = re.compile(pattern, re.I)
     for one in db.db_query("SELECT CONCAT(project,'_',serial), label FROM Sensors%s" % (' WHERE active' if active else ''),True):
       if label: match = ptrn.match(one[1])
       else: match = ptrn.match(one[0])
       if match and not one[0] in Rts: Rts.append(one[0])
     return Rts
+
+# check json entries on validty value
+def checkMetaValue(node, key, value=None, verbose=False):
+    global JsonBeautyPrt
+    this = key; rts = True
+    if not type(key) is dict: this = { key: value }
+    # sorted JsonBeautyPrt, (key,example,comment,default,type,expression)
+    for jKey, jType, Jmatch, com in [(x[0],x[4],x[5],x[2]) for x in JsonBeautyPrt]:
+      if not jType: continue
+      value = this.get(jKey, None)
+      if value == None:
+        if not com.find('ptional'):
+          rts = False
+          sys.stderr.write("Node %s: key %s is required to be defined!" % ((node if node else 'unknown'),jKey))
+        elif verbose:
+          sys.stderr.write("Node %s: key %s has null (default) value.\n" % ((node if node else 'unknown'),jKey))
+        continue
+      if not jType is type(value):
+        sys.stderr.write("Internal error type mismatch for key '%s': %s ~ %s\n" % (jKey,str(jType),str(type(value))) )
+        continue
+      if jType is bool:
+        if not type(value) is bool:
+          rts = False
+          sys.stderr.write("Node %s: key '%s' with value (%s) is not 'false','true' or null\n" % ((node if node else 'unknown'),jKey,str(value)))
+      elif jType is float:
+        if not type(value) is float:
+          rts = False
+          sys.stderr.write("Node %s: key '%s' with value (%s) is not decimal value\n" % ((node if node else 'unknown'),jKey,str(value)))
+      elif jType is str:
+        if Jmatch and not Jmatch.match(value):
+          rts = False
+          sys.stderr.write("Node %s: key '%s' with value (%s) is not compliant string value\n" % ((node if node else 'unknown'),jKey,str(value)))
+      else: sys.stderr.write("Node %s: key %s value (%s) type %s is undefined\n" % ((node if node else 'unknown'),jKey,str(value),str(jType)))
+    return rts
 
 # show difference between two json admin dicts for a device node
 def showDifference(prev, updated):
@@ -439,6 +488,69 @@ def showDifference(prev, updated):
           rts = True
     return rts
 
+def JsonPrint(nodes,output=sys.stderr.write,comment=True, verbose=False):
+    global JsonBeautyPrt
+    if not nodes: # example print out
+       cnt = len(JsonBeautyPrt)
+       output("{\n")
+       output(' "TTN_ID": {\n')
+       for key, example, com, default in [(x[0],x[1],x[3],x[4]) for x in JsonBeautyPrt]:
+         try:
+           if key: output('    "'+key+'": ')
+           if example == None and key: output('null')
+           elif type(example) is str: output('"'+example+'"')
+           elif type(example) is bool: output("%s" % str(example).lower())
+           elif not example is None: output(str(example)) # not empty line
+           cnt -= 1
+           if cnt and key: output(',')
+           if com:
+             if comment or verbose:
+               output(('%s// '%('\t' if key else ''))+com)
+               if default: output('. %s' % default)
+           output("\n")
+         except: pass
+       return
+    output('{\n')
+    first = True; nrNodes = len(nodes)
+    for node, record in nodes.items(): # output the record of a node
+      entry = record['project'] + '-' + record['serial'][-4:] + '*' # suggested entry
+      if 'TTN_id' in record.keys():
+        if 'label' in record.keys(): entry = record['label']
+        else: entry = record['TTN_id']
+      try: output('  "%s": {' % entry)
+      except: output(' "%s": {' % node)
+      cnt = 0; eol = None; dflt = ''
+      # output is ordered by JsonBeautyPrt definition/declaration
+      for key, example, com, default in [(x[0],x[1],x[2],x[3]) for x in JsonBeautyPrt]:
+        if not key and not example: continue
+        value = record.get(key,'end')
+        if value == 'end': # key is not in this json record
+          continue
+        if eol == None: output("\n")
+        else: # value delimiter
+          if not eol: output(',\n')
+          else: output(', // %s%s\n'%(eol,('. %s'%dflt)))
+          eol = ''; dflt = ''
+        output('    "%s" : ' % str(key))
+        if value == None: output('null')
+        elif type(example) is str: output('"'+value+'"')
+        elif type(example) is bool:
+          if not value == None: output("%s"%str(value).lower())
+        else: output(str(value))
+        if comment:
+          if first or verbose: eol = com
+          else: eol = ''
+          if verbose and default: dflt = default
+        else: eol = ''
+      if not eol == None: # last value has no delimiter
+        if not eol: output('\n')
+        else: output(' // %s%s\n'%(eol,('. %s'%dflt)))
+        eol = None; dflt = ''
+      nrNodes -= 1
+      output('  }%s\n' % (',' if nrNodes else ''))
+      if not verbose: first = False
+    output('}\n')
+
 # test main loop
 if __name__ == '__main__':
    from os import path
@@ -447,15 +559,20 @@ if __name__ == '__main__':
    active = True
    label = False
    showDiff = True
+   comment = False
+   check = None
    help = """
    Command: python %s [arg] ...
    --help    | -h       This message
-   --verbose | -v       Be more verbose (std err channel)
+   --verbose | -v       Be more verbose, add comments with json records generated
+   --comment | -c       Add comments in first json admin output
    --output  | -o       Output json records on stdout in pretty print
    --output=filename    Output json records on file in pretty print
    --all     | -a       Also List not active measurement kits in search
    --label   | -l       Search by label not by PROJECTid_SERIALnr
    --nodiff  | -n       Do not show update json admin diffs (default: show)
+   --check   | -C       Toggle check json entries on value type and compliance
+                        (default: check input json file entries and not output records.)
 
    Import meta information from so called json admin file into Sensors and TTNtable
    of measurements database.
@@ -470,15 +587,8 @@ if __name__ == '__main__':
    for i in range(1,len(sys.argv)):
      if sys.argv[i] in ['--help', '-h']:      # help, how to use CLI
        sys.stderr.write(help)
-       sys.stderr.write('Example of json admin record:\n{ "TTN_ID": {\n')
-       for key, example, comment in JsonBeatyPrt:
-         try:
-           if key: sys.stderr.write('    "'+key+'": ')
-           if example: sys.stderr.write('"'+example+'",')
-           if comment: sys.stderr.write(comment)
-           sys.stderr.write("\n")
-         except: pass
-       sys.stderr.write("\n\tnull }\n")
+       sys.stderr.write('\nAn example of json admin record:\n')
+       JsonPrint({},output=sys.stderr.write,comment=True,verbose=False)
        exit(0)
      elif sys.argv[i] in ['--verbose', '-v']: # be more verbose
        verbose = True
@@ -492,6 +602,10 @@ if __name__ == '__main__':
        showDiff = False
      elif sys.argv[i] in ['--label', '-l']:  # json records with label search
        label = True
+     elif sys.argv[i] in ['--comment', '-c']:# first json records with comments
+       comment = True
+     elif sys.argv[i] in ['--check', '-C']: # toggle check json records
+       check = True
      elif sys.argv[i][0] == '-':             # unsupported option
        sys.exit("Unsupported option %s. Try: %s --help" % (sys.argv[i],sys.argv[0]))
      else: argv.append(sys.argv[i])
@@ -505,7 +619,7 @@ if __name__ == '__main__':
    if not verbose: MyDB.Conf['level'] = 'WARNING' # log level less verbose
 
    output = {}
-   for one in argv:
+   for one in argv: # a mix of input files and DB collection will go wrong
      if path.exists(one):
        # get nodes info from a json file and update node info to DB
        from jsmin import jsmin     # tool to delete comments and compress json
@@ -527,6 +641,12 @@ if __name__ == '__main__':
        # if not MyDB.db_connect():
        #     sys.exit('ERROR Unable to connect to DB via Conf: %s\n' % str(Conf))
        for item in new.items():
+         if not check:
+           if verbose:
+            sys.stderr.write("Checking node %s record on valid keys/values\n" % item[0])
+           if not checkMetaValue(item[0], item[1], value=None, verbose=verbose):
+            sys.stderr.write("ATTENT: node %s has errors. Input record is skipped." % item[0])
+            continue
          sys.stderr.write('Importing node info for node %s\n' % item[0])
          if not 'TTN_id' in item[1].keys(): item[1]['TTN_id'] = item[0]
          if not 'project' in item[1].keys() or not 'serial' in item[1].keys():
@@ -554,15 +674,22 @@ if __name__ == '__main__':
        continue
      else: # information is needed for a measurement(s) kit defined as pattern
        for item in getList(one,db=MyDB,active=active,label=label):
-         output.update(getCurInfo(item.split('_')[0],item.split('_')[1],db=MyDB, verbose=verbose))
+         one = getCurInfo(item.split('_')[0],item.split('_')[1],db=MyDB, verbose=verbose)
+         if check:
+            if verbose:
+              sys.stderr.write("Checking/validating key/values for node project %s serial %s\n" % (item.split('_')[0],item.split('_')[1]))
+            for node, record in one.items():
+              if checkMetaValue(node, record, value=None, verbose=verbose) and verbose:
+                sys.stderr.write("Validation record is OK\n")
+         output.update(one)
          if not jsonOut: output = {}
 
    if output:
      import json
      if type(jsonOut) is str:
        jsonOut = open(jsonOut,'w')
-       jsonOut.write(json.dumps(output, indent=2, sort_keys=True))
-       jsonOut.close()
-     else: # to stdout
-       print(json.dumps(output, indent=2, sort_keys=True))
+     else: jsonOut = sys.stdout.write
+     JsonPrint(output,output=jsonOut,comment=comment, verbose=verbose)
+     # jsonOut.write(json.dumps(output, indent=2, sort_keys=True))
+     # jsonOut.close()
         
