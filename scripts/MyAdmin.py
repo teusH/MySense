@@ -18,11 +18,11 @@
 #   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
 #   language governing rights and limitations under the RPL.
 
-# $Id: MyAdmin.py,v 1.5 2021/03/20 17:28:42 teus Exp teus $
+# $Id: MyAdmin.py,v 1.7 2021/03/21 15:38:23 teus Exp teus $
 
 __license__   = 'RPL-1.5'
 __modulename__='$RCSfile: MyAdmin.py,v $'[10:-4]
-__version__   = "0." + "$Revision: 1.5 $"[11:-2]
+__version__   = "0." + "$Revision: 1.7 $"[11:-2]
 
 # script to add  and visualize meta info
 #    from json admin file into Sensors and TTNtable measurements database table
@@ -43,7 +43,7 @@ JsonBeautyPrt = [
      ("serial","b4e6d2f94dcc","required serial nr measurement kit", None,str,re.compile(r'[a-f\d]{6,15}',re.I)),
      (None,None,None,None,None,None),
      (None,None,"Sensors table info",None,None,None),
-     ("label","bwlvc-9cd5","optional for ref uses. Dflt empty.",None,str,re.compile(r'^\w{2,}-?[a-z\d]*$',re.I)),
+     ("label","bwlvc-9cd5","optional for ref uses. Dflt empty.",None,str,re.compile(r'^(\w{2,}-?[a-z\d]*|\w+\sK\d\s\w+\s\w{1,2})$',re.I)),
      ("first","28-05-2020","first date kit operational.","Optional. Dflt current date.",str,re.compile(r'\d{2,4}-\d{2}-\d{2,4}(\s\d{2}:\d{2}(:\d{2})?)?')),
      ("comment","MySense V0.5.76","usual MySense version.","Optional. Dflt empty.",str,None),
      (None,None,"event and notices methods: via email and/or Slack notices. Comma separated",None,None,None),
@@ -71,16 +71,16 @@ JsonBeautyPrt = [
      ("latitude",51.604740722,"ordinate -90,90 degrees in decimal","Optonal. Dflt from street/village.",float,None),
      ("geohash","u124ghi7","geohash precision used is max 10. Calculated from ordinates","Optional. Dflt from ordinates.",str,re.compile(r'^[a-z0-9]{6,12}$')),
      (None,None,"searched for via Nominated via GPS",None,None,None),
-     ("street","Veeweg 7","may be searched from GPS","Optional. Dflt from geohash.",str,re.compile(r'^[\w]+(\s+[\w\-]+)*(\s+\d+[a-z]*)*$',re.I)),
+     ("street","Veeweg 7","may be searched from GPS","Optional. Dflt from geohash.",str,re.compile(r'^[\w][\w\-]+(\s+[\w\-]+)*(\s+\d+[a-z]*)*$',re.I)),
      ("village","Oploo","may be searched from GPS","Optional. Dflt from geohash.",str,re.compile(r'^\w+(\s+\w+)*$',re.I)),
      ("pcode","5481AS","may be searched from Nominatum","Optional. Dflt from geohash.",str,re.compile(r'^\d{4}\s?[A-Z]{2}$',re.I)),
-     ("province","Brabant","state may be search from Nominatum", "Optional. Dflt from geohash.",str,re.compile(r'^[A-Z]+$',re.I)),
-     ("municipality","Oploo","searched via Nominatum","Optional. Dflt from geohash.",str,re.compile(r'^\w+(\s+\w+)*$',re.I)),
+     ("province","Brabant","state may be search from Nominatum", "Optional. Dflt from geohash.",str,re.compile(r'^(\w+[\-\s])*[A-Z]+$',re.I)),
+     ("municipality","Oploo","searched via Nominatum","Optional. Dflt from geohash.",str,re.compile(r'^\w[\w\-\.]+([\s\-]\w+)*$',re.I)),
      (None,None,None,None,None,None),
      (None,None,"TTNtable info",None,None,None),
      (None,None,"The Things Network details:",None,None,None),
      ("TTNactive",True,"accept data from TTN","Optional. Dflt true",bool,None),
-     ("TTN_id","bwlvc-9cd5","defines TTN topic id","Optional. Dflt from record key.",str,re.compile(r'([a-f\d]{6,14}|lopy.*\d+)$',re.I)),
+     ("TTN_id","bwlvc-9cd5","defines TTN topic id","Optional. Dflt from record key.",str,re.compile(r'(\w{4,8}\-[a-f\d]{4,8}|lopy.*\d+|gtl-kipster-k\d+)$',re.I)),
      (None,None,"TTN keys ABP or OTAA only for administrative/archiving needs",None,None,None),
      ("DevEui","AAAAB46EF24DC9D5","optional TTN, usualy based on serial","Optional. Dflt empty.",str,re.compile(r'[A-F\d]{16}$')),
      ("NwkSKEY","AC93B59540749288CF75A06084E95550","ABP key","Optional. Dflt empty.",str,re.compile(r'[A-F\d]{32}$')),
@@ -512,7 +512,15 @@ def JsonPrint(nodes,output=sys.stderr.write,comment=True, verbose=False):
        return
     output('{\n')
     first = True; nrNodes = len(nodes)
-    for node, record in nodes.items(): # output the record of a node
+    def MySort(x):
+      try:
+        element = str(x[1]['project']) + '_' + str(x[1]['label'])
+        element = str(x[1]['project']) + '_' + str(x[1]['TTN_id'])
+      except: 
+        element = str(x[1]['project']) + '_' + str(x[1]['serial'][-4:])
+      return str(element).lower()
+
+    for node, record in sorted(nodes.items(),key=MySort, reverse=True): # output the record of a node
       entry = record['project'] + '-' + record['serial'][-4:] + '*' # suggested entry
       if 'TTN_id' in record.keys():
         if 'label' in record.keys(): entry = record['label']
