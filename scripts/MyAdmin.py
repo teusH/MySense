@@ -18,11 +18,11 @@
 #   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
 #   language governing rights and limitations under the RPL.
 
-# $Id: MyAdmin.py,v 1.7 2021/03/21 15:38:23 teus Exp teus $
+# $Id: MyAdmin.py,v 1.9 2021/03/22 14:03:10 teus Exp teus $
 
 __license__   = 'RPL-1.5'
 __modulename__='$RCSfile: MyAdmin.py,v $'[10:-4]
-__version__   = "0." + "$Revision: 1.7 $"[11:-2]
+__version__   = "0." + "$Revision: 1.9 $"[11:-2]
 
 # script to add  and visualize meta info
 #    from json admin file into Sensors and TTNtable measurements database table
@@ -494,7 +494,7 @@ def JsonPrint(nodes,output=sys.stderr.write,comment=True, verbose=False):
        cnt = len(JsonBeautyPrt)
        output("{\n")
        output(' "TTN_ID": {\n')
-       for key, example, com, default in [(x[0],x[1],x[3],x[4]) for x in JsonBeautyPrt]:
+       for key, example, com, default, Type in [(x[0],x[1],x[2],x[3],x[4]) for x in JsonBeautyPrt]:
          try:
            if key: output('    "'+key+'": ')
            if example == None and key: output('null')
@@ -507,8 +507,10 @@ def JsonPrint(nodes,output=sys.stderr.write,comment=True, verbose=False):
              if comment or verbose:
                output(('%s// '%('\t' if key else ''))+com)
                if default: output('. %s' % default)
+               if Type: output(', value format %s.' % str(Type)[1:-1])
            output("\n")
          except: pass
+         output('  }\n}\n')
        return
     output('{\n')
     first = True; nrNodes = len(nodes)
@@ -695,7 +697,7 @@ if __name__ == '__main__':
    if output:
      import json
      if type(jsonOut) is str:
-       jsonOut = open(jsonOut,'w')
+       jsonOut = open(jsonOut,'w').write
      else: jsonOut = sys.stdout.write
      JsonPrint(output,output=jsonOut,comment=comment, verbose=verbose)
      # jsonOut.write(json.dumps(output, indent=2, sort_keys=True))
