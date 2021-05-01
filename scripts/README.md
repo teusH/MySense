@@ -20,12 +20,14 @@ TTN-datacollector has a monitor output channel to view status.
 
 TTN-datacollector will use various general library routines. The library routines can be used stand alone.
 Like:
-- MyLogger.py logging routines (multi threaded)
-- MyCONSOLE.py full output to terminal
-- MyLUFTDATEN.py forwarder to Luftdaten.info
+- MyLogger.py       logging routines (multi threaded)
+- MyCONSOLE.py      full output to terminal
+- MyLUFTDATEN.py    forwarder to Luftdaten.info
 - MyDB.py forwarder to MySQL measurements database
-- MyPrint.py  logging
-- WebDB.py website database interface
+- MyPrint.py        logging
+- WebDB.py          website database interface
+- MyDBsyncWebDB.py synchronize meta info between data DB and web CMS DB (Drupal)
+- MyAdmin.py        update meta info in data DB from (json format) admin info
 
 ### MyDB
 Use: database library module and meta info DB insertion
@@ -51,3 +53,18 @@ Send notices if problems are detected.
 
 Use DB environment variables for database credentials definitions. REGION and arguments may be string patterns as supported by regexp of MySQL. Use command help for help.
 Script will save dates of sent notices and will only resend email notices again after 3 days.
+
+### MyDBsyncWebDB
+Use: meta information measurement kit datanbase synchronisation
+
+Uses environment settings for database credentials. Can be in interactive mode to manually correct meta info values.
+MyAdmin script may use this script to synchronize meta info from data DB with CMS DB.
+Can operate in 3 modes:
+. Can be used to synchronisize databases on last time updated base as well.
+. Synchronize from data DB towards web CMNSA database and other way around.
+
+### MyAdmin
+Use: import (new, update) meta info measurement kit in data database.
+
+Can be used in interactive mode. Default the script will try to synchronize meta info towards the web CMS (Drupal) database as well if database credentials are provided via CLI environment settings, e.g. DBHOST, DBUSER, WEBHOST, WEBUSER, etc.
+Can be used to output current database meta info for a range (regular expression) of measurement kits in json format to export meta info.
