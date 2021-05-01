@@ -20,7 +20,7 @@
 #   language governing rights and limitations under the RPL. 
 #
 
-# $Id: ReportFailingSensors.sh,v 3.2 2021/02/08 10:43:04 teus Exp teus $
+# $Id: ReportFailingSensors.sh,v 3.9 2021/04/06 10:37:43 teus Exp teus $
 CMD=$(echo '$RCSfile: ReportFailingSensors.sh,v $' | sed -e 's/.*RCSfile: \(.*\),v.*/\1/')
 
 SENSORS=${SENSORS:-'(temp|rv)'}  # sensors to check for static values
@@ -39,7 +39,7 @@ export DBUSER=${DBUSER:-$USER}
 export DBHOST=${DBHOST:-localhost}
 
 function PrtCmd(){
-    echo -n "Reporting command: $CMD $(echo '$Revision: 3.2 $' | sed -e 's/\$//g' -e 's/ision://')"
+    echo -n "Reporting command: $CMD $(echo '$Revision: 3.9 $' | sed -e 's/\$//g' -e 's/ision://')"
 }
 
 if [ "${1/*-h*/help}" == help ]
@@ -137,7 +137,7 @@ LAST=$(date --date="$LAST" "+%Y/%m/%d %H:%M:00")
 # start period from dflt 3 weeks ago
 if [ -n "$START" ] && date --date=$START
 then
-    START="$(date --date='$START' '+%Y/%m/%d %H:%M')"
+    START=$(date --date="$START" '+%Y/%m/%d %H:%M')
 else
     START="$(date --date='3 weeks ago' '+%Y/%m/%d %H:%M')" # only last 3 weeks from now
 fi
@@ -230,7 +230,7 @@ function PrtAttent() {
     LINES["NOTICE"]="Last notice sent: "
     LINES["SENSORS"]="${RED}Failing${NOCOLOR} sensors: "
     LINES["COMMENT"]="Fail message(s):\n\t"
-    LINES["NEW"]="${BOLD}New${NOCOLOR} failing sensors since last notice: "
+    LINES["NEW"]="${BOLD}New${NOCOLOR} failing sensor(s) since last notice: "
     LINES["STOPPED"]="${RED}Mysense sensor kit stopped measuring${NOCOLOR}: "
     echo -e "\n****** ${BOLD}Status info MySense kit${NOCOLOR} ${BLUE}$AKIT${NOCOLOR} ******"
     for I in  LOCATION INITIATED NOTICE STOPPED SENSORS NEW COMMENT
@@ -663,7 +663,7 @@ function LastSensed() {
         POL="$NONACT"
     fi
     if [ -z "$POL" ] ; then return ; fi
-    echo -e "Following overview is a selection of most recent and may not show previous failures. Failures are denoted as ${RED}*${NOCOLOR}  or NULL in the measurements of $NME in database table:"
+    echo -e "Following overview is a selection of most recent and may not show previous failures.\nFailures are denoted as ${RED}*${NOCOLOR}  or NULL in the measurements of $NME in database table:"
     POL=$(echo "$POL" | sed -e 's/temp as/ROUND(temp,1) as/' -e 's/rv as/ROUND(rv) as/' -e 's/luchtdruk as/ROUND(luchtdruk) as/' -e 's/\(pm_*[0-9][0-9]*\) as/ROUND(\1,1) as/g' -e 's/\(pm[0-9][0-9]*_cnt\) as/ROUND(\1) as/g')
     $MYSQL --table --column-names -e "SELECT DATE_FORMAT(datum, '%d-%c-%y %H:%i') as 'timestamp', $POL FROM $NME ORDER BY datum DESC LIMIT ${NR}"
     return $?
@@ -787,7 +787,11 @@ do
     unset ATTENT[${KIT}@NEW] ; unset ATTENT[${KIT}@SENSORS]
     if [ -z "${ATTENT[${KIT}@STOPPED]}" ]
     then
-        ATTENT[${KIT}@STOPPED]="$NOW"
+        ATTENT[${KIT}@STOPPED]=$($MYSQL -e "SELECT UNIX_TIMESTAMP(datum) FROM ${KIT} ORDER BY datum DESC LIMIT 1")
+        if [ -z "${ATTENT[${KIT}@STOPPED]}" ]
+        then
+            ATTENT[${KIT}@STOPPED]="$NOW"
+        fi
     fi
   fi
 
@@ -803,7 +807,7 @@ do
             then
                echo -e "\tLooks like MySense kit $KIT is ${RED}NOT operational${NOCOLOR}!" | LOGGING
             else
-                (echo -en "\tFailing sensors of MySense kit $KIT: ${RED}" ; echo -n "${NotActiveSensors[@]}" | sed 's/ /, /g' ; echo -e "${NOCOLOR}.") | LOGGING
+                (echo -en "\tFailing sensor(s) of MySense kit $KIT: ${RED}" ; echo -n "${NotActiveSensors[@]}" | sed 's/ /, /g' ; echo -e "${NOCOLOR}.") | LOGGING
             fi
           fi
       fi
@@ -819,7 +823,12 @@ do
             then
               ATTENT[${KIT}@COMMENT]="No active sensors in the period found."
             else
-              ATTENT[${KIT}@COMMENT]="Sensors: ${#ActiveSensors[@]} active, ${#SENSORS_FAILED[@]} has/have failures."
+              if (( ${#SENSORS_FAILED[@]} > 1 ))
+              then
+                ATTENT[${KIT}@COMMENT]="Sensors: ${#ActiveSensors[@]} active, ${#SENSORS_FAILED[@]} have failures."
+              else
+                ATTENT[${KIT}@COMMENT]="Sensors: ${#ActiveSensors[@]} active, ${#SENSORS_FAILED[@]} has failures."
+              fi
             fi
           fi
         fi
@@ -833,7 +842,7 @@ do
       LABEL=$($MYSQL -e "SELECT label FROM Sensors WHERE active AND project = '${KIT/_*/}' AND serial = '${KIT/*_/}' LIMIT 1")
       if ! SendNotice "$KIT" "${LABEL/NULL/}" "$(echo ${NotActiveSensors[@]} | sed 's/ /,/g')" /var/tmp/Check$$
       then
-           echo -e "${RED}FAILURE to send Notice${NOCOLOR} about kit $KIT, failing sensors ${NotActiveSensors[@]}" 1>&2
+           echo -e "${RED}FAILURE to send Notice${NOCOLOR} about kit $KIT, failing sensor(s) ${NotActiveSensors[@]}" 1>&2
       fi
 
       # send overview notice
@@ -848,17 +857,23 @@ do
       elif (( "${#SENSORS_FAILED[@]}" > 0 ))
       then
         echo -e "MySense kit ${BLUE}$KIT${NOCOLOR} has maybe problems with sensors:\n\t${RED}$(echo "${SENSORS_FAILED[@]}${NOCOLOR}" | sed -e 's/ /,/g' -e 's/,,,*/,/g' -e 's/pm/PM/g' -e 's/_cnt/ count/g' -e 's/temp/oC/g' -e 's/luchtdruk/hPa/g' -e 's/rv/RH/g' -e 's/PM\([02]\)/PM\1./g' -e 's/,/, /g' -e 's/, *$//' )!" | LOGGING
-        LastSensed $KIT 12 "$(echo ${ActiveSensors[@]})" "$(echo ${SENSORS_FAILED[@]})" | perl -pe "s/NULL/${RED}NULL${NOCOLOR}/g; s/\\*/${RED}*${NOCOLOR}/g" | tee -a /var/tmp/Check$$ | head --lines=6 | LOGGING
+        LastSensed $KIT 12 "$(echo ${ActiveSensors[@]})" "$(echo ${SENSORS_FAILED[@]})" | perl -pe "s/NULL/${RED}NULL${NOCOLOR}/g; s/\\*/${RED}*${NOCOLOR}/g" | tee -a /var/tmp/Check$$ | head --lines=8 | LOGGING
       fi
       rm -f /var/tmp/Check$$
   else # no failure detected, clean up ATTENT for this kit
+      declare -i ONCE=0
       for AT  in ${!ATTENT[@]} # get rid of deprecated failing kits
       do
         if echo "$AT" | grep -q "^$KIT@" 
-        then unset ATTENT[$AT]
+        then
+          unset ATTENT[$AT] ; ONCE+=1
         fi
       done
-      if (( $VERBOSE > 0 ))
+      if (( ONCE > 0 ))
+      then
+        echo -e "${BOLD}$KIT${NOCOLOR} location: ${BOLD}$(GetLblLocation "$KIT")${NOCOLOR}." 1>&2
+        echo -e "Previously failing MySense kit ${BOLD}$KIT${NOCOLOR} is ${GREEN}OK${NOCOLOR} now again.\nSensors: ${ActiveSensors[@]}." 1>&2
+      elif (( $VERBOSE > 0 ))
       then
         echo -e "\n${BOLD}$KIT${NOCOLOR} location: ${BOLD}$(GetLblLocation "$KIT")${NOCOLOR}." 1>&2
         echo -e "MySense kit ${BOLD}$KIT${NOCOLOR} is ${GREEN}OK${NOCOLOR}.\nSensors: ${ActiveSensors[@]}." 1>&2
@@ -892,12 +907,19 @@ then
 # notices and dates/time sent
 #" >${ATTENTS:-/dev/null}
 fi
+touch /var/tmp/@FAIL$$
 for KIT in ${!ATTENT[@]}
 do
+  if echo "$KIT" | grep -q -P "@[A-Z]+$" # proj_serial@(INITIATED|NOTICE|NEW|COMMENT|LOCATION|SENSORS)
+  then
     if echo "${ATTENT[$KIT]}" | grep -q -P '^[0-9]{10}$'
     then
       echo "ATTENT[$KIT]=${ATTENT[$KIT]} # $(date --date=@${ATTENT[$KIT]} '+%d/%m/%Y %H:%M')"
     else
       echo "ATTENT[$KIT]='${ATTENT[$KIT]}'"
     fi
+  else # email addresses kit owners last notice sent
+    echo "ATTENT[$KIT]='${ATTENT[$KIT]}'" >>/var/tmp/@FAIL$$
+  fi
 done | sort >>${ATTENTS:-/dev/null}
+cat /var/tmp/@FAIL$$ >>${ATTENTS:-/dev/null} ; rm -f /var/tmp/@FAIL$$
