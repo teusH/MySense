@@ -2,23 +2,28 @@
 # Copyright (C) 2016, Teus Hagen, the Netherlands
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# it under the terms of the Reciprocal Public License as published by
+# the Open Source Initiative https://opensource.org/licenses/RPL-1.5:
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+#   Unless explicitly acquired and licensed from Licensor under another
+#   license, the contents of this file are subject to the Reciprocal Public
+#   License ("RPL") Version 1.5, or subsequent versions as allowed by the RPL,
+#   and You may not copy or use this file in either source code or executable
+#   form, except in compliance with the terms and conditions of the RPL.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#   All software distributed under the RPL is provided strictly on an "AS
+#   IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, AND
+#   LICENSOR HEREBY DISCLAIMS ALL SUCH WARRANTIES, INCLUDING WITHOUT
+#   LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+#   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
+#   language governing rights and limitations under the RPL.
 #
-# If yuo have improvements please do not hesitate to email the author.
+# If you have improvements please do not hesitate to email the author.
+# Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 
-# $Id: ChartsPM.pl,v 2.15 2020/07/21 17:14:56 teus Exp teus $
+# $Id: ChartsPM.pl,v 3.1 2021/05/08 12:41:14 teus Exp teus $
 # use 5.010;
-my $Version = '$Revision: 2.15 $, $Date: 2020/07/21 17:14:56 $.';
+my $Version = '$Revision: 3.1 $, $Date: 2021/05/08 12:41:14 $.';
 $Version =~ s/\$//g;
 $Version =~ s/\s+,\s+Date://; $Version =~ s/Revision: (.*)\s[0-9]+:[0-9]+:[0-9]+\s\.*\s*/$1/;
 # Description:
@@ -28,6 +33,7 @@ $Version =~ s/\s+,\s+Date://; $Version =~ s/Revision: (.*)\s[0-9]+:[0-9]+:[0-9]+
 # DEPENDS on: yui-compressor java script to compress javascript parts
 # TO DO:
 #       allow the user to select different the levels for EU/WHO/LKI/AQI/AQI_LKI etc.
+use Data::Dumper;
 use List::MoreUtils qw(uniq);
 use feature "state"; # some output is done only once
 use constant {
@@ -62,6 +68,7 @@ use constant {
         FALSE     => 0,
         TRUE      => 1,
         LANGUAGE  => 'NL',              # default output language
+        R2        => 0.6,               # minimal regression factor using PM type correction
 };
 
 use JSON;
@@ -107,51 +114,52 @@ my $WDir = WDIR;
 if( -d $WDir ){
    chdir( $WDir) ;
 } else {
-   print STDERR "Warning: Cannot chdir to working dir $WDir.\n";
+   print STDERR "WARNING: Cannot chdir to working dir $WDir.\n";
    print STDERR "Working dir (current): .\n";
    $WDir = './';
 }
 
 Getopt::Mixed::init(
         '? help>? '.
+        'a:i aggregation>a '.
+        'A=s aqi>A '.
+        'AQI>A '.
+        'b=s buttons>b '.
+        'B bands>B '.
+        'c correct>c '.
         'd:i debug>d '.
-        'v verbose>v '.
-        'q quiet>q '.
-        'p=s pass>p '.
-        'u=s user>u '.
-        'h=s host>h '.
         'D=s database>D '.
-        'l=s location>l '.
-        'i=s serial>i '.
-        'j java>j  '.
-        'P=s project>P '.
-        'H=s alias>H '.
-        'm=s meteo>m '.
         'e=s pollutants>e '.
         'E export>E '.
+        'f first>f ',
         'g=i graphs>g '.
+        'h=s host>h '.
+        'H=s alias>H '.
+        'index>A '.
+        'l=s location>l '.
+        'L=s last>L '.
+        'm=s meteo>m '.
+        'M mean>M '.
+        'i=s serial>i '.
+        'j java>j  '.
+        'p=s pass>p '.
+        'P=s project>P '.
+        'q quiet>q '.
+        'Q=s type>Q '.
         'O=s output>O ',
-        'a:i aggregation>a '.
-        'c correct>c '.
-        't=s title>t '.
-        's=s subtitle>s '.
         'r=s region>r '.
         'R=s reference>R '.
-        'L=s last>L '.
+        's=s subtitle>s '.
         'S=s first>S ',
-        'f first>f ',
-        'A=s aqi>A '.
-        'b=s buttons>b '.
-        'AQI>A '.
-        'B bands>B '.
-        'M mean>M '.
-        'index>A '.
+        't=s title>t '.
+        'T=s language>T lang>T '.
+        'u=s user>u '.
+        'v verbose>v '.
         'w=s web>w '.
         'W=s wd>W '.
         'x=i timeshift>x '.
         'X=s timematch>X '.
         'Z=s avoid>Z '.
-        'T=s language>T lang>T '.
         ''
 );
 
@@ -183,6 +191,7 @@ my %RVstations  = ();   # dict of stations table names with humidity values
 my $timeshift   = 6*30*60; # timeshift of dates for tables with timematch eg NL10131
 my $timematch   = '(NL10131|HadM)'; # table pattern to apply timeshift
 my $reference   = REF;
+my $sensorType  = '';   # adjust mass PM values to Sensirion dust sensor
 my $last_time   = '';   # last date/time used for end date/time graphs
 my $first_time  = '';   # first time if defined calculation of period of chart
 my $use_first   = FALSE;# use the first time seen in Sensors to calc period
@@ -211,6 +220,13 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
     $option eq 'q' and do { $verbose = 0;  last OPTION; };
     $option eq 'h' and do { $myhost = $value; $myhost =~ s/\s//g; last OPTION; };
     $option eq 'D' and do { $mydb = $value; $mydb =~ s/\s//g; last OPTION; };
+    $option eq 'Q' and do {
+            if ( $value =~ /Plantower/i ) { $value = 'PMSx003'; }
+            elsif ( $value =~ /Nova/i ) { $value = 'SDS011'; }
+            elsif ( $value =~ /Sensirion/i ) { $value = 'SPS30'; }
+            elsif ( $value =~ /BAM/i ) { $value = 'BAM1020'; }
+            $sensorType = $value;
+            last OPTION; };
     $option eq 'E' and do { $exportChart++; last OPTION; };
     $option eq 'B' and do { $ShowBands = TRUE; last OPTION; };
     $option eq 'c' and do {
@@ -225,7 +241,7 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
             # TO DO: add PMxy_cnt
             $value =~ s/^/,/; $value =~ s/[,\|](pm(10?|25)?|temp|rv|luchtdruk|wind|(prev|day)?rain|([A-O][0-3]?)+|rssi)//g;
             if( $value ) {
-                print STDERR "Unknown pollutant in pollutant choice: $pollutants.\n";
+                print STDERR "WARNING: Unknown pollutant in pollutant choice: $pollutants.\n";
                 $pollutants = POLLUTANTS;
             }
             if( $pollutants !~ /pm/ ) { $poltype = ''; }
@@ -273,7 +289,7 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
             } else {
                 $last_time = str2time($value);
                 if( not $last_time ) {
-                    print STDERR "last time: Unable to parse date/time from $value\n";
+                    print STDERR "WARNING: last time: Unable to parse date/time from $value\n";
                     exit(1);
                 }
             };
@@ -281,7 +297,7 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
     $option eq 'S' and do {
             $first_time = str2time($value);
             if( not $first_time ) {
-                print STDERR "first time: Unable to parse date/time from $value\n";
+                print STDERR "WARNING: first time: Unable to parse date/time from $value\n";
                     exit(1);
                 }
         };
@@ -392,6 +408,11 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
                 factor = 4.65 * (100 - hum)**-0.65
                 Humidity measurements is one element of correction arithmetic.
                 Humidity of stations will be collected per station if present.
+ --type         Correct sensor type (manufacturer) type with regression factoring
+                (taylor) correction.
+                Sensor values with R2 regression factor < 0.6 are not is not taken
+                as reference yet due to uncertainty issues.
+                Option values: SPS30, Sensirion, PMSx003, Plantower, SDS011, Nova, BAM1020.
  -a|--aggregation [number] Use nr of minutes as minimal period to calculate average values.
                 Default: 6 minutes for small periods. Script will search minimal
                 period of minutes between measurements.
@@ -473,7 +494,7 @@ sub CorrectPMdata {
     if( not defined $RVstations{$data->[$pmIndex]{table}} ){
         if( (not defined $RVstations{default}) || (not defined $RVstations{default}{rv}) ){
             $correctPM = 0;
-            print STDERR "Missing humidity measurments to do corrections. Switched off\n";
+            print STDERR "WARNING: Missing humidity measurements to do corrections. Switched off\n";
             return $data->[$pmIndex]{data};
         }
         $RVdata = $RVstations{default}{rv};
@@ -498,7 +519,7 @@ sub Check_DB { # called only once from first call to query routine
     $mysql = DBI->connect("DBI:mysql:".$mydb.":".$myhost,$myuser,$mypass);
     if( not $mysql ){
         if( $checkedOnce > 0 ){
-            print STDERR "ERROR Cannot open mysql database ".$mydb." on host ".$myhost.", with user ".$myuser.", error: ". DBI->errstr."\n" ;
+            print STDERR "ERROR: Cannot open mysql database ".$mydb." on host ".$myhost.", with user ".$myuser.", error: ". DBI->errstr."\n" ;
             exit 1;
         }
     }
@@ -514,7 +535,7 @@ sub Get_Sensors {
         # only once at the start we build a column existance cache
         my $qr = query($tbl, "DESCRIBE $tbl;");
         if( (not $qr) || ($#{$qr} < 0) ){
-            print STDERR "ERROR Cannot obtain table $tbl description\n";
+            print STDERR "ERROR: Cannot obtain table $tbl description\n";
             return 0;
         }
         # mysql counts cells from 0!
@@ -552,7 +573,7 @@ sub query {
     #  ref to 2 dimensional refs to array string values
     if( $q =~ /^\s*(show|describe|select)/i ){
         my $r = $sth->fetchall_arrayref();
-        print STDERR "ERROR mysql query: $q with error:\n" . DBI->errstr . "\n"
+        print STDERR "ERROR: mysql query: $q with error:\n" . DBI->errstr . "\n"
             if ( DBI->errstr &&  $#{$r} < 0 );
         return undef unless $r->[0];
         my @rts = ();
@@ -582,7 +603,7 @@ sub Check_Tbl {
     return 0;
 }
 
-# collect info from database SENSORS table. Return hash table with info
+# collect info from data DB Sensors table. Return hash table with info
 sub Get_Info {
     my $id = shift; return undef if (not defined $id) || (not $id);
     my $qry; my %info; my $indx = '';
@@ -632,16 +653,23 @@ sub Get_Info {
     }
     $info{location} =~ s/,\s+\(/ (/g;
     $info{location} = $info{label} if not defined $info{location};
-    $info{sensors} = '';
+    $info{sensors} = ''; $info{sensorTypes} = '';
     if( defined $in[7] && $in[7] =~ /hw:\s/i ) { # try to guess sensor types
-        my @ar;
-        if( $in[7] =~ /(PMS.003)/i ) { push(@ar,"PM:Plantower"); }
-        elsif ($in[7] =~ /(SPS..)/i ) { push(@ar,"PM:Sensirion"); }
-        elsif( $in[7] =~ /(SDS...)/i ) { push(@ar,"PM:Nova"); }
-        if( $in[7] =~ /(BME..0)/i ) { push(@ar,"meteo:Bosch"); }
-        elsif ($in[7] =~ /(SHT..)/i ) { push(@ar,"meteo:Sensirion"); }
-        elsif( $in[7] =~ /(DHT..)/i ) { push(@ar,"meteo:Adafruit"); }
-        if( $in[7] =~ /NEO/i ) { push(@ar,"GPS:Neo"); }
+        my @ar; my @sTypes;
+        if( $in[7] =~ /(PMS.003)/i ) {
+            push(@sTypes, "$1"); push(@ar,"PM:Plantower"); }
+        elsif ($in[7] =~ /(SPS..)/i ) {
+            push(@sTypes, "$1"); push(@ar,"PM:Sensirion"); }
+        elsif( $in[7] =~ /(SDS...)/i ) {
+            push(@sTypes, "$1"); push(@ar,"PM:Nova"); }
+        if( $in[7] =~ /(BME..0)/i ) {
+            push(@sTypes, "$1"); push(@ar,"meteo:Bosch"); }
+        elsif ($in[7] =~ /(SHT..)/i ) {
+            push(@sTypes, "$1"); push(@ar,"meteo:Sensirion"); }
+        elsif( $in[7] =~ /(DHT..)/i ) {
+            push(@sTypes, "$1"); push(@ar,"meteo:Adafruit"); }
+        if( $in[7] =~ /NEO/i ) {
+            push(@sTypes, "NEO-6"); push(@ar,"GPS:Neo-6"); }
         #if( $in[7] =~ /(PMS.003)/i ) { push(@ar,"PM(Plantower $1)"); }
         #elsif ($in[7] =~ /(SPS..)/i ) { push(@ar,"PM(Sensirion $1)"); }
         #elsif( $in[7] =~ /(SDS...)/i ) { push(@ar,"PM(Nova $1)"); }
@@ -650,6 +678,7 @@ sub Get_Info {
         #elsif( $in[7] =~ /(DHT..)/i ) { push(@ar,"meteo(Adafruit $1)"); }
         #if( $in[7] =~ /NEO/i ) { push(@ar,"GPS(Neo-6)"); }
         $info{sensors} = join(' ',@ar) if $#ar >= 0;
+        $info{sensorTypes} = join(',',@sTypes) if $#sTypes >= 0;
     }
     return %info;
 }
@@ -681,7 +710,7 @@ sub Get_last {
             next if $meteo and ($p =~ /(temp|rv|luchtdruk|w[sr]|(prev|day)?rain)/);
             $NoPol[$#NoPol+1] = $p;
         }
-        printf STDERR ("Could not find any pollutant of %s in $Ref table\n",join(', ',@NoPol))
+        printf STDERR ("WARNING: Could not find any pollutant of %s in $Ref table\n",join(', ',@NoPol))
            if $#NoPol >= 0;
     }
     return $last;
@@ -689,7 +718,7 @@ sub Get_last {
 
 # we need to provide HighCharts a row of measurements at fixed intervals: unit
 sub Array2Units {
-    my ($data, $end, $correct, $limit) = @_;
+    my ($data, $end, $correct, $limit, $pol) = @_;
     $correct = 0 if not defined $correct;
     my $unit = 5*24*60*60;
     my $time = 0; my $value = 0.0;
@@ -728,7 +757,7 @@ sub Array2Units {
             $cnt++; $sum += $pairs[$i][1];
         }
         $sum /= $cnt if $cnt;
-        if( $sum < 0.1 ) {
+        if( $sum < 0.1 && $pol !~ /temp/  ) {  # only temp has negative values
             push(@values,'null');
         } else {
             push(@values,int($sum*10+0.4)/10.0); $count++;
@@ -746,7 +775,8 @@ sub Array2Units {
 # extract data from DB for a pollutant and serialize it into json data struct
 # return ref to hash table with name, location, pollutant, string as json data
 sub Get_data {
-    my ($tbl,$pol,$last,$secs,$period) = @_; my %rslt;
+    my ($tbl,$pol,$Type,$last,$secs,$period) = @_;
+    my %rslt;
     # printf("Get data from %s for pol %s\n",$tbl,$pol);
     $period = PERIOD if not defined $period;
     return \%rslt if not defined $DB_cols{$tbl}{$pol}; 
@@ -766,17 +796,25 @@ sub Get_data {
     my $Ufactor = '';
     $Ufactor = '*10/36' if $pol =~ /^ws$/i; # WASP windspeed km/h -> m/sec
     $Ufactor = '*22.5' if $pol =~ /^wr$/i; # WASP winddirection [0..15] -> [0..359]
+    my $V = "${pol}${Ufactor}";
+    $rslt{corrected} = "$V";
+    if ( $sensorType && $Type) {  # apply Taylor sequence
+        $V = RegressionExpr( $Type, ${pol}, $V);
+    }
+    if( "$V" eq  $rslt{corrected} ) { $rslt{corrected} = FALSE; }
+    else {$rslt{corrected} = TRUE; }  # regression correction for type sensor is applied to data
+    $rslt{sensorType} = $Type;
     # there is a timeshift of minus 2-3 hours for official measurements stations
     # should be corrected in the database station table
     my $tShift = 0;
     $tShift = $timeshift if $tbl =~ /$timematch/;
-    my $data = query($tbl,"SELECT CONCAT(UNIX_TIMESTAMP(datum) -$corr -$tShift ,'=',ROUND(${pol}${Ufactor},1)) FROM $tbl
+    my $data = query($tbl,"SELECT CONCAT(UNIX_TIMESTAMP(datum) -$corr -$tShift ,'=',ROUND(${V},1)) FROM $tbl
                 WHERE (UNIX_TIMESTAMP(datum)-$tShift >= $first) AND 
                     (UNIX_TIMESTAMP(datum)-$tShift <= $last) AND
                     NOT ISNULL($pol) AND ${pol}_valid
                     ORDER BY datum");
     return \%rslt if $#{$data} < MINHOURS*(60*60/$secs); # MINHOURS hours minimal
-    my $values = Array2Units($data,$last,$corr,1515547638);
+    my $values = Array2Units($data,$last,$corr,1515547638,$pol);
     $rslt{pol}=$pol; $rslt{table}=$tbl; $rslt{data} = '[';
     $rslt{first} = $values->{first}; $rslt{last} = $values->{last};
     $rslt{count} = $values->{count}; $rslt{unit} = $values->{unit};
@@ -807,7 +845,9 @@ sub addRVstation {
        next if $S !~ /(rv)$/i;
        my %flt = ( cnt => 0 );
        $RVstations{$table} = \%flt;
-       $RVstations{$table}{$S} = Get_data($table,$S,$last,60*60);
+       # to be added: rv sensor type
+       # Type = '', it should be the sensor manufaturer type For now no type correction is done.
+       $RVstations{$table}{$S} = Get_data($table,$S,'',$last,60*60); # unknown sensor type
        $RVstations{$table}{$S} = $RVstations{$table}{$S}->{data};
        if( $overWrite || (not defined $RVstations{default}) ) {
            my %new = ( cnt => 0 );
@@ -892,6 +932,108 @@ sub Combine {
     return $list[0];
 }
 
+# sensor type with R2 < 0.6 are not taken in the correction algorithm.
+# value correction is done towards PM counting technology based sensor types not to mass
+# based sensor types as eg BAM1020.
+# using SPS30 Sensirion as reference. If needed data database will be used for regression info
+my $SensorRegressionsRef = 'SPS30';
+my %SensorRegressions = (
+    # Sensirion serie is default, ref. sensor type
+    # Plantower serie
+    'PMSX003' => {pm10 => [-4.65/1.452,1/1.452],     # R2=0.8025
+                  pm25 => [-0.0217/1.713,1/1.713],   # R2=0.9432
+                  pm1 => [-0.0217/1.713,1/1.713],    # using PM25
+                 },
+    # Nova serie
+    'SDS011'  => {pm10 => [-0.5402/1.202,1/1.202],   # R2=0.7956
+                  pm25 => [0.8843/1.042,1/1.042],    # R2=0.8938
+                  pm1 => [0.8843/1.042,1/1.042],     # using PM25
+                 },
+    # BAM1020 <-> dust sensor XYZ R2:
+    # PMSx003: PM10 R2 0.1378, PM25 R2 0.6467
+    # SDS011:  PM10 R2 0.1462, PM25 R2 0.5815
+
+    # SPS30:   PM10 R2 0.1976, PM25 R2 0.7391
+    'BAM1020' => {# pm10 => [5.506,0.4303],            # R2=0.1976
+                  pm25 => [-2.297,1.402],            # R2=0.7391
+                  pm1 => [-2.297,1.402],             # using PM25
+                 },
+    'default' => [0,1],
+);
+
+# use Data::Dumper;
+# try to initialyze $SensorRegressions from database
+sub InitiateRegressions {
+    my ($Ref) = @_;
+    $Ref =~ s/PMS./PMSX/i if $Ref =~ /^PMS[xX57]/i; # map all to PMSx003
+    $Ref = uc $Ref;
+    return $SensorRegressionsRef if $SensorRegressionsRef =~ /$Ref/;
+    my $qry = query("SensorRegression",
+              "SELECT CONCAT(LOWER(pol),';',TypeRef,';',TypeFrom,';',R2,';',Taylor)
+              FROM SensorRegression WHERE R2 >= 0.6 and ( TypeRef = '$Ref' OR TypeFrom = '$Ref' ) ORDER BY datum");
+    $SensorRegressionsRef = $Ref;
+    %SensorRegressions = (); $SensorRegressions{'default'} = [0,1];
+    for( my $i=0; $i <= $#{$qry}; $i++ ) {
+        my ($pol,$typeRef,$typeFrom,$R2,$Taylor) = split(/;/,$qry->[$i]);
+        my @AR = split(/,/,$Taylor);
+        if ( $typeFrom =~ /$Ref/ ) { # inverse Taylor sequence
+           next if $#{AR} > 1; # inverse Taylor is a bit complex for O(2)
+           if ( $AR[1] ) { $AR[1] = 1.0/$AR[1]; $AR[0] = -$AR[0]*$AR[1]; }
+           $typeFrom = $typeRef;
+        }
+        $SensorRegressions{$typeFrom} = {} if not defined $SensorRegressions{$typeFrom};
+        $SensorRegressions{$typeFrom}{$pol} = \@AR;
+        if ( $pol =~ /pm25/ ) {
+            $SensorRegressions{$typeFrom}{pm1} = \@AR;
+        }
+    }
+    # print("New SensorRegressions for $SensorRegressionsRef:\n");
+    # print Dumper(%SensorRegressions);
+    return $Ref;
+}
+
+# per manufactorer type the measurement may be corrected via regression correction
+# returns reference to Taylor sequence a0+a1*x**1+a2*x**2+... (a0,a1,a2,...)
+# here we use one reference: Sensirion SPS30
+sub SensorCFactors {
+    return \$SensorRegressions{default} if not $sensorType;
+    InitiateRegressions($sensorType) if $sensorType !~ /$SensorRegressionsRef/;
+    my ($type, $pol) = @_;
+    $type =~ s/PMS./PMSX/i if $type =~ /^PMS[xX57]/i; # map all to PMSx003
+    return \$SensorRegressions{default} if not $type || not $pol || not defined $SensorRegressions{uc $type};
+    return \$SensorRegressions{uc $type}{lc $pol} if defined $SensorRegressions{uc $type}{lc $pol};
+    return \$SensorRegressions{default}
+}
+
+# correct value with help of ref to Taylor sequence
+sub RegressionCorrect {
+    my ($taylor, $value) = @_;
+    my $rts = 0;
+    for( my $i = 0; $i <= $#{$$taylor}; $i++ ) {
+        $rts += ${$$taylor}[$i]*$value**$i;
+    }
+    return $rts;
+}
+sub RegressionExpr {
+    my ($type, $pol, $val) = @_;
+    my $taylor = SensorCFactors($type, $pol);
+    return $val if (${$$taylor}[0] == 0) && (${$$taylor}[1] == 1);
+    for( my $i = 0; $i <= $#{$$taylor}; $i++ ) {
+        if ( $i == 0 ) { $rts = sprintf("%.4f",${$$taylor}[$i]); }
+        elsif( $i == 1 ) { $rts .= sprintf("+(%.4f*$val)",${$$taylor}[$i]) ;}
+        else { $rts .= sprintf("+(%.4f*POW($val,$i))",${$$taylor}[$i]) ;}
+    }
+    return $rts;
+}
+# some routione tests
+#$sensorType = 'SPS30';
+#my $a = SensorCFactors('SPS30','pm10'); printf("SPS30 PM10 40.5 -> $sensorType %.2f\n",RegressionCorrect($a,40.5));
+#$a = SensorCFactors('SDS011','pm10'); printf("SDS011 PM10 40.5 -> $sensorType %.2f\n",RegressionCorrect($a,40.5));
+#$sensorType = 'SDS011';
+#$a = SensorCFactors('SPS30','pm10'); printf("SPS30 PM10 40.5 -> $sensorType %.2f\n",RegressionCorrect($a,40.5));
+#$a = SensorCFactors('SDS011','pm25'); printf("SDS011 PM25 40.5 -> $sensorType %.2f\n",RegressionCorrect($a,40.5));
+#$a = SensorCFactors('SDS011','pm1'); printf("SDS011 PM1 40.5 -> $sensorType %.2f\n",RegressionCorrect($a,40.5));
+
 # collect the data for a serie of stations (DB table names)
 # return a ref to array of hashes: table name, location name, pm name
 sub Collect_data {
@@ -909,21 +1051,23 @@ sub Collect_data {
     } # default last date/time of REF station
     my @data; my $first = time;
     if( not $last ) {
-        print STDERR "Cannot find last measurement date/time\n";
+        print STDERR "WARNING: Cannot find last measurement date/time\n";
         return 0;
     }
     for( my $i = 0; $i <= $#stations; $i++ ) {
         if( not Check_Tbl($stations[$i]) ){ next; }
+        my $sensorTypes = '';
         if( $stations[$i] =~ /_/ ) { # sensor kits only
             my $CorrectME = 0; my @stationData;
             my $id = $stations[$i] ; $id =~ s/^[^_]*_//;
             my $project = $stations[$i]; $project =~ s/_.*//;
             %info = Get_Info($id,$project); # search serial or label with this id
-            print STDERR "Cannot find station $stations[$i] in database.\n"
+            print STDERR "ERROR: Cannot find station $stations[$i] in database.\n"
                 if not defined $info{serial};
             next if not defined $info{serial};
             my $tbl = $stations[$i];
             $tbl = "${project}_$info{serial}";
+            $sensorTypes = $info{sensorTypes} if defined $info{sensorTypes};
             next if not Check_Tbl($tbl);
             if( $use_first ) {
                 if( $first_time ) {
@@ -944,8 +1088,20 @@ sub Collect_data {
                 if( ($S !~ /w[rs]/i) || ($pols !~ /wind/i) ) {
                     next if $S !~ /^$pols$/i; # only pollutants choice
                 }
+                # yet only for Plantower, Sensirion, Nova dust mass sensors
+                my $Type = '';
+                if ( ($S =~ /pm_*(10|25|1)/) && (defined $info{sensorTypes}) ) {
+                    if ( $info{sensorTypes} =~ /(PMS[A57x]003|SPS30|SDS011|BAM1020)/i ) {
+                      $Type = $1;
+                    }
+                }
+                elsif ( ($S =~ /(temp|rv|luchtdruk)/) && (defined $info{sensorTypes}) ) {
+                    if ( $info{sensorTypes} =~ /(BME[26]80|SHT[83][0-9]|Si[0-9]+)/i ) {
+                      $Type = $1;
+                    }
+                }
                 # interval of measurements should be 5*60 seconds
-                $D = Get_data($tbl,$S,$last,60*60);
+                $D = Get_data($tbl,$S,$Type,$last,60*60);
                 next if not defined $D->{data};
                 my $c = () = $D->{data} =~ /,/g; # count number of elements-1
                 next if $c*$D->{unit} < 12*60;   # minimal 12 hours of values
@@ -955,6 +1111,7 @@ sub Collect_data {
                 $D->{village} = $info{village};
                 $D->{label} = $info{label}; # mark for low cost sensor
                 $D->{sense} = $S;
+                $D->{sensorType} = $Type;
                 $D->{organisation} = 'MySense';
                 $D->{municipality} = $info{municipality} if defined $info{municipality};
                 $D->{sensors} = $info{sensors} if defined $info{sensors};
@@ -993,13 +1150,13 @@ sub Collect_data {
                 if( $wind{'ws'}->{unit} == $wind{'wr'}->{unit} ) {
                     push @data, Combine('wind',$wind{'ws'},$wind{'wr'});
                 } else {
-                    print STDERR "wind ws and wr unit size differ in table $wind{'wr'}->{table} and $wind{'ws'}->{table}. Skipped\n";
+                    print STDERR "WARNING: wind ws and wr unit size differ in table $wind{'wr'}->{table} and $wind{'ws'}->{table}. Skipped\n";
                 }
                 $barb = TRUE; $java = TRUE;  # use javascript from HighCharts
             }
-        } else {
+        } else { # governmental measurement station
             if( not Check_Tbl($stations[$i]) ){
-                print STDERR "Cannot find station $stations[$i] in database.\n";
+                print STDERR "ERROR: Cannot find station $stations[$i] in database.\n";
                 next;
             }
             Get_Sensors($stations[$i]);
@@ -1019,7 +1176,15 @@ sub Collect_data {
                 next if $S =~ /(^id|^datum|_(valid|color|pp))/;
                 # may add here more sensors
                 next if $S !~ /$pols/; # only pollutants of choice
-                my $D = Get_data($stations[$i],$S,$last,60*60);
+                # governmental measurement stations sensor types are not published
+                # yet only for dust, currently only BAM1020 in ref. sensors
+                my $Type = '';
+                if ( $S =~ /pm_?(10|25)/ ) {
+                    #if ( $info{sensors} =~ /(PMS[A57x]003|SPS30|SDS011)/i ) {
+                      $Type = 'BAM1020'; # might be a Palas as well
+                    #}
+                }
+                my $D = Get_data($stations[$i],$S,$Type,$last,60*60);
                 next if not defined $D->{data};
                 my $c = () = $D->{data} =~ /,/g;
                 next if $c < 12;            # minimal 12 hours of values
@@ -1054,6 +1219,12 @@ sub Collect_data {
                 }
                 $D->{organisation} = "MySense";
                 $D->{organisation} = $info[2] if defined $info[2];
+                # to do: add meteo regression correction sensor type
+                # $info{sensor} = 'dust:BAM1020'; # may add Palas sensor
+                $D->{senseCorrect} = \[0,1];
+                if ( $S =~ /pm_?(10|25)/ ) {
+                  $D->{senseType} = SensorCFactors('BAM1020',$S); # ref to array
+                }
                 push @data, $D;
             }
         }
@@ -1142,7 +1313,7 @@ sub InsertTableHdr {
     $meteoStrg = ' Tav meteo data is gebruik gemaakt van een speciale meteo sensor kit. ' if $meteo;
     return "Als achtergronds kleur (en nivo) wordt bij vertoning van een fijnstof grafiek het gezondheidsrisico weergegeven volgens de <a href='https://www.epa.gov/sites/production/files/2016-04/documents/2012_aqi_factsheet.pdf'>U.S. Environmental Protection Agency</a> PM<sub>2.5</sub> of PM<sub>10</sub> 24-uurs tabellen.<p>In de legendum kan door aanklikken een grafiek voor een enkele sensorkit meting aan- of uitgezet worden. Klik 'toon' aan voor het aan- of uitzetten van de betreffende grafiekweergave." .
         ($Mean ? 
-        "<br />Bij 'regionale overzichts grafieken' worden er een grafiek getoond met de gemiddelde waarden samen met 50% en 90% spreidingsgrafiek. De individuele grafieken kunnen apart aan- of uitgezet worden door deze een voor een aan te klikken in de legendum. Tav de metingen die bovengemiddeld hoog zijn worden maximaal 3 grafieken direct zichtbaar gemaakt."
+        "<br />Bij 'regionale overzichts grafieken' worden er een grafiek getoond met de gemiddelde waarden samen met 50% en 90% spreidingsgrafiek. De individuele grafieken kunnen apart uitgezet worden door deze een voor een aan te klikken in de legendum. Tav de metingen die bovengemiddeld hoog zijn worden maximaal 3 grafieken direct zichtbaar gemaakt."
           : ""). 
         "<br />De chart biedt de mogelijkheid om met de 'slider' (onderin de chart) in een bepaalde periode van de grafiek in of uit te zoomen. Door te schuiven over de tijdas kan de weergave periode veranderd worden." if $#BUTS < 1;
 
@@ -1156,7 +1327,7 @@ sub InsertTableHdr {
     join(' of ',@BUTS) .  $meteoStrg .
     ".</td></tr><tr><td colspan=2>Als achtergronds kleur (en nivo) wordt bij vertoning van een fijnstof grafiek het gezondheidsrisico weergegeven volgens de <a href='https://www.epa.gov/sites/production/files/2016-04/documents/2012_aqi_factsheet.pdf'>U.S. Environmental Protection Agency</a> PM<sub>2.5</sub> of PM<sub>10</sub> 24-uurs tabellen.<br />In de legendum kan door aanklikken de grafiek van een bepaalde lokatie aan- of uitgezet worden. Klik 'toon' aan voor het aan- of uitzetten van de betreffende grafiekweergave." .
         ($Mean ? 
-        "<br />Bij 'regionale overzichts grafieken' worden er een grafiek getoond met de gemiddelde waarden samen met 50% en 90% spreidingsgrafiek. De individuele grafieken kunnen apart aan- of uitgezet worden door deze een voor een aan te klikken in de legendum. Tav de metingen die bovengemiddeld hoog zijn worden maximaal 3 grafieken direct zichtbaar gemaakt."
+        "<br />Bij 'regionale overzichts grafieken' worden er een grafiek getoond met de gemiddelde waarden samen met 50% en 90% spreidingsgrafiek. De individuele grafieken kunnen apart uitgezet worden door deze een voor een aan te klikken in de legendum. Tav de metingen die bovengemiddeld hoog zijn worden maximaal 3 grafieken direct zichtbaar gemaakt."
           : "").
         "<br />Zo nodig kan de legendum door met de linker muisknop op de plaats :: ingedrukt te houden, verplaatst worden.<br />De grafiek heeft de mogelijkheid om een bepaalde periode van de grafiek te laten zien. Met de 'slider' kan de periode vergroot, verkleind of verschoven worden.</td></tr></table><br />"
     }
@@ -1332,6 +1503,8 @@ sub InsertHighChartGraph {
     my $navigator = ''; $navigator = 'navigator: { margin: 55 },' if $barb;
     my $buttonPos = 180;
     my $legend = -25; $legend = -20 if not $barb;
+    # legend is hard to show again if not activated from start
+    my $showLegend = 'true'; # $showLegend = 'false' if $Mean;
     my $string = "
     \$('#${nr}SENSORS').highcharts('StockChart',{
             rangeSelector: {
@@ -1439,7 +1612,12 @@ sub InsertHighChartGraph {
             title: {
                 text: '::'
             },
-            enabled: true,
+            navigation: {
+                arrowSize: 10,
+                enabled: true,
+                animation: true
+            },
+            enabled: $showLegend,
             labelFormatter: function() { if( this.visible ) { return this.name ; } else { return this.name + ' (click voor toon graph)' }; }
         },
         credits: { enabled: false },
@@ -1579,19 +1757,21 @@ sub AvgStdSeries {
     $series .= "{
         type: 'spline',
         pointStart: Avg${id}Start, pointInterval: Avg${id}unit,
-        name: Avg${id}Title + 'gemiddelde, spreiding 50%-90%',
+        name: Avg${id}Title + 'regio gemiddelde met spreiding 50%-90%',
         data: Avg${id}data,
         animation: { duration: 10000, easing: easeOutBounce },
         color: '$color',
+        dashStyle: 'ShortDot',
         shadow: { color: '$color',
             width: 5, offsetX: 0, offsetY: 0
           },
         zIndex: 10,
         yAxis: 0, // first per definition
         lineWidth: 1+1,
-        visible: false,
+        visible: true,
         tooltip: { valueSuffix: '$suffix', radius: 1+1 },
         showInNavigator: true,
+        showInLegend: true,
         marker:{
             fillColor: '$color',
             radius: 1+1
@@ -1674,15 +1854,20 @@ sub ChartSerie {
     # seems there is a time shift of 3 hours in DLT MET with official stations timestamp */
     for( my $i = 0; $i <= $#{$data}; $i++ ){
         my $ugm3 = '\\u00B5g/m\\u00B3';
-        my $visible = 0;
+        my $visible = 0; my $RIVMstation = 0;
+        $RIVMstation = 1 if $data->[$i]{table} !~ /_/;
         $visible = $data->[$i]{visible} if defined $data->[$i]{visible};
-        if( $Mean ) { $visible = 1 if $data->[$i]{table} !~ /_/; }
+        if( $Mean ) { $visible = 1 if $RIVMstation; }
         elsif( $data->[$i]{table} =~ /_/ ){
             $visible = 1 if $data->[$i]{sense} !~ /(luchtdruk)/;
         }
         # pm2.5 pollutants are all visible
         # graph not visible if not local sensor kit (has _ in name)
         my $corr = '';
+        if( (defined $data->[$i]{corrected}) && $data->[$i]{corrected} ) {
+            if( $language =~ /UK/ ) { $corr = ' corrected'; }
+            else { $corr = ' gecorrigeerd'; }
+        }
         if( ($data->[$i]{sense} =~ /pm_?(10|25)/i) && (defined $data->[$i]{CorrectME}) ) {
             my $name = $data->[$i]{CorrectME}; $name =~ s/.*_//g;
             # for now only rv TO DO: extent this with a row of indicators!
@@ -1700,12 +1885,13 @@ sub ChartSerie {
                 $series .= "\n\tanimation: { duration: 8000, easing: easeOutBounce },";
                 $series .= sprintf("\n\tlineWidth: 1+%d", $i);
                 $series .= sprintf("\n\tvisible: %s,",($visible?'true':'false'));
-                if ( $Mean && ($data->[$i]{table} !~ /_/) ) {
+                if ( $RIVMstation ) {
                     $series .= "\n\tlineWidth: 2,";
+                    $series .= "\n\tdashStyle: Dash,";
                 }
                 $series .= sprintf("\n\tzIndex: %d,",$i+1);
                 $series .= sprintf("\n\ttooltip: { valueSuffix: ' %s' },",($data->[$i]{pol}?ConvertS2U($data->[$i]{pol}):$ugm3));
-                # $series .= sprintf("\n\tyAxis: %d,", ($data->[$i]{table} =~ /_/?0:1));
+                # $series .= sprintf("\n\tyAxis: %d,", (! $RIVMstation?0:1));
                 $series .= sprintf("\n\tyAxis: %d,", ySerieIndex(($data->[$i]{pol}?$data->[$i]{pol}:$data->[$i]{sense}),$i));
                 $series .= "\n\tpointPlacement: 'between',";
                 $series .= sprintf("\n\t marker:{ radius: 1+%d }",
@@ -1742,8 +1928,8 @@ sub ChartSerie {
         $series .= "\n\tdashStyle: 'shortdash'," if $data->[$i]{sense} =~ /rv$/;
         $series .= "\n\tcolor: '#739fe8'," if $data->[$i]{sense} =~ /rv$/;
         $series .= "\n\tcolor: '#37dcb4'," if $data->[$i]{sense} =~ /luchtdruk/;
-        my @c = ('5a005a','2e0052','001f47','164700','6b2b00'); # color selection for official station series
-        $series .= sprintf("\n\tcolor: '#%s',", $c[$i % $#c]) if $data->[$i]{table} !~ /_/;
+        my @c = ('cb0505','a805cb','cb4105','cba305','cb6205'); # color selection for official station series
+        $series .= sprintf("\n\tcolor: '#%s',", $c[$i % $#c]) if $RIVMstation;
         if ($data->[$i]{sense} =~ /rain/ ) {
             $series .= "\n\tzIndex: 0,";
         } elsif ( $data->[$i]{sense} =~ /(luchtdruk|rv)/ ) {
@@ -1984,7 +2170,7 @@ sub plotBands {
     my $NRM = shift;
     return '' if not $ShowBands;  # dflt turned off, deprecated, display problem
     return '' if (not $NRM) || ($NRM =~ /none/);
-    print STDERR "Unknown quality level identifier $NRM\n" if not defined $bands{$NRM};
+    print STDERR "WARNING: Unknown quality level identifier $NRM\n" if not defined $bands{$NRM};
     return '
                 {color:"rgba(0, 32, 197, 0.05)",from: 0,to:19.5 },
                 {color:"rgba(244, 230, 69, 0.15)",from: 20 ,to: 25 },
@@ -2051,7 +2237,7 @@ sub JScompress {
     $rslt = <$JSin>;
     if ( not $rslt ) {
         print STDERR "WARNING yui-compressor failed. JS data saved in /var/tmp/VW2017_IN.js\n";
-        print STDERR "No JS compression is done.\n";
+        print STDERR "ATTENT: No JS compression is done.\n";
         return ${$string};
     }
     close $JSin;
@@ -2143,8 +2329,8 @@ sub GetAvgStdDev {
     for( my $i = 0; $i < $#{$data}; $i++) {
         # print("nr $i, sense ${$data}[$i]{sense}, first ${$data}[$i]{first}, last ${$data}[$i]{last}, unit ${$data}[$i]{unit}\n");
         if( (${$data}[$i]{sense} !~ /$sense/) || (${$data}[$i]{unit} != $unit ) ){
-            print STDERR ("Found different type of sensor or time unit. Skip average/stddev graphs.\n");
-            print STDERR ("nr $i, sense ${$data}[$i]{sense}, first ${$data}[$i]{first}, last ${$data}[$i]{last}, unit ${$data}[$i]{unit}\n");
+            print STDERR ("WARNING: Found different type of sensor or time unit. Skip average/stddev graphs.\n");
+            print STDERR ("ATTENT: nr $i, sense ${$data}[$i]{sense}, first ${$data}[$i]{first}, last ${$data}[$i]{last}, unit ${$data}[$i]{unit}\n");
             return undef;
         }
         $Tmin = ${$data}[$i]{first} if ${$data}[$i]{first} < $Tmin;
@@ -2240,41 +2426,45 @@ sub Generate {
     my $IN;
     # strings to be used in generated HTML code
     my @Mlbls; my @Slbls; my $Olbls; my $first = 0; my $last = 0;
-    my @BUTTONS = split(/,\s*/,$buttons);
-    my @POLLUTANTS = split(/,\s*/, $pollutants);
-    if( $#BUTTONS != $#POLLUTANTS ) {
-        print STDERR "number of buttons defined does not correspond with number of pollutant expressions\n";
+    my @Buttons = split(/,\s*/,$buttons);
+    my @BUTTONS;
+    my @Pollutants = split(/,\s*/, $pollutants);
+    my @POLLUTANTS;
+    if( $#Buttons != $#Pollutants ) {
+        print STDERR "ERROR: number of buttons defined does not correspond with number of pollutant expressions\n";
         return 1;
     }
-    for ( my $i=0; $i <= $#BUTTONS; $i++ ) {
+    my $j = -1;
+    for ( my $i=0; $i <= $#Buttons; $i++ ) {
         # convert user provided names to reg. exp and button names
-        $BUTTONS[$i] =~ s/[_\|].*//; # allow one name
-        $BUTTONS[$i] =~ s/pm/PM/;
-        $BUTTONS[$i] =~ s/PM([0-9])([1-9])/PM$1.$2/;
-        $BUTTONS[$i] =~ s/^(.{1,5}).*/$1/;  # max 5 chars as button name
-        $BUTTONS[$i] =~ s/\s//g;
-        $BUTTONS[$i] =~ s/[^a-zA-Z0-9\.]//g;
-        $POLLUTANTS[$i] =~ s/PM/pm/; $POLLUTANTS[$i] =~ s/\s//g;
-        $POLLUTANTS[$i] =~ s/pm(10|25)/pm$1|pm_$1/g;
-        $POLLUTANTS[$i] =~ s/temp/temp|dtemp|stemp/;  # SHT, DHT
-        $POLLUTANTS[$i] =~ s/(.*)/($1)/;  # we have now a reg. expression
+        $Buttons[$i] =~ s/[_\|].*//; # allow one name
+        $Buttons[$i] =~ s/pm/PM/;
+        $Buttons[$i] =~ s/PM([0-9])([1-9])/PM$1.$2/;
+        $Buttons[$i] =~ s/^(.{1,5}).*/$1/;  # max 5 chars as button name
+        $Buttons[$i] =~ s/\s//g;
+        $Buttons[$i] =~ s/[^a-zA-Z0-9\.]//g;
+        $Pollutants[$i] =~ s/PM/pm/; $Pollutants[$i] =~ s/\s//g;
+        $Pollutants[$i] =~ s/pm(10|25)/pm$1|pm_$1/g;
+        $Pollutants[$i] =~ s/temp/temp|dtemp|stemp/;  # SHT, DHT
+        $Pollutants[$i] =~ s/(.*)/($1)/;  # we have now a reg. expression
 
-        my $data = Collect_data($POLLUTANTS[$i],@stations);
+        my $data = Collect_data($Pollutants[$i],@stations);
         if( $#{$data} <= 2 ) {
-            printf STDERR ("Unable to find chart data for %s stations, pollutants: %s\n",
-                join(', ', @stations), $POLLUTANTS[$i]);
-            return 0;
-        }
-        # this may be incorrect
+            printf STDERR ("WARNING: Unable to find chart data for %s stations, button %s, pollutants: %s\n",
+                join(', ', @stations), $Buttons[$i], $Pollutants[$i]);
+            next;
+        } else { $j++ ; }
         
+        $BUTTONS[$j] = $Buttons[$i]; $POLLUTANTS[$j] = $Pollutants[$i];
         my $tt = pop @{$data};
         $last = $first = $tt if not $last;
         $last = $tt if $tt > $last;
         $tt = pop @{$data}; $first = $tt if $tt < $first;
-        printf STDERR ("Found data for %d sensors for button %s with pollutants %s.\n", $#{$data}+1, $BUTTONS[$i],$POLLUTANTS[$i])
+        printf STDERR ("Found data for %d sensors for button %s with pollutants %s.\n", $#{$data}+1, $BUTTONS[$j],$POLLUTANTS[$j])
             if $verbose;
-        $DATA[$i] = $data;
+        $DATA[$j] = $data;
     }
+    return 0 if $j < 0;
     $last = strftime("%a %e %b %Y %H:%M", localtime($last));
     $first = strftime("%a %e %b %Y", localtime($first));
     my $prev = 'X';
@@ -2637,7 +2827,7 @@ sub Generate {
             } elsif( $type =~ /updated/ ){       # last update of chart
                 MyPrint($inscript, 'data geactualiseerd op ' . strftime("%Y-%m-%d %H:%M\n",localtime(time)));
             } elsif( $type =~ /Legend/i ) {       # insert button Legend off/on
-                MyPrint($inscript, '<button id="update-legend" class="autocompare">legendum uit/aan</button>' . "\n")
+                MyPrint($inscript, '<button id="update-legend" class="autocompare">zet legendum uit</button>' . "\n")
                     if $nrLegends >= 2;
             } elsif( $type =~ /first/ ){         # first date in chart
                 MyPrint($inscript, $first . "\n");
@@ -2653,6 +2843,24 @@ sub Generate {
                 MyPrint($inscript,InsertTableHdr(\@BUTTONS,\@POLLUTANTS) ."\n");
             } elsif( $type =~ /correctPM/ ) {    # add text info on PM corrections
                 MyPrint($inscript,correctPMtext());
+            } elsif( $type =~ /sensorType/ ) {    # message if sensorType diff is corrected
+                    if ( $sensorType ) {
+                my $Ref = $sensorType;
+                if ( $Ref =~ /PMS/ ) { $Ref = "Plantower ($Ref)"; }
+                elsif ( $Ref =~ /SDS/ ) { $Ref = "Nova ($Ref)"; }
+                elsif ( $Ref =~ /SPS/ ) { $Ref = "Sensirion ($Ref)"; }
+                if( $language =~ /UK/ ) {
+                MyPrint($inscript, "<br>The dust measurements are corrected for differences in mass values between the different manufacturers. The reference dust sensor $Ref is taken here as reference sensor. The legend of the graph will show 'corrected' when a correction is applied.</br>");
+                } else {
+                MyPrint($inscript, "<br>De fijnstof metingen in de grafiek (aangeduid met '<I>gecorrigeerd</I>' in de legendum van grafieklijn) zijn <b>gecorrigeerd</b> voor verschillen in massa waarden per fabrikant. De fijnstof sensor $Ref is hierbij als referentie sensor toegepast nav een regressie test in 2020.</br>");
+                }
+                    } else {
+                if( $language =~ /UK/ ) {
+                MyPrint($inscript, "<br>The dust measurements (in the legend denoted as 'corrected') are not corrected for differences in mass values between the different manufacturers.</br>");
+                } else {
+                MyPrint($inscript, "<br>De fijnstof metingen in de grafiek zijn <b>niet</b> gecorrigeerd voor verschillen in massa waarden per fabrikant.</br>");
+                }
+                    }
             } elsif( $type =~ /showBands/ ){           # AQI text lines
                 # next should be compiled from %bands
                 my %AQItxt = (
@@ -2873,13 +3081,19 @@ Fake Adres, Location ERROR (Fake)
 <!-- END correctPM -->
 <p>
 De fijnstof sensor van deze meetkits telt het aantal fijnstof deeltjes (PM<span style="font-size:80%">1</span>, PM<span style="font-size:80%">2.5</span> en PM<span style="font-size:80%">10</span>) elke 15 munten voor ca een minuut lang het aantal deeltjes in 6 verschillende groottes. De fijnstof meting wordt door de fabrikant vervolgens omgerekend naar het gewicht van de deeltjes in &micro;g/m&sup3;.
-In de omrekening door de fabrikant wordt geen rekening gehouden met relatieve vochtigheid, regen en andere lokale invloeden.
+<br />
+In de omrekening door de fabrikant wordt geen rekening gehouden met relatieve vochtigheid, regen, soort en grootte van de deeltjes en andere lokale invloeden. Bijv. hogere relatieve vochtigheid geeft hogere waarden dan de werkelijkheid, PM10 varieert meer als PM2.5 over een periode. Lokale wind sterkte op 1.70 m hoogte maakt veel uit. Maw er is een lokale afhankelijk tav de zekerheid of de waarden juist zijn: ze zijn per definitie indicatief.
 <br />De fijnstof metingen van de RIVM/PLIM landelijke meetstations zijn ook gewichtsmetingen (&micro;g/m&sup3;) van gemiddelden per uur.
 De apparatuur van het landelijk meetstation wordt periodiek (lokaal) geijkt. 
-<br />Notitie: Elke sensor is verschillend. De onderlinge verschillen zijn met met tijdrovende regressie tests te corrigeren.
-Hiervoor is begin 2020 een aanvang gemaakt.
-Voorlopig worden de vertoonde waarden alleen bijgesteld (validatie) door rare pieken mbv een statistische methode (Chi-kwadraad en Grubbs Z-score), en zg nul en statische waarden (fouten van de sensor) weg te halen bij de berekening van de grafieken.
-Maw de waarden zijn alleen gevalideerd, niet gecorrigeerd voor onderlinge sensor verschillen en nog niet gecalibreerd (vergeleken met een referentie sensor).
+<br /><I>Notitie tav meetwaarden</I>:
+<br />Elke sensor is verschillend. De onderlinge verschillen zijn met met tijdrovende regressie tests (R2 > 0.6) over lange perioden goed te corrigeren.
+Hiervoor is begin 2020 een onderzoek gedaan mbv Nova, Plantower en Senserion fijnstof sensoren met als referentie sensor de BAM1020 op lokatie landelijk meetstation in Vredepeel.
+De Plantower overschat het fijnstof nivo het meest.
+<!-- START sensorType -->
+<!-- END sensorType -->
+De vertoonde waarden bijgesteld (validatie) door rare pieken mbv een statistische methode (Chi-kwadraad en Grubbs Z-score), en zg nul en statische waarden (fouten van de sensor) weg te halen bij de berekening van de grafieken.
+Maw de waarden zijn gevalideerd, en zo mogelijk gecorrigeerd voor onderlinge sensor verschillen.
+Maar in afwachting van de verdere onderzoeksresultaten nog niet gecalibreerd (vergeleken met een referentie sensor zoals de BAM1020).
 <br />
 Om de hoeveelheid data te beperken zijn de meetwaarden geaggredeerd - een gemiddelde over een periode van 30 minuten voor de sensors en 60 minuten voor de landelijke meetstations. De getoonde periode is de afgelopen 3 dagen. Eens per uur wordt de grafiek ververst.
 </p>
@@ -3010,14 +3224,17 @@ Fake Adres, Location ERROR (Fake)
 <!-- END correctPM -->
 <p>
 The dust sensor does a counting of particles flying by (PM<span style="font-size:80%">2.5</span> and PM<span style="font-size:80%">10</span>) every minute in a sample of 5 minutes.
-The measurement value shown is recalculated by the manufacturer to particles weight:
+The measurement value shown differ between the manufacturer to particles weight:
+<!-- START sensorType -->
+<!-- END sensorType -->
 &micro;g/m&sup3;.
 In the calculation the influence of humidity to the count is however neglected.
 The dust values from the reference sensors used e.g. by RIVM or PLIM is showed as
 (&micro;g/m&sup3;) as average per hour.
 The reference sensor are calibrated on a regular base.
 <br />Note:
-the values of the local sensor kits differ amongst each other and among manufacturer in a linear way. They need still to be calibrated.
+the values of the local sensor kits differ amongst each other and among manufacturer in a linear way.
+The correction factor for dust sensors is developped by measurement data obtained by a regression test for a period of half a year at the governmental station in Vredepeel comparing Novca, Plantower and Sensition dust sensors with the BAM1020 dust sensor.
 <br />
 To limit the amount of data the values have been aggregated: periods of 30 minutes for the local sensorkits and 60 minutes for the reference sensors.
 The default period of time shown on the zoomed chart is 3 days. Once per hour the chart is updated.
