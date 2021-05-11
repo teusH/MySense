@@ -63,6 +63,13 @@ Can operate in 3 modes:
 . Can be used to synchronisize databases on last time updated base as well.
 . Synchronize from data DB towards web CMNSA database and other way around.
 
+### CorrectSensed.pl
+Use: get sensor measurements corrected for supported sensor type correction algorithm templates
+
+Can be use in different scripts to correct the sensor measurement on type by different manuafacturers.
+The algoritm is based on regression statistics on half year period on a governementa air quality station in Vredepeel, Holland.: Nova, Sensirion, Plantower, and BAM1020 dust sensors.
+In time to be completed with other sensor types.
+
 ### MyAdmin
 Use: import (new, update) meta info measurement kit in data database.
 
