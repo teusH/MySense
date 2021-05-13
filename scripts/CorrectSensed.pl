@@ -1,4 +1,4 @@
-# $Id: CorrectSensed.pl,v 1.2 2021/05/11 19:58:11 teus Exp teus $
+# $Id: CorrectSensed.pl,v 1.3 2021/05/13 15:18:15 teus Exp teus $
 # Copyright (C) 2021, Teus Hagen, the Netherlands
 #
 # This program is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@
 
 ##!/bin/bashbash
 # # calculate sensor type per manufacturer correction for pollutants 
-# # usage: CORRECT REF=ReferencedSensorType [REG=0.6] SENSOR={SensorType|project_serial} polI[=valueI] ....
+# # usage: CORRECT {TBL=project_serial|TBL=station} REF=ReferencedSensorType [REG=0.6] SENSOR=SensorType polI[=valueI] ....
 # # where (Referenced)SensorType is eg SDS011, PMS[xA157]003, SPS30 or Nova, Plantwoer, Sensirion
 # # and polI is either pm_10,pm10,pm_25,pm25,pm1 and valI the value to be corrected
 # # value may be a comma separated list. Field separator is automatically detected
@@ -30,75 +30,72 @@
 # # returns corrected values or in case of empty value the correction algorithm
 # function CORRECT()
 # {
-#    local SENSOR REF ARG REG SEP=','
-#    declare -A POLS
+#    local P SENSOR REF ARG REG SEP=' '
+#    declare -a POLS
+#    declare -i I
 #    for ARG in $*
 #    do
-#        ARG=${ARG/ /}  # remove spaces
 #        case "${ARG}" in
 #        REF=*) REF="${ARG/*=/}" ; REF="${REF^^}"  # reference sensor type, default SPS30
 #        ;;
-#        SENSOR=*) SENSOR="${ARG/*=/}" ; SENSOR="${SENSOR^^}"
-#           # sensor type of manufacturer eg SPS30 or project_serial
+#        SENSOR=*) SENSOR="${ARG/*=/}" ; SENSOR="${SENSOR^^}" # sensor type of manufacturer eg SPS30
 #        ;;
 #        REG=*) REG="${ARG/*=/}"                   # minimal regression selection correction criterium
 #        ;;
-#        pm*=*|PM*=*)                            # yet only PM sensors type are supported
-#            POLS["${ARG/=*}"]+=",${ARG/*=/}" ;  # only support pm*, routine will lowercase pol name
-#            POLS["${ARG/=*}"]=${POLS["${ARG/=*}"]/#,/} # remove leading comma
+#        pm*=*|PM*=*)                              # yet only PM sensors type are supported
+#            POLS[$I]="${ARG/=*/}=${ARG/*=/}" ; I+=1
 #            SEP=' '
 #        ;;
 #        *)
-#           if ! echo  "$ARG" | grep -q -P '^[A-Za-z0-9_]+$'
-#           then
-#               echo "ERROR: unsupportant pollutant ${ARG/=*/}. Skipped." >/dev/stderr
-#           else
-#               POLS[$ARG]=''                    # non PM pollutants will not get correction algorithm
-#           fi
+#           if echo "$ARG" | grep -q -P ',[a-zA-Z]' ; then ARG="${ARG//,/ }" ; SEP=',' ; fi
+#           for P in $ARG
+#           do
+#                 if ! echo  "$P" | grep -q -P '^[A-Za-z0-9_]+$'
+#                 then
+#                     echo "ERROR: unsupportant pollutant ${P/=*/}. Skipped." >/dev/stderr
+#                 else
+#                     POLS[$I]="$P" ; I+=1   # maybe pollutant (e.g. rv) will not get correction
+#                 fi
+#           done
 #        ;;
 #        esac
 #    done
 #    if [ -z "$REF" ] || [ -z "$SENSOR" ]
 #    then
-#        echo "ERROR in command CORRECT arguments (missing REF or one of SENSOR or proj_serial) $*" >/dev/stderr
+#        echo "ERROR in command CORRECT arguments (missing REF or one of TBL/SENSOR) $*" >/dev/stderr
 #    fi
+#    ARG=''
+#    for (( I=0; I < ${#POLS[@]}; I++ ))
+#    do
+#        if [ -z "$ARG" ]
+#        then ARG="${POLS[$I]}"
+#        else ARG+="${SEP}${POLS[$I]}"
+#        fi
+#    done
 #    if [ "$REF" = "$SENSOR" ] # no correction to be applied
 #    then
-#        REF=''
-#        for ARG in ${!POLS[@]}
-#        do
-#            if [ -z "${POLS[$ARG]}" ]
-#            then
-#                REF+="${SEP}${ARG}"
-#            else
-#                REF+="${SEP}${ARG}=${POLS[$ARG]}"
-#            fi
-#        done
-#        echo "${REF/#${SEP}/}"
+#        echo "${ARG}"
 #        return 0
 #    fi
-#    # if project_serial is defined the SENSOR type will be looked up via Sensors database table
-#    if [ -n "$REG" ] ; then ARG+="\$REG = $REG; " ; fi  # minimal regression factor for alg selection
 #    if [ -z "$SENSOR" ]
 #    then
-#        echo "ERROR: sensor type not defined! Missing sensor/proj_serial definition." >/dev/stderr
+#        echo "ERROR: sensor type not defined! Missing SENSOR or PROJ_SERIAL definition." >/dev/stderr
 #        return 1
 #    fi
-#    ARG=''; local P
-#    for P in ${!POLS[@]}
-#    do
-#        if [ -z "$ARG" ] ; then ARG="\$${P}=${POLS[$P]}" ; 
-#        else ARG+=" \$${P}=${POLS[$P]}" ; fi
-#    done
-#    perl -e "require './CorrectSensed.pl';" \
-#             -e "\$REF = '$REF'; \$SENSOR = '$SENSOR';" \
-#             -e "CORRECT('${ARG/CORRECT('?/CORRECT('}');"
+#    SENSOR="\$SENSOR = '$SENSOR';"
+#    if [ -n "$REG" ]  # minimal regression factor for alg selection
+#    then SENSOR="$SENSOR \$REG = $REG;"
+#    fi
+#    # SENSOR+=" \$debug = 2;"
+#    ARG="\$REF = '$REF'; $SENSOR print(CORRECT('${ARG}'));"
+#    perl -e "require './CorrectSensed.pl';" -e "$ARG"
 # }
-# # examples:
+# # test examples:
 # CORRECT REF=SPS30 SENSOR=PMSX003 pm10=35.5 pm25=25.8 pm1=20.7
 # CORRECT SENSOR=SAN_30aea4509eb4 REF=SPS30 "pm10=35.5 pm25=25.8 pm1=20.7"
-# CORRECT REF=SPS30 SENSOR=SDS30 pm10,pm25,pm1,rv,luchtdruk,temp
-# CORRECT REF=SPS30 SENSOR=BAM1020 "pm10 pm25"
+# CORRECT REF=SPS30 SENSOR=SDS011 pm10,pm25,pm1,rv,luchtdruk,temp
+# CORRECT SENSOR=BAM1020 REF=SPS30 pm25 pm10
+# CORRECT SENSOR=NL1031 REF=SPS30 "pm25 pm10"
 
 # Air Quality Index details and constants
 
@@ -125,7 +122,7 @@ if( $mypass =~ /somepass/ ){
 }
 use DBI;
 
-# my $debug = 0;
+# my $debug = 2;
 
 # one row of values from one column out of the DB table
 sub query {
@@ -272,6 +269,7 @@ sub CORRECT {
   my $sep = ' ';
   $REF = $SensorRegressionsRef if not $REF;      # reference sensor type. Has to be defined.
   $REG = $SensorRegressionsReg if not $REG;      # minimal regression algorithm selection criterium
+  # may need to improve these checks on supported REF sensors and sensors in type table
   if( not $REF =~ /(SPS[0-9]{2}|PMS[0-9xX]{4}|SDS[0-9]{3})/ ) {
     print STDERR "WARNING: unknown sensor type '$REF'. No correction.\n";
     return $values;
@@ -392,10 +390,13 @@ sub SensorCorrection {
 # Google-o-meter URL for image png, size 200x150
 # on error or unknow index value is zero
 {
-
    if( (defined $debug) && ($debug > 1) ) {
    # module tests:
-   print("SENSOR='SAN_cc50e39c8cc4';REF=''; CORRECT('pm_10=35.8 pm25=25.8 pm1=20.7,15.3');");
+   print("REF = 'SPS30'; SENSOR = 'SDS011'; CORRECT('pm10,pm25,pm1,rv,luchtdruk,temp');\n");
+   $REF = 'SPS30'; $SENSOR = 'SDS011';
+   print(CORRECT('pm10,pm25,pm1,rv,luchtdruk,temp')); print("\n");
+
+   print("SENSOR='SAN_cc50e39c8cc4';REF=''; CORRECT('pm_10=35.8 pm25=25.8 pm1=20.7,15.3');\n");
    $SENSOR='SAN_cc50e39c8cc4';$REF='SPS30';
    print(CORRECT('pm_10=35.8 pm25=25.8 pm1=20.7,15.3')); print("\n");
 
@@ -406,6 +407,6 @@ sub SensorCorrection {
    print("REF='SPS30';SENSOR='PMSX003'; CORRECT('pm10,pm25,pm1');\n");
    $SENSOR='PMSX003';
    print(CORRECT('pm10,pm25,pm1')); print("\n");
-   }
+   } else { 1; }
 
 } # end of AQI calculation routines
