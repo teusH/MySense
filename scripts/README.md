@@ -75,3 +75,9 @@ Use: import (new, update) meta info measurement kit in data database.
 
 Can be used in interactive mode. Default the script will try to synchronize meta info towards the web CMS (Drupal) database as well if database credentials are provided via CLI environment settings, e.g. DBHOST, DBUSER, WEBHOST, WEBUSER, etc.
 Can be used to output current database meta info for a range (regular expression) of measurement kits in json format to export meta info.
+
+### MyLoRaCode
+Use: vai import or standalone for TTN payload decoding tests
+
+Supports TTN V2 and V3 stack MQTT produced records.
+Module when used a standalone can read records from stdin eg via mqtt_subscribe some_options | python(2/3) MyLoRaCode.py for test purposes.
