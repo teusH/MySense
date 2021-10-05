@@ -25,7 +25,7 @@ A description of the MySense PyCom based measurement kit, data collection and da
    language governing rights and limitations under the RPL.
 
 
-### MySense Raspberry Pi controller
+### MySense datacollector (Linux systems)
 
 <img src="RPi/images/MySenseCase-Pi.png" align=right height=100>
 MySense is able to act as *air quality measurement kit* or *node broker* (Pi based).
