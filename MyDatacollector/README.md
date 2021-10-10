@@ -2,7 +2,7 @@
 $Id: README.md,v 1.1 2021/10/10 13:24:01 teus Exp teus $
 
 ## An outline of the data aquisition, monitoring, eventhandling and adatforwarder
-MyDatacollector is a Python application to run as a deamon service downloading measurement data from (MQTT) brokers, monitoring the measurement kit operations, handling measurement kit events, while sending event notices via email or chat service (Slack), updating meta information of the measurement kits and forwarding the data to a collection of output channels as terminal console, measurment database, and different data portales as Sensors.Community, RIVM etc.
+MyDatacollector is a Python application to run as a deamon service downloading measurement data from (MQTT) brokers, monitoring the measurement kit operations, handling measurement kit events, while sending event notices via email or chat service (Slack), updating meta information of the measurement kits and forwarding the data to a collection of output channels as terminal console, measurement database, and different data portales as Sensors.Community, RIVM etc.
 
 The datacollector has an enormous amounbt of functionality. Mainly to improve data aquisition and to provide a high quality operation of measurements over long periods.
 This requires to configure the application in a thoroughfull way.
@@ -65,14 +65,14 @@ Project name and seriaid are the reference id used in other (meta) database tabl
 
 The output channel modules API is done via the module 'publish' routine.
 Routine arguments:
-- meta information (datagram count, sensor types, correction/calibration info, measurment unit info and id: project/serial). See the module for MDEF details and examples.
+- meta information (datagram count, sensor types, correction/calibration info, measurement unit info and id: project/serial). See the module for MDEF details and examples.
 - data or measurement record. Example of MDEF format: `{"SHT31": [("temp",11.3,"C"),...]}'
 - artifacts list encountered by the data collector as eg "Forward data", malfunctioning sensors, out of band values, static values, etc.
 
 The datacollector uses a field name translation configuration tabel to translate sensor field names to the fields names as used in the MySQL database. E.g. translate 'temperature' to 'temp', 'RH' to 'rv', 'pressure' to 'luchtdruk', etc. Fields names are case independent.
 
 ## meta measurement kit data
-The MySQL database has a few tables to describe meta data for each measurment kit:
+The MySQL database has a few tables to describe meta data for each measurement kit:
 - 'Sensors': table with project/serial id's, location, sensor types configuration, operational info (active, in repair). The datacollector will complete info as eg geohash information, street, village, in repair when location if not the homelocation, installation home location, etc. on the fly. The datacollector uses a write throug cache to avoid too many accesses to the database server.
 - 'TTNtable': table with forwarding information to database, portals and project/serial match with TTN topic/device id.
 - 'SensorTypes': table with information about different sensor types of sensor manufacturers, sensor names, sensor correction
@@ -90,7 +90,7 @@ Information about timestamp, measurement kit name, sensor types in the datagram 
 
 ## notices mechanism
 By default notices via email or chat notices service (eg Slack) will be active (notices:output=true).
-Notices are about events, malfunctioning sensors, measurment faults (dead for more as 2 hours) to the 'owner', project manager, and operational manager.
+Notices are about events, malfunctioning sensors, measurement faults (dead for more as 2 hours) to the 'owner', project manager, and operational manager.
 
 ## event handling
 A measurement kit kan generate an event (low accu level, watchdog event, programming error, etc). The event number is translated to a name and priority. All events are logged. Priority will decide if a notice is generated as well. Event handling cannot be switched off.
@@ -101,7 +101,7 @@ Default logging output (priority driven: info, ..., debug) is on standard error 
 It is possible to configure each module with a different priority level.
 
 ## upgrading DB
-MyDatacollector is dependent on meta information and measurment data tables.
+MyDatacollector is dependent on meta information and measurement data tables.
 These tables have had some changes in supported tables fields/columns. 
 To update the elder DB please use the bash update script.
 
@@ -133,7 +133,7 @@ On the event that the kit clearly has been restarted this will be notified.
 If the kit was disabled for some reason the datagram will be skipped and an event is raised.
 From that point the datagram is checked if meta data (DB tables 'Sensors', 'TTNtable' and 'SensorTypes') needs to be changed in the database (write through cache) as e.g. new home location or is clearly in a repair situation (locality differs from home location).
 Gateway statistics is updated.
-Finally the datagram is checked if there is data for valid data, measurments to be forwarded, and which measurements are provided from known sensor types. If needed meta data will be corrected as well calibration reference sensor types and measurement correction information is attached to the cached meta information.
+Finally the datagram is checked if there is data for valid data, measurements to be forwarded, and which measurements are provided from known sensor types. If needed meta data will be corrected as well calibration reference sensor types and measurement correction information is attached to the cached meta information.
 Data2Frwrd() routine will collect so called 'artifacts' as provided from the different checking routines.
 This artifacts list is hand over to the output channels/modules publish() routines.
 
