@@ -1,0 +1,163 @@
+# sample record from TTN V2 stack MQTT server:
+# test 1
+201802215971az/devices/gtl-kipster-weerstation/up {"app_id":"201802215971az","dev_id":"gtl-kipster-weerstation","hardware_serial":"0078CECEA5167524","port":12,"counter":70,"payload_raw":"AAEBQgIoBAETQKPzWkJ0fmv/////FAB4AVg=","payload_fields":{"version":1.8,"BME280":{"temp":32.2,"rv":55.2,"luchtdruk":1024.5},"NEO-6":{"lon":5.123456,"lat":61.123456,"alt":null},"WindDIY1":{"wr":120,"ws":34.4}},"metadata":{"time":"2020-10-25T11:07:43.374546797Z","frequency":867.5,"modulation":"LORA","data_rate":"SF7BW125","airtime":87296000,"coding_rate":"4/5","gateways":[{"gtw_id":"gateway_sint_anthonis_004","timestamp":3340903908,"time":"2020-10-25T11:07:43Z","channel":0,"rssi":-107,"snr":4.75,"rf_chain":0}],"latitude":51.659508,"longitude":5.823824,"location_source":"registry"}}
+# test 2
+201802215971az/devices/gtl-kipster-weerstation/up {"app_id":"201802215971az","dev_id":"gtl-kipster-weerstation","hardware_serial":"0078CECEA5167524","port":10,"counter":21253,"payload_raw":"PD0+BjhPhxj9wzfe725vZGVfMDEj1TRgSs3MTL1MAADIQk16tMZHngAAAACfAAAAAKCEDQ8/nQicmpmZQA==","metadata":{"time":"2019-11-29T23:22:06.91516809Z","frequency":868.3,"modulation":"LORA","data_rate":"SF9BW125","airtime":431104000,"coding_rate":"4/5","gateways":[{"gtw_id":"eui-1dee0d671fa03ad6","timestamp":973238836,"time":"","channel":1,"rssi":-78,"snr":12.2,"rf_chain":1,"latitude":50.88568,"longitude":5.98243,"alt":45}]}}
+# test 3
+{"port":12,"payload_raw":"AAEBQgIoBAETQKPzWkJ0fmv/////FAB4AVg=","payload_fields":{"version":0.0,"BME280":{"temp":32.2,"rv":55.2,"luchtdruk":1024.5},"NEO-6":{"lon":5.123456,"lat":61.123456,"alt":null},"WindDIY1":{"wr":120,"ws":34.4}}}
+# test 4
+{"port":10,"payload_raw":"PD0+BjhPhxj9wzfe725vZGVfMDEjKDRgSoXrQcBMAADIQk3Jc8lHngAAAACfAAAAAKAAAAAAnQCcAAAAAA==","payload_fields":{"accu":96.0,"temp":-3.03,"rv":100.0,"luchtdruk":1031.44,"rain":0,"prevrain":0,"dayrain":0,"ws":0.0,"wr":0,"serial":"efde37c3fd18874f","type":6}}
+# test 5
+{"port":4,
+ "payload_raw":"hwCCAMwBJoAYQi0XHARYAIAALgH7Aq8D+wCpASs=",
+ "payload_fields":{"version":1.8,"aqi":29.9,"gas":169,"grain":0.5,"rv":68.7,"pm05_cnt":1694.1,"pm1":13,"pm10":29.4,"pm10_cnt":2412.1,"pm1_cnt":2285.7,"pm25":20.4,"pm25_cnt":2396.8999999999996,"pm5_cnt":2409.7,"luchtdruk":1019,"temp":20.7}
+}
+# test 6
+{"port":3,"payload_raw":"BUsATqT+AAjuWgAAATk=","payload_fields":{"alt":31.3,"dust":"PMS7003","gps":1,"lat":51.54046,"lon":5.85306,"meteo":"BME680","version":0.5}}
+# test 7
+{"port":2,"payload_raw":[0x00,0x00,0x00,0x75,0x00,0x79,0x01,0x7E,0x04,0x3B,0x04,0x11,0x00,0x00,0x00,0x00,0x00,0x00],"payload_fields":{"rv":108.3,"pm10":12.1,"pm25":11.7,"luchtdruk":1041,"temp":8.2}}
+# test 8
+{ "port":2,"payload_raw":[0x87,0x00,0x1B,0x00,0x26,0x00,0x4C,0x02,0x63,0x02,0x63,0x02,0x63,0xE0,0xE0,0xE0,0x01,0x93,0x02,0x82,0x03,0xEB,0x09,0xA2,0x02,0x76],"payload_fields":{"aqi":63,"gas":2466,"rv":64.2,"pm03_cnt":61.1,"pm05_cnt":61.1,"pm1":2.7,"pm10":7.6,"pm10_cnt":22.4,"pm1_cnt":61.1,"pm25":3.8,"pm25_cnt":22.4,"pm5_cnt":22.4,"luchtdruk":1003,"temp":10.3}}
+# test 9
+{"port":2,"payload_raw":[0x87,0x00,0x21,0x00,0x37,0x00,0x3B,0x02,0xF5,0x02,0xF5,0x02,0xF5,0x95,0x95,0x95,0x01,0x92,0x02,0x79,0x03,0xEA,0x11,0xFE,0x03,0xB4],"payload_fields":{"aqi":94.8,"gas":4606,"rv":63.3,"pm03_cnt":75.7,"pm05_cnt":75.7,"pm1":3.3,"pm25":5.5,"pm10":5.9,"pm25_cnt":14.9,"pm1_cnt":75.7,"pm10_cnt":14.9,"pm5_cnt":14.9,"luchtdruk":1002,"temp":10.2}}
+# test 10
+{"port":3,"payload_raw":[0x02,0x43,0x00,0x4E,0x76,0x36,0x00,0x09,0x5C,0xA8,0x00,0x00,0x00,0xEB],"payload_fields":{"alt":23.5,"dust":"PMS7003","lat":51.4207,"lon":6.13544,"meteo":"BME680","version":1.8}}
+# test 11
+{"port":3,"payload_raw":[0x02,0x4B,0x00,0x4E,0x76,0x2B,0x00,0x09,0x5C,0xB9,0x00,0x00,0x01,0x03],"payload_fields":{"alt":25.9,"dust":"PMS7003","gps":1,"lat":51.42059,"lon":6.13561,"meteo":"BME680","version":0.2}}
+# test 12
+{"port":2,"payload_raw":"hQAAAFoAmQGCA+gD7wAAAAA=","payload_fields":{"version":1.8,"rv":100,"pm10":15.3,"pm25":9,"luchtdruk":1007,"temp":8.6}}
+# test 13
+{"port":2,"payload_raw":"hQAAAE8AhAGFA+gD7wAAAAA=","payload_fields":{"version":1.8,"rv":100,"pm10":13.2,"pm25":7.9,"luchtdruk":1007,"temp":8.9}}
+# test 14
+{"port":3,"payload_raw":"BUQAAAAAAAAAAAAAAAA=","payload_fields":{"dust":"SPS30","meteo":"BME680","version":0.5}}
+# test 15
+{"port":3,"payload_raw":"BjsATuAwAAjxNwAAAEg=","payload_fields":{"alt":7.2,"dust":"PMS7003","gps":1,"lat":51.692,"lon":5.86039,"meteo":"BME280","version":0.6}}
+# test 16
+{"port":4,"payload_raw":"jwBkAGoAbIAIDusqugHfgCQAEAEsAAAAAAAAAAAATrJSAAj0UQAAAFU=","payload_fields":{"version":1.8,"alt":8.5,"grain":0.2,"lat":51.57458,"lon":5.86833,"pm05_cnt":381.9,"pm1":10,"pm10":10.8,"pm10_cnt":4804.8,"pm1_cnt":1475.7,"pm25":10.6,"pm25_cnt":1523.6,"pm5_cnt":4804,"temp":0}}
+# test 17
+{"port":4,"payload_raw":"jwB5AIAAg4AJRnEzjAJMgC0ADwGVA28D8RLLAAAATsdhAAj6vwAAAN4=","payload_fields":{"version":1.8,"alt":22.2,"gas":4811,"grain":0.2,"rv":87.9,"lat":51.62849,"lon":5.88479,"pm05_cnt":1803.3,"pm1":12.1,"pm10":13.1,"pm10_cnt":6463.9,"pm1_cnt":3122.9,"pm25":12.8,"pm25_cnt":3181.7,"pm5_cnt":6463,"luchtdruk":1009,"temp":10.5}}
+# test 18
+{"port":4,"payload_raw":"rwCwASwBhIAQYL8jiQMKAHMAMwF+A3UD8AJtAAAATpQOAAkxVAAAASmB","payload_fields":{"version":1.8,"accu":12.9,"alt":29.7,"gas":621,"grain":0.5,"rv":88.5,"lat":51.4971,"lon":6.02452,"pm05_cnt":2476.7,"pm1":17.6,"pm10":38.8,"pm10_cnt":3477.3,"pm1_cnt":3386.4,"pm25":30,"pm25_cnt":3464.2,"pm5_cnt":3475.7,"luchtdruk":1008,"temp":8.2}}
+# test 19
+{"port":4,"payload_raw":"rwBgANoA3oAANuYUqALPAJAAMQG8AuMD8gR1AAAATpQPAAkxUQAAARCF","payload_fields":{"version":1.8,"accu":13.3,"alt":27.2,"gas":1141,"grain":0.5,"rv":73.9,"lat":51.49711,"lon":6.02449,"pm05_cnt":1405.4,"pm1":9.6,"pm10":22.2,"pm10_cnt":2020.5,"pm1_cnt":1934.2,"pm25":21.8,"pm25_cnt":2006.1,"pm5_cnt":2020.5,"luchtdruk":1010,"temp":14.4}}
+# test 20
+{"port":4,"app_id":"201082251971az","dev_id":"bwlvc-ab69","hardware_serial":"AAAAB4E62D4FAB69","payload_raw":"rwAOACwALIAAEEAGFgCwACgAMgH5AckD/3QuAAAATsVYAAjvNAAAAG+a","payload_fields":{"version":1.7,"accu":15.4,"alt":11.1,"gas":29742,"grain":0.5,"rv":45.7,"lat":51.62328,"lon":5.85524,"pm05_cnt":416,"pm1":1.4,"pm10":4.4,"pm10_cnt":593.4,"pm1_cnt":571.8,"pm25":4.4,"pm25_cnt":589.4,"pm5_cnt":593.4,"luchtdruk":1023,"temp":20.5},"metadata":{"time":"2021-05-30T17:51:11.735085828Z","frequency":867.7,"modulation":"LORA","data_rate":"SF7BW125","airtime":107776000,"coding_rate":"4/5","gateways":[{"gtw_id":"gateway_sint_anthonis_001","timestamp":16275668,"time":"2021-05-30T17:51:11Z","channel":0,"rssi":-119,"snr":-6,"rf_chain":0},{"gtw_id":"gateway_sint_anthonis_003","timestamp":773810964,"time":"2021-05-30T17:51:11Z","channel":0,"rssi":-118,"snr":-1.25,"rf_chain":0}],"latitude":51.6234,"longitude":5.85521,"altitude":2,"location_source":"registry"}}
+# TTN V3 stack example
+# test 21
+{
+  "end_device_ids": {
+    "device_id": "meetstation-2022",
+    "application_ids": { "application_id": "meet-je-stad" },
+    "dev_eui": "00000000000007E6",
+    "join_eui": "70B3D57ED00003BA",
+    "dev_addr": "260BA58C"
+  },
+  "correlation_ids": [
+    "as:up:01F3NA3RP9T5MWZKNBZT6MS9TH",
+    "ns:uplink:01F3NA3RCEGRWMYGY6KGJFAYPR",
+    "pba:conn:up:01F3AWAY8EQ16GTYFDWPZNWES2",
+    "pba:uplink:01F3NA3RA2DM7J3GVHNJGPRGA4",
+    "rpc:/ttn.lorawan.v3.GsNs/HandleUplink:01F3NA3RCDCGR72YB8V70J6QJZ",
+    "rpc:/ttn.lorawan.v3.NsAs/HandleUplink:01F3NA3RP9KR42KGQZARXNQPJ8"
+  ],
+  "received_at": "2021-04-19T14:56:21.194489256Z",
+  "uplink_message": {
+    "session_key_id": "AXiyq7cih+RxiSr095ptSQ==",
+    "f_port": 4,
+    "f_cnt": 1043,
+    "frm_payload": "hwCCAMwBJoAYQi0XHARYAIAALgH7Aq8D+wCpASs=hwCCAMwBJoAYQi0XHARYAIAALgH7Aq8D+wCpASs=",
+    "decoded_payload": {"version":1.8,"aqi":29.9,"gas":169,"grain":0.5,"rv":68.7,"pm05_cnt":1694.1,"pm1":13,"pm10":29.4,"pm10_cnt":2412.1,"pm1_cnt":2285.7,"pm25":20.4,"pm25_cnt":2396.8999999999996,"pm5_cnt":2409.7,"luchtdruk":1019,"temp":20.7},
+    "rx_metadata": [
+      { "gateway_ids": { "gateway_id": "packetbroker" },
+        "packet_broker": {
+          "message_id": "01F3NA3RA2DM7J3GVHNJGPRGA4",
+          "forwarder_net_id": "000013",
+          "forwarder_tenant_id": "ttn",
+          "forwarder_cluster_id": "ttn-v2-eu-2",
+          "home_network_net_id": "000013",
+          "home_network_tenant_id": "ttn",
+          "home_network_cluster_id": "ttn-eu1",
+          "hops": [
+            {
+              "received_at": "2021-04-19T14:56:20.802090918Z",
+              "sender_address": "52.169.73.251",
+              "receiver_name": "router-dataplane-f8764784f-p5gbg",
+              "receiver_agent": "pbdataplane/1.5.2 go/1.16.2 linux/amd64"
+            },
+            {
+              "received_at": "2021-04-19T14:56:20.822681736Z",
+              "sender_name": "router-dataplane-f8764784f-p5gbg",
+              "sender_address": "forwarder_uplink",
+              "receiver_name": "router-7665c7b677-kmdr7",
+              "receiver_agent": "pbrouter/1.5.2 go/1.16.2 linux/amd64"
+            },
+            {
+              "received_at": "2021-04-19T14:56:20.842067975Z",
+              "sender_name": "router-7665c7b677-kmdr7",
+              "sender_address": "deliver.000013_ttn_ttn-eu1.uplink",
+              "receiver_name": "router-dataplane-f8764784f-p5gbg",
+              "receiver_agent": "pbdataplane/1.5.2 go/1.16.2 linux/amd64"
+            }
+          ]
+        },
+        "time": "2021-04-19T14:56:20Z",
+        "rssi": -121, "channel_rssi": -121, "snr": -9,
+        "uplink_token": "eyJnIjoiWlhsS2FHSkhZMmxQYVVwQ1RWUkpORkl3VGs1VE1XTnBURU5LYkdKdFRXbFBhVXBDVFZSSk5GSXdUazVKYVhkcFlWaFphVTlwU25oWFIzQnBUWHBHZDJWVE1XeFdXRVp1WVROS1prbHBkMmxrUjBadVNXcHZhV1JHV2tWWFZVWjVZak5hZFU1RlZtMVdNMXBtVTJwU1lWWnNUa1JrZVVvNUxsUktNbkF5UWpaTGMwSmtkMjlHVDFwemVYQjNUMmN1TVhwWFNXSnNVUzFQUzNkRU1sUjZOUzV5TUdJeVZHNDVWWEE0YWpacmExcHlSVFJOZVUxelNWUXhSSGRNTVZnNE1ISXpZM2hOZDJSaE5EWkxkVlpMYTFsZmFFVm5kMWxKZG14S1FYbDRTVEpTUjIwek5IbE5jVkpWY2taMVkybElXbGRZVURacllYY3dOMjlNZVZwaGNVc3paa2RGWHpsZkxUSjZTVzkyZW1saGJFVlRlVlV6TFV4ZlNHVjRTMHhXVkRSRFVTNUhlV1pTYUVjelR6RmliMUUwV2pkWFdUWlNSSFozIiwiYSI6eyJmbmlkIjoiMDAwMDEzIiwiZnRpZCI6InR0biIsImZjaWQiOiJ0dG4tdjItZXUtMiJ9fQ=="
+      },
+      {
+        "gateway_ids": { "gateway_id": "mjs-gateway-5", "eui": "1DEF5A0000000202" },
+        "timestamp": 1789330364,
+        "rssi": -57, "channel_rssi": -57, "snr": 13.2,
+        "uplink_token": "ChsKGQoNbWpzLWdhdGV3YXktNRIIHe9aAAAAAgIQvIec1QYaDAiUtPaDBhD3uoj+AiDgrJrjiaIG"
+      },
+      {
+        "gateway_ids": { "gateway_id": "packetbroker" },
+        "packet_broker": {
+          "message_id": "01F3NA3RA6D4AF4C3QAVRGTMYH",
+          "forwarder_net_id": "000013",
+          "forwarder_tenant_id": "ttn",
+          "forwarder_cluster_id": "ttn-v2-eu-2",
+          "home_network_net_id": "000013",
+          "home_network_tenant_id": "ttn",
+          "home_network_cluster_id": "ttn-eu1",
+          "hops": [
+            { "received_at": "2021-04-19T14:56:20.806279605Z", "sender_address": "52.169.73.251", "receiver_name": "router-dataplane-f8764784f-n76ql", "receiver_agent": "pbdataplane/1.5.2 go/1.16.2 linux/amd64" },
+            { "received_at": "2021-04-19T14:56:20.820444451Z", "sender_name": "router-dataplane-f8764784f-n76ql", "sender_address": "forwarder_uplink", "receiver_name": "router-7665c7b677-c47hd", "receiver_agent": "pbrouter/1.5.2 go/1.16.2 linux/amd64" },
+            { "received_at": "2021-04-19T14:56:20.844223755Z", "sender_name": "router-7665c7b677-c47hd", "sender_address": "deliver.000013_ttn_ttn-eu1.uplink", "receiver_name": "router-dataplane-f8764784f-n76ql", "receiver_agent": "pbdataplane/1.5.2 go/1.16.2 linux/amd64" }
+          ]
+        },
+        "time": "2021-04-19T14:56:20Z",
+        "rssi": -95, "channel_rssi": -95, "snr": 13.25,
+        "uplink_token": "eyJnIjoiWlhsS2FHSkhZMmxQYVVwQ1RWUkpORkl3VGs1VE1XTnBURU5LYkdKdFRXbFBhVXBDVFZSSk5GSXdUazVKYVhkcFlWaFphVTlwU2xCV1ZHeEhVbnBSTVZKdFZsQlBTSEJaWlVkMGIwbHBkMmxrUjBadVNXcHZhVkp0UmxaVmVsSndVVEJLY2xneWNFWldNbkJMVG0xS01scElRazFSVTBvNUxrRXdSeTEzTW0xc1VrTjVZM0kxV2twbVptWlZZMUV1VUVVNVRWZExjbTB4UkVSeGIyeG9XUzVPUVU5RFkxZGFObXh6ZW1vMWJuSjVRVGx1ZFRoNU5sWkRkbGhoVkVwWlJVMDRZMlF4WkU5SlpUZEJORWRWT1hoYWQxVTBNWE5GY1UxYVRXWXljVjk1VmxCMGVsTmhkMVJIZWtJMGNYQnZRbG8xWVVWSmRFOWpNbWRyWVhaMmNuSlJWR2xSZGxwbk1EUTFSR2g2TldndFRVb3RORlF0ZEVKZmNtOUVVR05IWWtWeWF5NVNaSFZXVERZelpuSlNiVUYzWWpWaVpYUlVTMkpuIiwiYSI6eyJmbmlkIjoiMDAwMDEzIiwiZnRpZCI6InR0biIsImZjaWQiOiJ0dG4tdjItZXUtMiJ9fQ=="
+      },
+      {
+        "gateway_ids": { "gateway_id": "packetbroker" },
+        "packet_broker": {
+          "message_id": "01F3NA3RBC3Y3EV8FXVYMVD7GN",
+          "forwarder_net_id": "000013",
+          "forwarder_tenant_id": "ttn",
+          "forwarder_cluster_id": "ttn-v2-eu-3",
+          "home_network_net_id": "000013",
+          "home_network_tenant_id": "ttn",
+          "home_network_cluster_id": "ttn-eu1",
+          "hops": [
+            { "received_at": "2021-04-19T14:56:20.844936722Z", "sender_address": "40.113.68.198", "receiver_name": "router-dataplane-f8764784f-9pp7m", "receiver_agent": "pbdataplane/1.5.2 go/1.16.2 linux/amd64" },
+            { "received_at": "2021-04-19T14:56:20.851232142Z", "sender_name": "router-dataplane-f8764784f-9pp7m", "sender_address": "forwarder_uplink", "receiver_name": "router-7665c7b677-7tm85", "receiver_agent": "pbrouter/1.5.2 go/1.16.2 linux/amd64" },
+            { "received_at": "2021-04-19T14:56:20.855688915Z", "sender_name": "router-7665c7b677-7tm85", "sender_address": "deliver.000013_ttn_ttn-eu1.uplink", "receiver_name": "router-dataplane-f8764784f-n76ql", "receiver_agent": "pbdataplane/1.5.2 go/1.16.2 linux/amd64" }
+          ]
+        },
+        "rssi": -119, "channel_rssi": -119, "snr": 0.8,
+        "uplink_token": "eyJnIjoiWlhsS2FHSkhZMmxQYVVwQ1RWUkpORkl3VGs1VE1XTnBURU5LYkdKdFRXbFBhVXBDVFZSSk5GSXdUazVKYVhkcFlWaFphVTlwU2pSUlZWcGhZMVJhV2sxR1FqQlNSRXB1VjBSU1NFbHBkMmxrUjBadVNXcHZhV0pGTVhGVFNFcFhaV3RTVkdWVVZYUmhSVkpSWVZoV05HUnBNVkpWVTBvNUxsTjRRMjVuU25KYWVFcDFhbGwzZFRkTVRqWjBWM2N1ZFMxZk5qSXlOMVphZDFKWVdteDZWaTV0VFVabExWQXhXVEk0YnpCbWJUTkpSVU5uTkdvNVNqTnZTR0V6UWpWVU1qWjRZVEY2U1VOdU0xcDFYekJzTlhGV2RUUm9SV1kxT0hSNVVqbDJjVEZFY0dsdk5rZzJPR3RHV0cxMFFUVnRZM2xtVkZvd1RIUk5jbE5FWDJrdE5uSTRUVU10YUhwU1ZVbzNjWGRxWm1ReGQyWkJOakpSTkZnMVVERkdTbmx1Tm1aVmJFOVJWMUZQT1V3dE5IWlNkMHRST1ZoNVJGOW9VR3RsVnpocVVsaGFla2hyWTNaaVVsOXpNbkl5TG5sT1NFUlFiRTlIYWpKRWFFUkZWRFkyWVd0bWQxRT0iLCJhIjp7ImZuaWQiOiIwMDAwMTMiLCJmdGlkIjoidHRuIiwiZmNpZCI6InR0bi12Mi1ldS0zIn19"
+      }
+    ],
+    "settings": {
+      "data_rate": { "lora": { "bandwidth": 125000, "spreading_factor": 9 } },
+      "data_rate_index": 3,
+      "coding_rate": "4/5",
+      "frequency": "868100000"
+    },
+    "received_at": "2021-04-19T14:56:20.878090650Z",
+    "consumed_airtime": "0.349184s"
+  }
+}
+

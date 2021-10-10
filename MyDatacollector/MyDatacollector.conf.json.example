@@ -1,0 +1,75 @@
+{
+"project": "ABCD",
+"brokers": [{
+        "address": "eu.thethings.network",
+        "port": 1883,
+        "user": "201802215971az",
+        "password": "ttn-account-v2.GW3123456712345671234567123456712345672Ixts",
+        "topic": "+/devices/+/up"  // appId/devices/devID/up
+       }],
+// send notices node pattern, to...
+// more dynamic way to get notice addresses periodically
+// "noticefile": "TTN-datacollector.notices.json",
+// match on project and/or event notices
+"notice": [
+        [".*", "email:MySense monitoring<TTNall@home.org>"],
+        [".*event.*", "email:MySense events<events@home.org>"],
+        // , "slack:hooks.slack.com/services/TGA12345671234567123456712345671234567fylWl0", "slack:hooks.slack.com/services/T9W3R1234567451234567123456712345671234567SQ" ],
+        ["(ABC.*|ABCD.*)", "email:kit monitoring<noreply@gmail.com>" ],
+        ["(ABCD.*|ABCD.*)", "email:meetkits <MySense@home.org>" ],
+        ["DEFG.*", "email:stichting<noreply@gmail.com>, email:varkens<KIP@home.org>" ],
+        ["test.*", "email:MySense tests<MySense+test@home.org>" ]
+    ],
+"from": "Notice from MySense data collector <noreply@home.nl>",
+"SMTP": "home.org",
+// database info for nodes info handling via MySQL, here via CMS Drupal admin pages
+// probably supplied via process environment
+"adminDB": {
+    "host": "WEBHOST", "user": "WEBUSER", "pass": "WEBPASS", "db": "WEBDB"
+    },
+// the sensor products (moved to database table SensorTypes)
+// DB dictionary with different sensors: type, producer, sensors/units
+    "CalRefs": [ // list of sensor types to calibrate to
+                 "SDS011"
+               ],
+    "check": [ // sensor fields for fluctuation faults
+        "temp","rv","pm10","pm25"],
+    "translate": {      // defs of used fields by MySense, do not change the keys
+        "pm03": ["pm0.3","PM0.3"],
+        "pm05": ["pm0.5","PM0.5"],
+        "pm1":  ["roet","soot"],
+        "pm25": ["pm2.5","PM2.5"],
+        "pm4":  ["pm4.0","PM4.0"],
+        "pm5":  ["pm5.0","PM5.0"],
+        "pm10": ["pm","PM"],
+        "O3":   ["ozon"],
+        "NH3":  ["ammoniak","ammonium"],
+        "NO2":  ["stikstof","stikstofdioxide","nitrogendioxide"],
+        "NO":   ["stikstof","stikstofoxide","nitrogenoxide"],
+        "CO2":  ["koolstofdioxide","carbondioxide"],
+        "CO":   ["koolstofmonoxide","carbonoxide"],
+        "temp": ["temperature"],
+        "luchtdruk": ["pressure","pres","hpa","hPa"],
+        "rv":   ["humidity","hum","vochtigheid","vocht","rh","RH"],
+        "ws":   ["windspeed","windsnelheid"],
+        "wr":   ["windrichting","winddirection","direction","winddir"],
+        "geohash": ["geohash"],
+        "altitude":  ["alt","hoogte","height"],
+        "longitude":  ["long","lon","lengte graad"],
+        "latitude":  ["lat","breedte graad"],
+        "location": ["geolocation","geo","GeoHash","lokatie"],
+        "gps": ["GPS","coordinates"],
+        "voc":  ["air","voc","gas"],
+        "aqi":  ["air quality","luchtkwaliteit","lki"],
+        "version": ["versie","release"],
+        "meteo": ["weer"],
+        "dust": ["fijnstof"],
+        "grain": ["korrel"],
+        "accu": ["accu","battery"],
+        "rain": ["regen","rain"],
+        "dayrain": ["dayrain"],
+        "prevrain": ["prevrain"],
+        "event": ["alarm"], "value": ["waarde"],
+        "time": ["utime","timestamp"]
+    }
+}
