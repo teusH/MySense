@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.39 2021/10/07 15:06:40 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.41 2021/10/11 15:11:49 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.39 $"[11:-2]
+__version__ = "1." + "$Revision: 4.41 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -205,7 +205,7 @@ Conf = {
     # this will read from a dump MQTT file, can be defined from command line file=..
     # 'file': 'Dumped.json', # uncomment this for operation from data from file
     'FILE': None,
-    # 'initfile': 'MyTTN-datacollector.conf.json', # meta identy data for sensor kits
+    # 'initfile': 'MyDatacollector.conf.json', # meta identy data for sensor kits
     'initfile': None,
     # 'nodes': {},  # DB of sensorkits info deprecated
     # LoRa, nodes, sensors, classes, firmware, and translate
@@ -454,13 +454,16 @@ def Initialize(DB=DB, debug=debug, verbose=None):
       MQTTdefaults['resource'] = Conf['FILE']
       del MQTTdefaults['port']
       Conf['input'] = [MQTTdefaults]
+    elif not Conf['input']:
+      try: Conf['input'] = Conf['brokers'] # different key in use
+      except: pass
     for item in range(len(Conf['input'])-1,-1,-1):
       if not type(Conf['input'][item]) is dict:
           MyLogger.log(WHERE(True),'ERROR',"broker(s) misconfiguration: %s" % str(item))
           Conf['input'].pop(item)
           continue
         # setting defaults for MQTT broker
-      for one in MQTTdefaults.keys(): # take over defualts
+      for one in MQTTdefaults.keys(): # take over defaults
         if not one in Conf['input'][item].keys(): Conf['input'][item][one] = MQTTdefaults[one]
     importNotices()  # enable automatic import of notice addresses if noticefile is defined
     if not notices: Conf['notice'][0] = [] # notices turned off in eg test phase
@@ -474,6 +477,7 @@ def Initialize(DB=DB, debug=debug, verbose=None):
         except: pass
     if not len(Conf['input']):
       MyLogger.log(WHERE(),'FATAL','No input channel defined. Exiting.')
+      EXIT(1)
     try:
       Resources = MyMQTTclient.MQTT_data(Conf['input'], DB=DB, verbose=verbose, debug=debug, logger=MyLogger.log)
     except: 
@@ -1892,7 +1896,7 @@ def RUNcollector():
             for one in artifacts:
               if one == 'Forward data': continue
               if not Acnt: monitorPrt("    Artifacts:")
-              monitorPrt("    %s" % one); Acnt += 1
+              monitorPrt("        %s" % one); Acnt += 1
             if not frwrd: monitorPrt("   Not forwarding data.",PURPLE)
         if not frwrd or not info or not record: continue
 
