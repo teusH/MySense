@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.35 $"[11:-2]
+__version__ = "0." + "$Revision: 2.36 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -29,7 +29,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.35 2021/10/07 11:35:45 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.36 2021/10/11 13:18:23 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -157,9 +157,9 @@ import signal
 #     "application_ids" : {
 #       "application_id" : "app1"              // Application ID
 #     },
-#     "dev_eui" : "00041234567C0530",          // DevEUI of the end device
-#     "join_eui" : "800001234567000C",         // JoinEUI of the end device (AppEUI in LoRaWAN versions below 1.1)
-#     "dev_addr" : "12345679"                  // Device address known by the Network Server
+#     "dev_eui" : "0004A30B001C0530",          // DevEUI of the end device
+#     "join_eui" : "800000000000000C",         // JoinEUI of the end device (AppEUI in LoRaWAN versions below 1.1)
+#     "dev_addr" : "00BCB929"                  // Device address known by the Network Server
 #   },
 #   "correlation_ids" : [ "as:up:01..." ],     // Correlation identifiers of the message
 #   "received_at" : "2020-02-12T15:15..."      // ISO 8601 UTC timestamp received by the Application Server
@@ -175,9 +175,9 @@ import signal
 #     "application_ids" : {
 #       "application_id" : "app1"              // Application ID
 #     },
-#     "dev_eui" : "00041234567C0530",          // DevEUI of the end device
-#     "join_eui" : "800012345670000C",         // JoinEUI of the end device (AppEUI in LoRaWAN versions below 1.1)
-#     "dev_addr" : "12345679"                  // Device address known by the Network Server
+#     "dev_eui" : "0004A30B001C0530",          // DevEUI of the end device
+#     "join_eui" : "800000000000000C",         // JoinEUI of the end device (AppEUI in LoRaWAN versions below 1.1)
+#     "dev_addr" : "00BCB929"                  // Device address known by the Network Server
 #   },
 #   "correlation_ids" : [ "as:up:01...", ... ],// Correlation identifiers of the message
 #   "received_at" : "2020-02-12T15:15..."      // ISO 8601 UTC timestamp received by the Application Server
@@ -247,7 +247,7 @@ import signal
     {
       // if timestamp is not defined in data record the timestamp of record recept is taken
       "version": 0.0,            // version of exhange format
-      “id”: { “project”: “SAN”, “serial”: “78CE1234567524” },
+      “id”: { “project”: “SAN”, “serial”: “78CECEA5167524” },
       "timestamp": 1621862416,   // or “dateTime”: “2021-05-24T15:20+02:00”,
       // next items are optional and global redefinitions of defaults
       “keyID”: “nl”,             // ref to defaults, default: "us"
@@ -271,14 +271,14 @@ import signal
 
       // communication information for statistical and monitoring use. Only internaly use
       "net": {
-        'TTN_id': u'kipster-k1', 'TTN_app': u'201123456771az', 'type': 'TTNV2',
+        'TTN_id': u'kipster-k1', 'TTN_app': u'201802215971az', 'type': 'TTNV2',
         'gateways': [
-          {'rssi': -94,  'gtw_id': u'eui-ac11234567014c16', 'snr': 9.5},
-          {'rssi': -107, 'gtw_id': u'eui-ac1234567e014c1c', 'snr': 3.3},
-          {'rssi': -81,  'gtw_id': u'eui-ac1234567e014c1e', 'snr': 10.3},
-          {'rssi': -120, 'gtw_id': u'12345673',             'snr': -7},
-          {'rssi': -107, 'gtw_id': u'eui-ac1234567e014c15', 'snr': 3.8},
-          {'rssi': -70,  'gtw_id': u'eui-1dee123456703ad6', 'snr': 9.5, 'geohash': 'u1h32pkq8dr'}
+          {'rssi': -94,  'gtw_id': u'eui-ac1f09fffe014c16', 'snr': 9.5},
+          {'rssi': -107, 'gtw_id': u'eui-ac1f09fffe014c1c', 'snr': 3.3},
+          {'rssi': -81,  'gtw_id': u'eui-ac1f09fffe014c1e', 'snr': 10.3},
+          {'rssi': -120, 'gtw_id': u'20800293',             'snr': -7},
+          {'rssi': -107, 'gtw_id': u'eui-ac1f09fffe014c15', 'snr': 3.8},
+          {'rssi': -70,  'gtw_id': u'eui-1dee0d671fa03ad6', 'snr': 9.5, 'geohash': 'u1h32pkq8dr'}
         ]},
 
       // measurement data
@@ -308,13 +308,12 @@ import signal
 import MyLoRaCode
 class TTN2MySense:
     def __init__(self, LoRaCodeRules=None, DefaultUnits = ['%','C','hPa','mm/h','degrees', 'sec','m','Kohm','ug/m3','pcs/m3','m/sec'], PortMap=None, logger=None):
-        if logger: self.logger = logger  # routine to print logging from eg MyLoRaCode
-        else: self.logger = self._logger
-        self.LoRaDecode = MyLoRaCode.LoRaCoding(LoRaCodeRules=LoRaCodeRules, DefaultUnits=DefaultUnits, PortMap=PortMap, logger=self._logger)
+        self.logger = logger  # routine to print logging from eg MyLoRaCode
+        self.LoRaDecode = MyLoRaCode.LoRaCoding(LoRaCodeRules=LoRaCodeRules, DefaultUnits=DefaultUnits, PortMap=PortMap, logger=self.logger)
         # self.version = None  # TTN V2 or V3 stack version
         
     def _logger(self, pri, message):
-        try: self._logger('TTN2MySense',pri,message)
+        try: self.logger('TTN2MySense',pri,message)
         except: sys.stderr.write("TTN2MySense %s: %s\n" % (str(pri), message)) 
 
     # convert  and payload decode TTN V2/V3 record to data exchange format dict
@@ -444,8 +443,10 @@ class MQTT_broker:
         self.logger = logger      # routine to print errors
     
     def _logger(self, pri, message):
+        sys.stderr.write("MQTT_broker MyMQTTclient %s: %s\n" % (str(pri), str(message))) 
+        return
         try: self.logger('MQTT_broker',pri,'MQTT client MQTT_broker: ' + str(message))
-        except: sys.stderr.write("MyMQTTclient %s: %s\n" % (str(pri), str(message))) 
+        except: sys.stderr.write("MQTT_broker MyMQTTclient %s: %s\n" % (str(pri), str(message))) 
 
     def _on_connect(self, client, userdata, flags, rc):
         if rc == 0:
@@ -491,8 +492,8 @@ class MQTT_broker:
             return False
 
     def _on_log(self, client=None, userdata=None, level=None, buf=None):
-        if self.debug: self._logger("MQTT broker: %s" % str(self.clientID),level,"userdata: %s, message: %s." % (str(userdata),str(buf)))
-        elif self.verbose: self._logger("MQTT broker: %s" % str(self.clientID),level,"%s." % str(buf))
+        if self.debug: self._logger(level,"userdata: %s, message: %s." % (str(userdata),str(buf)))
+        elif self.verbose: self._logger(level,"%s." % str(buf))
 
     @property
     def Connected(self):
@@ -580,8 +581,7 @@ class MQTT_broker:
 class KitCache:
     import signal
     def __init__(self, ReDoCache=3*60*60, DB=None, logger=None):
-      if logger: self.logger=logger
-      else: self.logger = self._logger
+      self.logger=logger
       # cached meta info  and handling info measurement kits
       # cache to limit DB access
       self.DB = DB
@@ -589,10 +589,10 @@ class KitCache:
         import MyDB
         self.DB = MyDB
         if MyDB.Conf['fd'] == None and not MyDB.db_connect():
-          self._logger('TTNclient/KitCache','FATAL','Unable to connect to DB')
+          self._logger('FATAL','Unable to connect to DB')
           exit(1)
       if not self.DB.db_table('TTNtable') or not self.DB.db_table('Sensors'):
-        self._logger('TTNclient/KitCache','FATAL','Missing Sensors or TTNtable in DB')
+        self._logger('FATAL','Missing Sensors or TTNtable in DB')
         exit(1)
 
       self.redoCache  = ReDoCache        # period in time to check for new kits
@@ -708,7 +708,7 @@ class KitCache:
             col1 = 'project'; col2 = 'serial'
           except: pass
         if not match2:
-          self._logger(WHERE(),'ATTENT','Got data from not registrated measurement KIT: %s' % ID)
+          self._logger('ATTENT','Got data from not registrated measurement KIT: %s' % ID)
           return None
         if not record:
           record = {'last_seen': 0, # cache entry lives 6 hours max
@@ -732,7 +732,7 @@ class KitCache:
                    LIMIT 1""" % (col1,match1,col2,match2)
           qry = self.DB.db_query( re.sub(r'\n *',' ',qry).strip(), True)[0]
         except:
-          self._logger(WHERE(),'ATTENT','Got data from not in DB registrated measurement KIT: %s.' % ID)
+          self._logger('ATTENT','Got data from not in DB registrated measurement KIT: %s.' % ID)
           return None
         self.addEntry(record,['ttl','TTNtableID','DATAid','MQTTid','Luftdaten','WEBactive','SensorsID','sensors','location','active','valid','version'],qry[2:])
         record['id'] = { 'project': qry[0], 'serial': qry[1] }
@@ -762,7 +762,7 @@ class KitCache:
               break
           except: pass
       if not entry:
-        self._logger(WHERE(True),"ATTENT","Unable to find project/serial reference for record %s. Skipped." % str(record))
+        self._logger("ATTENT","Unable to find project/serial reference for record %s. Skipped." % str(record))
         return (None,record)
       try: # remove location guessed from GTW location from data dict
         if entry['location'] and record['meta']['geolocation']['GeoGuess']:
@@ -779,8 +779,7 @@ class MQTT_data:
       if not type(MQTTbrokers) is list: self.MQTTbrokers = [MQTTbrokers] # single broker
       self.verbose = verbose
       self.debug = debug
-      self.logger = self._logger
-      if logger: self.logger = logger
+      self.logger = logger
       self.sec2pol = sec2pol
       self.MQTTrunning = False          # atexit enabled
       self.MQTTFiFo = []                # first in, first out data records queue
