@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.41 2021/10/11 15:11:49 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.42 2021/10/11 16:07:39 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.41 $"[11:-2]
+__version__ = "1." + "$Revision: 4.42 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -413,6 +413,7 @@ PURPLE = 5
 GRAY   = 8
 BLACK  = 16
 BLUE   = 21
+LBLUE  = 33
 BROWN  = 52
 def monitorPrt(msg, color=DFLT): # default color is black
     global monitor
@@ -897,7 +898,7 @@ def IsBehavingKit(info,now):
     global Conf
     # do not throttle if input comes from file
     # 
-    if not info: return "Missing info"
+    if not info or not 'count' in info.keys(): return "Missing info"
     try:
       if info['last_seen']:
         # update datagram frequency and throttle if needed so
@@ -1425,7 +1426,8 @@ def Data2Frwrd(info, data):
     rtsMsg = []                              # artifacts (remarks) to be returned with
     DBchanges = {}                           # changes to be made in Sensors DB table
 
-    info['count'] += 1
+    try: info['count'] += 1
+    except: return (info,{},['info invalid'])
     # Is there a need to throttle the kit?
     rts = IsBehavingKit(info,now)
     if rts: return (info,{},[rts])
@@ -1845,6 +1847,9 @@ def RUNcollector():
             if record == None:
               MyLogger.log(WHERE(),'INFO','Finish: %s' % ', '.join(artifacts))
               break # no more records
+            if not 'count' in info: # valid info or record?
+              MyLogger.log(WHERE(),'INFO','Skipping record %s' % str(record))
+              continue
         except ValueError as e:
             err = str(e)
             if err.find('I/O operation on closed file') >= 0:
@@ -1891,7 +1896,7 @@ def RUNcollector():
                     MQTTid, TBLid, '[%s]'%sensors if sensors else ''),
                 info['count'],
                 (' at %dm%ds' % (info['interval']/60,info['interval']%60)) if (info['interval'] < 60*60) else ''),
-              GREEN)
+              BLUE)
             Acnt = 0
             for one in artifacts:
               if one == 'Forward data': continue
@@ -1940,15 +1945,15 @@ def RUNcollector():
                       if RsltOK and monitor:
                         try:
                           if Conf['monitor'].match(info['id']['project']+'_'+info['id']['serial']):
-                            monitorPrt("    %-50.50s OK" % ('Kit %s/%s data output to %s:' % (info['id']['project'],info['id']['serial'],Channels[indx]['name'])),BLUE)
+                            monitorPrt("    %s OK" % ('Forwarded record to %s:' % Channels[indx]['name']),LBLUE)
                         except: pass
                     else:
                       MyLogger.log(WHERE(),'ATTENT','Kit %s/%s data no output to %s' % (info['id']['project'],info['id']['serial'],Channels[indx]['name']))
-                      monitorPrt("    %-50.50s FAILED" % ('Kit %s/%s data no output to %s:' % (info['id']['project'],info['id']['serial'],Channels[indx]['name'])),RED)
+                      monitorPrt("    %s FAILURE" % ('Forwarding record to %s:' % Channels[indx]['name']),RED)
                   elif Rslt:
                     if type(Rslt) is str or type(Rslt) is unicode:
                       MyLogger.log(WHERE(),'INFO','Kit %s/%s data NO output to %s: %s' % (info['id']['project'],info['id']['serial'],Channels[indx]['name'],str(Rslt)))
-                      monitorPrt("    %-50.50s %s" % ('Kit %s/%s data NO output to %s:' % (info['id']['project'],info['id']['serial'],Channels[indx]['name']),str(Rslt)),RED)
+                      monitorPrt("    %s %s" % ('Forwarding record to %s NO DATA:' % Channels[indx]['name'],str(Rslt)),RED)
                     elif type(Rslt) is list:
                       try: Rslt = ', '.join(Rslt)
                       except: Rslt = str(Rslt)
@@ -1956,7 +1961,7 @@ def RUNcollector():
                         if RsltOK and monitor and not filtered:
                           try:
                             if Conf['monitor'].match(info['id']['project']+'_'+info['id']['serial']):
-                              monitorPrt("    %-50.50s OK for %s" % (('Kit %s/%s data output to %s:' % (info['id']['project'],info['id']['serial'],Channels[indx]['name'])),str(Rslt)),GREEN)
+                              monitorPrt("    %s OK for %s" % ('Forwarding record to %s:' % Channels[indx]['name'],str(Rslt)),LBLUE)
                           except: pass
                       else:
                         MyLogger.log(WHERE(),'ATTENT','Kit %s/%s data output to %s: %s' % (info['id']['project'],info['id']['serial'],Channels[indx]['name'],str(Rslt)))
