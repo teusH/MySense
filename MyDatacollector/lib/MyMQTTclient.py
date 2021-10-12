@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.36 $"[11:-2]
+__version__ = "0." + "$Revision: 2.38 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -29,7 +29,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.36 2021/10/11 13:18:23 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.38 2021/10/12 10:48:42 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -56,7 +56,7 @@ def WHERE(fie=False):
         "user":  user,                       # Connection username if not from file
         "password": password,                # Connection password if not from file
         "clientID": clientID,                # MQTT client thread ID
-        "keepalive": 180,                    # optinal, MQTT max secs ack on repl request, dflt 180
+        "keepalive": 180,                    # optional, MQTT max secs ack on repl request, dflt 180
         "topic": (topics[0][0] if len(topics) == 1 else topics), # topic to subscribe to
         "import": TTN2MySense().RecordImport # routine to import record to internal exchange format
       }
@@ -435,11 +435,10 @@ class MQTT_broker:
         if not 'port' in broker.keys(): broker['port'] = None
         if not 'lock' in broker.keys(): # make sure timestamp sema is there
             self.broker['lock'] = threading.RLock()
-        self.KeepAlive = 180      # connect keepalive in seconds, default 180
-        try:
-          self.KeepAlive = broker['keepalive']
-          if not self.KeepAlive: self.KeepAlive = 180
+        self.KeepAlive = 240      # connect keepalive in seconds, default 240
+        try: self.KeepAlive = broker['keepalive']
         except: pass
+        if not self.KeepAlive: self.KeepAlive = 240
         self.logger = logger      # routine to print errors
     
     def _logger(self, pri, message):
@@ -708,7 +707,7 @@ class KitCache:
             col1 = 'project'; col2 = 'serial'
           except: pass
         if not match2:
-          self._logger('ATTENT','Got data from not registrated measurement KIT: %s' % ID)
+          self._logger('ATTENT','Skip record from not registrated node: %s' % ID)
           return None
         if not record:
           record = {'last_seen': 0, # cache entry lives 6 hours max
@@ -732,8 +731,8 @@ class KitCache:
                    LIMIT 1""" % (col1,match1,col2,match2)
           qry = self.DB.db_query( re.sub(r'\n *',' ',qry).strip(), True)[0]
         except:
-          self._logger('ATTENT','Got data from not in DB registrated measurement KIT: %s.' % ID)
-          return None
+          self._logger('ATTENT','Skip record with ID %s (not registrated).' % ID)
+          return {}
         self.addEntry(record,['ttl','TTNtableID','DATAid','MQTTid','Luftdaten','WEBactive','SensorsID','sensors','location','active','valid','version'],qry[2:])
         record['id'] = { 'project': qry[0], 'serial': qry[1] }
         try: # measurement kit firmware version detection expected in field 'description'
@@ -749,7 +748,7 @@ class KitCache:
     # use cache to get last meta info for app, dev ID conversion to project, serial
     def getDataInfo(self, record, FromFile=False):
       self.cleanCache()  # cache maintenance
-      entry = None
+      entry = {}
       try: entry = self.AccessInfo(record['id']['project']+'_'+record['id']['serial'])
       except: pass
       if not entry:
@@ -762,13 +761,15 @@ class KitCache:
               break
           except: pass
       if not entry:
-        self._logger("ATTENT","Unable to find project/serial reference for record %s. Skipped." % str(record))
-        return (None,record)
-      try: # remove location guessed from GTW location from data dict
-        if entry['location'] and record['meta']['geolocation']['GeoGuess']:
-          del record['meta']['geolocation']
-          if not record['meta']: del record['meta']
-      except: pass
+        try: RecID = "MQTT %s/%s" % (record['TTN_app'],record['TTN_id'])
+        except: RecID = 'NO MQTT applID/topic'
+        self._logger("ATTENT","Skip record with ID: '%s' (not registrated node)." % RecID)
+      else:
+        try: # remove location guessed from GTW location from data dict
+          if entry['location'] and record['meta']['geolocation']['GeoGuess']:
+            del record['meta']['geolocation']
+            if not record['meta']: del record['meta']
+        except: pass
       return (entry,record)
 
 # get data from MQTT server. Returns data record and DB access/forwarding info record from Kit cache
@@ -787,7 +788,7 @@ class MQTT_data:
       if not DB:
         import MyDB
         DB=MyDB
-      self.KitInfo = KitCache(DB=DB,logger=self._logger)    # kit cache with DB/forwarding info
+      self.KitInfo = KitCache(DB=DB,logger=logger)    # kit cache with DB/forwarding info
 
       for i in range(len(self.MQTTbrokers)-1,-1,-1): # reading from file if port is 0 or None
         broker = self.MQTTbrokers[i]
@@ -1013,8 +1014,10 @@ if __name__ == '__main__':
 
     # TTN credentials, only for test purposes
     resource = "eu.thethings.network"  # Broker address
-    user = "1234567890abc"       # connection user name
-    password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
+    # user = "1234567890abc"       # connection user name
+    user = "201802215971az"        # Connection username
+    # password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
+    password = "ttn-account-v2.GW3msa6kBNZs0jx4aXYCcbPaK6r0q9iSfZjIOB2Ixts"
 
     keepalive = None               # play with keepalive connection settings, dflt 180 secs
     MQTTbrokers = []               # may be a list of TTN/user brokers

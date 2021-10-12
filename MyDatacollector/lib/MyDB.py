@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDB.py,v 5.4 2021/10/07 11:36:36 teus Exp teus $
+# $Id: MyDB.py,v 5.5 2021/10/12 10:48:42 teus Exp teus $
 
 # reminder: MySQL is able to sync tables with other MySQL servers
 
@@ -27,7 +27,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 __modulename__='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.4 $"[11:-2]
+__version__ = "0." + "$Revision: 5.5 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -179,7 +179,7 @@ def db_connect():
                 Conf[credit] = os.getenv('DB'+credit[0:4].upper(),Conf[credit])
             except:
                 pass
-        Conf['log'](WHERE(),'INFO',"Using database '%s' on host '%s', user '%s'  and password creditials." % (Conf['database'],Conf['hostname'],Conf['user']))
+        Conf['log'](WHERE(),'INFO',"Using database '%s' on host '%s', user '%s' creditials." % (Conf['database'],Conf['hostname'],Conf['user']))
         if (Conf['hostname'] != 'localhost'):
             Conf['log'](WHERE(True),'ERROR',"Access database %s / %s."  % (Conf['hostname'], Conf['database']))      
             Conf['output'] = False

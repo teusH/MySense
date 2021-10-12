@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyLoRaCode.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.10 $"[11:-2]
+__version__ = "0." + "$Revision: 2.14 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -29,7 +29,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyLoRaCode.py,v 2.10 2021/10/07 11:36:06 teus Exp teus $
+# $Id: MyLoRaCode.py,v 2.14 2021/10/12 15:01:23 teus Exp teus $
 
 # module will decode MQTT TTN records
 # for test the module can run standalone and obtain MQTT TTN records from stadin or file
@@ -292,6 +292,10 @@ class LoRaCoding:
           10: ['Libelium',self.DecodePort10or12],
       }
       
+    def _logger(self, pri, message):
+        try: self.logger('LoRaCoding',pri,message)
+        except: sys.stderr.write("LoRaCoding %s: %s\n" % (str(pri), message))
+
     # search in format array row type sensor ID, return tuple IDnr, IDname, array compressie
     # eg self.GetFrmt(LoRaCode['weerDIY1'],'BME280')
     def GetFrm(self, format, tpe, indx=1 ):
@@ -300,7 +304,7 @@ class LoRaCoding:
                 if str(item[indx]).lower() == str(tpe).lower():
                     return (item[0],item[1],item[2])
         except: pass
-        raise ValueError("Error: Could not find %d format" % tpe)
+        raise ValueError("Decoder error: format %d not defined" % tpe)
         return None
     
     # convert value with Taylor factor to compressed value
@@ -458,8 +462,8 @@ class LoRaCoding:
                 item = self.GetFrm(frmt, struct.unpack(endian+'B',PackedData[i:i+1])[0], indx=0)
                 i += 1
             except Exception as e:
-                sys.stderr.write("ERROR: Datagram error for %s on port or format %s with %s. Skip.\n" % (raw,str(format),str(e)))
-                return data
+                self._logger("ERROR","Datagram error for %s on port %s with %s." % (raw,str(port),str(e)))
+                return { 'data': data, }
             fields = []
             for j in range(len(item[2])):
               fields.append(item[2][j])
@@ -494,10 +498,10 @@ class LoRaCoding:
                     #     data[item[1]][fields[j][0]] = (data[item[1]][fields[j][0]],)
                   except: pass
               except:
-                sys.stderr.write("ERROR: Decode error with sensor ID %d (fields %s, values %s)\n" % (i, str(fields), str(values)))
+                self._logger("ERROR","Decode error with sensor ID %d (fields %s, values %s)\n" % (i, str(fields), str(values)))
         except Exception as e:
-            sys.stderr.write("ERROR: Decode error: %s\n" % str(e))
-            return data
+            self._logger("ERROR","Decode error: %s\n" % str(e))
+            return { 'data': data, }
         # if defined it is in UTC time
         if type(timestamp) is str:
           # sys.stderr.write("Got timestamp: '%s', " % timestamp)
@@ -947,8 +951,8 @@ if __name__ == '__main__':
     # sample records from TTN V2 stack MQTT server:
     # more in file MyLoRaCodeTest.mqtt
     # TTN MQTT V2 examples
-    # {"app_id":"201123456771az","dev_id":"gtl-1234567-weerstation","hardware_serial":"0071234567167524","port":12,"counter":70,"payload_raw":"AAEBQgIoBAETQKPzWkJ0fmv/////FAB4AVg=","payload_fields":{"version":1.8,"BME280":{"temp":32.2,"rv":55.2,"luchtdruk":1024.5},"NEO-6":{"lon":5.123456,"lat":61.123456,"alt":None},"WindDIY1":{"wr":120,"ws":34.4},},"metadata":{"time":"2020-10-25T11:07:43.374546797Z","frequency":867.5,"modulation":"LORA","data_rate":"SF7BW125","airtime":87296000,"coding_rate":"4/5","gateways":[{"gtw_id":"gateway_sint_anthonis_004","timestamp":3340903908,"time":"2020-10-25T11:07:43Z","channel":0,"rssi":-107,"snr":4.75,"rf_chain":0}],"lat":51.659508,"lon":5.823824,"location_source":"registry"}},
-    # {"app_id":"201123456771az","dev_id":"gtl-1234567-weerstation","hardware_serial":"0071234567167524","port":10,"counter":21253,"payload_raw":"PD0+BjhPhxj9wzfe725vZGVfMDEj1TRgSs3MTL1MAADIQk16tMZHngAAAACfAAAAAKCEDQ8/nQicmpmZQA==","metadata":{"time":"2019-11-29T23:22:06.91516809Z","frequency":868.3,"modulation":"LORA","data_rate":"SF9BW125","airtime":431104000,"coding_rate":"4/5","gateways":[{"gtw_id":"eui-1dee0d671fa03ad6","timestamp":973238836,"time":"","channel":1,"rssi":-78,"snr":12.2,"rf_chain":1,"lat":50.88568,"lon":5.98243,"alt":45}]}}
+    # {"app_id":"201802215971az","dev_id":"gtl-kipster-weerstation","hardware_serial":"0078CECEA5167524","port":12,"counter":70,"payload_raw":"AAEBQgIoBAETQKPzWkJ0fmv/////FAB4AVg=","payload_fields":{"version":1.8,"BME280":{"temp":32.2,"rv":55.2,"luchtdruk":1024.5},"NEO-6":{"lon":5.123456,"lat":61.123456,"alt":None},"WindDIY1":{"wr":120,"ws":34.4},},"metadata":{"time":"2020-10-25T11:07:43.374546797Z","frequency":867.5,"modulation":"LORA","data_rate":"SF7BW125","airtime":87296000,"coding_rate":"4/5","gateways":[{"gtw_id":"gateway_sint_anthonis_004","timestamp":3340903908,"time":"2020-10-25T11:07:43Z","channel":0,"rssi":-107,"snr":4.75,"rf_chain":0}],"lat":51.659508,"lon":5.823824,"location_source":"registry"}},
+    # {"app_id":"201802215971az","dev_id":"gtl-kipster-weerstation","hardware_serial":"0078CECEA5167524","port":10,"counter":21253,"payload_raw":"PD0+BjhPhxj9wzfe725vZGVfMDEj1TRgSs3MTL1MAADIQk16tMZHngAAAACfAAAAAKCEDQ8/nQicmpmZQA==","metadata":{"time":"2019-11-29T23:22:06.91516809Z","frequency":868.3,"modulation":"LORA","data_rate":"SF9BW125","airtime":431104000,"coding_rate":"4/5","gateways":[{"gtw_id":"eui-1dee0d671fa03ad6","timestamp":973238836,"time":"","channel":1,"rssi":-78,"snr":12.2,"rf_chain":1,"lat":50.88568,"lon":5.98243,"alt":45}]}}
     # { "port":4, "payload_raw":"hwCCAMwBJoAYQi0XHARYAIAALgH7Aq8D+wCpASs=", "payload_fields":{"version":1.8,"aqi":29.9,"gas":169,"grain":0.5,"rv":68.7,"pm05_cnt":1694.1,"pm1":13,"pm10":29.4,"pm10_cnt":2412.1,"pm1_cnt":2285.7,"pm25":20.4,"pm25_cnt":2396.8999999999996,"pm5_cnt":2409.7,"luchtdruk":1019,"temp":20.7}}
     # { "port":3, "payload_raw":"BUsATqT+AAjuWgAAATk=", "payload_fields":{ "alt":31.3,"dust":"PMS7003","gps":1, "lat":51.54046,"lon":5.85306,"meteo":"BME680","version":0.5}}
     # {"port": 2, "payload_raw": [0x00, 0x00, 0x00, 0x75, 0x00, 0x79, 0x01, 0x7E, 0x04, 0x3B, 0x04, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], "payload_fields": { "rv": 108.3, "pm10": 12.1, "pm25": 11.7, "luchtdruk": 1041, "temp": 8.2 }}
@@ -956,9 +960,9 @@ if __name__ == '__main__':
     # { "end_device_ids": {
     #    "device_id": "meet-2022",
     #    "application_ids": { "application_id": "meet" },
-    #    "dev_eui": "00001234567007E6",
-    #    "join_eui": "70B12345670003BA",
-    #    "dev_addr": "1234567C"
+    #    "dev_eui": "00000000000007E6",
+    #    "join_eui": "70B3D75E0D0003BA",
+    #    "dev_addr": "260AB85C"
     #  },
     #  "correlation_ids": [
     #    "as:up:01..TH",

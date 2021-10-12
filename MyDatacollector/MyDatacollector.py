@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.42 2021/10/11 16:07:39 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.44 2021/10/12 15:05:30 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.42 $"[11:-2]
+__version__ = "1." + "$Revision: 4.44 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -130,7 +130,7 @@ try:
     import json                 # module to deal with json formated structures
     from jsmin import jsmin     # tool to delete comments and compress json
     import socket
-    socket.setdefaulttimeout(60)
+    socket.setdefaulttimeout(120)
     import re                   # handle regular expressions
 
     from lib import MyDB                 # measurements kit database module
@@ -484,7 +484,9 @@ def Initialize(DB=DB, debug=debug, verbose=None):
     except: 
       MyLogger.log(WHERE(),'FATAL','Input initialisation for (MQTT) brokers failed')
     for broker in Conf['input']:
-      MyLogger.log(WHERE(),'INFO','Input is read from: %s' % broker['resource'])
+      try: BrkrID = ' (%s)' % broker['clientID']
+      except: BrkrID = ''
+      MyLogger.log(WHERE(),'INFO','Input is read from: %s%s' % (broker['resource'],BrkrID))
     if not Resources: return False
 
     return True
@@ -916,6 +918,7 @@ def IsBehavingKit(info,now):
             else:
               MyLogger.log(WHERE(True),'DEBUG','%s Throttling kit: %s\n' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),ID))
               return 'Skip data. Throttling kit.' # artifacts
+        if not info['interval']: info['interval'] = 15*60  # reset
         info['interval'] = min((info['interval']*info['count']+(max(now - info['last_seen'],5*60)))/(info['count']+1),60*60)
     except: pass
     return None
@@ -1694,9 +1697,9 @@ def UpdateChannelsConf():
           for item in Channels[indx]['Conf'].keys():
             MyLogger.Conf[item] = Channels[indx]['Conf'][item]
           if (type(MyLogger.Conf['level']) is str) and (not MyLogger.Conf['level'] in [ 'NOTSET','DEBUG','INFO','ATTENT','WARNING','ERROR','CRITICAL','FATAL']):
-            sys.stderr.write("Wrong logging level %s, reset to WARNING\n" % MyLogger.Conf['level'])
+            sys.stderr.write("Wrong logging level '%s', reset to WARNING\n" % MyLogger.Conf['level'])
             MyLogger.Conf['level'] = 'WARNING'
-          MyLogger.log(WHERE(),'INFO',"Starting up %s, logging level %s" % (WHERE(),MyLogger.Conf['level']))
+          MyLogger.log(WHERE(),'INFO',"Starting %s, logging level '%s'" % (WHERE(),MyLogger.Conf['level']))
           continue
         elif Channels[indx]['name'] == 'database':
           for item in Channels[indx]['Conf'].keys():
@@ -1877,7 +1880,7 @@ def RUNcollector():
         if len(record) and 'Forward data' in artifacts: frwrd = True
         else:
           frwrd = False
-          MyLogger.log(WHERE(True),'INFO',"No measurements data for project %s, serial %s, %s." % (info['id']['project'],info['id']['serial'], 'no artifacts' if not artifacts else ';artifacts: '+', '.join(artifacts)) )
+          MyLogger.log(WHERE(True),'INFO',"No measurements data for %s/%s, %s." % (info['id']['project'],info['id']['serial'], 'no artifacts' if not artifacts else ';artifacts: "'+', '.join(artifacts)+'"') )
         if monitor:
           if type( Conf['monitor'] ) is str:
             Conf['monitor'] = re.compile(Conf['monitor'])
