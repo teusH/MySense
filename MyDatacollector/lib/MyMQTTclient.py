@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.38 $"[11:-2]
+__version__ = "0." + "$Revision: 2.41 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -29,7 +29,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.38 2021/10/12 10:48:42 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.41 2021/10/13 18:46:11 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -442,8 +442,6 @@ class MQTT_broker:
         self.logger = logger      # routine to print errors
     
     def _logger(self, pri, message):
-        sys.stderr.write("MQTT_broker MyMQTTclient %s: %s\n" % (str(pri), str(message))) 
-        return
         try: self.logger('MQTT_broker',pri,'MQTT client MQTT_broker: ' + str(message))
         except: sys.stderr.write("MQTT_broker MyMQTTclient %s: %s\n" % (str(pri), str(message))) 
 
@@ -785,6 +783,7 @@ class MQTT_data:
       self.MQTTrunning = False          # atexit enabled
       self.MQTTFiFo = []                # first in, first out data records queue
       self.MQTTLock = threading.RLock() # lock for queue access
+      self.Restart  = 0                 # time to retry MQTT broker client to startup
       if not DB:
         import MyDB
         DB=MyDB
@@ -812,7 +811,7 @@ class MQTT_data:
               # exit(1)
         except: raise ValueError("Unknown broker %s definition" % str(broker))
       
-    def _logger(self, pri, message, logger=None):
+    def _logger(self, pri, message):
       try: self.logger('MyMQTTclient', pri, message)
       except: sys.stderr.write("MyMQTTclient %s: %s\n" % (str(pri), message)) 
 
@@ -844,9 +843,13 @@ class MQTT_data:
         for one in ['fd','restarts','startTime','count','timestamp']:
           if not one in broker.keys(): broker[one] = None if one == 'fd' else 0
         if broker['fd']: continue
-        if broker['startTime'] > time.time(): continue  # do not start a client which has to wait
+        if broker['startTime'] > time.time():
+          if not self.Restart or broker['startTime'] < self.Restart:
+            self.Restart = broker['startTime']
+          self._logger("ATTENT","Wait for broker %s to be started" % broker['clientID'])
+          continue  # do not start a client which has to wait
         broker['lock'] = threading.RLock() # sema for timestamp
-        broker['fd'] = MQTT_broker(broker, self.MQTTFiFo, self.MQTTLock, verbose=self.verbose, debug=self.debug, logger=self._logger)
+        broker['fd'] = MQTT_broker(broker, self.MQTTFiFo, self.MQTTLock, verbose=self.verbose, debug=self.debug, logger=self.logger)
         if not broker['fd']:
           self._logger("ERROR","Unable to initialize MQTT broker class for %s" % str(broker),logger=self._logger)
           del self.MQTTbrokers[indx]
@@ -865,6 +868,12 @@ class MQTT_data:
           self.MQTTrunning = True; atexit.register(self.MyExit,self.MQTTbrokers,False)
           # signal.signal(signal.SIGINT,MyExit)
           # signal.signal(signal.SIGTERM,MyExit)
+        return True
+      if self.Restart:
+        self.Restart = max(0,self.Restart-int(time.time()))
+        self._logger("ATTENT","Wait %d secs and try to restart a broker" % self.Restart)
+        time.sleep(self.Restart)
+        self.Restart = 0
       return True
 
     # get a record from an MQTT broker eg TTN
@@ -900,14 +909,15 @@ class MQTT_data:
               for cnt in range(3): # see if there is a paho MQTT recovery in place
                 time.sleep(15)  # see if there is a recovery in place
                 if not broker['fd'].connected:
-                  broker['fd'].MQTTstop() # takes 15 secs
+                  broker['fd'].MQTTstop() # routine uses sleep of 15 secs
                   broker['fd'] = None
                   # reconnect slow down gracefully
                   broker['timestamp'] = int(time.time()) + broker['restarts']*self.sec2pol
-                  self._logger("INFO","(Re)try %d (restarts: %d) for broker reconnect from client %s" % (cnt+1,broker['restarts']+1,broker['clientID']))
+                  self._logger("INFO","Wait on stop %d (max wait: %d) for broker stop connection for MQTT client %s" % (cnt+1,broker['restarts']+1,broker['clientID']))
                 else:
                   self._logger("INFO" if self.verbose else "ATTENT","Auto reconnect for broker %s" % broker['clientID'])
                   break # MQTT paho did a reconnect
+              # enforce disconnect?
           except: pass
         # try to start MQTT brokers ready to go
         if not self.MQTTstartup():
