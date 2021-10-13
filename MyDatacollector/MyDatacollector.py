@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.44 2021/10/12 15:05:30 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.45 2021/10/13 18:39:34 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.44 $"[11:-2]
+__version__ = "1." + "$Revision: 4.45 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -178,7 +178,9 @@ __options__ = [
 MQTTdefaults = {
             'resource': 'eu.thethings.network', # server host number for mqtt broker
             'topic': '+/devices/+/up',  # topic: appID/devices/devID/up, maybe a list of topics
-            'import': MyMQTTclient.TTN2MySense().RecordImport, # MQTT data to Internal Exchange Format
+            # use new import class for MQTT data to Internal Exchange Format
+            #`'import': None, # MyMQTTclient.TTN2MySense(logger=None).RecordImport,
+            'import': MyMQTTclient.TTN2MySense().RecordImport,
             # next required for MQTT broker access
             'port': 1883,        # default MQTT port, port 0 or None: read from file
             # + is a wild card in TTN
@@ -465,7 +467,11 @@ def Initialize(DB=DB, debug=debug, verbose=None):
           continue
         # setting defaults for MQTT broker
       for one in MQTTdefaults.keys(): # take over defaults
-        if not one in Conf['input'][item].keys(): Conf['input'][item][one] = MQTTdefaults[one]
+        if not one in Conf['input'][item].keys():
+          #if one == 'import':
+          #  Conf['input'][item][one] = MyMQTTclient.TTN2MySense(logger=MyLogger.log).RecordImport, # MQTT data to Internal Exchange Format
+          #else:
+          Conf['input'][item][one] = MQTTdefaults[one]
     importNotices()  # enable automatic import of notice addresses if noticefile is defined
     if not notices: Conf['notice'][0] = [] # notices turned off in eg test phase
     if Conf['FILE']: # turn output off to external data portals
