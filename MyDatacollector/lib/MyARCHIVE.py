@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyARCHIVE.py,v 5.11 2021/10/07 11:34:21 teus Exp teus $
+# $Id: MyARCHIVE.py,v 5.12 2021/10/13 18:47:19 teus Exp teus $
 
 # reminder: MySQL is able to sync tables with other MySQL servers
 # based on MyDB.py V4.5
@@ -28,7 +28,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 __modulename__='$RCSfile: MyARCHIVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.11 $"[11:-2]
+__version__ = "0." + "$Revision: 5.12 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -95,7 +95,7 @@ def AddColumns(info,tableName,toAdd):
         Conf['log'](WHERE(True),'ERROR',"Unable to add column(s): %s" % ', '.join(toAdd))
         info['unknown_fields'] |= set(toAdd)
         return False
-    info['fields'] |= toAdd
+    info['fields'] |= set(toAdd)
     return True
 
 # upgrade measurement table for one field/column
@@ -112,13 +112,13 @@ def UpgradeTable(tableName,field):
 #
 # info:
 # {'count': 1,
-#  'id': {'project': u'ABC', 'serial': u'1234567b3611'},
-#  'DATAid': u'ABC_1234567fb311',
+#  'id': {'project': u'SAN', 'serial': u'b4e2df4b3611'},
+#  'DATAid': u'SAN_b4e62d4fb311',
 #  'TTNtableID': 1565969067,
 #  'valid': 1,
 #  'SensorsID': 1531639787,
 #  'active': 1,
-#  'Luftdaten': u'1234567e3b11',
+#  'Luftdaten': u'b462d4fe3b11',
 #  'WEBactive': 1,
 #  'sensors': [
 #    {'category': u'dust',
@@ -138,11 +138,11 @@ def UpgradeTable(tableName,field):
 #     'ttl': 1630373493}
 #   ],
 #  'location': u'u1hjztwmqd',
-#  'MQTTid': u'201234567971az/abcde-1b31',
-#  'unknown_fields': [],
+#  'MQTTid': u'201802215971az/bwvlc-1b31',
+#  'unknown_fields': set([]),
 #  'FromFILE': True,
 #  'interval': 240,
-#  'gtw': [[u'gateway_001', [-103, -103, -103], [7.75, 7.75, 7.75]]],
+#  'gtw': [[u'gateway_sint_anthonis_001', [-103, -103, -103], [7.75, 7.75, 7.75]]],
 #  'ttl': 1630351881,
 #  'last_seen': 1627828712}
 #
@@ -151,7 +151,7 @@ def UpgradeTable(tableName,field):
 #  'data': {
 #   'BME680': [(u'rv', 69.3), (u'luchtdruk', 1000), (u'gas', 32644), (u'temp', 12.8)],
 #   'PMS7003': [('pm05_cnt', 465.4), (u'pm10', 4.8), ... , (u'pm1', 1.8)]},
-#   'id': {'project': u'ABC', 'serial': u'12345674b311'}}
+#   'id': {'project': u'SAN', 'serial': u'b4e62df4b311'}}
 #
 # artifacts: [
 #  'Forward data',                   'Start throttling kit: %s',
