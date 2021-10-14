@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.41 $"[11:-2]
+__version__ = "0." + "$Revision: 2.42 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -29,7 +29,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.41 2021/10/13 18:46:11 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.42 2021/10/14 13:05:46 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -851,11 +851,11 @@ class MQTT_data:
         broker['lock'] = threading.RLock() # sema for timestamp
         broker['fd'] = MQTT_broker(broker, self.MQTTFiFo, self.MQTTLock, verbose=self.verbose, debug=self.debug, logger=self.logger)
         if not broker['fd']:
-          self._logger("ERROR","Unable to initialize MQTT broker class for %s" % str(broker),logger=self._logger)
+          self._logger("ERROR","Unable to initialize MQTT broker class for %s" % str(broker))
           del self.MQTTbrokers[indx]
           continue
         if not broker['fd'].MQTTstart():
-          self._logger("ERROR","Unable to initialize MQTT connection: %s." % str(broker),logger=self._logger)
+          self._logger("ERROR","Unable to initialize MQTT connection: %s." % str(broker))
           del self.MQTTbrokers[indx]
         elif not broker['startTime']:
           with broker['lock']:
@@ -932,7 +932,7 @@ class MQTT_data:
           now = time.time()
           if broker['fd'].connected: # Are we waiting for data too long? Give up for this broker.
             if (now - broker['timestamp'] > 60*60):
-              self._logger("ERROR","Waiting (waiting for %d secs, running %d seconds) too long for data from MQTT broker %s. Stopped connection." % (now - broker['timestamp'], now - broker['startTime'], broker['clientID']),logger=self._logger)
+              self._logger("ERROR","Waiting (waiting for %d secs, running %d seconds) too long for data from MQTT broker %s. Stopped connection." % (now - broker['timestamp'], now - broker['startTime'], broker['clientID']))
               broker['fd'].MQTTstop() # stop MQTT subscriber thread
               self.MQTTbrokers.pop(i)
               continue
