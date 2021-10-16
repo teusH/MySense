@@ -19,8 +19,9 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.42 $"[11:-2]
+__version__ = "0." + "$Revision: 2.43 $"[11:-2]
 import inspect
+import random
 def WHERE(fie=False):
    global __modulename__, __version__
    if fie:
@@ -29,7 +30,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.42 2021/10/14 13:05:46 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.43 2021/10/16 15:12:29 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -458,14 +459,16 @@ class MQTT_broker:
     def _on_disconnect(self, client, userdata, rc):
         self.connected = False
         if self.verbose:
-            self._logger("INFO","Disconnect rc=%d from MQTT broker %s, userdata: %s." % (rc, self.broker['clientID'],str(userdata)))
-        #else:
-        #    self._logger("WARNING","Disconnect rc=%d from MQTT broker %s." % (rc, self.broker['clientID']))
-        time.sleep(0.1)
+          self._logger("INFO","Disconnect rc=%d from MQTT broker %s, userdata: %s." % (rc, self.broker['clientID'],str(userdata)))
+        else:
+          rc = ["OK","incorrect protocol version","invalid client ID","server unavailable","bad user/password","not authorized","undefined"][rc if rc < 6 else 6]
+          self._logger("WARNING","Disconnect rc(%s) from MQTT broker %s." % (rc, self.broker['clientID']))
+        time.sleep(2.1)
      
     # pickup in thread call back the MQTT record and queue it
     def _on_message(self, client, userdata, message):
         self.message_nr += 1
+        if self.broker['restarts'] and self.message_nr > 5: self.broker['restarts'] = 0
         try:
             record = json.loads(message.payload)
             if len(record) > 25: # primitive way to identify incorrect records
@@ -498,10 +501,15 @@ class MQTT_broker:
      
     def MQTTinit(self):
         if self.client == None:
-            # may need this on reinitialise()
-            self.clientID = "ThisTTNtestID" if not 'clientID' in self.broker.keys() else self.broker['clientID']
-            if self.verbose:
-                self._logger("INFO","Initialize TTN MQTT client ID %s" % self.clientID)
+            # may need this on reinitialise(), make sure clientID is unique
+            self.clientID = "MQTTclientID" if not 'clientID' in self.broker.keys() else self.broker['clientID']
+            if self.clientID[-3:].isdigit():
+              self.clientID = self.clientID[:-2] + '%02d' % (int(self.clientID[-2:])+1)
+            else:
+              self.clientID += '_%d01' % random.randint(0,9)
+            self.broker['clientID'] = self.clientID
+            
+            self._logger("INFO","Initialize TTN MQTT client ID %s" % self.clientID)
             # create new instance, clean session save client init info?
             self.client = mqttClient.Client(self.clientID, clean_session=True)
             self.client.username_pw_set(self.broker["user"], password=self.broker["password"])    # set username and password
@@ -543,7 +551,7 @@ class MQTT_broker:
         if self.verbose:
             self._logger("INFO","Starting up TTN MQTT client %s." % self.clientID)
         self.client.loop_start()
-        time.sleep(0.1)
+        time.sleep(2.1)
         while self.connected != True:    # Wait for connection
           if cnt > 250:
             self._logger("FAILURE","%s: waited for connection too long." % self.clientID)
@@ -555,7 +563,7 @@ class MQTT_broker:
             elif (cnt%10) == 0:
               self._logger("INFO","%s: Wait for connection %3.ds"% (self.clientI,cnt/10))
           cnt += 1
-          time.sleep(0.1)
+          time.sleep(1.1)
         qos = 0 # MQTT dflt 0 (max 1 telegram), 1 (1 telegram), or 2 (more)
         try: qos = self.broker['qos']
         except: pass
@@ -907,13 +915,13 @@ class MQTT_data:
           try:
             if not broker['fd'].connected:
               for cnt in range(3): # see if there is a paho MQTT recovery in place
-                time.sleep(15)  # see if there is a recovery in place
+                time.sleep(5)  # see if there is a recovery in place
                 if not broker['fd'].connected:
                   broker['fd'].MQTTstop() # routine uses sleep of 15 secs
                   broker['fd'] = None
                   # reconnect slow down gracefully
                   broker['timestamp'] = int(time.time()) + broker['restarts']*self.sec2pol
-                  self._logger("INFO","Wait on stop %d (max wait: %d) for broker stop connection for MQTT client %s" % (cnt+1,broker['restarts']+1,broker['clientID']))
+                  self._logger("INFO","Wait on stop %d (try reconnect nr: %d) for broker stop connection for MQTT client %s" % (cnt+1,broker['restarts']+1,broker['clientID']))
                 else:
                   self._logger("INFO" if self.verbose else "ATTENT","Auto reconnect for broker %s" % broker['clientID'])
                   break # MQTT paho did a reconnect
