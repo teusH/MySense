@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.45 2021/10/13 18:39:34 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.46 2021/10/16 15:17:35 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.45 $"[11:-2]
+__version__ = "1." + "$Revision: 4.46 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -917,15 +917,20 @@ def IsBehavingKit(info,now):
             if not 'throttling' in info.keys():
                 info['throttling'] = now
                 MyLogger.log(WHERE(),'ERROR','%s (re)start throttling kit: %s (rate %d < throttle %d secs).' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),str(info['id']),now - info['last_seen'],Conf['rate']))
+                info['last_seen'] = now
                 return 'Start throttling kit: %s' % str(info['id']) # artifacts kit on drift
             elif (now - info['throttling']) > 4*60*60:
               MyLogger.log(WHERE(),'INFO','%s Reset throttling kit: %s\n' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),str(info['id'])) )
               del info['throttling'] # reset throttling after 4 hours
             else:
               MyLogger.log(WHERE(True),'DEBUG','%s Throttling kit: %s\n' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),ID))
+              info['last_seen'] = now
               return 'Skip data. Throttling kit.' # artifacts
-        if not info['interval']: info['interval'] = 15*60  # reset
-        info['interval'] = min((info['interval']*info['count']+(max(now - info['last_seen'],5*60)))/(info['count']+1),60*60)
+        # try to guess interval timing of measurement
+        if not info['interval'] or (now - info['last_seen'] > 60*60): # initialize
+          info['interval'] = 15*60  # reset
+        else:  # average guess
+          info['interval'] = min((info['interval']*info['count']+(now - info['last_seen']))/(info['count']+1),30*60)
     except: pass
     return None
 
@@ -971,6 +976,7 @@ def KnownKit(info):
     try: # check if id is defined
       id = info['id']; id['project']; id['serial']
     except:
+      info['last_seen'] = int(time.time())
       msg = 'MQTT id:%s, %s kit. Skipped.' % (str(topic),'Unkown' if not id else 'Unregistered') # artifact
       AlarmMessage(info, msg, timeout=0)
       return msg
@@ -1087,11 +1093,11 @@ def HasNewHomeGPS(info, data):
 # is this kit restarted after some time out?
 def IsRestarting(tstamp,info):
     try:
-      if not tstamp:  # measurement table has no measurements
+      if tstamp == None:  # measurement table has no measurements
         MyLogger.log(WHERE(),'ATTENT','Kit %s is newly installed.' % str(info['id']))
         sendNotice('Kit project %s, serial %s is newly installed. First recort at time: %s.\nMySense kit identification: %s.' % (ID,datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"),info['id']['project'],info['id']['serial']),info=info,all=True)
         return ['New kit'] # artifact
-      if tstamp > 90*60:
+      elif tstamp > 90*60:
         MyLogger.log(WHERE(),'ATTENT','Kit %s is restarted after %dh%dm%ds' % (str(ID),tstamp/3600,(tstamp%3600)/60,tstamp%60))
         sendNotice('Kit %s is restarted at time: %s after %dh%dm%ds.\nMySense kit identification: %s.' % (str(ID),datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),tstamp/3600,(tstamp%3600)/60,tstamp%60,str(ID)),info=info,all=False)
         return ['Restarted kit'] # artifact
@@ -1446,8 +1452,9 @@ def Data2Frwrd(info, data):
     if rts: return (info, {},[rts])
 
     # is this kit restarting after some time not seen or first measurement data?
-    try: rtsMsg += IsRestarting((now-info['last_seen'] if info['last_seen'] else 0), info)
+    try: rtsMsg += IsRestarting((now-info['last_seen'] if info['last_seen'] else None), info)
     except: pass
+    info['last_seen'] = now
 
     # if measurement kit is disabled, skip forwarding
     try:
@@ -1904,7 +1911,7 @@ def RUNcollector():
                 '%s %s (%s%s)' % (datetime.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M"),
                     MQTTid, TBLid, '[%s]'%sensors if sensors else ''),
                 info['count'],
-                (' at %dm%ds' % (info['interval']/60,info['interval']%60)) if (info['interval'] < 60*60) else ''),
+                (' at %dm%ds' % (info['interval']/60,info['interval']%60)) if (info['interval'] <= 60*60) else ''),
               BLUE)
             Acnt = 0
             for one in artifacts:
