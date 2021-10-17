@@ -99,3 +99,43 @@ The MyAdmin script needs some update to the newer table schemes yet.
 
 Measurement data is visualised via a CMS Drupal website. Drupal uses it's own database tables. So this type of tables need to be synchronised for meta information (locality etc). For this the script 'SyncWebDB.py' has been made available. However this script needs still to be upgraded with the newer DB table architecture yet.
 The tables 'Sensors' and TTNtable' are still the main single source for the information.
+
+## Python standard modules
+You should be able to run the scripts on Python 2 or 3.
+
+Make sure you have installed the Python modules. Try this by using the following Python script.
+` Python -e '
+import atexit
+import base64
+import copy
+import datetime
+import dateutil
+import email.mime
+import geohash
+import geopy
+import inspect
+import jsmin
+import json
+import lib
+import logging
+import math
+import mysql
+import os
+import paho.mqtt
+import platform
+import random
+import re
+import requests 
+import signal
+import smtplib
+import socket
+import struct
+import subprocess
+import sys
+import threading
+import time
+import traceback
+import xtermcolor
+'
+`
+An example to create initial tables for MySQL database: Use  `MySQLdbSetup.sql`.
