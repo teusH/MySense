@@ -19,19 +19,19 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyLogger.py,v 3.6 2021/08/26 15:48:06 teus Exp teus $
+# $Id: MyLogger.py,v 3.7 2021/10/17 13:43:16 teus Exp teus $
 
 # TO DO:
 
 """ Push logging to the external world.
 """
 modulename='$RCSfile: MyLogger.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.6 $"[11:-2]
+__version__ = "0." + "$Revision: 3.7 $"[11:-2]
 
 import sys
 
 # configurable options
-__options__ = ['level','file','output','date']
+__options__ = ['level','file','output','date','print']
 
 Conf = {
     'level': 'INFO',
@@ -49,7 +49,7 @@ Conf = {
 
 # logging levels
 FATAL    = 70
-#CRITICAL = 60
+CRITICAL = 60
 #ERROR    = 50
 #WARNING  = 40
 #ATTENT   = 30
@@ -63,7 +63,7 @@ log_colors = [16,6,21,4,3,5,9,1]
 def log(name,level,message): # logging to console or log file
     global Conf
     # seems python3 logging module does not allow logging on stdout or stderr
-    if not Conf['output']: return
+    if not Conf['output']: return False
     def IsTTY():
         global Conf
         if Conf['istty']: return True
@@ -77,10 +77,13 @@ def log(name,level,message): # logging to console or log file
                 
     def printc(text, color=0): # default color ansi black
         global Conf
+        if type(Conf['print']) is bool and Conf['print']:
+          import MyPrint
+          Conf['print'] = MyPrint
         try:
           if Conf['print']:
             Conf['print'].MyPrint(text, color=color)
-            return
+            return True
         except: pass
         try: sys.stderr.write(text+'\n')
         except: pass
@@ -89,7 +92,7 @@ def log(name,level,message): # logging to console or log file
         level = log_levels.index(level.upper())*10
     try:
         if int(level /10) < log_levels.index(Conf['level'].upper()):
-            return
+            return False
     except:
         pass
     name = name.replace('.py','')
@@ -102,7 +105,12 @@ def log(name,level,message): # logging to console or log file
         except:
             sys.exit("FATAL error while initiating logging. IoS program Aborted.")
         try:
-            Conf['fd'].setLevel(10 * log_levels.index(Conf['level']))
+            # map logger levels: NOTSET,DEBUG,INFO,ATTENT,WARNING,ERROR,CRITICAL,FATAL
+            # to syslog levels:  NOTSET,DEBUG,INFO,       WARNING,ERROR,CRITICAL
+            level = log_levels.index(Conf['level'])*10
+            if level == 30: level -= 5
+            elif level > 30: level -= 10
+            Conf['fd'].setLevel(level)
         except:
             Conf['fd'].setLevel(logging.WARNING)
         if Conf['date']:
@@ -121,7 +129,7 @@ def log(name,level,message): # logging to console or log file
             # log_handle = logging.StreamHandler(Conf['file'])
             # log_handle.setFormatter(log_frmt)
         Conf['fd'].addHandler(log_handle)
-    elif Conf['print'] != None and (type(Conf['print']) is bool):
+    elif type(Conf['print']) is bool:
       if (not 'file' in Conf.keys()) or not Conf['file']:
         Conf['file'] = sys.stderr
       try:
@@ -135,18 +143,57 @@ def log(name,level,message): # logging to console or log file
         sys.stderr.write("Exception with loading module print color: %s\n" % str(e))
         Conf['print'] = None
 
+    rts = False
     if Conf['fd']:
         try:
-            Conf['fd'].log(level,name + ': ' + message)
+            rts = Conf['fd'].log(level,name + ': ' + message)
         except:
             sys.exit("Unable to log to %s. Program aborted." % Conf["log"]['file'])
         if level == FATAL:
-            Conf['fd'].log(CRITICAL,"Program aborted.")
-            sys.exit("FATAL error. Program Aborted.")
+            rts = Conf['fd'].log(CRITICAL,"Program is aborted.")
+            # to do: handle stop multithreadings
+            try: Conf['stop']()  # stop on heigher level
+            except: sys.exit("FATAL error. Program Aborted.")
     else:
         printc("%s %s: %s" % (name,log_levels[int(level/10)%len(log_levels)], message),log_colors[int(level/10)%len(log_levels)])
+        rts = True
+    return rts
     
 def show_error():               # print sys error
-    log('ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
-    return
+    return log('ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
 
+if __name__ == '__main__':
+    Conf['level'] = 'INFO'                 # default log level
+    Conf['file'] = sys.stderr              # default
+    Conf['print'] = True                   # default colored print on stderr
+
+    if len(sys.argv) > 1:
+      for i in range(1,len(sys.argv)):
+        if sys.argv[i].find('stderr') >= 0:
+          Conf['file'] = sys.stderr.write
+          Conf['print'] = True
+          print("Using log service via standard error, colored output.")
+        elif sys.argv[i].find('syslog') >= 0:
+          Conf['file'] = 'syslog'
+          Conf['print'] = None  # required for system logging
+          print("Using log service via system logging service syslog.")
+        elif sys.argv[i].upper() in log_levels:
+          Conf['level'] = sys.argv[i].upper()
+          print("Using minimal log level '%s'." % Conf['level'])
+        else:
+          Conf['file'] = sys.argv[i]
+          Conf['print'] = False
+          print("Using log service via log (use of named pipe?: fifo='file_name') file '%s'." % sys.argv[i])
+    else:
+      Conf['level'] = 'DEBUG'                # show everything
+      Conf['file'] = sys.stderr              # default
+      Conf['print'] = True                   # colored print on stderr
+      print("Using log service via standard error")
+    for one in log_levels[1:]:  # skip UNSET level
+      print("Try to log messager on level %s (minimal level %s)" % (one,Conf['level']))
+      try:
+        rts = log(sys.argv[0],one,"This is level %s as logger test" % one)
+        if rts: print("Logged")
+        elif rts == None: print("Logging undefined (syslog?)")
+        else: print("Not logged")
+      except Exception as e: print("Level %s log failed with '%s'" % (one, str(e)))
