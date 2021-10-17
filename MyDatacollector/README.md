@@ -1,24 +1,16 @@
 # MyDatacollectornapplication
-$Id: README.md,v 1.1 2021/10/10 13:24:01 teus Exp teus $
-
 ## An outline of the data aquisition, monitoring, eventhandling and adatforwarder
 MyDatacollector is a Python application to run as a deamon service downloading measurement data from (MQTT) brokers, monitoring the measurement kit operations, handling measurement kit events, while sending event notices via email or chat service (Slack), updating meta information of the measurement kits and forwarding the data to a collection of output channels as terminal console, measurement database, and different data portales as Sensors.Community, RIVM etc.
-
-The datacollector has an enormous amounbt of functionality. Mainly to improve data aquisition and to provide a high quality operation of measurements over long periods.
-This requires to configure the application in a thoroughfull way.
-To limit the amount of notices repition of notices is kept to a configurabble minimum.
-
-The scripts should run with either Python 2 or 3.
 
 ## licence
 Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 
-Copyright (C) 2019-2021, Behoud de Parel, Teus Hagen, the Netherlands.
+Copyright (C) 2021, Behoud de Parel, Teus Hagen, the Netherlands
 Open Source Initiative  https://opensource.org/licenses/RPL-1.5
 
    Unless explicitly acquired and licensed from Licensor under another
-   license, the contents of this file are subject to the *Reciprocal Public
-   License ("RPL")* Version 1.5, or subsequent versions as allowed by the RPL,
+   license, the contents of this file are subject to the Reciprocal Public
+   License ("RPL") Version 1.5, or subsequent versions as allowed by the RPL,
    and You may not copy or use this file in either source code or executable
    form, except in compliance with the terms and conditions of the RPL.
 
@@ -27,22 +19,19 @@ Open Source Initiative  https://opensource.org/licenses/RPL-1.5
    LICENSOR HEREBY DISCLAIMS ALL SUCH WARRANTIES, INCLUDING WITHOUT
    LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
    PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
-   language governing rights and limitations under the RPL.
+  language governing rights and limitations under the RPL.
 
 Use of all sources under these condition implies a contribution in the form of code contribution, documentation, improvements or donations to MySense.
-This enables us to continue withg more MySense developments as well to share the knowledge and experience.
 It is not a free beer.
-Make sure to use a phrase 'based on MySense' (Behoud de Parel Association) in all publications and reports when you use MySense software.
 
 ## configuration
 The datacollector and input/output modules are highly configurable.
-See the Python module(s) for e.g. 'Conf' dict for all the details.
+See the Python module for e.g. Conf dict for all details.
 Every input/output module can be tested on a stand alone base which eases testing and debugging. A set of examples is provided for this.
 From the commandline (and with environment variable setting as
 eg DBPASS=acacadabra, DBHOST=localhost, DBUSER=myself)
 the datacollector configuration can be changed (try help).
 E.g. 'community:output=false' will switch forwarding to Sensors.Community OFF.
-Use the 'help' argument for more details.
 
 ## input channels (broker input channel modules)
 It is possible to read measurement data from several (MQTT eg TTN V2 or V3 stack) simultaniously. The datacollector is able to detect data in TTN V2 or V3 automatically. Currently only MQTT broker input is implemented. With this as example eg InfluxDB or HTTP POST broker should be easily implemented.
@@ -54,7 +43,7 @@ MyMQTTclient module is taking care of uploading measurement data from an MQTT br
 It is expected that every LoRa port has it's own decoding rules. See the comments in this module for more details.
 The LoRa (TTN V2/V3) json format will be converted to the (internal) Measurement Data Echange Format (MDEF format). The internal MDEF format is very close to the proposed (MySense) MDEF standard proposal.
 
-The datacollector will collect gateway information from each uploaded MQTT datagram for supporting statistics about which gateways in that region are forwarding datagrams to eg TTN. The information is stored in the datagram cache with signal strength information. To Do: make this information available in the database.
+The MyMQTTclient modue will try to automatically reconnect. On too many reconnects the MQTT broker will be disconnected. If no input channels are available anymore the data collector will exiting.
 
 ## output channels
 Measurement data is forwarded via a dynamic configurable scheme of output channel modules as MyARCHIVE (MySense MySQL database), MyCONSOLE (terminal/console), and/or MyCOMMUNITY (Sensors.community, RIVM and other data portals).
@@ -99,6 +88,7 @@ Note that a measurement kit can remotely via LoRa be instructed for configuratio
 ## logging
 Default logging output (priority driven: info, ..., debug) is on standard error terminal. Configuration allow to forward logging to the OS syslog system, or even for remore simple access to a named pipe.
 It is possible to configure each module with a different priority level.
+One can configure via Conf['file'] the way logging is done: sys.stderr.write, syslog, name pipe, or a logfile.
 
 ## upgrading DB
 MyDatacollector is dependent on meta information and measurement data tables.
@@ -109,34 +99,3 @@ The MyAdmin script needs some update to the newer table schemes yet.
 
 Measurement data is visualised via a CMS Drupal website. Drupal uses it's own database tables. So this type of tables need to be synchronised for meta information (locality etc). For this the script 'SyncWebDB.py' has been made available. However this script needs still to be upgraded with the newer DB table architecture yet.
 The tables 'Sensors' and TTNtable' are still the main single source for the information.
-
-## Measurement Data Exchange Format (MDEF format, 2021 draft standard)
-The Measurement Data Exchange Format (MDEF) will be described in a separate README document. All modules will have runtime how-to examples for a more practical road to do an implementation and to test the data exchange.
-The MDEF, based on 4 years of developments, is still in development and in concept as long as the implementation is only done on one or two implementation efforts. 
-
-## data collector software architecture
-
-### initialisation phase
-See 'MyDatacollector.py' `__main__` section:
-- Configure() routine will do initial configuration. The configuration is overwritten by the local configuration as supplied by 'MyTTN-datacollector.conf.json' (see the example file for a details).
-- ImportArguments() routine will overwrite initial configuration from arguments supplied from commenand line.
-- UpDateChannelConf() routine will setup input and output channels and configure those modules as well the library or support modules e.g 'MyGPS' (handle GPS location information), 'MyDB' (DB meta information and DB access routines), 'MyPrint' (use of colred terminal printout), 'MyThreading' (multithreading toolset), etc..
-- Initialize() wrap up and enable input/output modules.
-
-### Main run loop
-The routine RUNcollector() is the main run loop routine.
-It collects measurement datagrams from an input queue, which is loaded by the multithreaded input broker module(s) via a call to GetDataRecord().
-GetDataRecord will first collect the meta information (a cached item per measuremnt kit active) 'info' and the MDEF 'data'gram. This information is passed to the 'Data2FGrwrd()' routine.
-Data2Frwrd() will check if the measurement kit is behaving well (will throddle the kit datagram if needed so).
-Next it datagram will be checked if the datagram is uploaded from a known measurement kit.
-On the event that the kit clearly has been restarted this will be notified.
-If the kit was disabled for some reason the datagram will be skipped and an event is raised.
-From that point the datagram is checked if meta data (DB tables 'Sensors', 'TTNtable' and 'SensorTypes') needs to be changed in the database (write through cache) as e.g. new home location or is clearly in a repair situation (locality differs from home location).
-Gateway statistics is updated.
-Finally the datagram is checked if there is data for valid data, measurements to be forwarded, and which measurements are provided from known sensor types. If needed meta data will be corrected as well calibration reference sensor types and measurement correction information is attached to the cached meta information.
-Data2Frwrd() routine will collect so called 'artifacts' as provided from the different checking routines.
-This artifacts list is hand over to the output channels/modules publish() routines.
-
-Next the meta cache item and measurement datagram (in MDEF format) will be provided to each output channel 'publish()' routine.
-The result (True, False, remarks) will be handled and monitored/logged. Whereas the loop is continued as long as there are input channels active.
-
