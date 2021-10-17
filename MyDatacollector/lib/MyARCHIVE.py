@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyARCHIVE.py,v 5.12 2021/10/13 18:47:19 teus Exp teus $
+# $Id: MyARCHIVE.py,v 5.13 2021/10/17 13:52:36 teus Exp teus $
 
 # reminder: MySQL is able to sync tables with other MySQL servers
 # based on MyDB.py V4.5
@@ -28,7 +28,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 __modulename__='$RCSfile: MyARCHIVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.12 $"[11:-2]
+__version__ = "0." + "$Revision: 5.13 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -72,11 +72,13 @@ def checkField(tableName, info, field):
     if field in info['fields']: return True
     DB = Conf['DB']   # SupportedFields
     if not DB.SupportedFields.match(field):
-      try: info['unknown_fields']
+      try:
+        if type(info['unknown_fields']) is list:
+          info['unknown_fields'] = set(info['unknown_fields'])
       except: info['unknown_fields'] = set([])
       if not field in info['unknown_fields']:
+        # Conf['log'](WHERE(),'ATTENT',"Unknown field '%s' for table %s. Skipped." % (field,tableName))
         info['unknown_fields'] |= set([field])
-        Conf['log'](WHERE(),'ATTENT',"Unknown field '%s' for table %s. Skipped." % (field,tableName))
       return False
     return field  # add sensor field/column name to measurement table column names
 
@@ -89,12 +91,12 @@ def AddColumns(info,tableName,toAdd):
     if len(qry):
       try:
         Conf['DB'].db_query("ALTER TABLE %s %s" % (tableName,','.join(qry)),False)
-        Conf['log'](WHERE(),'ATTENT',"Added new column(s) '%s' to table %s" % (','.join(toAdd),tableName))
       except IOError: raise IOError
       except:
         Conf['log'](WHERE(True),'ERROR',"Unable to add column(s): %s" % ', '.join(toAdd))
         info['unknown_fields'] |= set(toAdd)
         return False
+    Conf['log'](WHERE(),'ATTENT',"Added new column(s) '%s' to table %s" % (','.join(toAdd),tableName))
     info['fields'] |= set(toAdd)
     return True
 
@@ -208,7 +210,9 @@ def registrate(tableName, info, data):
             except: pass
             if Conf['omit'].match(value[0]): continue  # do not archive unwanted sensors
             checked = checkField(tableName, info, value[0])
-            if not checked: continue                   # new not supported field
+            if not checked:
+              Conf['log'](WHERE(True),'ATTENT',"Not supported sensor field '%s', value: %s. Skipped." % (value[0],str(value)))
+              continue                   # new not supported field
             elif not type(checked) is bool:            # add new column to table
               toAdd.append(checked)
             # on GPS location no unit correction or calibration
