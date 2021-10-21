@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.46 2021/10/16 15:17:35 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.47 2021/10/21 11:27:26 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.46 $"[11:-2]
+__version__ = "1." + "$Revision: 4.47 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -273,7 +273,7 @@ __stop__ = []
 # may need to put this in an atexit list
 def EXIT(status=0):
     global __stop__, DB
-    # MyLogger.log(WHERE(),'FATAL','Exiting')
+    MyLogger.log(WHERE(),'CRITICAL','Exiting')
     for one in __stop__: one()
     try:
       if DB.Conf['fd']: DB.Conf['fd'].disconnect()
@@ -483,12 +483,13 @@ def Initialize(DB=DB, debug=debug, verbose=None):
             MyLogger.log(WHERE(),'ATTENT','Output to %s is switched off.' % item['name'])
         except: pass
     if not len(Conf['input']):
-      MyLogger.log(WHERE(),'FATAL','No input channel defined. Exiting.')
+      MyLogger.log(WHERE(),'CRITICAL','No input channel defined.')
       EXIT(1)
     try:
       Resources = MyMQTTclient.MQTT_data(Conf['input'], DB=DB, verbose=verbose, debug=debug, logger=MyLogger.log)
     except: 
-      MyLogger.log(WHERE(),'FATAL','Input initialisation for (MQTT) brokers failed')
+      MyLogger.log(WHERE(),'CRITICAL','Input initialisation for (MQTT) brokers failed')
+      EXIT(1)
     for broker in Conf['input']:
       try: BrkrID = ' (%s)' % broker['clientID']
       except: BrkrID = ''
@@ -1269,15 +1270,15 @@ def HasMeasurements(info,data,DBchanges):
         items.append(item)
         if FluctCheck(info,item[0],item[1]): flucts.append(item[0])
       elif type(value) is dict:
-          for one,val in value.items():
-            if type(val) is dict or type(val) is tuple or type(val) is list: # recursive
-              titems,trts,tflucts = ConvertValue(info, fld, val,rts=rts,flucts=flucts)
-              items += titems; rts += trts; flucts += tflucts
-            else: # add one to the 3 lists
-              if not ValidValue(info,fld,val): val = None
-              items.append((fld,val))
-              if val == None: rts.append(fld)
-              if FluctCheck(info,fld,val): flucts.append(fld)
+        for one,val in value.items():
+          if type(val) is dict or type(val) is tuple or type(val) is list: # recursive
+            titems,trts,tflucts = ConvertValue(info, fld, val,rts=rts,flucts=flucts)
+            items += titems; rts += trts; flucts += tflucts
+          else: # add one to the 3 lists
+            if not ValidValue(info,fld,val): val = None
+            items.append((fld,val))
+            if val == None: rts.append(fld)
+            if FluctCheck(info,fld,val): flucts.append(fld)
       else:       # add one to the 3 lists
         if not ValidValue(info,fld,value): value = None
         items.append((fld,value))
@@ -1290,14 +1291,22 @@ def HasMeasurements(info,data,DBchanges):
     # do not add 'sensor type: [(...),...] in data dict if there is no measurement data
     Dsensors = [] # find new sensor types from measurement data record part
     msmnt = {}; OoR = []; SVS = [] # measurement data, OutOfRange, None valued
-    try:
-      for item, value in data['data'].items():   # pick up sensors from data part, convert values
-        if item.lower() in ['version','timestamp']: continue
-        if item[:2] in ['L-']: # skip e.g. Libelium type/serial tags
-          del data['data'][item]; continue
+    # data['data'] = {'version': '1.0', 'BME280': dict {'rv':2.1,}/list [('rv',2.1),]/tuple ('rv',2.1,'%',[0,1]), ...}
+    if not 'data' in data.keys():  # probably an event
+      # MyLogger.log(WHERE(),'ATTENT',"No data found in data record for measurment %s/%s" % (info['id']['project'],info['id']['serial']))
+      data['data'] = {}
+    for item, value in data['data'].items():   # pick up sensors from data part, convert values
+      try:
+        if item.lower() in ['version',] and not item.lower() in data.keys():
+          data[item.lower()] = str(value); continue
+        elif item.lower() in ['timestamp',] and not item.lower() in data.keys():
+          data[item.lower()] = value; continue
+        elif item[:2] in ['L-']: # skip e.g. unused tags e.g. Libelium type/serial
+          continue
         # check if sensor has measurements
-        if not value: continue
+        if value == None: continue
         if type(value) is list:
+          if not value: continue
           if not type(value[0]) is tuple: # already in expected data format?
             tDR, tSVS, tOoR = ConvertValue(info, item, value)
             OoR += tOoR; SVS += tSVS
@@ -1305,6 +1314,7 @@ def HasMeasurements(info,data,DBchanges):
               msmnt[item] = tDR
               Dsensors.append(item)
         elif type(value) is dict:
+          if not value: continue
           new = []
           for one, val in value.items(): # (val,unit) or [val,unit] cases (To Do: convert unit)
             tDR, tSVS, tOoR = ConvertValue(info, one, val)
@@ -1313,8 +1323,11 @@ def HasMeasurements(info,data,DBchanges):
           if new:
             msmnt[item] = new  # if nothing skip item and value(s)
             Dsensors.append(item)
-      data['data'] = msmnt
-    except: pass
+        else: continue
+      except Exception as e:
+        MyLogger.log(WHERE(True),'DEBUG','Kit %s_%s generates non std data: %s.' % (info['id']['project'],info['id']['serial'],str(data['data'])) )
+        MyLogger.log(WHERE(True),'ERROR','Kit %s_%s generates data error: %s.' % (info['id']['project'],info['id']['serial'],str(e)) )
+    data['data'] = msmnt
     Dsensors = set(Dsensors)
     rtsMsg += LogInvalids(info)  # 'malfunctioning' sensors: out of band + temp == 0.0
     if OoR:                      # sensors only producing static values
@@ -1492,8 +1505,12 @@ def Data2Frwrd(info, data):
     GTWstat(info,data)
 
     # check for out of range values, static values, finally if record has measurements
-    HsM, trts = HasMeasurements(info,data,DBchanges)
-    rtsMsg += trts
+    try:
+      HsM, trts = HasMeasurements(info,data,DBchanges) # returns data sensors, artifacts
+      rtsMsg += trts
+    except Exception as e:
+      HsM = 0; rtsMsg.append("Has measurements error")
+      MyLogger.log(WHERE(True),'ERROR',"Exception '%s' raised with HasMeasurements() on %s/%s data '%s'" % (str(e),info['id']['project'],info['id']['serial'], str(data)))
 
     rtsMsg = sorted(list(set(rtsMsg)))# sorted list of artifacts
     if DBchanges: updateSensorsTbl(info,DBchanges)
@@ -1519,7 +1536,7 @@ def GetDataRecord():
           # raise IOError("Wrong error type or empty data record received")
           MyLogger.log(WHERE(True),'ERROR',"Wrong error type or empty data record received")
           if ErrorCnt > 20:
-            MyLogger.log(WHERE(True),'FATAL','Subscription failed Mid: %s. Aborted.' % str(data))
+            MyLogger.log(WHERE(True),'CRITICAL','Subscription failed Mid: %s. Aborted.' % str(data))
             return (None,None,['Fatal error on subscriptions']) # artifact
           ErrorCnt += 1; sleep(1) # slow down a bit on error
           continue
@@ -1764,13 +1781,14 @@ def UpdateChannelsConf():
               MyCOMMUNITY.Conf['DB'] = DB
               MyCOMMUNITY.__version__ = MyCOMMUNITY.__version__.replace('0.',' %s-' % __version__)
             else:
-              MyLogger.log(WHERE(True),'FATAL','Unconfigured module %s' % Channels[indx]['script'])
+              MyLogger.log(WHERE(True),'CRITICAL','Unconfigured module %s' % Channels[indx]['script'])
+              EXIT(1)
             if 'log' in Channels[indx]['module'].Conf.keys():
               Channels[indx]['module'].Conf['log'] = MyLogger.log # one log thread
             Channels[indx]['net']['module'] = True
           except:
-            MyLogger.log(WHERE(True),'FATAL','Unable to load module %s' % Channels[indx]['script'])
-            return False
+            MyLogger.log(WHERE(True),'CRITICAL','Unable to load module %s' % Channels[indx]['script'])
+            EXIT(1)
         for item in Channels[indx]['Conf'].keys():
           if Channels[indx]['module']:
             Channels[indx]['module'].Conf[item] = Channels[indx]['Conf'][item]
@@ -1965,11 +1983,11 @@ def RUNcollector():
                         except: pass
                     else:
                       MyLogger.log(WHERE(),'ATTENT','Kit %s/%s data no output to %s' % (info['id']['project'],info['id']['serial'],Channels[indx]['name']))
-                      monitorPrt("    %s FAILURE" % ('Forwarding record to %s:' % Channels[indx]['name']),RED)
+                      monitorPrt("    %s no data output" % ('Forwarding record to %s:' % Channels[indx]['name']),BLUE)
                   elif Rslt:
                     if type(Rslt) is str or type(Rslt) is unicode:
-                      MyLogger.log(WHERE(),'INFO','Kit %s/%s data NO output to %s: %s' % (info['id']['project'],info['id']['serial'],Channels[indx]['name'],str(Rslt)))
-                      monitorPrt("    %s %s" % ('Forwarding record to %s NO DATA:' % Channels[indx]['name'],str(Rslt)),RED)
+                      MyLogger.log(WHERE(),'INFO','Kit %s/%s data output to %s: %s' % (info['id']['project'],info['id']['serial'],Channels[indx]['name'],str(Rslt)))
+                      monitorPrt("    %s %s" % ('Attent forwarding record to %s, result ' % Channels[indx]['name'],str(Rslt)))
                     elif type(Rslt) is list:
                       try: Rslt = ', '.join(Rslt)
                       except: Rslt = str(Rslt)
@@ -2020,10 +2038,10 @@ if __name__ == '__main__':
     Configure()
     ImportArguments()
     if not UpdateChannelsConf():
-        MyLogger.log(WHERE(),'FATAL','Error on Update Channel configurations.')
+        MyLogger.log(WHERE(),'CRITICAL','Error on Update Channel configurations.')
         EXIT(1)
     if not Initialize():
-        MyLogger.log(WHERE(),'FATAL','Error on initialisation.')
+        MyLogger.log(WHERE(),'CRITICAL','Error on initialisation.')
         EXIT(1)
     try: RUNcollector()
     except Exception as e: 

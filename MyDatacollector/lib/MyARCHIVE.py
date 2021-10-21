@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyARCHIVE.py,v 5.13 2021/10/17 13:52:36 teus Exp teus $
+# $Id: MyARCHIVE.py,v 5.14 2021/10/21 11:26:51 teus Exp teus $
 
 # reminder: MySQL is able to sync tables with other MySQL servers
 # based on MyDB.py V4.5
@@ -28,7 +28,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 __modulename__='$RCSfile: MyARCHIVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.13 $"[11:-2]
+__version__ = "0." + "$Revision: 5.14 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -197,6 +197,12 @@ def registrate(tableName, info, data):
     # allow only one field name, skip double fields. To Do: use average
     for values in data.items(): # ('BME680', [(u'rv', 69.3, ...),...]) or (u'rv',69.3,...)
       if type(values) in [list,tuple]:
+        # it might happen that data record has dicts iso tuples or lists
+        #if type(values[1]) is dict: # a hack convert {'bme280': { 'rv': 35.0,...}, ... to [('rv',35,0),...
+        #  ValArray = []
+        #  for sens, value in values[1].items(): ValArray.append((sens,value))
+        #  values[1] = ValArray
+        #  # sys.stderr.write("CHANGED DICT values[1]. Values (%s). Data: %s\n" % (str(values),str(data)))
         if type(values[1]) in [list,tuple]:  # ('BME680', [(u'rv', 69.3, ...),...])
           sensors.append(values[0]); values = values[1]
         else:                                # convert to sensor rv (u'rv',69.3,...)

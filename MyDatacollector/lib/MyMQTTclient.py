@@ -1032,10 +1032,8 @@ if __name__ == '__main__':
 
     # TTN credentials, only for test purposes
     resource = "eu.thethings.network"  # Broker address
-    # user = "1234567890abc"       # connection user name
-    user = "201802215971az"        # Connection username
-    # password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
-    password = "ttn-account-v2.GW3msa6kBNZs0jx4aXYCcbPaK6r0q9iSfZjIOB2Ixts"
+    user = "1234567890abc"       # connection user name
+    password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
 
     keepalive = None               # play with keepalive connection settings, dflt 180 secs
     MQTTbrokers = []               # may be a list of TTN/user brokers

@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyCOMMUNITY.py,v 4.10 2021/10/07 15:06:58 teus Exp teus $
+# $Id: MyCOMMUNITY.py,v 4.11 2021/10/18 15:48:44 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program.
 """
 __modulename__='$RCSfile: MyCOMMUNITY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 4.10 $"[11:-2]
+__version__ = "0." + "$Revision: 4.11 $"[11:-2]
 import re
 import inspect
 def WHERE(fie=False):
@@ -597,7 +597,7 @@ def SensorData(SType,values,info):
       s_tble_entry = sense_table[Sflds['category']]
       calibrations = []; pin = None
       pin, calibrations = getCalDB(SType,s_tble_entry)
-      for val in values: # val = (sensor field,value,unit)
+      for val in values: # val = (sensor field,value,unit) # unit is optional
         #              (calibration seq, field, value, is dust?)
         field = None; value = val[1]
         value = getCal(calibrations,val[0],value,PM=(Sflds['category']=='dust'))
