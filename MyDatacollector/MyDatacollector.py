@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.47 2021/10/21 11:27:26 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.49 2021/10/23 18:32:37 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.47 $"[11:-2]
+__version__ = "1." + "$Revision: 4.49 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -132,6 +132,7 @@ try:
     import socket
     socket.setdefaulttimeout(120)
     import re                   # handle regular expressions
+    import copy                 # copy values iso ref to objects
 
     from lib import MyDB                 # measurements kit database module
     from lib import MyLogger             # logging module
@@ -171,7 +172,7 @@ __options__ = [
         'FILE',        # data input json records from file iso MQTT server
         'DEBUG',       # debug modus
         'initfile',    # initialisation file with conf. info
-        'check',       # list of sensor fields to check for fluctuation faults
+        'check',       # list of sensor fields and trigger to check for fluctuation faults
         'monitor',     # pattern for project_serial to monitor for. '.*' (all)
         ]
 
@@ -197,10 +198,10 @@ Conf = {
     'brokers': [             # round robin subscription list of MQTT TTN brokers
         MQTTdefaults,    # default broker access details
         ],
-    'rate':    10*60,    # expected time(out) between telegrams published
+    'rate':    8*60,     # expected time(out) between telegrams published
                          # if data arrived < expected rate, throttling
                          # *2 is wait time to try to reconnect with MQTT server
-    'check': ['luchtdruk','temp','rv','pm10','pm25'], # sensor fields for fluctuation faults
+    'check': [('luchtdruk',100),('temp',20),('rv',20),('pm10',30),('pm25',30)], # sensor fields for fluctuation faults
                          # if measurement values do not fluctuate send notice sensor is broken
 
     # defines nodes, LoRa, firmware, classes, etc. for Configure info
@@ -273,7 +274,7 @@ __stop__ = []
 # may need to put this in an atexit list
 def EXIT(status=0):
     global __stop__, DB
-    MyLogger.log(WHERE(),'CRITICAL','Exiting')
+    MyLogger.log(WHERE(),'CRITICAL' if status else 'ATTENT','Exiting')
     for one in __stop__: one()
     try:
       if DB.Conf['fd']: DB.Conf['fd'].disconnect()
@@ -789,9 +790,11 @@ def ValidValue(info,afield,avalue):
 # check for sensor field value fluctuation, no fluctuation give notice
 # if not present initialize cache entry
 # reset after 100?, notice once after 20 times same value. To Do: use interval timings
+toBeChck = None
 def FluctCheck(info,afield,avalue):
-    global Conf
-    if not afield in Conf['check']: return None
+    global Conf, toBeChck
+    if toBeChck == None: toBeChck = set([ a[0] for a in Conf['check']])
+    if not afield in toBeChck: return None
     # if value == None: return afield
     try: chk = info['check']
     except: chk = info['check'] = {}
@@ -807,12 +810,16 @@ def FluctCheck(info,afield,avalue):
     # same value: to do: make max value variable per sensor type
     chk[afield][0] += 1
 
-    if chk[afield][0] < 20: # await fluctuations for ca 5 hours
+    for one in toBeChck:  # get amount of static values permitted for afield
+      if Conf['check'][0] == afield:
+        trigger = Conf['check'][1]; break
+    else: trigger = 20
+    if chk[afield][0] <= trigger: # await fluctuations for ca 5 hours
       return None
-    if chk[afield][0] > 20+1 and (chk[afield][0] % 100): # have already give notice
+    if chk[afield][0] > trigger+1 and (chk[afield][0] % 100): # have already give notice
       return afield
-    MyLogger.log(WHERE(True),'ERROR','kit proj %s, serial %s has (malfunctioning) sensor field %s, which gives static value of %.2f #%d.' (info[id]['project'],info['id']['serial'],afield,avalue,chk[afield][0]))
-    sendNotice('%s: kit project %s, serial %s has (malfunctioning) sensor field %s, which gives static value of %.2f on a row of %d times. Skipped data.' % (datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"),info[id]['project'],info['id']['serial'],afield,avalue,chk[afield][0]),info=info,all=False)
+    MyLogger.log(WHERE(True),'ERROR','kit proj %s, serial %s has (malfunctioning) sensor field %s, which gives static value of %.2f #%d.' (info['id']['project'],info['id']['serial'],afield,avalue,chk[afield][0]))
+    sendNotice('%s: kit project %s, serial %s has (malfunctioning) sensor field %s, which gives static value of %.2f on a row of %d times. Skipped data.' % (datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"),info['id']['project'],info['id']['serial'],afield,avalue,chk[afield][0]),info=info,all=False)
     return afield
 
 # hack to delete PM mass None values when PM count is not zero
@@ -1295,12 +1302,13 @@ def HasMeasurements(info,data,DBchanges):
     if not 'data' in data.keys():  # probably an event
       # MyLogger.log(WHERE(),'ATTENT',"No data found in data record for measurment %s/%s" % (info['id']['project'],info['id']['serial']))
       data['data'] = {}
+    thisData = copy.deepcopy(data['data'])
     for item, value in data['data'].items():   # pick up sensors from data part, convert values
       try:
-        if item.lower() in ['version',] and not item.lower() in data.keys():
-          data[item.lower()] = str(value); continue
-        elif item.lower() in ['timestamp',] and not item.lower() in data.keys():
-          data[item.lower()] = value; continue
+        if item.lower() in ['version','timestamp']:
+          if not item.lower() in data.keys():
+             data[item.lower()] = str(value)
+          continue
         elif item[:2] in ['L-']: # skip e.g. unused tags e.g. Libelium type/serial
           continue
         # check if sensor has measurements
@@ -1325,8 +1333,8 @@ def HasMeasurements(info,data,DBchanges):
             Dsensors.append(item)
         else: continue
       except Exception as e:
-        MyLogger.log(WHERE(True),'DEBUG','Kit %s_%s generates non std data: %s.' % (info['id']['project'],info['id']['serial'],str(data['data'])) )
-        MyLogger.log(WHERE(True),'ERROR','Kit %s_%s generates data error: %s.' % (info['id']['project'],info['id']['serial'],str(e)) )
+        MyLogger.log(WHERE(True),'DEBUG','Kit %s/%s generates non std data: %s.' % (info['id']['project'],info['id']['serial'],str(data['data'])) )
+        MyLogger.log(WHERE(True),'ERROR','Kit %s/%s generates data error: %s.' % (info['id']['project'],info['id']['serial'],str(e)) )
     data['data'] = msmnt
     Dsensors = set(Dsensors)
     rtsMsg += LogInvalids(info)  # 'malfunctioning' sensors: out of band + temp == 0.0
@@ -1803,7 +1811,6 @@ def UpdateChannelsConf():
     return True
 
 # main run loop: collect measurement data records, and forward them to output channels.
-import copy
 def RUNcollector():
     global  Channels, debug, monitor, Conf
     error_cnt = 0; inputError = 0
