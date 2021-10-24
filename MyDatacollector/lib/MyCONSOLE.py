@@ -19,9 +19,9 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__ ='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.21 $"[11:-2]
+__version__ = "0." + "$Revision: 3.22 $"[11:-2]
 #
-# $Id: MyCONSOLE.py,v 3.21 2021/09/30 13:52:38 teus Exp teus $
+# $Id: MyCONSOLE.py,v 3.22 2021/10/24 14:49:19 teus Exp teus $
 
 """ Publish measurements to console STDOUT (uses terminal colors in printout).
     Meta info will be shown on first new data record and at later intervals.
@@ -44,7 +44,8 @@ try:
     import re
     from time import time
     import datetime
-    import MyPrint       # for printout in color
+    try: from lib import MyPrint       # for printout in color
+    except: import MyPrint
 except ImportError as e:
     sys.exit("FATAL: One of the import modules not found: %s" % e)
 
@@ -98,11 +99,13 @@ from geohash import decode
 def registrate(info,artifacts):
     global Conf
     if not Conf['log']:
-        import MyLogger
+        try: from lib import MyLogger
+        except: import MyLogger
         Conf['log'] = MyLogger.log
     if ('print' in Conf.keys()) and (type(Conf['print']) is bool):
       try:
-        import MyPrint
+        try: from lib import MyPrint
+        except: import MyPrint
         fifo = False
         if (type(Conf['file']) is str) and (Conf['file'].find('fifo=') == 0):
             # use NAMED PIPE for console output

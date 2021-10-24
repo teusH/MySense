@@ -19,14 +19,14 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyLogger.py,v 3.7 2021/10/17 13:43:16 teus Exp teus $
+# $Id: MyLogger.py,v 3.8 2021/10/24 14:49:19 teus Exp teus $
 
 # TO DO:
 
 """ Push logging to the external world.
 """
 modulename='$RCSfile: MyLogger.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.7 $"[11:-2]
+__version__ = "0." + "$Revision: 3.8 $"[11:-2]
 
 import sys
 
@@ -78,7 +78,8 @@ def log(name,level,message): # logging to console or log file
     def printc(text, color=0): # default color ansi black
         global Conf
         if type(Conf['print']) is bool and Conf['print']:
-          import MyPrint
+          try: from lib import MyPrint
+          except: import MyPrint
           Conf['print'] = MyPrint
         try:
           if Conf['print']:
@@ -133,7 +134,8 @@ def log(name,level,message): # logging to console or log file
       if (not 'file' in Conf.keys()) or not Conf['file']:
         Conf['file'] = sys.stderr
       try:
-        import MyPrint
+        try: from lib import MyPrint
+        except: import MyPrint
         fifo = False
         if (type(Conf['file']) is str) and Conf['file'].find('fifo=') == 0:
             fifo = True; Conf['file'] = Conf['file'][5:]

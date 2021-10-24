@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.49 2021/10/23 18:32:37 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.52 2021/10/24 14:50:41 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.49 $"[11:-2]
+__version__ = "1." + "$Revision: 4.52 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -286,7 +286,7 @@ def EXIT(status=0):
     import platform
     # get the current PID for safe terminate server if needed:
     PID = os.getpid()
-    if platform.system() is not 'Windows':
+    if platform.system() != 'Windows':
         os.killpg(os.getpgid(PID), signal.SIGKILL)
     else:
         os.kill(PID, signal.SIGTERM)
@@ -818,7 +818,7 @@ def FluctCheck(info,afield,avalue):
       return None
     if chk[afield][0] > trigger+1 and (chk[afield][0] % 100): # have already give notice
       return afield
-    MyLogger.log(WHERE(True),'ERROR','kit proj %s, serial %s has (malfunctioning) sensor field %s, which gives static value of %.2f #%d.' (info['id']['project'],info['id']['serial'],afield,avalue,chk[afield][0]))
+    MyLogger.log(WHERE(True),'ERROR','kit %s/%s has (malfunctioning) sensor field %s, which gives static value of %.2f #%d.' % (info['id']['project'],info['id']['serial'],afield,avalue,chk[afield][0]))
     sendNotice('%s: kit project %s, serial %s has (malfunctioning) sensor field %s, which gives static value of %.2f on a row of %d times. Skipped data.' % (datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"),info['id']['project'],info['id']['serial'],afield,avalue,chk[afield][0]),info=info,all=False)
     return afield
 
@@ -1464,9 +1464,6 @@ def Data2Frwrd(info, data):
 
     try: info['count'] += 1
     except: return (info,{},['info invalid'])
-    # Is there a need to throttle the kit?
-    rts = IsBehavingKit(info,now)
-    if rts: return (info,{},[rts])
 
     # maybe a datagram from unknown wild kit
     rts = KnownKit(info)
@@ -1475,6 +1472,11 @@ def Data2Frwrd(info, data):
     # is this kit restarting after some time not seen or first measurement data?
     try: rtsMsg += IsRestarting((now-info['last_seen'] if info['last_seen'] else None), info)
     except: pass
+
+    # Is there a need to throttle the kit data production?
+    if 'data' in data.keys() and data['data']:
+      rts = IsBehavingKit(info,now)
+      if rts: return (info,{},[rts])
     info['last_seen'] = now
 
     # if measurement kit is disabled, skip forwarding

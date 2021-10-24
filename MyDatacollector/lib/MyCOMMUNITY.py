@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyCOMMUNITY.py,v 4.11 2021/10/18 15:48:44 teus Exp teus $
+# $Id: MyCOMMUNITY.py,v 4.12 2021/10/24 14:49:19 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program.
 """
 __modulename__='$RCSfile: MyCOMMUNITY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 4.11 $"[11:-2]
+__version__ = "0." + "$Revision: 4.12 $"[11:-2]
 import re
 import inspect
 def WHERE(fie=False):
@@ -84,7 +84,8 @@ def registrate():
     global Conf
     if Conf['registrated'] != None: return Conf['registrated']
     if not Conf['log']:
-        import MyLogger
+        try: from lib import MyLogger
+        except: import MyLogger
         Conf['log'] = MyLogger.log
     # avoid too many HTTP request logging messages
     import logging
