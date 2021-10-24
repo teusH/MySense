@@ -16,13 +16,13 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyPrint.py,v 1.6 2021/09/01 08:59:10 teus Exp teus $
+# $Id: MyPrint.py,v 1.7 2021/10/24 15:30:46 teus Exp teus $
 
 # print lines to /dev/stdout, stderr or FiFo file
 # thread buffer (max MAX).
 """ Threading to allow prints to fifo file or otherwise
 """
-__version__ = "0." + "$Revision: 1.6 $"[11:-2]
+__version__ = "0." + "$Revision: 1.7 $"[11:-2]
 
 import threading
 #import atexit
@@ -56,7 +56,7 @@ class MyPrint:
             try:
               self.output = open(output,'w')
             except Exception as e:
-              print >>sys.stderr, 'Unable to write to %s' % output
+              sys.stderr.write('Unable to write to %s.\n' % output)
               exit(1)
           else:
             self.fifo = output
@@ -121,10 +121,11 @@ class MyPrint:
                     if (color != None) and self.color:
                         try: line = self.colorize(line, ansi=color, fd=self.fd)
                         except: pass
-                    print >>self.output, timing + line
+                    # print >>self.output, timing + line
+                    self.output.write(timing + line + "\n")
                     self.output.flush()
                 except Exception as e:
-                    print('Error: %s' % str(e))
+                    sys.stderr.write('Error: %s\n' % str(e))
                     # logging.debug('Failed to print on output channel')
                 if self.inits['DEBUG']: logging.debug('Printed one line')
           if self.inits['DEBUG']: logging.debug('Consumer FINISHED')
