@@ -103,7 +103,10 @@ The tables 'Sensors' and TTNtable' are still the main single source for the info
 ## Python standard modules
 You should be able to run the scripts on Python 2 or 3.
 
-Make sure you have installed the Python modules. Try this by using the following Python script.
+Make sure you have installed the Python modules.
+Usualy the system standard modules are installed.  The modules dateutil.parser, jsmin, mysql.connector and paho.mqtt.client has to be installed.
+From which jsmin, paho.mqtt.client and mysqwl.connector are not supported in the last Debian distributions anymore.
+Try this by using the following Python script.
 ` Python -e '
 import atexit
 import base64
