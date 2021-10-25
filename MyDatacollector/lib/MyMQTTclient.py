@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.43 $"[11:-2]
+__version__ = "0." + "$Revision: 2.45 $"[11:-2]
 import inspect
 import random
 def WHERE(fie=False):
@@ -30,7 +30,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.43 2021/10/16 15:12:29 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.45 2021/10/25 09:01:01 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -40,6 +40,7 @@ def WHERE(fie=False):
 # cd paho.mqtt.python ; python setup.py install
 # broker server: Debian: apt-get install mqtt
 # to do: add InfluxDB broker handling.
+# To Do: use asyncio queue lib
 
 """ Python script for MQTT broker access
     Broker access is designed for multiple brokers data record MQTT downloads.
@@ -306,7 +307,8 @@ import signal
 #   data (sensor types dust/meteo/gps: {field,value}),
 #   meta (dust/meteo/gps [sensors types], geohash geolocation),
 #   net (type=TTNV?,spf, gateways [{gwID,rssi,snr,geohash}]) skip gtw brokers
-import MyLoRaCode
+try: from lib import MyLoRaCode
+except: import MyLoRaCode
 class TTN2MySense:
     def __init__(self, LoRaCodeRules=None, DefaultUnits = ['%','C','hPa','mm/h','degrees', 'sec','m','Kohm','ug/m3','pcs/m3','m/sec'], PortMap=None, logger=None):
         self.logger = logger  # routine to print logging from eg MyLoRaCode
@@ -320,7 +322,8 @@ class TTN2MySense:
     # convert  and payload decode TTN V2/V3 record to data exchange format dict
     def RecordImport(self, record):
         import dateutil.parser as dp # add timezone infos!
-        from geohash import encode as geohash
+        try: from pygeohash import encode as geohash
+        except: from geohash import encode as geohash
         if not record: return (None if record == None else {})
         def getLocation(rcrd):
           ord =  []; rts = {}
@@ -591,7 +594,8 @@ class KitCache:
       # cache to limit DB access
       self.DB = DB
       if not DB:
-        import MyDB
+        try: from lib import MyDB
+        except: import MyDB
         self.DB = MyDB
         if MyDB.Conf['fd'] == None and not MyDB.db_connect():
           self._logger('FATAL','Unable to connect to DB')
@@ -793,7 +797,8 @@ class MQTT_data:
       self.MQTTLock = threading.RLock() # lock for queue access
       self.Restart  = 0                 # time to retry MQTT broker client to startup
       if not DB:
-        import MyDB
+        try: from lib import MyDB
+        except: import MyDB
         DB=MyDB
       self.KitInfo = KitCache(DB=DB,logger=logger)    # kit cache with DB/forwarding info
 
@@ -1032,8 +1037,10 @@ if __name__ == '__main__':
 
     # TTN credentials, only for test purposes
     resource = "eu.thethings.network"  # Broker address
-    user = "1234567890abc"       # connection user name
-    password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
+    # user = "1234567890abc"       # connection user name
+    user = "201802215971az"        # Connection username
+    # password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
+    password = "ttn-account-v2.GW3msa6kBNZs0jx4aXYCcbPaK6r0q9iSfZjIOB2Ixts"
 
     keepalive = None               # play with keepalive connection settings, dflt 180 secs
     MQTTbrokers = []               # may be a list of TTN/user brokers

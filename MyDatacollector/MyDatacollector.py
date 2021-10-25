@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.52 2021/10/24 14:50:41 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.53 2021/10/25 09:20:11 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.52 $"[11:-2]
+__version__ = "1." + "$Revision: 4.53 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -123,6 +123,7 @@ try:
     import dateutil.parser as dp
     import datetime
     import sys, os
+    if sys.version_info[0] >= 3: unicode = str
     import signal               # handle kill signals e.g. reread DB meta values
     from struct import *        # pack/unpack payloads
     import base64

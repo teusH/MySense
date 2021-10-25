@@ -18,13 +18,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: SyncWebDB.py,v 1.2 2020/05/02 15:38:36 teus Exp teus $
+# $Id: SyncWebDB.py,v 1.3 2021/10/25 08:56:14 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: MySQL is able to sync tables with other MySQL servers
 
 modulename='$RCSfile: SyncWebDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.2 $"[11:-2]
+__version__ = "0." + "$Revision: 1.3 $"[11:-2]
 
 help = """
     Command: python %s arg ...
@@ -70,7 +70,8 @@ try:
     import re
     from time import time, mktime
     from dateutil.parser import parse
-    import geohash              # used to get geohash encoder for Drupal map
+    try: import pygeohash as geohash
+    except: import geohash              # used to get geohash encoder for Drupal map
     import MyDB                 # routines to connect to air quality sensor DB
     import WebDB                # routines to connect to Drupal website visualisation DB
     import MyLogger             # logging routines

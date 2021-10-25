@@ -19,9 +19,9 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__ ='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.22 $"[11:-2]
+__version__ = "0." + "$Revision: 3.24 $"[11:-2]
 #
-# $Id: MyCONSOLE.py,v 3.22 2021/10/24 14:49:19 teus Exp teus $
+# $Id: MyCONSOLE.py,v 3.24 2021/10/25 09:41:42 teus Exp teus $
 
 """ Publish measurements to console STDOUT (uses terminal colors in printout).
     Meta info will be shown on first new data record and at later intervals.
@@ -41,6 +41,7 @@ def WHERE(fie=False):
 
 try:
     import sys
+    if sys.version_info[0] >= 3: unicode = str
     import re
     from time import time
     import datetime
@@ -95,7 +96,8 @@ def printc(text, color=DFLT): # default color ansi black
     except: pass
 
 # meta info printouts
-from geohash import decode
+try: from pygeohash import decode
+except: from geohash import decode
 def registrate(info,artifacts):
     global Conf
     if not Conf['log']:

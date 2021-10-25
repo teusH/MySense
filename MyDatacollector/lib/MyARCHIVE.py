@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyARCHIVE.py,v 5.14 2021/10/21 11:26:51 teus Exp teus $
+# $Id: MyARCHIVE.py,v 5.16 2021/10/25 09:25:58 teus Exp teus $
 
 # reminder: MySQL is able to sync tables with other MySQL servers
 # based on MyDB.py V4.5
@@ -28,7 +28,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 __modulename__='$RCSfile: MyARCHIVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.14 $"[11:-2]
+__version__ = "0." + "$Revision: 5.16 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -40,6 +40,7 @@ def WHERE(fie=False):
 
 try:
     import sys
+    if sys.version_info[0] >= 3: unicode = str
     import os
     import datetime
     from time import time
@@ -233,7 +234,8 @@ def registrate(tableName, info, data):
                 measurements.append(value[:2]+[valid if value[1] != None else (0 if valid else None),]+value[2:])
                 fields.append(value[0])
     if Lon != None and Lat != None: # calculate and add/correct geohash kit location
-      import geohash
+      try: import mygeohash as geohash
+      except: import geohash
       if GeoIndx == None:
         measurements.append((u'geohash',str(geohash.encode(float(Lat),float(Lon),12),valid)))
         fields.append(u'geohash')

@@ -18,11 +18,11 @@
 #   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
 #   language governing rights and limitations under the RPL.
 
-# $Id: MyAdmin.py,v 1.12 2021/05/01 10:34:39 teus Exp teus $
+# $Id: MyAdmin.py,v 1.13 2021/10/25 09:20:11 teus Exp teus $
 
 __license__   = 'RPL-1.5'
 __modulename__='$RCSfile: MyAdmin.py,v $'[10:-4]
-__version__   = "0." + "$Revision: 1.12 $"[11:-2]
+__version__   = "0." + "$Revision: 1.13 $"[11:-2]
 
 # script to add  and visualize meta info
 #    from json admin file into Sensors and TTNtable measurements database table
@@ -41,6 +41,8 @@ debug = False
 
 import re
 import MyLogger  # use color printed logging facility
+import sys
+if sys.version_info[0] >= 3: unicode = str
 
 JsonBeautyPrt = [
      # sorted, (key,example,comment,default,type value, reg. expression)

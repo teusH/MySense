@@ -19,7 +19,10 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyLoRaCode.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.14 $"[11:-2]
+__version__ = "0." + "$Revision: 2.15 $"[11:-2]
+import sys
+if sys.version_info[0] >= 3: unicode = str
+
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -29,7 +32,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyLoRaCode.py,v 2.14 2021/10/12 15:01:23 teus Exp teus $
+# $Id: MyLoRaCode.py,v 2.15 2021/10/25 09:25:58 teus Exp teus $
 
 # module will decode MQTT TTN records
 # for test the module can run standalone and obtain MQTT TTN records from stadin or file
@@ -157,11 +160,11 @@ def WHERE(fie=False):
 
 import base64
 from time import time
-import sys
 
 # uses python geohash lib, try to correct lat/long swap
 # some Python libs and eg MySQL may differ in the order lon,lat or lat,lon!
-from MyGPS import convert2geohash
+try: from lib.MyGPS import convert2geohash
+except: from MyGPS import convert2geohash
 
 ############################ LoRaCoding ##############
 class LoRaCoding:

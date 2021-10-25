@@ -18,10 +18,10 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyGPS.py,v 1.5 2021/08/26 15:48:06 teus Exp teus $
+# $Id: MyGPS.py,v 1.8 2021/10/25 09:41:42 teus Exp teus $
 
 __modulename__='$RCSfile: MyGPS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.5 $"[11:-2]
+__version__ = "0." + "$Revision: 1.8 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -32,10 +32,12 @@ def WHERE(fie=False):
    return "%s V%s" % (__modulename__ ,__version__)
 
 import sys
+if sys.version_info[0] >= 3: unicode = str
+try: import pygeohash as geohash
+except: import geohash              # used to get geohash encoder
 
 # uses python geohash lib, try to correct lat/long swap
 def convert2geohash(coordinates,precision=12, verbose=False):
-    import geohash              # used to get geohash encoder
     oord = coordinates
     if type(oord) is unicode: oord = str(oord)
     try:
@@ -49,8 +51,7 @@ def convert2geohash(coordinates,precision=12, verbose=False):
 
 # returns (latitude,longitude) tuple from geohash string
 def fromGeohash(geostr):
-    from geohash import decode
-    return decode(geostr)
+    return geohash.decode(geostr)
 
 # from: https://pydoc.net/pygeohash/1.2.0/pygeohash.distances/
 # Thanks to Will McGinnis
@@ -98,14 +99,12 @@ def GPSdistance(geo_1, geo_2, aprox=False):
 
     if checkBase32(geo_1):
         if aprox: return GPS2Aproximate(geo_1, geo_2)
-        from geohash import decode
-        lat_1, lon_1 = decode(geo_1)
+        lat_1, lon_1 = geohash.decode(geo_1)
     else:
         lat_1 = float(geo_1[0]); lon_1 = float(geo_1[1])
     if checkBase32(geo_2):
         if aprox: return GPS2Aproximate(geo_1, geo_2)
-        from geohash import decode
-        lat_2, lon_2 = decode(geo_2)
+        lat_2, lon_2 = geohash.decode(geo_2)
     else:
         lat_2 = float(geo_2[0]); lon_2 = float(geo_2[1])
 
@@ -153,21 +152,19 @@ def GPSdistance(geo_1, geo_2, aprox=False):
 # obtain aproximate address info from a GPS coordinate or geohash
 # returns dict with human location info
 def GPS2Address(coordinates, verbose=False):
-    from geohash import encode
     # 51.419563,6.14741,20  LAT,LON,ALT style
     if type(coordinates) is unicode: coordinates = str(coordinates)
     if type(coordinates) is str and coordinates.find(',') > 0:
         oord = coordinates.replace(' ','').split(',')[:2]
     elif type(coordinates) is str:
-        from geohash import decode
-        oord = decode(coordinates.lower())
+        oord = geohash.decode(coordinates.lower())
     else:
         oord = [coordinates[0],coordinates[1]]
     oord = [float(oord[0]),float(oord[1])]
     # correct ordinates swap
     oord = [max(oord),min(oord)] # only ok for Nld
     Rslt = {'longitude': str(oord[1]), 'latitude': str(oord[0]), 'altitude': float(0),
-            'geohash': encode(oord[0],oord[1],10),
+            'geohash': geohash.encode(oord[0],oord[1],10),
             # 'coordinates': "%.7f,%.7f,0.0" % (oord[1],oord[0]) # coodinates is deprecated
            }
     if not len(oord) == 2: return {}
@@ -267,8 +264,7 @@ def GeoQuery(address, verbose=False):
       Rslt['longitude'] = "%.7f" % float(location[u'lon'])
       Rslt['latitude'] = "%.7f" % float(location[u'lat'])
       Rslt['altitude'] = "%.1f" % float(0)
-      from geohash import encode
-      Rslt['geohash'] = encode(float(location[u'lat']),float(location[u'lon']),9)
+      Rslt['geohash'] = geohash.encode(float(location[u'lat']),float(location[u'lon']),9)
       # coordinates is deprecated
       #Rslt['coordinates'] = "%.7f,%.7f,0" % (float(str(location[u'lon'])),float(str(location[u'lat'])))
       # correct some fields eg Noord-Brabant -> Brabant

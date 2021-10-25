@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyCOMMUNITY.py,v 4.12 2021/10/24 14:49:19 teus Exp teus $
+# $Id: MyCOMMUNITY.py,v 4.13 2021/10/25 09:25:58 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program.
 """
 __modulename__='$RCSfile: MyCOMMUNITY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 4.12 $"[11:-2]
+__version__ = "0." + "$Revision: 4.13 $"[11:-2]
 import re
 import inspect
 def WHERE(fie=False):
@@ -44,6 +44,7 @@ def WHERE(fie=False):
 
 try:
     import sys
+    if sys.version_info[0] >= 3: unicode = str
     import datetime
     from time import time
     import json
