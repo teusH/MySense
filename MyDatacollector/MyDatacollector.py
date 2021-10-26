@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.53 2021/10/25 09:20:11 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.55 2021/10/25 11:34:26 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.53 $"[11:-2]
+__version__ = "1." + "$Revision: 4.55 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -1921,7 +1921,7 @@ def RUNcollector():
         if len(record) and 'Forward data' in artifacts: frwrd = True
         else:
           frwrd = False
-          MyLogger.log(WHERE(True),'INFO',"No measurements data for %s/%s, %s." % (info['id']['project'],info['id']['serial'], 'no artifacts' if not artifacts else ';artifacts: "'+', '.join(artifacts)+'"') )
+          MyLogger.log(WHERE(True),'DEBUG',"No measurements data for %s/%s, %s." % (info['id']['project'],info['id']['serial'], 'no artifacts' if not artifacts else ';artifacts: "'+', '.join(artifacts)+'"') )
         if monitor:
           if type( Conf['monitor'] ) is str:
             Conf['monitor'] = re.compile(Conf['monitor'])
@@ -1934,10 +1934,12 @@ def RUNcollector():
             except: timestamp = int(time())
             try: sensors = ','.join([sensors for sensors in record['data'].keys()])
             except: sensors = ''
+            try: NrGtws = ' %d gtws' % len(record['net']['gateways'])
+            except: NrGtws = ''
             monitorPrt(
-              "%-86.85s #%4.d%s" % (
-                '%s %s (%s%s)' % (datetime.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M"),
-                    MQTTid, TBLid, '[%s]'%sensors if sensors else ''),
+              "%-92.91s #%4.d%s" % (
+                '%s %s (%s%s)%s' % (datetime.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M"),
+                    MQTTid, TBLid, '[%s]'%sensors if sensors else '',NrGtws),
                 info['count'],
                 (' at %dm%ds' % (info['interval']/60,info['interval']%60)) if (info['interval'] <= 60*60) else ''),
               BLUE)

@@ -19,9 +19,9 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__ ='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.24 $"[11:-2]
+__version__ = "0." + "$Revision: 3.26 $"[11:-2]
 #
-# $Id: MyCONSOLE.py,v 3.24 2021/10/25 09:41:42 teus Exp teus $
+# $Id: MyCONSOLE.py,v 3.26 2021/10/26 14:03:43 teus Exp teus $
 
 """ Publish measurements to console STDOUT (uses terminal colors in printout).
     Meta info will be shown on first new data record and at later intervals.
@@ -291,6 +291,7 @@ def MeasurementsList(sensorInfo,Stype,item,refs=[]):
 def printFld(sensorInfo,SType,data,refs=[]):
     global Conf
     def trans(name):
+        if not name: return ''
         if (not 'match' in Conf.keys()) or (not type(Conf['match']) is list):
             return name
         for item in Conf['match']:
@@ -299,23 +300,26 @@ def printFld(sensorInfo,SType,data,refs=[]):
              name = name.replace(item[0],item[1])
         return name
     for item in MeasurementsList(sensorInfo,SType,data,refs=refs):
-      # item: [0:category,1:sensor type,2:producer,3:field,4:unit,5:calibration]
+      # item: [0:category,1:sensor type,2:producer,3:field,4:unit,5:calibration,6:value]
       # ST: category/sensor type.producer, item[5] value, item[4] calibration, item[3] units
       ST = "%s" % ('' if not item[0] else item[0]+'/')      # category
       ST += "%s" % ('?' if not item[1] else item[1])        # sensor type
       ST += "%s" % ('' if not item[2] else '.'+item[2])     # producer sensor
       FLD = item[3] if item[3] else '?'                     # sensor field/column name
-      VAL = 'None' if item[6] == None else item[6]          # value
+      if item[6] == None:
+        VAL = 'None'; UNIT = ''
+      else:
+        VAL = item[6]; UNIT = item[4]                       # value and unit name
       if item[5] and item[5] != [0,1] and type(item[6]) in (int,float):
         CAL = '(calibrated %.2f)' % Taylor(item[6],item[5]) # calibration seq
       else: CAL = ''
       if type(VAL) is bool: VAL = str(VAL)
       elif type(VAL) is float:
         if FLD[:3].lower() in ['lat','lon']: VAL = ".6f" % VAL
-        else: VAL = "%.2f" % VAL
+        else: VAL = "%.1f" % VAL
       elif type(VAL) is int: VAL="%d" % VAL
       ST = ST.ljust(31-len(FLD))+' '+FLD
-      printc("    %-32.32s: %s%s%s" % (ST,VAL,CAL,' '+trans(item[4]) if item[4] != '%' else '%'))
+      printc("    %-32.32s: %s%s%s" % (ST,VAL,CAL,' '+trans(UNIT) if UNIT != '%' else '%'))
       # to be added: refs
   
 # =============================================
@@ -445,7 +449,7 @@ if __name__ == '__main__':
     import platform
     # get the current PID for safe terminate server if needed:
     PID = os.getpid()
-    if platform.system() is not 'Windows':
+    if platform.system() != 'Windows':
         os.killpg(os.getpgid(PID), signal.SIGKILL)
     else:
         os.kill(PID, signal.SIGTERM)

@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyCOMMUNITY.py,v 4.13 2021/10/25 09:25:58 teus Exp teus $
+# $Id: MyCOMMUNITY.py,v 4.14 2021/10/26 14:03:43 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program.
 """
 __modulename__='$RCSfile: MyCOMMUNITY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 4.13 $"[11:-2]
+__version__ = "0." + "$Revision: 4.14 $"[11:-2]
 import re
 import inspect
 def WHERE(fie=False):
@@ -717,7 +717,7 @@ if __name__ == '__main__':
     import platform
     # get the current PID for safe terminate server if needed:
     PID = os.getpid()
-    if platform.system() is not 'Windows':
+    if platform.system() != 'Windows':
         os.killpg(os.getpgid(PID), signal.SIGKILL)
     else:
         os.kill(PID, signal.SIGTERM)

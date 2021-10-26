@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDB.py,v 5.7 2021/10/24 14:49:19 teus Exp teus $
+# $Id: MyDB.py,v 5.9 2021/10/26 14:03:43 teus Exp teus $
 
 # reminder: MySQL is able to sync tables with other MySQL servers
 
@@ -27,7 +27,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 __modulename__='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.7 $"[11:-2]
+__version__ = "0." + "$Revision: 5.9 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -181,10 +181,8 @@ def db_connect():
             except:
                 pass
         Conf['log'](WHERE(),'INFO',"Using database '%s' on host '%s', user '%s' credentials." % (Conf['database'],Conf['hostname'],Conf['user']))
-        if (Conf['hostname'] != 'localhost'):
-            Conf['log'](WHERE(True),'ERROR',"Access database %s / %s."  % (Conf['hostname'], Conf['database']))      
-            Conf['output'] = False
-            return False
+        if (Conf['hostname'] != 'localhost'): # just a reminder
+            Conf['log'](WHERE(True),'CRITICAL',"THIS IS NOT A LOCALHOST ACCESS! Database host %s / %s."  % (Conf['hostname'], Conf['database']))      
         for M in ('user','password','hostname','database'):
             if (not M in Conf.keys()) or not Conf[M]:
                 Conf['log'](WHERE(True),'ERROR',"Define DB details and credentials.")
@@ -538,7 +536,7 @@ if __name__ == '__main__':
     import platform
     # get the current PID for safe terminate server if needed:
     PID = os.getpid()
-    if platform.system() is not 'Windows':
+    if platform.system() != 'Windows':
         os.killpg(os.getpgid(PID), signal.SIGKILL)
     else:
         os.kill(PID, signal.SIGTERM)

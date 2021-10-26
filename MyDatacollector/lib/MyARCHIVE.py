@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyARCHIVE.py,v 5.16 2021/10/25 09:25:58 teus Exp teus $
+# $Id: MyARCHIVE.py,v 5.17 2021/10/26 14:03:43 teus Exp teus $
 
 # reminder: MySQL is able to sync tables with other MySQL servers
 # based on MyDB.py V4.5
@@ -28,7 +28,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 __modulename__='$RCSfile: MyARCHIVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.16 $"[11:-2]
+__version__ = "0." + "$Revision: 5.17 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -483,7 +483,7 @@ if __name__ == '__main__':
     import platform
     # get the current PID for safe terminate server if needed:
     PID = os.getpid()
-    if platform.system() is not 'Windows':
+    if platform.system() != 'Windows':
         os.killpg(os.getpgid(PID), signal.SIGKILL)
     else:
         os.kill(PID, signal.SIGTERM)
