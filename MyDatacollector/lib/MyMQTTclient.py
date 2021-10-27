@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.45 $"[11:-2]
+__version__ = "0." + "$Revision: 2.46 $"[11:-2]
 import inspect
 import random
 def WHERE(fie=False):
@@ -30,7 +30,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.45 2021/10/25 09:01:01 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.46 2021/10/27 10:36:13 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -1024,6 +1024,7 @@ class MQTT_data:
         return line
   
 if __name__ == '__main__':
+    import os
     # command line defaults
     verbose = False     # be verbose
     debug = False       # log level debug
@@ -1033,24 +1034,77 @@ if __name__ == '__main__':
     node = '+'          # TTN MQTT devID pattern for subscription device topic part
     import os
     files = []          # read json records from input file
-    clientID = 'TTNeuV2broker'     # MQTT ID
 
+    # TTN MQTT access information and credentials
+    clientID = 'TTNV2TESTbroker'   # default client MQTT ID
+    initfile = '../MyDatacollector.conf.json' # TTN MQTT broker information MySense init file
     # TTN credentials, only for test purposes
-    resource = "eu.thethings.network"  # Broker address
+    resource = "eu.thethings.network"  # default Broker address
     # user = "1234567890abc"       # connection user name
-    user = "201802215971az"        # Connection username
     # password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
-    password = "ttn-account-v2.GW3msa6kBNZs0jx4aXYCcbPaK6r0q9iSfZjIOB2Ixts"
-
+    port = 1883                    # default MQTT port
     keepalive = None               # play with keepalive connection settings, dflt 180 secs
-    MQTTbrokers = []               # may be a list of TTN/user brokers
 
-    # default logger = None        # sys.stderr.write
+    # default                      # logging on sys.stderr.write
     import MyLogger
-    logger = MyLogger.log          # routine to print messages in color to console
     MyLogger.Conf['level'] = 'WARNING'
-    MyLogger.Conf['print'] = True
+    MyLogger.Conf['print'] = True  # colored printout on use of CLI
     
+    # routine to collect TTN information, credentials from MySense configuration (JSON) init file
+    def MQTTgetInfo(filename):
+        global keepalive, resource, port, clientID, topics
+        # initialisation is read from json file
+        rts = []
+        if not os.path.exists(filename):
+          try:   # if not defined this will be fatal
+            rts = [{ # default broker
+                "resource": resource,                # Broker address or file 
+                "port":  1883,                       # Broker port
+                "user":  user,                       # Connection username
+                "password": password,                # Connection password
+                "clientID": clientID,                # MQTT client thread ID
+                "topic": (topics[0][0] if len(topics) == 1 else topics), # topic to subscribe to
+                "import": TTN2MySense().RecordImport # routine to import record to internal exchange format
+                  }]
+            if keepalive: rts[0]['keepalive'] = keepalive  # default 180
+            return rts
+          except:
+            sys.stderr.write("FATAL: make sure to define TTN MQTT resource, credentials or brokers in init file\n")
+            exit(1)
+
+        import copy
+        import json
+        if os.path.exists(filename):
+          try:
+            # json file may have comments in this case
+            from jsmin import jsmin     # tool to delete comments and compress json
+            with open(filename) as _typeOfJSON:
+                new = jsmin(_typeOfJSON.read())
+            new = json.loads(new)
+            new = new['brokers']
+          except ValueError as e:
+            MyLogger.log(WHERE(True),'FATAL',"Json error in init file %s: %s" % (filename,e))
+            exit(1)
+        else: return []
+        # nodes info are exported to Database tables Sensors and TTNtable
+        dfltBroker = {
+          'clientID': clientID,
+          'resource': "eu.thethings.network",  # Broker address
+          'user': "1234567890abc",             # connection user name
+          'password': "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
+        }
+        for _ in range(len(new)):
+          rts.append(dfltBroker.copy())
+          rts[_].update(new[_])
+          rts[_]['clientID'] = "%s_%d" % (clientID,_)
+          try: rts[_]['resource'] = rts[_]['address']
+          except: pass
+          try: rts[_]['topic']: (topics[0][0] if len(topics) == 1 else topics) # topic to subscribe to
+          except: pass
+          rts[_]['import']: TTN2MySense().RecordImport # routine to import record to internal exchange format
+          if keepalive: rts[_]['keepalive'] = keepalive  # default 180
+        return rts
+
     for arg in sys.argv[1:]: # change default settings arg: <type>=<value>
         if arg  in ['-v','--verbode']:  # be verbose
             verbose = True; continue
@@ -1065,13 +1119,16 @@ if __name__ == '__main__':
     settings: verbose|show|debug=true 
         show='regular expression node id'
         devIDs=devID0,...,devIDn dflt: all
-        resource=eu.thethings.network
+        node=topic1,...,topicN comman separated list of node topics to subscribe to (dflt 'node=+').
         file=filename read json records from file or stdin ('-')
-        user|password=TTN MQTT credentials    dflt: user=unknown, password=acacadabra
+        init=filename use JSON init file to collect MQTT broker(s) information. Dflt '%s'.
         keepalive=secs   keep connection alive dflt: 180
-""")
+        If one of the next arguments are define it will undefine the use of init file.
+        resource=eu.thethings.network (dflt use init file)
+        user|password=(TTN) MQTT credentials    dflt: use init file
+""" % initfile)
             exit(0)
-        Match = re.match(r'(?P<key>verbose|debug|show|devIDs|file|resource|user|password|keepalive)=(?P<value>.*)', arg, re.IGNORECASE)
+        Match = re.match(r'(?P<key>verbose|debug|show|devIDs|file|init|resource|user|password|keepalive)=(?P<value>.*)', arg, re.IGNORECASE)
         if Match:
             Match = Match.groupdict()
             if Match['key'].lower() == 'verbose':       # be more versatyle
@@ -1086,35 +1143,41 @@ if __name__ == '__main__':
                 monitor = False
             elif Match['key'].lower() == 'file':        # read json records from file
                 files.append(Match['value'])
-            # to do: make this to a list of brokers
             elif Match['key'].lower() == 'devids':      # comma separated list of devID's to subscribe to
                 if node == '+': node = Match['value']
                 else: node += ',' + Match['value']
+
+            # MQTT information initialisation handling
+            elif Match['key'].lower() == 'init':        # read MQTT information/credentials from init file
+                initfile = Match['value']
             elif Match['key'].lower() == 'resource':     # URL TTN
-                resource = Match['value']
+                resource = Match['value']; initfile = None
             elif Match['key'].lower() == 'user':        # user account id (appl id)
-                user = Match['value']
+                user = Match['value']; initfile = None
             elif Match['key'].lower() == 'password':    # password TTN MQTT account
-                password = Match['value']
+                password = Match['value']; initfile = None
             elif Match['key'].lower() == 'keepalive':   # keep TCP connection alive (secs)
                 if Match['value'].isdigit(): keepalive = int(Match['value'])
+
             continue
+
         elif os.path.isfile(arg): files.append(arg)
 
     if verbose: MyLogger.Conf['level'] = 'INFO'
     if debug: MyLogger.Conf['level'] = 'DEBUG'
     
     # TTN MQTT broker access details
+    MQTTbrokers = []               # access list of TTN brokers
     topics = []
     for topic in node.split(','): # list of topics ie devID's: appID/devices/devID
       topics.append(("+/devices/" + topic + "/up",0))
-    if files: MQTTbrokers = [] # either from file(s) or from list of brokers
-    for file in files:
+
+    for file in files: # reading data records from file(s)
       if file == '-': broker['resource'] = sys.stdin  # just read from stdin
       else:
         try:
           MQTTbrokers.append({
-             "resource": file,                     # file name
+             "resource": file,                    # file name
              "fd": open(file,'r'),                # file handler
              "topic": (topics[0][0] if len(topics) == 1 else topics), # topic to subscribe to
              "import": TTN2MySense().RecordImport # routine to import record to internal exchange format
@@ -1124,21 +1187,14 @@ if __name__ == '__main__':
           exit(1)
 
     if not MQTTbrokers: # read from MQTT broker. To DO: args should be able to define a list
-      broker = { # default broker
-        "resource": resource,                # Broker address or file 
-        "port":  1883,                       # Broker port
-        "user":  user,                       # Connection username
-        "password": password,                # Connection password
-        "clientID": clientID,                # MQTT client thread ID
-        "topic": (topics[0][0] if len(topics) == 1 else topics), # topic to subscribe to
-        "import": TTN2MySense().RecordImport # routine to import record to internal exchange format
-      }
-      if keepalive: broker['keepalive'] = keepalive  # default 180
-      MQTTbrokers.append(broker)
+      MQTTbrokers = MQTTgetInfo(initfile)
+    if not MQTTbrokers:
+      sys.stderr.write("No MQTT broker or input file is defined. Exiting.")
+      exit(1)
 
     import MyDB   # use ID recognition from DB tables
     # main
-    TTNdata = MQTT_data(MQTTbrokers, DB=MyDB, verbose=verbose, debug=debug, logger=logger)
+    TTNdata = MQTT_data(MQTTbrokers, DB=MyDB, verbose=verbose, debug=debug, logger=MyLogger.log)
 
     timing = time.time()      # last time record reception
     while True:
