@@ -42,8 +42,8 @@ else
 fi
 
 SOURCE_DB=lunar                    # host with up to date DB
-export DBUSER=${DBUSER:-teus}      # database user
-export DBPASS=${DBPASS:-live4ever} # database password for access
+export DBUSER=${DBUSER:-$USER}      # database user
+export DBPASS=${DBPASS:-acacadabra} # database password for access
 HOST=${HOST:-localhost}
 export DBHOST=${DBHOST:-$HOST}
 if [ "$DBHOST" != localhost ]
