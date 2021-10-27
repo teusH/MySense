@@ -19,19 +19,27 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyLogger.py,v 3.8 2021/10/24 14:49:19 teus Exp teus $
+# $Id: MyLogger.py,v 3.9 2021/10/27 10:34:25 teus Exp teus $
 
 # TO DO:
 
 """ Push logging to the external world.
 """
 modulename='$RCSfile: MyLogger.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.8 $"[11:-2]
+__version__ = "0." + "$Revision: 3.9 $"[11:-2]
 
 import sys
 
 # configurable options
 __options__ = ['level','file','output','date','print']
+
+def stop():
+    global Conf
+    try:
+      for stop in Conf['stop']:
+        try: stop()
+        except: pass
+    except: pass
 
 Conf = {
     'level': 'INFO',
@@ -81,6 +89,10 @@ def log(name,level,message): # logging to console or log file
           try: from lib import MyPrint
           except: import MyPrint
           Conf['print'] = MyPrint
+          try:
+            if Conf['stop'] == None: Conf['stop'] = [Conf['print'].stop]
+            else: Conf['stop'].append(Conf['print'].stop)
+          except: pass
         try:
           if Conf['print']:
             Conf['print'].MyPrint(text, color=color)
@@ -103,6 +115,10 @@ def log(name,level,message): # logging to console or log file
         try:
             import logging, logging.handlers
             Conf['fd'] = logging.getLogger("IoS-sensor_log")
+            try:
+              if Conf['stop'] == None: Conf['stop'] = [logging.shutdown]
+              else: Conf['stop'].append(logging.shutdown)
+            except: pass
         except:
             sys.exit("FATAL error while initiating logging. IoS program Aborted.")
         try:
