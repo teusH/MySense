@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.55 2021/10/25 11:34:26 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.57 2021/10/28 16:01:43 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.55 $"[11:-2]
+__version__ = "1." + "$Revision: 4.57 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -820,7 +820,7 @@ def FluctCheck(info,afield,avalue):
     if chk[afield][0] > trigger+1 and (chk[afield][0] % 100): # have already give notice
       return afield
     MyLogger.log(WHERE(True),'ERROR','kit %s/%s has (malfunctioning) sensor field %s, which gives static value of %.2f #%d.' % (info['id']['project'],info['id']['serial'],afield,avalue,chk[afield][0]))
-    sendNotice('%s: kit project %s, serial %s has (malfunctioning) sensor field %s, which gives static value of %.2f on a row of %d times. Skipped data.' % (datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"),info['id']['project'],info['id']['serial'],afield,avalue,chk[afield][0]),info=info,all=False)
+    sendNotice('%s: kit project %s, serial %s has (malfunctioning) sensor field %s, which gives static value of %.2f on a row of %d times. Skipped data.' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),info['id']['project'],info['id']['serial'],afield,avalue,chk[afield][0]),info=info,all=False)
     return afield
 
 # hack to delete PM mass None values when PM count is not zero
@@ -946,9 +946,9 @@ def IsBehavingKit(info,now):
 # give alarm notice, when time out exceeds. Set time sent.
 # denote last time message was sent (info in cache may also be cleared at some point in time)
 def AlarmMessage(info, msg, timeout=6*60*60):
+    now = int(time())
     if timeout:
       try:
-        now = int(time())
         if info['alarmTime'] + timeout < time():
           if info['alarmTime'] + 60*60 < now: # in first hour
             MyLogger.log(WHERE(),'INFO',msg)
@@ -1104,7 +1104,7 @@ def IsRestarting(tstamp,info):
     try:
       if tstamp == None:  # measurement table has no measurements
         MyLogger.log(WHERE(),'ATTENT','Kit %s is newly installed.' % str(info['id']))
-        sendNotice('Kit project %s, serial %s is newly installed. First recort at time: %s.\nMySense kit identification: %s.' % (ID,datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"),info['id']['project'],info['id']['serial']),info=info,all=True)
+        sendNotice('Kit project %s, serial %s is newly installed. First recort at time: %s.\nMySense kit identification: %s.' % (ID,datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),info['id']['project'],info['id']['serial']),info=info,all=True)
         return ['New kit'] # artifact
       elif tstamp > 90*60:
         MyLogger.log(WHERE(),'ATTENT','Kit %s is restarted after %dh%dm%ds' % (str(ID),tstamp/3600,(tstamp%3600)/60,tstamp%60))
@@ -1643,11 +1643,11 @@ def Configure():
             'timeout': time()-1,
             'Conf': {
                 'output': True,
-                #'id_prefix': "TTN-", # prefix ID prepended to serial number of module
+                'id_prefix': "TTN-", # prefix ID prepended to serial number of module
                 'community': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
                 'timeout': 1*15,  # wait timeout on http request result
                 # expression to identify serials subjected for data to be forwarded
-                'active': True,    # output to sensoprs.community is also activated
+                'active': True,    # output to sensors.community is also activated
                 'DEBUG' : False,   # show what is sent and POST status
                 'monitor': False,  # monitoring correct publish data
             }
