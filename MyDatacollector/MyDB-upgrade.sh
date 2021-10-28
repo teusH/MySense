@@ -5,7 +5,7 @@
 # copyright: 2021 teus hagen, the netherlands
 # Open Source license RPL 1.15
 # 
-# $Id: MyDB-upgrade.sh,v 1.9 2021/09/28 15:01:08 teus Exp teus $
+# $Id: MyDB-upgrade.sh,v 1.10 2021/10/28 15:53:07 teus Exp teus $
 
 DEBUG=${DEBUG:-0}       # be very verbose
 VERBOSE=${VERBOSE:-0}   # be verbose
@@ -41,7 +41,8 @@ else
     REVERSED=""
 fi
 
-SOURCE_DB=lunar                    # host with up to date DB
+SOURCE_DB=playtv                    # host with up to date DB
+DUMPS_DB=/backup03/DBdumps/         # host with DB dumps
 export DBUSER=${DBUSER:-$USER}      # database user
 export DBPASS=${DBPASS:-acacadabra} # database password for access
 HOST=${HOST:-localhost}
@@ -61,7 +62,7 @@ if (( $DEBUG > 0 )) ; then export DBHOST=${HOST} ; fi
 export DB=${DB:-luchtmetingen}
 MYSQL="mysql -u $DBUSER -p$DBPASS -N -B --silent -h $DBHOST $DB"
 #export DBHOST=localhost
-if which mysql_config_editor >/dev/null
+if which mysql_config_editor >/dev/null && [ -f $USER/.mylogin.cnf ]
 then
     PASSED=$(mysql_config_editor print --login-path=$DB \
         | awk '/password =/{ print "HIDDEN" ; }')
@@ -208,7 +209,7 @@ function GetGEO() {
       # echo "location=POINT($LAT,$LONG), altitude=$ALT, coordinates='$LAT,$LONG,${ALT/NULL/0}'"
       echo "geohash=CAST(ST_GEOHASH($LONG,$LAT,10) as NCHAR), altitude=$ALT, coordinates='$LONG,$LAT,${ALT/NULL/0}', datum = datum"
     ;;
-    *) echo "geohash=NULL, altitude=$ALT, coordinates='0,0,0'"
+    *) echo "geohash=NULL, altitude=$ALT, coordinates='0,0,0', datum = datum"
     ;;
     esac
 }
@@ -521,12 +522,21 @@ function Update2SQL(){
 
 # install new $DB database on localhost
 function InstallDB() {
+   local ZCATF
    echo -e "${BOLD}Installing (restoring) $DB from host ${1:-${SOURCE_DB}}${NOCOLOR}" >/dev/stderr
    if echo "mysql -u $DBUSER -p"$DBPASS" -h $DBHOST -e 'CREATE DATABASE IF NOT EXISTS $DB'"
    then
-     echo "mysqldump -u "$DBUSER" -p"$DBPASS" -h ${1:-${SOURCE_DB}} $DB | $MYSQL"
+     ZCATF=$(ssh ${1:-$SOURCE_DB} find $DUMPS_D -mtime -1 | grep luchtmeting)
+     if [ -n "$ZCATF" ]
+     then
+       if ! ssh ${1:-$SOURCE_DB} zcat ${ZCATF} | $MYSQL
+       then
+	  echo "Failed to install ${ZCATF} dump file from ${1:-$DUMPS_DB} host." >/dev/stderr
+	  exit 1
+       fi
+     echo "Use: mysqldump -u '$DBUSER' -p'$DBPASS' -h ${1:-${SOURCE_DB}} $DB | $MYSQL"
+     exit 0
    fi
-   exit 0
 }
 
 function DelCoord() {
@@ -553,25 +563,26 @@ function DelCoord() {
     GEO=''
     if $MYSQL -e "DESCRIBE Sensors" | grep -q geohash
     then
-      GEO=$($MYSQL -e "SELECT IF(ISNULL(geohash),'',geohash) FROM Sensors WHERE project = '${TBL/_*/}' AND serial = '${TBL/*_/}' order by active DESC LIMIT 1")
+      GEO=$($MYSQL -e "SELECT IF(ISNULL(geohash),'NULL',geohash) FROM Sensors WHERE project = '${TBL/_*/}' AND serial = '${TBL/*_/}' order by active DESC LIMIT 1")
     fi
-    if [ -z "$GEO" ]
+    if [ -z "${GEO/NULL/}" ]
     then
       if $MYSQL -e "DESCRIBE Sensors" | grep -q coordinates
       then
-        GEO=$($MYSQL -e "SELECT IF(ISNULL(coordinates),'',coordinates) FROM Sensors WHERE project = '${TBL/_*/}' AND serial = '${TBL/*_/}' order by active DESC LIMIT 1")
-        GEO="${GEO/*,0,*/}"; GEO=${GEO//,/ }
+        GEO=$($MYSQL -e "SELECT IF(ISNULL(coordinates),'NULL',coordinates) FROM Sensors WHERE project = '${TBL/_*/}' AND serial = '${TBL/*_/}' ORDER BY active DESC LIMIT 1")
+        GEO="${GEO/NULL/}" ; GEO="${GEO/*,0,*/}" ; GEO=${GEO//,/ }
         if [ -n "$GEO" ]
         then
-            GEO=$(GetGEO $GEO); GEO=${GEO/)*/)}
+            GEO=$(GetGEO $GEO)
             if [ -n "$GEO" ]
             then
-                GEO=$($MYSQL -e "SELECT $GEO")
+                local IDs=$($MYSQL -e "SELECT id FROM Sensors WHERE project = '${TBL/_*/}' AND serial = '${TBL/*_/}' ORDER BY active DESC LIMIT 1")
+		GEO=$($MYSQL -e "UPDATE Sensors SET $GEO WHERE id = '$IDs'")
             fi
         fi
       fi
     fi
-    if [ -z "$GEO" ] ; then confinue ; fi
+    if [ -z "$GEO" ] ; then continue ; fi
     if (( $VERBOSE > 0 ))
     then
       echo -e "${BLUE}Update table $TBL geohash valids and drop column 'coordinates'.${NOCOLOR}" >/dev/stderr
@@ -917,9 +928,10 @@ EOF
         ;;
         UPGRADE|upgrade)       ########## upgrade all in one swing
           echo "DB upgrading: reload DB from ${SOURCE_DB}, add geohash, delete coordinates column, add sensor types, delete unused measurement columns" >/dev/stderr
+	  echo "Reload DB from ${DUMPS_DB} dated today" >/dev/stderr
           start_progressing "Loading DB $DB. Takes 8 minutes..."
-          InstallDB >/tmp/Upgrading$$  # copy DB $DB from ${SOURCE_DB}
-             bash -x /tmp/Upgrading$$ "Install $DB DB from ${SOURCE_DB} to localhost"
+          InstallDB # >/tmp/Upgrading$$  # copy DB $DB from ${SOURCE_DB}
+          #   bash -x /tmp/Upgrading$$ "Install $DB DB from ${SOURCE_DB} to localhost"
           stop_progressing
           start_progressing "Add Geohash to Sensors and tables. Takes 1 minute ..."
           AddGeoHash >/tmp/Upgrading$$ # add geohash in meta info tables
@@ -944,7 +956,7 @@ EOF
           InstallDB ${1:-${SOURCE_DB}}
           exit 0
         ;;
-        [aA]dd[psS]ensor[tT]ype*)
+        [aA]dd[psS]ensor[tT]ype*|[uU]pgrade_[Ss]ensor[Tt]yp*)
           # add sensor type(s) on each measurement in measurement tables
           if [ -n "$2" -a -z "${2/*_*/}" ]
           then
