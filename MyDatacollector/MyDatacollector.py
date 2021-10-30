@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.57 2021/10/28 16:01:43 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.58 2021/10/30 12:00:14 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.57 $"[11:-2]
+__version__ = "1." + "$Revision: 4.58 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -450,7 +450,7 @@ def Initialize(DB=DB, debug=debug, verbose=None):
             MyLogger.log(WHERE(),'ATTENT','Missing or errors in LoRa init json file with info for all LaRa nodes. Exiting.')
             return False
         # nodes info are exported to Database tables Sensors and TTNtable
-        for item in ['project','brokers','translate','notice','from','SMTP','adminDB',]:
+        for item in ['project','brokers','translate','notice','from','SMTP','MyDB','adminDB',]:
             if item in new.keys():
                 Conf[item] = new[item]
                 MyLogger.log(WHERE(),'ATTENT','Overwriting dflt definitions for Conf[%s].' % item)
@@ -497,6 +497,10 @@ def Initialize(DB=DB, debug=debug, verbose=None):
       except: BrkrID = ''
       MyLogger.log(WHERE(),'INFO','Input is read from: %s%s' % (broker['resource'],BrkrID))
     if not Resources: return False
+    if 'MyDB' in Conf.keys(): # use DB info and credentials from init file
+      for one,value in Conf['MyDB'].items():
+        if one in ['hostname','port','database','user','password',]:
+          DB.Conf[one] = value
 
     return True
 
@@ -1585,6 +1589,7 @@ def Configure():
     Conf['from'] = 'Notice from MySense data collector <mysense@localhost>'
     Conf['SMTP'] = 'localhost'
     Conf['input'] = [] # list of input brokers or files
+    Conf['MyDB'] = {}  # dictionary with database info and credentials
     # Conf['DEBUG'] = True  # print stderr output channel actions
 
     # outpout channels for data

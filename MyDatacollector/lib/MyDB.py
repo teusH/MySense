@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDB.py,v 5.9 2021/10/26 14:03:43 teus Exp teus $
+# $Id: MyDB.py,v 5.10 2021/10/30 12:03:04 teus Exp teus $
 
 # reminder: MySQL is able to sync tables with other MySQL servers
 
@@ -27,7 +27,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 __modulename__='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.9 $"[11:-2]
+__version__ = "0." + "$Revision: 5.10 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -43,7 +43,7 @@ try:
     import mysql
     import mysql.connector
     import datetime
-    from time import time
+    from time import time, sleep
     import atexit
     import re
 except ImportError as e:
@@ -171,21 +171,23 @@ def db_connect():
     if not 'fd' in Conf.keys(): Conf['fd'] = None
     if not 'last' in Conf.keys():
         Conf['waiting'] = 5 * 30 ; Conf['last'] = 0 ; Conf['waitCnt'] = 0
+    elif Conf['waitCnt']: sleep(Conf['waiting'])
     if (Conf['fd'] == None) or (not Conf['fd']):
         # get DBUSER, DBHOST, DBPASS from process environment if present
-        for credit in ['hostname','user','password']:
+        for credit in ['hostname','user','password','database']:
             if not credit in Conf.keys():
                 Conf[credit] = None
-            try:
-                Conf[credit] = os.getenv('DB'+credit[0:4].upper(),Conf[credit])
-            except:
+            if Conf[credit] == None:  # if not provided eg via configuration init file
+              try:
+                Conf[credit] = os.getenv('DB'+(credit[0:4].upper() if credit != 'database' else ''),Conf[credit])
+              except:
                 pass
         Conf['log'](WHERE(),'INFO',"Using database '%s' on host '%s', user '%s' credentials." % (Conf['database'],Conf['hostname'],Conf['user']))
         if (Conf['hostname'] != 'localhost'): # just a reminder
             Conf['log'](WHERE(True),'CRITICAL',"THIS IS NOT A LOCALHOST ACCESS! Database host %s / %s."  % (Conf['hostname'], Conf['database']))      
         for M in ('user','password','hostname','database'):
             if (not M in Conf.keys()) or not Conf[M]:
-                Conf['log'](WHERE(True),'ERROR',"Define DB details and credentials.")
+                Conf['log'](WHERE(True),'FATAL',"Define DB details and credentials!")
                 return False
         if (Conf['fd'] != None) and (not Conf['fd']):
             if ('waiting' in Conf.keys()) and ((Conf['waiting']+Conf['last']) >= time()):
@@ -206,7 +208,8 @@ def db_connect():
         except IOError:
             Conf['last'] = time() ; Conf['fd'] = 0 ; Conf['waitCnt'] += 1
             if not (Conf['waitCnt'] % 5): Conf['waiting'] *= 2
-            raise IOError
+            if Conf['waitCnt'] > 5: raise IOError
+            else: return db_connect()
         except:
             del Conf['fd']
             Conf['log'](WHERE(True),'ERROR',"MySQL Connection failure type: %s; value: %s" % (sys.exc_info()[0],sys.exc_info()[1]) )
@@ -283,28 +286,35 @@ def db_query(query,answer):
         else:
             Conf['fd'].commit()
     except IOError:
-        raise IOError
-    except:
-        FailType = sys.exc_info()[1]
-        Conf['log'](WHERE(True),'ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],FailType) )
-        #Conf['log'](WHERE(True),'ERROR',"On query: %s" % query)
-        # try once to reconnect
-        try:
-            Conf['fd'].close
-            Conf['fd'] = None
-            db_connect()
-        except:
-            Conf['log'](WHERE(True),'ERROR','Failed to reconnect to MySQL DB.')
+        Conf['fd'].close; Conf['fd'] = None; Conf['waitCnt'] += 1
+        db_connect()
+    except mysql.connector.Error as err:
+        if err.errno == 2006: # try to reconnect
+          try:
+            Conf['fd'].close; Conf['fd'] = None; Conf['waitCnt'] += 1
+            if not db_connect(): raise IOError("Connection broke down.")
+          except:
+            Conf['log'](WHERE(True),'FATAL','Failed to reconnect to MySQL DB.')
+            # raise IOError("Connection broke down.")
             return False
+        else:
+          FailType = sys.exc_info()[1]
+          Conf['log'](WHERE(True),'ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],FailType) )
+          Conf['log'](WHERE(True),'ERROR',"On query: %s" % query)
+          db_tableColError(FailType,query)  # maybe we can correct this
         if Retry:
             return False
-        db_tableColError(FailType,query)  # maybe we can correct this
         Retry = True
         Conf['log'](WHERE(True),'INFO',"Retry the query")
         if db_query(query,answer):
             Retry = False
             return True
         Conf['log'](WHERE(True),'ERROR','Failed to redo query.')
+        return False
+    except:
+        FailType = sys.exc_info()[1]
+        Conf['log'](WHERE(True),'ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],FailType) )
+        Conf['log'](WHERE(True),'ERROR',"On query: %s" % query)
         return False
     return True
 

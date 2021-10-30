@@ -97,4 +97,16 @@ The implementation should be able to mix dict type data formats with list/tuple 
 
 For more examples see the details the MyDatacollector software and comments with real life examples of MDEF format use in real life practice.
 
+A poor mans example for a MDEF (MQTT) data record:
+`{
+"data": {
+   "id”: { “project”: “SAN”, “serial”: “78CECEA5167524” }, // may be defined via meta or MQTT topic
+   "timestamp": 1621862416,                                // may be defined from time received
+   "BME280": { "temp": 22.3, "RH": 55, "pressure": 1015 },
+   "SDS011": { "pm2.5": 20.4, "pm10": 22.7 }
+  }
+}
+`
+Defaults used: temp -> temperature, temperature in oC, pressure in hPa, PM in ug/m3, correction factors [0,1] Taylor seq.
+
 This MDEF format draft is WORK in PROGRESS

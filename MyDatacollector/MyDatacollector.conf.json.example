@@ -22,6 +22,9 @@
     ],
 "from": "Notice from MySense data collector <noreply@home.nl>",
 "SMTP": "home.org",
+// measurement and meta info database credentials, if null use environment vars
+"MyDB": { "host": "localhost", "user": "MyUser", "pass": "acacadabra", "db": "luchtmeti
+ngen" },
 // database info for nodes info handling via MySQL, here via CMS Drupal admin pages
 // probably supplied via process environment
 "adminDB": {
