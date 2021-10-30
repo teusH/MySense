@@ -5,7 +5,7 @@
 # copyright: 2021 teus hagen, the netherlands
 # Open Source license RPL 1.15
 # 
-# $Id: MyDB-upgrade.sh,v 1.11 2021/10/30 13:57:19 teus Exp teus $
+# $Id: MyDB-upgrade.sh,v 1.12 2021/10/30 18:09:34 teus Exp teus $
 
 DEBUG=${DEBUG:-0}       # be very verbose
 VERBOSE=${VERBOSE:-0}   # be verbose
@@ -560,7 +560,8 @@ function DelCoord() {
     then continue
     fi
     Add_Cols $TBL geohash geohash_valid
-    if ! $MYSQL -e "UPDATE $TBL SET geohash = CAST(ST_GEOHASH(longitude,latitude,10) as NCHAR), geohash_valid = 1, datum = datum WHERE longitude > 0 AND latitude > 0"
+    # do check on longitude/latitude swap error
+    if ! $MYSQL -e "UPDATE $TBL SET geohash = CAST(ST_GEOHASH(longitude,latitude,10) AS NCHAR), geohash_valid = 1, datum = datum WHERE longitude > 0 AND latitude > 0 AND latitude <= 90.0"
     then
       echo -e "${RED}Failed to update geohash measurements for table $TBL${NOCOLOR}" >/dev/stderr
       continue
