@@ -5,7 +5,7 @@
 # copyright: 2021 teus hagen, the netherlands
 # Open Source license RPL 1.15
 # 
-# $Id: MyDB-upgrade.sh,v 1.10 2021/10/28 15:53:07 teus Exp teus $
+# $Id: MyDB-upgrade.sh,v 1.11 2021/10/30 13:57:19 teus Exp teus $
 
 DEBUG=${DEBUG:-0}       # be very verbose
 VERBOSE=${VERBOSE:-0}   # be verbose
@@ -62,7 +62,7 @@ if (( $DEBUG > 0 )) ; then export DBHOST=${HOST} ; fi
 export DB=${DB:-luchtmetingen}
 MYSQL="mysql -u $DBUSER -p$DBPASS -N -B --silent -h $DBHOST $DB"
 #export DBHOST=localhost
-if which mysql_config_editor >/dev/null && [ -f $USER/.mylogin.cnf ]
+if which mysql_config_editor >/dev/null && [ -f $HOME/.mylogin.cnf ]
 then
     PASSED=$(mysql_config_editor print --login-path=$DB \
         | awk '/password =/{ print "HIDDEN" ; }')
@@ -524,9 +524,9 @@ function Update2SQL(){
 function InstallDB() {
    local ZCATF
    echo -e "${BOLD}Installing (restoring) $DB from host ${1:-${SOURCE_DB}}${NOCOLOR}" >/dev/stderr
-   if echo "mysql -u $DBUSER -p"$DBPASS" -h $DBHOST -e 'CREATE DATABASE IF NOT EXISTS $DB'"
+   if $MYSQL -e "CREATE DATABASE IF NOT EXISTS $DB"
    then
-     ZCATF=$(ssh ${1:-$SOURCE_DB} find $DUMPS_D -mtime -1 | grep luchtmeting)
+     ZCATF=$(ssh ${1:-$SOURCE_DB} find $DUMPS_DB -mtime -1 | grep luchtmeting)
      if [ -n "$ZCATF" ]
      then
        if ! ssh ${1:-$SOURCE_DB} zcat ${ZCATF} | $MYSQL
@@ -534,8 +534,13 @@ function InstallDB() {
 	  echo "Failed to install ${ZCATF} dump file from ${1:-$DUMPS_DB} host." >/dev/stderr
 	  exit 1
        fi
-     echo "Use: mysqldump -u '$DBUSER' -p'$DBPASS' -h ${1:-${SOURCE_DB}} $DB | $MYSQL"
-     exit 0
+     else
+       echo "Use: mysqldump -u '$DBUSER' -p'$DBPASS' -h ${1:-${SOURCE_DB}} $DB | $MYSQL"
+       exit 0
+     fi
+   else
+     echo "Check MySQL credentials. Used DBUSER=$DBUSER, DBPASS, DBHOST=$DBHOST and DUMPS_DB=$DUMPS_DB or SOURCE_DB=$SOURCE_DB" >/dev/stderr
+     exit 1
    fi
 }
 
