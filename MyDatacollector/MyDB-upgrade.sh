@@ -5,7 +5,7 @@
 # copyright: 2021 teus hagen, the netherlands
 # Open Source license RPL 1.15
 # 
-# $Id: MyDB-upgrade.sh,v 1.12 2021/10/30 18:09:34 teus Exp teus $
+# $Id: MyDB-upgrade.sh,v 1.16 2021/10/31 12:14:57 teus Exp teus $
 
 DEBUG=${DEBUG:-0}       # be very verbose
 VERBOSE=${VERBOSE:-0}   # be verbose
@@ -114,13 +114,16 @@ function stop_progressing {
 function start_progressing(){
     if [ -n "$pid" ]; then kill $pid; fi
     timing=`date "+%s"`
-    if [ -t 2 ] && [ -z "$DEBUG" ]
+    if [ -t 2 ] && [ -z "$DEBUG" -o "$DEBUG" = 0 ]
     then
         progressing  "$1"  &
         pid=$!
+    else
+        echo -e "$1" >/dev/stderr
     fi
     return 0
 }
+
 # convert street nr -> street and housenr
 function updateHouseNR() {
     local ENTRY ENTRIES
@@ -441,10 +444,10 @@ function Upgrade_SensorTypes() {
      SER="${TMP/*_/}" ; SER="${SER/@*/}"
      SENS="${TMP/*@/}"
      # SENS1="$SENS"
-     if (( $VERBOSE > 0 ))
-     then
+     #if (( $VERBOSE > 0 ))
+     #then
         echo -e "${BLUE}Table ${PROJ}_${SER}: adding active sensor types for every measurement${NOCOLOR}" >/dev/stderr
-     fi
+     #fi
 
      if (( $RESET > 0 )) && $MYSQL -e "DESCRIBE ${PROJ}_${SER}" | grep -q sensors
      then
@@ -546,8 +549,7 @@ function InstallDB() {
 
 function DelCoord() {
   local TBL GEO ONCE=''
-  echo -e "${BOLD}Converting and deleting coordinates column in measurement table: ${*:-all active}${NOCOLOR}" >/dev/stderr
-  echo "Alter table SQL on stdout:" >/dev/stderr
+  echo -e "\n${BOLD}Converting and deleting coordinates column in measurement tables for ${*:-all active} tables${NOCOLOR}" >/dev/stderr
   if ! $MYSQL -e "DESCRIBE Sensors" | grep -q 'geohash'
   then
     echo "Unable to find geohash source column in Sensors table" >/dev/stderr
@@ -559,6 +561,7 @@ function DelCoord() {
     if ! $MYSQL -e "DESCRIBE $TBL" | grep -q longitude_valid
     then continue
     fi
+    echo -n "Alter table $TBL on stdout:" >/dev/stderr
     Add_Cols $TBL geohash geohash_valid
     # do check on longitude/latitude swap error
     if ! $MYSQL -e "UPDATE $TBL SET geohash = CAST(ST_GEOHASH(longitude,latitude,10) AS NCHAR), geohash_valid = 1, datum = datum WHERE longitude > 0 AND latitude > 0 AND latitude <= 90.0"
@@ -661,10 +664,14 @@ function DoMYSQL() {
    local MSG="$2"
    local ANS=''
    if [ -s "$FILE" ] ; then return ; fi
-   read -p "$RED}Are you sure to $MSG?${NOCOLOR} yes|[NO]" -t 30 ANS
+   echo -e -n "${RED}Are you sure to $MSG?${NOCOLOR} " >/dev/stderr
+   read -p "yes|[NO]" -t 30 ANS
    if [ x"$ANS" = yes ]
    then
     cat $FILE | $MYSQL
+    echo -e "${BOLD}YES${NOCOLOR}: $MSG" >/dev/stderr
+   else
+    echo -e "${RED}NO${NOCOLOR}: $MSG" >/dev/stderr
    fi
 }
 
@@ -935,7 +942,7 @@ EOF
         UPGRADE|upgrade)       ########## upgrade all in one swing
           echo "DB upgrading: reload DB from ${SOURCE_DB}, add geohash, delete coordinates column, add sensor types, delete unused measurement columns" >/dev/stderr
 	  echo "Reload DB from ${DUMPS_DB} dated today" >/dev/stderr
-          start_progressing "Loading DB $DB. Takes 8 minutes..."
+          start_progressing "Loading DB $DB. Takes 20 minutes..."
           InstallDB # >/tmp/Upgrading$$  # copy DB $DB from ${SOURCE_DB}
           #   bash -x /tmp/Upgrading$$ "Install $DB DB from ${SOURCE_DB} to localhost"
           stop_progressing
@@ -943,9 +950,9 @@ EOF
           AddGeoHash >/tmp/Upgrading$$ # add geohash in meta info tables
              DoMYSQL /tmp/Upgrading$$ "GeoHash MYSQL table changes"
           stop_progressing
-          start_progressing "Delete coordinates and update geohash for measurement kits. Takes 2 minutes..."
+          start_progressing "Delete coordinates and update geohash for measurement kits. Takes 9 minutes..."
           DelCoord >/tmp/Upgrading$$   # delete deprecated coordinates from tables
-             DoMYSQL /tmp/Upgrading$$ "Coordinate columns deletions MYSQL table"
+             DoMYSQL /tmp/Upgrading$$ "'coordinate' columns deletions MYSQL table"
           stop_progressing
           start_progressing "Add sensor types to measurement tables. Can take 10 minutes..."
           Upgrade_SensorTypes          # add sensor types on measurements, update Sensors
