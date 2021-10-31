@@ -5,7 +5,7 @@
 # copyright: 2021 teus hagen, the netherlands
 # Open Source license RPL 1.15
 # 
-# $Id: MyDB-upgrade.sh,v 1.16 2021/10/31 12:14:57 teus Exp teus $
+# $Id: MyDB-upgrade.sh,v 1.17 2021/10/31 13:05:14 teus Exp teus $
 
 DEBUG=${DEBUG:-0}       # be very verbose
 VERBOSE=${VERBOSE:-0}   # be verbose
@@ -617,7 +617,7 @@ function DelCoord() {
 # delete unused columns from a measurement table
 function CompressTable() {
    local TBL SENSORS SENS SQL TMP
-   echo -e "${BOLD}Deleting unused sensors columns from table: ${*:-all active}${NOCOLOR}" >/dev/stderr
+   echo -e "${BOLD}Deleting unused sensors columns from measurements table ${*:-all active} table(s)${NOCOLOR}" >/dev/stderr
    for TBL in `GetTables ${*:-active}`
    do
      TBL="${TBL/@*/}"
@@ -952,17 +952,18 @@ EOF
           stop_progressing
           start_progressing "Delete coordinates and update geohash for measurement kits. Takes 9 minutes..."
           DelCoord >/tmp/Upgrading$$   # delete deprecated coordinates from tables
-             DoMYSQL /tmp/Upgrading$$ "'coordinate' columns deletions MYSQL table"
+             DoMYSQL /tmp/Upgrading$$ "delete 'coordinate' columns in MYSQL measurment tables"
           stop_progressing
           start_progressing "Add sensor types to measurement tables. Can take 10 minutes..."
           Upgrade_SensorTypes          # add sensor types on measurements, update Sensors
-          start_progressing "Delete unsued sensors from measurement kits. Takes 5 minutes..."
+          start_progressing "Delete unused sensors from measurement kits. Takes 1 minute..."
           CompressTable                # drop unused measurement columns
           stop_progressing
           rm -f /tmp/Upgrading$$
-          start_progressing "Install and/or update SensorTypes DB table with sensor type information. Takes 30 seconds..."
+          start_progressing "Install and/or update SensorTypes DB and measurements tables with sensor type information. Can take 20 minutes..."
           SensorTypesTbl
           stop_progressing
+          exit 0
         ;;
         InstallDB|installDB)
           shift
