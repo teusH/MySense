@@ -5,7 +5,7 @@
 # copyright: 2021 teus hagen, the netherlands
 # Open Source license RPL 1.15
 # 
-# $Id: MyDB-upgrade.sh,v 1.17 2021/10/31 13:05:14 teus Exp teus $
+# $Id: MyDB-upgrade.sh,v 1.30 2021/11/01 13:14:24 teus Exp teus $
 
 DEBUG=${DEBUG:-0}       # be very verbose
 VERBOSE=${VERBOSE:-0}   # be verbose
@@ -94,13 +94,14 @@ function progressing {
 # Stop distraction
 #
 timing=""
+TMINUS=0
 function stop_progressing {
     # exec 2>/dev/null
     if [ -n "$pid" ] ; then kill $pid ; sleep 1; fi
     pid=""
     if [ -n "$timing" -a -t 2 ]
     then
-        timing=$((`date "+%s"` - $timing))
+        timing=$((`date "+%s"` - $timing - $TMINUS))
         if [ $(($timing / 60)) -gt 0 ] ; then
             echo -en "\b \t$(($timing / 60)) min $(($timing % 60)) sec\n" 1>&2
         else
@@ -433,21 +434,15 @@ function Indicator() {
 # correct sensors/description column in measurement table and Sensors location info table
 # no argument: all active kits, argument = project_serial kit(s)
 function Upgrade_SensorTypes() {
-   local TMP PROJ SER IND TYPES SENS CNT
-   # local SENS1
-   local S
+   local TMP PROJ SER IND TYPES SENS CNT S
 
-   echo -e "${BOLD}Adding sensor types for every measurement in measurement table: ${*:-all active}${NOCOLOR}." >/dev/stderr
+   echo -e "${BOLD}Adding sensor types for every measurement in table: ${*:-all active}${NOCOLOR}." >/dev/stderr
    for TMP in `GetTables ${*:-active}`
    do
      PROJ="${TMP/_*/}"
      SER="${TMP/*_/}" ; SER="${SER/@*/}"
      SENS="${TMP/*@/}"
-     # SENS1="$SENS"
-     #if (( $VERBOSE > 0 ))
-     #then
-        echo -e "${BLUE}Table ${PROJ}_${SER}: adding active sensor types for every measurement${NOCOLOR}" >/dev/stderr
-     #fi
+     echo -e -n "\nTable ${BOLD}${PROJ}_${SER}${NOCOLOR}: adding active sensor types in measurements " >/dev/stderr
 
      if (( $RESET > 0 )) && $MYSQL -e "DESCRIBE ${PROJ}_${SER}" | grep -q sensors
      then
@@ -509,6 +504,8 @@ function Upgrade_SensorTypes() {
        $MYSQL -e "UPDATE Sensors SET sensors = '$SENS', description = '${S}', datum = datum WHERE project = '${PROJ}' AND serial = '${SER}' ORDER BY active DESC, datum DESC LIMIT 1"
      fi
    done
+   if [ -n "$pid" ] ; then kill -s SIGSTOP $pid ; fi
+   echo "" >/dev/stderr
 }
 
 # output SQL to stdout
@@ -561,12 +558,12 @@ function DelCoord() {
     if ! $MYSQL -e "DESCRIBE $TBL" | grep -q longitude_valid
     then continue
     fi
-    echo -n "Alter table $TBL on stdout:" >/dev/stderr
+    echo -e -n "\nAdding to ${BOLD}${TBL}${NOCOLOR} columns/value geohash geohash_valid" >/dev/stderr
     Add_Cols $TBL geohash geohash_valid
     # do check on longitude/latitude swap error
     if ! $MYSQL -e "UPDATE $TBL SET geohash = CAST(ST_GEOHASH(longitude,latitude,10) AS NCHAR), geohash_valid = 1, datum = datum WHERE longitude > 0 AND latitude > 0 AND latitude <= 90.0"
     then
-      echo -e "${RED}Failed to update geohash measurements for table $TBL${NOCOLOR}" >/dev/stderr
+      echo -e "\n${RED}Failed to update geohash measurements for table $TBL${NOCOLOR}" >/dev/stderr
       continue
     fi
     GEO=''
@@ -586,7 +583,8 @@ function DelCoord() {
             if [ -n "$GEO" ]
             then
                 local IDs=$($MYSQL -e "SELECT id FROM Sensors WHERE project = '${TBL/_*/}' AND serial = '${TBL/*_/}' ORDER BY active DESC LIMIT 1")
-		GEO=$($MYSQL -e "UPDATE Sensors SET $GEO WHERE id = '$IDs'")
+                echo -e -n "\nUpdate home location for $TBL in Sensors " >/dev/stderr
+		$MYSQL -e "UPDATE Sensors SET $GEO WHERE id = '$IDs'"
             fi
         fi
       fi
@@ -594,7 +592,7 @@ function DelCoord() {
     if [ -z "$GEO" ] ; then continue ; fi
     if (( $VERBOSE > 0 ))
     then
-      echo -e "${BLUE}Update table $TBL geohash valids and drop column 'coordinates'.${NOCOLOR}" >/dev/stderr
+      echo -e "\n${BLUE}Update table $TBL geohash valids and drop column 'coordinates'.${NOCOLOR}" >/dev/stderr
     fi
     #  geohash NULL (undefined), 1 (home location), 0 (mobile)
     if $MYSQL -e "UPDATE $TBL SET geohash_valid = IF(ISNULL(geohash),NULL,IF(SUBSTR(geohash,0,9) = SUBSTR('$GEO',0,9),1,0))"
@@ -605,13 +603,15 @@ function DelCoord() {
         $MYSQL -e "SELECT CONCAT(' and ', COUNT(geohash), ' not at home records.') FROM $TBL WHERE NOT ISNULL(geohash_valid) AND NOT geohash_valid" >/dev/stderr
       fi
       # delete coordinates column from table
-      echo 'LOCK TABLES `$TBL` WRITE;'
+      echo "LOCK TABLES \`$TBL\` WRITE;"
       echo "ALTER TABLE $TBL DROP COLUMN coordinates;"
       echo 'UNLOCK TABLES;'
     else
-      echo -e "${RED}Failure on table $TBL while converting coordinates column to geohash.${NOCOLOR}" >/dev/stderr
+      echo -e "\n${RED}Failure on table $TBL while converting coordinates column to geohash.${NOCOLOR}" >/dev/stderr
     fi
   done
+  if [ -n "$pid" ] ; then kill -s SIGSTOP $pid ; fi
+  echo "" >/dev/stderr
 }
 
 # delete unused columns from a measurement table
@@ -663,15 +663,21 @@ function DoMYSQL() {
    local FILE=$1
    local MSG="$2"
    local ANS=''
-   if [ -s "$FILE" ] ; then return ; fi
-   echo -e -n "${RED}Are you sure to $MSG?${NOCOLOR} " >/dev/stderr
-   read -p "yes|[NO]" -t 30 ANS
-   if [ x"$ANS" = yes ]
+   if [ ! -s "$FILE" ] ; then return ; fi
+   if [ -n "$pid" ] ; then kill -s SIGSTOP $pid ; fi
+   echo -e -n "\n${RED}Are you sure to '$MSG'?${NOCOLOR} " >/dev/stderr
+   if ! read -p "no|[yes]" -t 30 ANS
+   then TMINUS=30
+   else TMINUS=0
+   fi
+   if [ x"${ANS^^}" = xYES ] || [ -z "$ANS" ]
    then
+    printf "\n%-60s" "Processing $FILE by MySQL...  " 1>&2
+    if [ -n "$pid" ] ; then kill -s SIGCONT $pid ; fi
     cat $FILE | $MYSQL
-    echo -e "${BOLD}YES${NOCOLOR}: $MSG" >/dev/stderr
+    # echo -e "${BOLD}DONE${NOCOLOR}: $MSG" >/dev/stderr
    else
-    echo -e "${RED}NO${NOCOLOR}: $MSG" >/dev/stderr
+    echo -e "${RED}SKIP${NOCOLOR} MySQL DB changes." >/dev/stderr
    fi
 }
 
@@ -687,7 +693,6 @@ function AddGeoHash() {
   
     # upgrade for using geohash in TTNtable and Sensors
     # and generate SQL for each kit found to be updated
-    echo -e "${BOLD}Update SQL on stdout.${NOCOLOR}" >/dev/stderr
     echo 'LOCK TABLES `Sensors` WRITE;'
     for KIT in $(UpdateLocation coordinates)
     do
@@ -698,10 +703,10 @@ function AddGeoHash() {
 # add SensorTypes DB table
 # convert deprecated Conf['sensors'] python dict to DB table
 function SensorTypesTbl() {
-    #   cat <<EOF | python
-    cat <<EOF | python | $MYSQL
+    #echo -e "${BOLD}Generate SensorTypes DB table and update table content${NOCOLOR}" >/dev/stderr
+    python  <<EOF
 calibrations = {
-    # taken from regression report 11 Feb 2021, Vredepeel period June-Sept 2020 (ca 9.000 samples)
+    # Next is taken from regression report 11 Feb 2021, Vredepeel period June-Sept 2020 (ca 9.000 samples)
     # group: dust
     'SDS011': { 'pm10': { 'SPS30': [1.689,0.63223],'PMSx003': [3.76,1.157], 'BAM1020':[1.437,0.4130],},
                 'pm25': { 'SPS30': [2.163,0.7645], 'PMSx003': [1.619,1.545],'BAM1020':[5.759,0.3769],},
@@ -923,6 +928,7 @@ for one in Sensors:
   else: one['matching'] = one['type'].upper()
   print("%s('%s','%s','%s','%s','%s')" % (' ,' if count else '  ',one['type'],one['matching'],one['producer'],one['group'],';'.join(fields)))
   count += 1
+print(";")
 EOF
 }
 # SensorTypesTbl
@@ -952,7 +958,7 @@ EOF
           stop_progressing
           start_progressing "Delete coordinates and update geohash for measurement kits. Takes 9 minutes..."
           DelCoord >/tmp/Upgrading$$   # delete deprecated coordinates from tables
-             DoMYSQL /tmp/Upgrading$$ "delete 'coordinate' columns in MYSQL measurment tables"
+             DoMYSQL /tmp/Upgrading$$ "delete 'coordinate' columns in MYSQL measurement tables"
           stop_progressing
           start_progressing "Add sensor types to measurement tables. Can take 10 minutes..."
           Upgrade_SensorTypes          # add sensor types on measurements, update Sensors
@@ -960,14 +966,19 @@ EOF
           CompressTable                # drop unused measurement columns
           stop_progressing
           rm -f /tmp/Upgrading$$
-          start_progressing "Install and/or update SensorTypes DB and measurements tables with sensor type information. Can take 20 minutes..."
-          SensorTypesTbl
+          start_progressing "Update SensorTypes DB table. Takes 1 second..."
+          SensorTypesTbl  >/tmp/Upgrading$$
+             DoMYSQL /tmp/Upgrading$$ "Install and/or update SensorTypes DB table"
           stop_progressing
           exit 0
         ;;
         InstallDB|installDB)
           shift
-          InstallDB ${1:-${SOURCE_DB}}
+          echo "DB upgrading: reload DB from ${SOURCE_DB}, add geohash, delete coordinates column, add sensor types, delete unused measurement columns" >/dev/stderr
+	  echo "Reload DB from ${DUMPS_DB} dated today" >/dev/stderr
+          start_progressing "Loading DB $DB. Takes 20 minutes..."
+          InstallDB ${1:-${SOURCE_DB}} # >/tmp/Upgrading$$  # copy DB $DB from ${SOURCE_DB}
+          stop_progressing
           exit 0
         ;;
         [aA]dd[psS]ensor[tT]ype*|[uU]pgrade_[Ss]ensor[Tt]yp*)
@@ -984,7 +995,10 @@ EOF
           fi
         ;;
         [aA]dd[gG]eo[hH]ash)
-          AddGeoHash
+          start_progressing "Add Geohash to Sensors and tables. Takes 1 minute ..."
+          AddGeoHash >/tmp/Upgrading$$ # add geohash in meta info tables
+             DoMYSQL /tmp/Upgrading$$ "GeoHash MYSQL table changes"
+          stop_progressing
         ;;
         [dD]el[Cc]oord*)
           if [ -n "$2" -a -z "${2/*_*/}" ]
@@ -1011,8 +1025,9 @@ EOF
           fi
         ;;
         [Ss]ensor*[Tt]ypes*)
-          start_progressing "Install and/or update SensorTypes DB table with sensor type infoprmation. Takes 30 seconds..."
-          SensorTypesTbl
+          start_progressing "Update SensorTypes DB table. Takes 1 second..."
+          SensorTypesTbl  >/tmp/Upgrading$$
+             DoMYSQL /tmp/Upgrading$$ "Install and/or update SensorTypes DB table"
           stop_progressing
         ;;
         *_*)

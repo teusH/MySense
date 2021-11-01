@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.58 2021/10/30 12:00:14 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.59 2021/11/01 13:07:37 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.58 $"[11:-2]
+__version__ = "1." + "$Revision: 4.59 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -633,6 +633,10 @@ def sendNotice(message,info=None,all=False):
     try:
         if not notices['output']: return True
     except: return False
+    try: # throttle event notices to once per 4 hours
+      if int(time()) < info['last_notice']: return True
+      else: info['last_notice'] = int(time())+4*60*60
+    except: pass
 
     # get ref to where to send notice to
     serial = None; id = None
@@ -1004,9 +1008,14 @@ def HasEvent(info, meta):
    except: return []
    if event:
      if type(event) is int: event = str(event)
+     try: info['last_notice']
+     except:
+       info['last_notice'] = int(time())
      msg = "Measurement kit with id %s raised event %s, value %s" % (str(info['id']), event, str(meta['event']))
      AlarmMessage(info, msg, timeout=6*60*60)
      return ['Raised event: %s.' % event] # artifacts
+   try: del info['event_cnt']
+   except: pass
    return []
 
 def UpdateNewHome(info, geoloc, alt):
