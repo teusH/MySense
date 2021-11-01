@@ -5,7 +5,7 @@
 # copyright: 2021 teus hagen, the netherlands
 # Open Source license RPL 1.15
 # 
-# $Id: MyDB-upgrade.sh,v 1.31 2021/11/01 13:21:46 teus Exp teus $
+# $Id: MyDB-upgrade.sh,v 1.32 2021/11/01 15:24:06 teus Exp teus $
 
 DEBUG=${DEBUG:-0}       # be very verbose
 VERBOSE=${VERBOSE:-0}   # be verbose
@@ -102,6 +102,7 @@ function stop_progressing {
     if [ -n "$timing" -a -t 2 ]
     then
         timing=$((`date "+%s"` - $timing - $TMINUS))
+        if (( $timing < 0 )) ; then timing= 1 ; fi
         if [ $(($timing / 60)) -gt 0 ] ; then
             echo -en "\b \t$(($timing / 60)) min $(($timing % 60)) sec\n" 1>&2
         else
@@ -179,7 +180,7 @@ function Add_Cols() {
           updateHouseNR $TBL
         ;;
         sensors) # installed sensors in meaurement kit TBL: Sensors
-          $MYSQL -e "ALTER TABLE $TBL ADD COLUMN $FLD varchar(64) DEFAULT NULL COMMENT 'active sensor types in measurement row'"
+          $MYSQL -e "ALTER TABLE $TBL ADD COLUMN $FLD varchar(64) DEFAULT NULL COMMENT 'active sensor types in measurement row    '"
         ;;
         *)
           echo -e "${RED}Undefined: how to add column $FLD TBL table $TBL ${NOCOLOR}" 1>&2
@@ -558,7 +559,7 @@ function DelCoord() {
     if ! $MYSQL -e "DESCRIBE $TBL" | grep -q longitude_valid
     then continue
     fi
-    echo -e -n "\nAdding to ${BOLD}${TBL}${NOCOLOR} columns/value geohash geohash_valid" >/dev/stderr
+    echo -e -n "\nAdding to ${BOLD}${TBL}${NOCOLOR} columns/value geohash geohash_valid    " >/dev/stderr
     Add_Cols $TBL geohash geohash_valid
     # do check on longitude/latitude swap error
     if ! $MYSQL -e "UPDATE $TBL SET geohash = CAST(ST_GEOHASH(longitude,latitude,10) AS NCHAR), geohash_valid = 1, datum = datum WHERE longitude > 0 AND latitude > 0 AND latitude <= 90.0"
@@ -959,11 +960,11 @@ EOF
           AddGeoHash >/tmp/Upgrading$$ # add geohash in meta info tables
              DoMYSQL /tmp/Upgrading$$ "GeoHash MYSQL table changes"
           stop_progressing
-          start_progressing "Delete coordinates and update geohash for measurement kits. Takes 9 minutes..."
+          start_progressing "Delete coordinates and update geohash for measurement kits. Takes 11 minutes..."
           DelCoord >/tmp/Upgrading$$   # delete deprecated coordinates from tables
              DoMYSQL /tmp/Upgrading$$ "delete 'coordinate' columns in MYSQL measurement tables"
           stop_progressing
-          start_progressing "Add sensor types to measurement tables. Can take 10 minutes..."
+          start_progressing "Add sensor types to measurement tables. Can take 12 minutes..."
           Upgrade_SensorTypes          # add sensor types on measurements, update Sensors
           start_progressing "Delete unused sensors from measurement kits. Takes 1 minute..."
           CompressTable                # drop unused measurement columns
