@@ -5,7 +5,7 @@
 # copyright: 2021 teus hagen, the netherlands
 # Open Source license RPL 1.15
 # 
-# $Id: MyDB-upgrade.sh,v 1.30 2021/11/01 13:14:24 teus Exp teus $
+# $Id: MyDB-upgrade.sh,v 1.31 2021/11/01 13:21:46 teus Exp teus $
 
 DEBUG=${DEBUG:-0}       # be very verbose
 VERBOSE=${VERBOSE:-0}   # be verbose
@@ -603,9 +603,12 @@ function DelCoord() {
         $MYSQL -e "SELECT CONCAT(' and ', COUNT(geohash), ' not at home records.') FROM $TBL WHERE NOT ISNULL(geohash_valid) AND NOT geohash_valid" >/dev/stderr
       fi
       # delete coordinates column from table
-      echo "LOCK TABLES \`$TBL\` WRITE;"
-      echo "ALTER TABLE $TBL DROP COLUMN coordinates;"
-      echo 'UNLOCK TABLES;'
+      if $MYSQL -e "DESCRIBE $TBL" 2>/dev/null | grep -q coordinates
+      then
+        echo "LOCK TABLES \`$TBL\` WRITE;"
+        echo "ALTER TABLE $TBL DROP COLUMN coordinates;"
+        echo 'UNLOCK TABLES;'
+      fi
     else
       echo -e "\n${RED}Failure on table $TBL while converting coordinates column to geohash.${NOCOLOR}" >/dev/stderr
     fi
