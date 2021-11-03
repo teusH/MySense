@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.46 $"[11:-2]
+__version__ = "0." + "$Revision: 2.50 $"[11:-2]
 import inspect
 import random
 def WHERE(fie=False):
@@ -30,7 +30,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.46 2021/10/27 10:36:13 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.50 2021/11/03 17:21:48 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -60,7 +60,7 @@ def WHERE(fie=False):
         "clientID": clientID,                # MQTT client thread ID
         "keepalive": 180,                    # optional, MQTT max secs ack on repl request, dflt 180
         "topic": (topics[0][0] if len(topics) == 1 else topics), # topic to subscribe to
-        "import": TTN2MySense().RecordImport # routine to import record to internal exchange format
+        "import": (TTN2MySense()).RecordImport # routine to import record to internal exchange format
       }
     Malfunctioning broker will be deleted from the brokers list.
     Use 'resource' as name for input (backup) file, std in, or named pipe.
@@ -436,12 +436,13 @@ class MQTT_broker:
         self.verbose = verbose    # verbosity
         self.debug = debug        # more verbosity
         self.broker = broker      # TTN access details
+        if not 'import' in broker.keys(): # default data record import routine
+          broker['import'] = (TTN2MySense()).RecordImport
         if not 'port' in broker.keys(): broker['port'] = None
-        if not 'lock' in broker.keys(): # make sure timestamp sema is there
-            self.broker['lock'] = threading.RLock()
-        self.KeepAlive = 240      # connect keepalive in seconds, default 240
+        if not 'lock' in broker.keys():   # make sure timestamp sema is there
+          self.broker['lock'] = threading.RLock()
         try: self.KeepAlive = broker['keepalive']
-        except: pass
+        except: self.KeepAlive = 240      # connect keepalive, default 240 secs
         if not self.KeepAlive: self.KeepAlive = 240
         self.logger = logger      # routine to print errors
     
@@ -474,6 +475,12 @@ class MQTT_broker:
         if self.broker['restarts'] and self.message_nr > 5: self.broker['restarts'] = 0
         try:
             record = json.loads(message.payload)
+        except Exception as e:
+            # raise ValueError("Payload record is not in json format. Skipped.")
+            self._logger("ERROR","it is not json payload, error: %s" % str(e))
+            self._logger("INFO","\t%s skipped message %d received: " % (datetime.datetime.now().strftime("%m-%d %Hh%Mm"),self.message_nr) + 'topic: %s' % message.topic + ', payload: %s' % message.payload)
+            return False
+        try:
             if len(record) > 25: # primitive way to identify incorrect records
               self._logger("WARNING","TTN MQTT records overload. Skipping.")
             elif len(self.RecordQueue) > 100:
@@ -489,9 +496,7 @@ class MQTT_broker:
                 with self.broker['lock']: self.broker['timestamp']  = time.time()
             return True
         except Exception as e:
-            # raise ValueError("Payload record is not in json format. Skipped.")
-            self._logger("ERROR","it is not json payload, error: %s" % str(e))
-            self._logger("INFO","\t%s skipped message %d received: " % (datetime.datetime.now().strftime("%m-%d %Hh%Mm"),self.message_nr) + 'topic: %s' % message.topic + ', payload: %s' % message.payload)
+            sys.stderr.write("Exception as %s" % str(e))
             return False
 
     def _on_log(self, client=None, userdata=None, level=None, buf=None):
@@ -1064,7 +1069,7 @@ if __name__ == '__main__':
                 "password": password,                # Connection password
                 "clientID": clientID,                # MQTT client thread ID
                 "topic": (topics[0][0] if len(topics) == 1 else topics), # topic to subscribe to
-                "import": TTN2MySense().RecordImport # routine to import record to internal exchange format
+                "import": (TTN2MySense()).RecordImport # routine to import record to internal exchange format
                   }]
             if keepalive: rts[0]['keepalive'] = keepalive  # default 180
             return rts
@@ -1099,14 +1104,15 @@ if __name__ == '__main__':
           rts[_]['clientID'] = "%s_%d" % (clientID,_)
           try: rts[_]['resource'] = rts[_]['address']
           except: pass
-          try: rts[_]['topic']: (topics[0][0] if len(topics) == 1 else topics) # topic to subscribe to
+          try: rts[_]['topic'] = (topics[0][0] if len(topics) == 1 else topics) # topic to subscribe to
           except: pass
-          rts[_]['import']: TTN2MySense().RecordImport # routine to import record to internal exchange format
-          if keepalive: rts[_]['keepalive'] = keepalive  # default 180
+          # routine to import record to internal exchange format
+          rts[_]['import'] = (TTN2MySense()).RecordImport
+          if keepalive: rts[_]['keepalive'] = keepalive  # default 240 secs
         return rts
 
     for arg in sys.argv[1:]: # change default settings arg: <type>=<value>
-        if arg  in ['-v','--verbode']:  # be verbose
+        if arg  in ['-v','--verbose']:  # be verbose
             verbose = True; continue
         if arg  in ['-d','--debug']:    # more verbosity
             debug = True; continue
@@ -1193,6 +1199,9 @@ if __name__ == '__main__':
       exit(1)
 
     import MyDB   # use ID recognition from DB tables
+    import MyPrint # use colored output
+    Print = (MyPrint.MyPrint(output='/dev/stderr', color=True, DEBUG=False, date=True)).MyPrint
+    GREEN = 2
     # main
     TTNdata = MQTT_data(MQTTbrokers, DB=MyDB, verbose=verbose, debug=debug, logger=MyLogger.log)
 
@@ -1216,9 +1225,9 @@ if __name__ == '__main__':
           except: pass
           if monitor:
             if net:
-              print("%s:%s data record timestamp %s, TTN app:%s, id: %s" % (datetime.datetime.now().strftime("%m-%d %Hh%Mm%Ss"), (" delay %3d secs," % (time.time()-timing) if verbose else ''),datetime.datetime.fromtimestamp(int(timestamp)).strftime("%y-%m-%d %H:%M:%S") if timestamp else 'None',str(ApID),str(ID)))
+              Print("%sdata record timestamp %s, TTN app:%s, id: %s" % (("delay %3d secs, " % (time.time()-timing) if verbose else ''),datetime.datetime.fromtimestamp(int(timestamp)).strftime("%y-%m-%d %H:%M:%S") if timestamp else 'None',str(ApID),str(ID)),color=GREEN)
             else:
-              print("%s:%s data record timestamp %s, project:%s, serial: %s" % (datetime.datetime.now().strftime("%m-%d %Hh%Mm%Ss"), (" delay %3d secs," % (time.time()-timing) if verbose else ''),datetime.datetime.fromtimestamp(int(timestamp)).strftime("%y-%m-%d %H:%M:%S") if timestamp else 'None',str(ApID),str(ID)))
+              Print("%sdata record timestamp %s, project:%s, serial: %s" % (("delay %3d secs, " % (time.time()-timing) if verbose else ''),datetime.datetime.fromtimestamp(int(timestamp)).strftime("%y-%m-%d %H:%M:%S") if timestamp else 'None',str(ApID),str(ID)),color=GREEN)
             timing = time.time()
           if show and show.match(str(ID)):
             if net:

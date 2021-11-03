@@ -16,22 +16,25 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyPrint.py,v 1.7 2021/10/24 15:30:46 teus Exp teus $
+# $Id: MyPrint.py,v 1.10 2021/11/03 16:50:13 teus Exp teus $
 
 # print lines to /dev/stdout, stderr or FiFo file
-# thread buffer (max MAX).
 """ Threading to allow prints to fifo file or otherwise
 """
-__version__ = "0." + "$Revision: 1.7 $"[11:-2]
+__version__ = "0." + "$Revision: 1.10 $"[11:-2]
 
 import threading
-#import atexit
+
 import logging
 logging.basicConfig(level=logging.DEBUG,
                     format='(%(threadName)-9s) %(message)s',)
 from time import time, sleep
 import sys
 from os import path
+if sys.version[0] == '2':
+    import Queue
+else:
+    import queue as Queue
 
 # some usefull colors:
 # DFLT   0 grayish
@@ -48,7 +51,7 @@ class MyPrint:
     # initialize variables for this thread instance
     def __init__(self, output=sys.stderr, color=False, fifo=False, **args):
         self.fifo = fifo
-        self.color = False          # use colorize on terminal output
+        self.color = color          # use colorize on terminal output
         self.colorize = None
         self.fd = None
         if type(output) is str:
@@ -79,19 +82,16 @@ class MyPrint:
             if output == sys.stderr: self.fd = 2
             else: self.fd = 1
         self.inits = {}
-        self.inits['MAX'] = 100      # max length buffer of output lines
+        self.queue = Queue.Queue(maxsize=100)  # FiFo queue
+        self.timeout = 5                       # timeout to retry queue
         self.inits['DEBUG'] = False
         self.inits['date'] = False  # prepend datetime string to each output line
-        self.inits['strftime'] = "%Y-%m-%d %-H:%-M:%-S" # default date format
+        self.inits['strftime'] = "%Y-%m-%d %-H:%M:%S" # default date format
         for key in args.keys(): self.inits[key] = args[key]
-        self.condition = threading.Condition()
-        self.bufferLock = threading.Lock()
         self.STOP = False           # stop thread
         self.RUNNING = False        # print thread is running, may wait on pipe listener
-        self.buffer = []            # fifo buffer limited size
-        # atexit.register(self.stop)  # stop clients
 
-    # output channel thread, reads from buffer
+    # output channel thread, reads from Queue
     def printer(self):
         if self.inits['DEBUG']: logging.debug('output channel thread thread started ...')
         if self.inits['date']: import datetime
@@ -105,14 +105,10 @@ class MyPrint:
             exit(1)
           if self.inits['DEBUG']: logging.debug('Named pipe listener is active.')
         try:
-          while not self.STOP:
-            with self.condition:
-              if self.inits['DEBUG']: logging.debug('Printer waiting ...')
-              self.condition.wait(20)
-              while len(self.buffer):
-                line = ''
-                with self.bufferLock:
-                  timing, line, color = self.buffer.pop(0)
+          while not self.STOP:   # stop thread
+                try:
+                  timing, line, color = self.queue.get(timeout=self.timeout)
+                except self.queue.EMPTY: continue
                 try:
                   if line:
                     if self.inits['date']:
@@ -124,11 +120,12 @@ class MyPrint:
                     # print >>self.output, timing + line
                     self.output.write(timing + line + "\n")
                     self.output.flush()
+                    self.queue.task_done()
                 except Exception as e:
                     sys.stderr.write('Error: %s\n' % str(e))
                     # logging.debug('Failed to print on output channel')
                 if self.inits['DEBUG']: logging.debug('Printed one line')
-          if self.inits['DEBUG']: logging.debug('Consumer FINISHED')
+          if self.inits['DEBUG']: logging.debug('printout thread FINISHED')
         except: pass
         try:
           if self.fifo:
@@ -140,20 +137,18 @@ class MyPrint:
         if not self.RUNNING:
             threading.Thread(name='printer', target=self.printer, args=()).start()
             sleep(1)
-        with self.condition:
-            if self.inits['DEBUG']: logging.debug('Making resource available')
-            with self.bufferLock:
-                if len(self.buffer) == self.inits['MAX']: self.buffer.pop(0)
-                self.buffer.append((time(),line,color))
-            if self.inits['DEBUG']: logging.debug('Notifying to all consumers')
-            self.condition.notifyAll()
-        sleep(0.05)
+        try: self.queue.put((time(),line,color), timeout=(self.timeout+1))
+        except self.queue.FULL: return False
+        return True
 
     def stop(self):
+        cnt = 0
+        while not self.queue.empty() and cnt < 10: # empty Queue
+           sleep(self.timeout)
+           cnt += 1
+        self.queue.join()
         self.STOP = True
-        with self.condition:
-          self.condition.notifyAll()
-        sleep(2)
+        sleep(self.timeout)
         
 if __name__ == '__main__':
     import sys
@@ -165,5 +160,5 @@ if __name__ == '__main__':
         Print = MyPrint(output='/dev/stderr', color=True, DEBUG=False, date=True)
     for i in range(100):
         Print.MyPrint('Line %d' % i, color=i)
-        if (i%3) == 0: sleep(2)
+        if (i%10) == 0: sleep(2)
     Print.stop()

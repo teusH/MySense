@@ -19,16 +19,17 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyLogger.py,v 3.9 2021/10/27 10:34:25 teus Exp teus $
+# $Id: MyLogger.py,v 3.10 2021/11/03 16:38:29 teus Exp teus $
 
 # TO DO:
 
 """ Push logging to the external world.
 """
 modulename='$RCSfile: MyLogger.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.9 $"[11:-2]
+__version__ = "0." + "$Revision: 3.10 $"[11:-2]
 
 import sys
+from time import sleep
 
 # configurable options
 __options__ = ['level','file','output','date','print']
@@ -36,20 +37,21 @@ __options__ = ['level','file','output','date','print']
 def stop():
     global Conf
     try:
-      for stop in Conf['stop']:
+      for stop in Conf['shutdown']:
         try: stop()
         except: pass
     except: pass
 
 Conf = {
     'level': 'INFO',
-    'istty': False, # should go away
+    'istty': None, # should go away
     'file' : sys.stderr,
     'fd': None,
     'output': True,
     'date': True, # prepend with date
     'print': True, # color printing
-    'stop': None
+    'shutdown': [],
+    'STOP': stop
 }
 # ===========================================================================
 # logging
@@ -74,11 +76,13 @@ def log(name,level,message): # logging to console or log file
     if not Conf['output']: return False
     def IsTTY():
         global Conf
-        if Conf['istty']: return True
+        if Conf['istty'] != None: return Conf['istty']
         try:
             # log messages go to tty
-            if Conf['file'] == None or ['/dev/stdout','/dev/stderr','/dev/tty'].index(Conf['file']) >= 0:
-                Conf['istty'] = True
+            Conf['istty'] = False
+            if Conf['file'] == None: Conf['istty'] = True
+            for _ in ['stdout','stderr','tty']:
+              if str(Conf['file']).find(_) > 0: Conf['istty'] = True
         except:
             Conf['istty'] = False
         return Conf['istty']
@@ -86,12 +90,10 @@ def log(name,level,message): # logging to console or log file
     def printc(text, color=0): # default color ansi black
         global Conf
         if type(Conf['print']) is bool and Conf['print']:
-          try: from lib import MyPrint
-          except: import MyPrint
-          Conf['print'] = MyPrint
-          try:
-            if Conf['stop'] == None: Conf['stop'] = [Conf['print'].stop]
-            else: Conf['stop'].append(Conf['print'].stop)
+          try: from lib.MyPrint import MyPrint as MyPrint
+          except: from MyPrint import MyPrint
+          Conf['print'] = MyPrint(color=IsTTY())
+          try: Conf['shutdown'].append(Conf['print'].stop)
           except: pass
         try:
           if Conf['print']:
@@ -150,13 +152,13 @@ def log(name,level,message): # logging to console or log file
       if (not 'file' in Conf.keys()) or not Conf['file']:
         Conf['file'] = sys.stderr
       try:
-        try: from lib import MyPrint
-        except: import MyPrint
+        try: from lib.MyPrint import MyPrint
+        except: from MyPrint import MyPrint
         fifo = False
         if (type(Conf['file']) is str) and Conf['file'].find('fifo=') == 0:
             fifo = True; Conf['file'] = Conf['file'][5:]
-        Conf['print'] = MyPrint.MyPrint(output=Conf['file'], color=Conf['print'], fifo=fifo, date=Conf['date'])
-        Conf['stop'] = Conf['print'].stop
+        Conf['print'] = MyPrint(output=Conf['file'], color=IsTTY(), fifo=fifo, date=Conf['date'])
+        Conf['shutdown'].append(Conf['print'].stop)
       except Exception as e:
         sys.stderr.write("Exception with loading module print color: %s\n" % str(e))
         Conf['print'] = None
@@ -170,11 +172,12 @@ def log(name,level,message): # logging to console or log file
         if level == FATAL:
             rts = Conf['fd'].log(CRITICAL,"Program is aborted.")
             # to do: handle stop multithreadings
-            try: Conf['stop']()  # stop on heigher level
-            except: sys.exit("FATAL error. Program Aborted.")
+            stop()  # stop on lower levels
+            sys.exit("FATAL error. Program Aborted.")
     else:
         printc("%s %s: %s" % (name,log_levels[int(level/10)%len(log_levels)], message),log_colors[int(level/10)%len(log_levels)])
         rts = True
+    sleep(0.2)  # give room to print thread
     return rts
     
 def show_error():               # print sys error
@@ -215,3 +218,4 @@ if __name__ == '__main__':
         elif rts == None: print("Logging undefined (syslog?)")
         else: print("Not logged")
       except Exception as e: print("Level %s log failed with '%s'" % (one, str(e)))
+    stop()
