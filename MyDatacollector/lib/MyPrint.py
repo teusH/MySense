@@ -16,12 +16,12 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyPrint.py,v 1.11 2021/11/03 19:27:53 teus Exp teus $
+# $Id: MyPrint.py,v 1.12 2021/11/03 20:49:30 teus Exp teus $
 
 # print lines to /dev/stdout, stderr or FiFo file
 """ Threading to allow prints to fifo file or otherwise
 """
-__version__ = "0." + "$Revision: 1.11 $"[11:-2]
+__version__ = "0." + "$Revision: 1.12 $"[11:-2]
 
 import threading
 
@@ -83,7 +83,7 @@ class MyPrint:
             else: self.fd = 1
         self.inits = {}
         self.queue = Queue.Queue(maxsize=100)  # FiFo queue
-        self.timeout = 5                       # timeout to retry queue
+        self.timeout = 20                      # timeout to retry queue
         self.inits['DEBUG'] = False
         self.inits['date'] = False  # prepend datetime string to each output line
         self.inits['strftime'] = "%Y-%m-%d %-H:%M:%S" # default date format
@@ -106,31 +106,28 @@ class MyPrint:
           if self.inits['DEBUG']: logging.debug('Named pipe listener is active.')
         try:
           while not self.STOP:   # stop thread
-                try:
-                  timing, line, color = self.queue.get(timeout=self.timeout)
-                except self.queue.EMPTY: continue
-                try:
-                  if line:
-                    if self.inits['date']:
-                        timing = datetime.datetime.fromtimestamp(timing).strftime(self.inits['strftime']) + '\t'
-                    else: timing = ''
-                    if (color != None) and self.color:
-                        try: line = self.colorize(line, ansi=color, fd=self.fd)
-                        except: pass
-                    # print >>self.output, timing + line
-                    self.output.write(timing + line + "\n")
-                    self.output.flush()
-                    self.queue.task_done()
-                except Exception as e:
-                    sys.stderr.write('Error: %s\n' % str(e))
-                    # logging.debug('Failed to print on output channel')
-                if self.inits['DEBUG']: logging.debug('Printed one line')
-          if self.inits['DEBUG']: logging.debug('printout thread FINISHED')
-        except: pass
-        try:
+            try:
+              timing, line, color = self.queue.get(timeout=self.timeout)
+            except: continue
+            if line == None: self.STOP = True
+            if line:
+              if self.inits['date']:
+                timing = datetime.datetime.fromtimestamp(timing).strftime(self.inits['strftime']) + '\t'
+              else: timing = ''
+              if (color != None) and self.color:
+                try: line = self.colorize(line, ansi=color, fd=self.fd)
+                except: pass
+              self.output.write(timing + line + "\n")
+              self.output.flush()
+              self.queue.task_done()
+            if self.inits['DEBUG']: logging.debug('Printed one line')
+        except Exception as e:
+          sys.stderr.write('Exception error MyPrint: %s\n' % str(e))
+          # logging.debug('Failed to print on output channel')
           if self.fifo:
             sleep(0.1); self.output = None; os.remove(self.fifo)
-        except: pass
+          if self.inits['DEBUG']: logging.debug('printout thread FINISHED')
+        self.queue.task_done()
     
     def MyPrint(self,line,color=None):
         if self.inits['DEBUG']: logging.debug('Producer thread started ...')
@@ -139,7 +136,7 @@ class MyPrint:
             sleep(1)
         try:
           self.queue.put((time(),line,color), timeout=(self.timeout+1))
-          sleep(1)  # give thread time to do something
+          sleep(0.1)  # give thread time to do something
         except self.queue.FULL: return False # skip message
         return True
 
@@ -148,9 +145,10 @@ class MyPrint:
         while not self.queue.empty() and cnt < 10: # empty Queue
            sleep(self.timeout)
            cnt += 1
-        self.queue.join()
         self.STOP = True
-        sleep(self.timeout)
+        self.MyPrint(None) # force stop
+        self.queue.join()
+        sleep(0.1)
         
 if __name__ == '__main__':
     import sys
