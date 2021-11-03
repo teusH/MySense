@@ -1199,9 +1199,9 @@ if __name__ == '__main__':
       exit(1)
 
     import MyDB   # use ID recognition from DB tables
-    import MyPrint # use colored output
-    Print = (MyPrint.MyPrint(output='/dev/stderr', color=True, DEBUG=False, date=True)).MyPrint
-    GREEN = 2
+    #import MyPrint # use colored output
+    #Print = (MyPrint.MyPrint(output='/dev/stderr', color=True, DEBUG=False, date=True)).MyPrint
+    #GREEN = 2
     # main
     TTNdata = MQTT_data(MQTTbrokers, DB=MyDB, verbose=verbose, debug=debug, logger=MyLogger.log)
 
@@ -1225,9 +1225,9 @@ if __name__ == '__main__':
           except: pass
           if monitor:
             if net:
-              Print("%sdata record timestamp %s, TTN app:%s, id: %s" % (("delay %3d secs, " % (time.time()-timing) if verbose else ''),datetime.datetime.fromtimestamp(int(timestamp)).strftime("%y-%m-%d %H:%M:%S") if timestamp else 'None',str(ApID),str(ID)),color=GREEN)
+              print("%sdata record timestamp %s, TTN app:%s, id: %s" % (("delay %3d secs, " % (time.time()-timing) if verbose else ''),datetime.datetime.fromtimestamp(int(timestamp)).strftime("%y-%m-%d %H:%M:%S") if timestamp else 'None',str(ApID),str(ID)))
             else:
-              Print("%sdata record timestamp %s, project:%s, serial: %s" % (("delay %3d secs, " % (time.time()-timing) if verbose else ''),datetime.datetime.fromtimestamp(int(timestamp)).strftime("%y-%m-%d %H:%M:%S") if timestamp else 'None',str(ApID),str(ID)),color=GREEN)
+              print("%sdata record timestamp %s, project:%s, serial: %s" % (("delay %3d secs, " % (time.time()-timing) if verbose else ''),datetime.datetime.fromtimestamp(int(timestamp)).strftime("%y-%m-%d %H:%M:%S") if timestamp else 'None',str(ApID),str(ID)))
             timing = time.time()
           if show and show.match(str(ID)):
             if net:

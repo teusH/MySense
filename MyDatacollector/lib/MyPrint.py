@@ -16,12 +16,12 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyPrint.py,v 1.10 2021/11/03 16:50:13 teus Exp teus $
+# $Id: MyPrint.py,v 1.11 2021/11/03 19:27:53 teus Exp teus $
 
 # print lines to /dev/stdout, stderr or FiFo file
 """ Threading to allow prints to fifo file or otherwise
 """
-__version__ = "0." + "$Revision: 1.10 $"[11:-2]
+__version__ = "0." + "$Revision: 1.11 $"[11:-2]
 
 import threading
 
@@ -137,8 +137,10 @@ class MyPrint:
         if not self.RUNNING:
             threading.Thread(name='printer', target=self.printer, args=()).start()
             sleep(1)
-        try: self.queue.put((time(),line,color), timeout=(self.timeout+1))
-        except self.queue.FULL: return False
+        try:
+          self.queue.put((time(),line,color), timeout=(self.timeout+1))
+          sleep(1)  # give thread time to do something
+        except self.queue.FULL: return False # skip message
         return True
 
     def stop(self):
