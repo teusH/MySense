@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.50 $"[11:-2]
+__version__ = "0." + "$Revision: 2.51 $"[11:-2]
 import inspect
 import random
 def WHERE(fie=False):
@@ -30,7 +30,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.50 2021/11/03 17:21:48 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.51 2021/11/05 14:51:41 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -60,7 +60,7 @@ def WHERE(fie=False):
         "clientID": clientID,                # MQTT client thread ID
         "keepalive": 180,                    # optional, MQTT max secs ack on repl request, dflt 180
         "topic": (topics[0][0] if len(topics) == 1 else topics), # topic to subscribe to
-        "import": (TTN2MySense()).RecordImport # routine to import record to internal exchange format
+        "import": TTN2MySense().RecordImport # routine to import record to internal exchange format
       }
     Malfunctioning broker will be deleted from the brokers list.
     Use 'resource' as name for input (backup) file, std in, or named pipe.
@@ -367,7 +367,7 @@ class TTN2MySense:
           except: pass
           if 'rx_metadata' in msg.keys():
             msg = msg['rx_metadata']
-            for i in range(len(msg)):
+            for i in list(range(len(msg))):
               gtw = {}
               if 'packet_broker' in msg[i].keys(): continue # skip brokers
               for one in ['gateway_id','rssi','snr']:
@@ -393,7 +393,7 @@ class TTN2MySense:
               val = getLocation(record['metadata']); val['GeoGuess'] = True
               meta.update({ 'geolocation': val })
             elif item[0] == 'gateways':  # list of gateways
-              for i in range(len(val)):
+              for i in list(range(len(val))):
                 gtw = {}
                 for one in ['gtw_id','rssi','snr']:
                   try:
@@ -435,12 +435,16 @@ class MQTT_broker:
         self.client = None        # MQTT connection handle
         self.verbose = verbose    # verbosity
         self.debug = debug        # more verbosity
+
         self.broker = broker      # TTN access details
         if not 'import' in broker.keys(): # default data record import routine
-          broker['import'] = (TTN2MySense()).RecordImport
+          self.broker['import'] = TTN2MySense(logger=logger).RecordImport
+        if isinstance(self.broker['import'],tuple): # a terrible hack
+          self.broker['import'] = self.broker['import'][0]
         if not 'port' in broker.keys(): broker['port'] = None
         if not 'lock' in broker.keys():   # make sure timestamp sema is there
           self.broker['lock'] = threading.RLock()
+
         try: self.KeepAlive = broker['keepalive']
         except: self.KeepAlive = 240      # connect keepalive, default 240 secs
         if not self.KeepAlive: self.KeepAlive = 240
@@ -489,7 +493,13 @@ class MQTT_broker:
               except:
                 self._logger("WARNING","exhausting record queue. Skip record: %s." % record['dev_id'])
             else:
-              record = self.broker['import'](record) # convert TTN record to MySense internal data struct
+              try:
+                #if isinstance(self.broker['import'],tuple): # a terrible hack
+                #  self.broker['import'] = self.broker['import'][0]
+                record = self.broker['import'](record) # convert TTN record to MySense internal data struct
+              except Exception as e:
+                  self._logger("ERROR","Import routine failure, error: %s" % str(e))
+                  return False
               with self.QueueLock: # queue the record
                 self.RecordQueue.append(record)
                 # in principle next should be guarded by a semaphore
@@ -694,7 +704,7 @@ class KitCache:
 
     # add key,value to a info record
     def addEntry( self, record, keys, values ):
-        for i in range(len(keys)):
+        for i in list(range(len(keys))):
           try: record[keys[i]] = values[i]
           except: record[keys[i]] = None
 
@@ -807,7 +817,7 @@ class MQTT_data:
         DB=MyDB
       self.KitInfo = KitCache(DB=DB,logger=logger)    # kit cache with DB/forwarding info
 
-      for i in range(len(self.MQTTbrokers)-1,-1,-1): # reading from file if port is 0 or None
+      for i in list(reversed(range(len(self.MQTTbrokers)))): # reading from file if port is 0 or None
         broker = self.MQTTbrokers[i]
         if not len(broker) or not type(broker) is dict:
           self.MQTTbrokers.pop(i); continue
@@ -851,7 +861,7 @@ class MQTT_data:
     # find brokers who need to be (re)started up
     def MQTTstartup(self):
       StartedOne = False
-      for indx in range(len(self.MQTTbrokers)-1,-1,-1):
+      for indx in list(reversed(range(len(self.MQTTbrokers)))):
         broker = self.MQTTbrokers[indx]
         if not broker or not type(broker) is dict:
           del self.MQTTbrokers[indx]
@@ -902,12 +912,14 @@ class MQTT_data:
     #         record = None on end of input, {} unaccepted record
     def GetData(self):
       # try to read all records from a broker backup file
-      for i in range(len(self.MQTTbrokers)-1,-1,-1): # reading from file
+      for i in list(reversed(range(len(self.MQTTbrokers)))): # reading from file
         broker = self.MQTTbrokers[i]
         if not len(broker) or not type(broker) is dict:
           self.MQTTbrokers.pop(i); continue
         if broker['port'] or not broker['fd']: continue
         try:
+          #if isinstance(broker['import'],tuple): # a terrible hack
+          #  broker['import'] = broker['import'][0]
           record = broker['import'](self.GetDataFromFile(broker['fd']))
           if record: return self.KitInfo.getDataInfo(record, FromFile=True)
           broker['fd'].close()
@@ -943,7 +955,7 @@ class MQTT_data:
           return (None,None)
 
         # reset dying connections, delete dead connections
-        for i in range(len(self.MQTTbrokers)-1,-1,-1):
+        for i in list(reversed(range(len(self.MQTTbrokers)))):
           broker = self.MQTTbrokers[i]
 
           # CONNECTED broker
@@ -1069,7 +1081,7 @@ if __name__ == '__main__':
                 "password": password,                # Connection password
                 "clientID": clientID,                # MQTT client thread ID
                 "topic": (topics[0][0] if len(topics) == 1 else topics), # topic to subscribe to
-                "import": (TTN2MySense()).RecordImport # routine to import record to internal exchange format
+                "import": TTN2MySense().RecordImport # routine to import record to internal exchange format
                   }]
             if keepalive: rts[0]['keepalive'] = keepalive  # default 180
             return rts
@@ -1098,7 +1110,7 @@ if __name__ == '__main__':
           'user': "1234567890abc",             # connection user name
           'password': "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
         }
-        for _ in range(len(new)):
+        for _ in list(range(len(new))):
           rts.append(dfltBroker.copy())
           rts[_].update(new[_])
           rts[_]['clientID'] = "%s_%d" % (clientID,_)
@@ -1107,7 +1119,7 @@ if __name__ == '__main__':
           try: rts[_]['topic'] = (topics[0][0] if len(topics) == 1 else topics) # topic to subscribe to
           except: pass
           # routine to import record to internal exchange format
-          rts[_]['import'] = (TTN2MySense()).RecordImport
+          rts[_]['import'] = TTN2MySense(logger=MyLogger.log).RecordImport
           if keepalive: rts[_]['keepalive'] = keepalive  # default 240 secs
         return rts
 
@@ -1186,7 +1198,7 @@ if __name__ == '__main__':
              "resource": file,                    # file name
              "fd": open(file,'r'),                # file handler
              "topic": (topics[0][0] if len(topics) == 1 else topics), # topic to subscribe to
-             "import": TTN2MySense().RecordImport # routine to import record to internal exchange format
+             "import": TTN2MySense(logger=MyLogger.log).RecordImport # routine to import record to internal exchange format
            })
         except:
           sys.stderr.write("ERROR: unable to read file %s\n" % file)

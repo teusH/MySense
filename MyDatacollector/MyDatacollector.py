@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.60 2021/11/01 19:13:08 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.61 2021/11/05 14:53:04 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.60 $"[11:-2]
+__version__ = "1." + "$Revision: 4.61 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -462,7 +462,7 @@ def Initialize(DB=DB, debug=debug, verbose=None):
     elif not Conf['input']:
       try: Conf['input'] = Conf['brokers'] # different key in use
       except: pass
-    for item in range(len(Conf['input'])-1,-1,-1):
+    for item in reversed(range(len(Conf['input']))):
       if not type(Conf['input'][item]) is dict:
           MyLogger.log(WHERE(True),'ERROR',"broker(s) misconfiguration: %s" % str(item))
           Conf['input'].pop(item)
@@ -471,7 +471,9 @@ def Initialize(DB=DB, debug=debug, verbose=None):
       for one in MQTTdefaults.keys(): # take over defaults
         if not one in Conf['input'][item].keys():
           if one == 'import':
-            Conf['input'][item][one] = (MyMQTTclient.TTN2MySense(logger=MyLogger.log)).RecordImport, # MQTT data to Internal Exchange Format
+            Conf['input'][item][one] = MyMQTTclient.TTN2MySense(logger=MyLogger.log).RecordImport, # MQTT data to Internal Exchange Format
+            if isinstance(Conf['input'][item][one],tuple): # a hack
+                Conf['input'][item][one] = Conf['input'][item][one][0]
           else:
             Conf['input'][item][one] = MQTTdefaults[one]
     importNotices()  # enable automatic import of notice addresses if noticefile is defined
@@ -791,7 +793,7 @@ def ValidValue(info,afield,avalue):
           return True
     except: return True
     try: info['invalids']
-    except: info['invalids'] = {fld: 0}
+    except: info['invalids'] = {fld: -1}
     try: info['invalids'][fld] += 1
     except: info['invalids'][fld] = 0
     return False

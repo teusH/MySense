@@ -2,7 +2,7 @@
 ## An outline of the data aquisition, monitoring, eventhandling and adatforwarder
 MyDatacollector is a Python application to run as a deamon service downloading measurement data from (MQTT) brokers, monitoring the measurement kit operations, handling measurement kit events, while sending event notices via email or chat service (Slack), updating meta information of the measurement kits and forwarding the data to a collection of output channels as terminal console, measurement database, and different data portales as Sensors.Community, RIVM etc.
 
-## licence
+## license
 Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
 
 Copyright (C) 2021, Behoud de Parel, Teus Hagen, the Netherlands
@@ -28,9 +28,12 @@ It is not a free beer.
 The datacollector and input/output modules are highly configurable.
 See the Python module for e.g. Conf dict for all details.
 Every input/output module can be tested on a stand alone base which eases testing and debugging. A set of examples is provided for this.
-From the commandline (and with environment variable setting as
-eg DBPASS=acacadabra, DBHOST=localhost, DBUSER=myself)
-the datacollector configuration can be changed (try help).
+The (default) init file (MyDatacollector.conf.json, see MyDatacollector.conf.json.example) defines a lot of configuration defaults.
+The database access information e.g. MySQL credentials for the tables) is taken from the init file. Database credentials may be taken from environment variables (e.g. DBPASS=acacadabra, DBHOST=localhost, DBUSER=myself)
+when the configuration item 'MyDB' in the init file is undefined.
+Broker access information has to be defined via the init file.
+
+From the command line one is able to redefine e.g. inputr and output channels.
 E.g. 'community:output=false' will switch forwarding to Sensors.Community OFF.
 
 ## input channels (broker input channel modules)
@@ -50,7 +53,7 @@ Measurement data is forwarded via a dynamic configurable scheme of output channe
 As Sensors.community does not calibrate dust data from different dust sensor manufacturers, if possible the dust data is corrected via a regression scheme (measurements from 3 different dust sensors over a period of half a year in 2020) to the sensors from Sensirion. If needed a simple configuration change it can be switched of or to use a different sensor type. See Conf dict in MyCOMMUNITY module for more details.
 
 The MySQL database (luchtmetingen) has for every measurement kit a measurement table 'project_serial'. If the kit is set 'active' (see meta data section Sensors table) the table will be automatically created and will have so called 'field's for every sensor field it encounters. Fields or columns are automaitcally added on the fly. Every measurement entry will have an id, timestamp, field(s), field validation (None if kist is in repair), and 'sensors' (senor type names configured in the kit).
-Project name and seriaid are the reference id used in other (meta) database tables.
+Project name and kit serial id are defining the reference id used in other (meta) database tables.
 
 The output channel modules API is done via the module 'publish' routine.
 Routine arguments:
@@ -116,7 +119,7 @@ import datetime
 import dateutil
 import email.mime
 try: import pygeohash
-except: import geohash
+except: import geohash # if not use copy python3 module
 import geopy
 import inspect
 import jsmin
@@ -128,6 +131,8 @@ import mysql
 import os
 import paho.mqtt
 import platform
+try: import queue
+except: import Queue
 import random
 import re
 import requests 

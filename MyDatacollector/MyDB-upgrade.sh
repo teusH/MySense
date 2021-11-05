@@ -5,7 +5,7 @@
 # copyright: 2021 teus hagen, the netherlands
 # Open Source license RPL 1.15
 # 
-# $Id: MyDB-upgrade.sh,v 1.32 2021/11/01 15:24:06 teus Exp teus $
+# $Id: MyDB-upgrade.sh,v 1.34 2021/11/04 11:29:04 teus Exp teus $
 
 DEBUG=${DEBUG:-0}       # be very verbose
 VERBOSE=${VERBOSE:-0}   # be verbose
@@ -173,7 +173,7 @@ function Add_Cols() {
           fi
         ;;
         TTN_app) # add TTN app_id, default: 201082251971az TBL: TTNtable
-          $MYSQL -e "ALTER TABLE $TBL ADD COLUMN $FLD varchar(32) DEFAULT '201082251971az' COMMENT 'TTN application ID'"
+          $MYSQL -e "ALTER TABLE $TBL ADD COLUMN $FLD varchar(32) DEFAULT '201802251971az' COMMENT 'TTN application ID'"
         ;;
         housenr) # house nr in street TBL: Sensors
           $MYSQL -e "ALTER TABLE $TBL ADD COLUMN $FLD varchar(6) DEFAULT NULL COMMENT 'house nr in street'"
@@ -437,7 +437,7 @@ function Indicator() {
 function Upgrade_SensorTypes() {
    local TMP PROJ SER IND TYPES SENS CNT S
 
-   echo -e "${BOLD}Adding sensor types for every measurement in table: ${*:-all active}${NOCOLOR}." >/dev/stderr
+   echo -e "\n${BOLD}Adding sensor types for every measurement in table: ${*:-all active}${NOCOLOR}." >/dev/stderr
    for TMP in `GetTables ${*:-active}`
    do
      PROJ="${TMP/_*/}"
@@ -621,7 +621,7 @@ function DelCoord() {
 # delete unused columns from a measurement table
 function CompressTable() {
    local TBL SENSORS SENS SQL TMP
-   echo -e "${BOLD}Deleting unused sensors columns from measurements table ${*:-all active} table(s)${NOCOLOR}" >/dev/stderr
+   echo -e "\n${BOLD}Deleting unused sensors columns from measurements table ${*:-all active} table(s)${NOCOLOR}" >/dev/stderr
    for TBL in `GetTables ${*:-active}`
    do
      TBL="${TBL/@*/}"
@@ -688,7 +688,7 @@ function DoMYSQL() {
 # add geohash columns altitude and housenr to Sensors, DBactive, TTN_app to TTNtable
 # update Sensors with geohash, leave coordinates column as is.
 function AddGeoHash() {
-    echo -e "${BOLD}Upgrade from coordinate to geohash in Sensors and TTNtable.${NOCOLOR}" >/dev/stderr
+    echo -e "\n${BOLD}Upgrade from coordinate to geohash in Sensors and TTNtable.${NOCOLOR}" >/dev/stderr
     # generate SQL for upgrade from coordinates to geohash columns
     # deprecate coordinates, update 'street nr' to 'street' and 'nr'
     Add_Cols Sensors geohash altitude housenr    # alter Sensors table for geo fields
