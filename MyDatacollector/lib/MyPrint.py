@@ -16,12 +16,12 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyPrint.py,v 1.12 2021/11/03 20:49:30 teus Exp teus $
+# $Id: MyPrint.py,v 1.13 2021/11/06 14:55:05 teus Exp teus $
 
 # print lines to /dev/stdout, stderr or FiFo file
 """ Threading to allow prints to fifo file or otherwise
 """
-__version__ = "0." + "$Revision: 1.12 $"[11:-2]
+__version__ = "0." + "$Revision: 1.13 $"[11:-2]
 
 import threading
 
@@ -83,7 +83,7 @@ class MyPrint:
             else: self.fd = 1
         self.inits = {}
         self.queue = Queue.Queue(maxsize=100)  # FiFo queue
-        self.timeout = 20                      # timeout to retry queue
+        self.timeout = 0.1                     # timeout to retry queue
         self.inits['DEBUG'] = False
         self.inits['date'] = False  # prepend datetime string to each output line
         self.inits['strftime'] = "%Y-%m-%d %-H:%M:%S" # default date format
@@ -133,10 +133,10 @@ class MyPrint:
         if self.inits['DEBUG']: logging.debug('Producer thread started ...')
         if not self.RUNNING:
             threading.Thread(name='printer', target=self.printer, args=()).start()
-            sleep(1)
+            sleep(0.1)
         try:
           self.queue.put((time(),line,color), timeout=(self.timeout+1))
-          sleep(0.1)  # give thread time to do something
+          #sleep(self.timeout)  # give thread time to do something
         except self.queue.FULL: return False # skip message
         return True
 
@@ -148,10 +148,11 @@ class MyPrint:
         self.STOP = True
         self.MyPrint(None) # force stop
         self.queue.join()
-        sleep(0.1)
+        sleep(self.timeout)
         
 if __name__ == '__main__':
     import sys
+    from random import randrange
     if len(sys.argv) > 1:
         if sys.argv[1].find('fifo=') >= 0:
             Print = MyPrint(output=sys.argv[1][5:], fifo=True, date=True)
@@ -159,6 +160,6 @@ if __name__ == '__main__':
     else:
         Print = MyPrint(output='/dev/stderr', color=True, DEBUG=False, date=True)
     for i in range(100):
-        Print.MyPrint('Line %d' % i, color=i)
-        if (i%10) == 0: sleep(2)
+        Print.MyPrint('Color nr %d of 100' % i, color=i)
+        if (i%3) == 0: sleep(randrange(20)/10.0)
     Print.stop()
