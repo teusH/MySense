@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.61 2021/11/05 14:53:04 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.63 2021/11/06 12:26:23 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.61 $"[11:-2]
+__version__ = "1." + "$Revision: 4.63 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -561,7 +561,8 @@ def email_message(message, you):
     # you == the recipient's email address
     if not type(you) is list: you = you.split(',')
     you = UniqAddress(you)
-    msg['Subject'] = 'MySense: TTN data collector service notice'
+    # msg['Subject'] = 'MySense: TTN data collector service notice'
+    msg['Subject'] = 'MySense: TTN data collector service TEST notice'
     msg['From'] = Conf['from']
     msg['To'] = ','.join(you)
     if debug:
@@ -668,6 +669,8 @@ def sendNotice(message,info=None,all=False):
                   except: pass
                 else: extra.append('%s: %s' % (item,kitID[item]))
             extra = 'Some more MySense kit details:' + "\n\t".join(extra)
+            # comment next if in beta test
+            extra += "\n\nMessage is a beta test message: please ignore this message."
         except: pass
     else:
       try: id = infoID['project']
@@ -1489,12 +1492,6 @@ def Data2Frwrd(info, data):
     try: rtsMsg += IsRestarting((now-info['last_seen'] if info['last_seen'] else None), info)
     except: pass
 
-    # Is there a need to throttle the kit data production?
-    if 'data' in data.keys() and data['data']:
-      rts = IsBehavingKit(info,now)
-      if rts: return (info,{},[rts])
-    info['last_seen'] = now
-
     # if measurement kit is disabled, skip forwarding
     try:
       rts = kitIsEnabled(info,data)
@@ -1537,12 +1534,22 @@ def Data2Frwrd(info, data):
     except Exception as e:
       HsM = 0; rtsMsg.append("Has measurements error")
       MyLogger.log(WHERE(True),'ERROR',"Exception '%s' raised with HasMeasurements() on %s/%s data '%s'" % (str(e),info['id']['project'],info['id']['serial'], str(data)))
-
     rtsMsg = sorted(list(set(rtsMsg)))# sorted list of artifacts
+
     if DBchanges: updateSensorsTbl(info,DBchanges)
     if not HsM: # no sensor measurements in this record
+      info['last_seen'] = now
       return (info,{},rtsMsg)
-    else: return (info,data,['Forward data']+rtsMsg)  # RETURN info,data,artifacts
+    else: # has sensor measurements in this record
+      # Is there a need to throttle the kit data production?
+      rts = IsBehavingKit(info,now)
+      if rts:
+        rtsMsg.append(rts)
+        return (info,{},rtsMsg)
+      else:
+        info['last_seen'] = now
+        return (info,data,['Forward data']+rtsMsg)  # RETURN info,data,artifacts
+
       
 # get a data record from input queue and forward it
 ErrorCnt = 0
