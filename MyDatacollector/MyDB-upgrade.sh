@@ -5,7 +5,7 @@
 # copyright: 2021 teus hagen, the netherlands
 # Open Source license RPL 1.15
 # 
-# $Id: MyDB-upgrade.sh,v 1.34 2021/11/04 11:29:04 teus Exp teus $
+# $Id: MyDB-upgrade.sh,v 1.35 2021/11/07 15:46:16 teus Exp teus $
 
 DEBUG=${DEBUG:-0}       # be very verbose
 VERBOSE=${VERBOSE:-0}   # be verbose
@@ -172,8 +172,8 @@ function Add_Cols() {
             $MYSQL -e "ALTER table $TBL DROP COLUMN active"
           fi
         ;;
-        TTN_app) # add TTN app_id, default: 201082251971az TBL: TTNtable
-          $MYSQL -e "ALTER TABLE $TBL ADD COLUMN $FLD varchar(32) DEFAULT '201802251971az' COMMENT 'TTN application ID'"
+        TTN_app) # add TTN app_id, default: 201082215971az TBL: TTNtable
+          $MYSQL -e "ALTER TABLE $TBL ADD COLUMN $FLD varchar(32) DEFAULT '201802215971az' COMMENT 'TTN application ID'"
         ;;
         housenr) # house nr in street TBL: Sensors
           $MYSQL -e "ALTER TABLE $TBL ADD COLUMN $FLD varchar(6) DEFAULT NULL COMMENT 'house nr in street'"

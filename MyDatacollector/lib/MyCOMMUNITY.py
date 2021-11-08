@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyCOMMUNITY.py,v 4.14 2021/10/26 14:03:43 teus Exp teus $
+# $Id: MyCOMMUNITY.py,v 4.15 2021/11/08 14:22:58 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program.
 """
 __modulename__='$RCSfile: MyCOMMUNITY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 4.14 $"[11:-2]
+__version__ = "0." + "$Revision: 4.15 $"[11:-2]
 import re
 import inspect
 def WHERE(fie=False):
@@ -199,7 +199,7 @@ def PostError(key,cause,timeout=None):
        Posts[key] = { 'timeout':timeout + 60*60*(48 if key.find('madavi') > 0 else 1), 'warned': 6}
        return 
    elif not key in Posts.keys():
-       Posts[key] = { 'timeout': int(time>()) + 60*60, 'warned': 1 }
+       Posts[key] = { 'timeout': int(time()) + 60*60, 'warned': 1 }
    else:
        Posts[key]['warned'] += 1
        if Posts[key]['warned'] > 5: Posts[key]['timeout'] = int(time()) + 1*60*60
