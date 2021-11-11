@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyCOMMUNITY.py,v 4.15 2021/11/08 14:22:58 teus Exp teus $
+# $Id: MyCOMMUNITY.py,v 5.2 2021/11/11 10:28:13 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program.
 """
 __modulename__='$RCSfile: MyCOMMUNITY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 4.15 $"[11:-2]
+__version__ = "0." + "$Revision: 5.2 $"[11:-2]
 import re
 import inspect
 def WHERE(fie=False):
@@ -52,11 +52,36 @@ try:
     import signal
     from time import time
     import re
+    import threading
+    if sys.version[0] == '2':
+      import Queue
+    else:
+      import queue as Queue
+
 except ImportError as e:
     sys.exit("FATAL: One of the import modules not found: %s" % e)
 
 # configurable options
 __options__ = ['output','id_prefix', 'timeout', 'notForwarded','active','calibrate','DEBUG']
+
+HTTP_POST = {}
+#  per hostname: {
+#          'queue': None,
+#          'stop': False,
+#          'running': False,
+#          'timeout': 0,   # optional in case of error or timeout
+#          'warned': 0,    # optional
+#          'url': None
+#       }
+def HTTPstop():
+    global HTTP_POST
+    for on in HTTP_POST.keys():
+      try:
+        one['stop'] = True
+        if not one['running']: continue
+        with one['queue'].mutex: one['queue'].clear()
+        one['queue'].put((None,[]),timeout=5)
+      except: pass
 
 Conf = {
     'output': False,
@@ -69,10 +94,11 @@ Conf = {
     'calibrate': True,   # calibrate values to default sensor type for Community pin nr
     'active': True,      # output to sensors.community maps is also activated
     'registrated': None, # has done initial setup
-    'timeout': 3*30,     # timeout on wait of http request result in seconds
+    'timeout': 4*30,     # timeout on wait of http request result in seconds
     'log': None,         # MyLogger log print routine
     'message': None,     # event message from this module, eg skipping output
     'DEBUG': False,      # debugging info
+    'stop': HTTPstop,    # stop HTTP POST threads
 }
 
 # ========================================================
@@ -81,6 +107,8 @@ Conf = {
 # once per session registrate and receive session cookie
 # =======================================================
 # TO DO: this needs to have more security in it e.g. add apikey signature
+#        the community server is slow in responses: change this to multithreading and queueing
+
 def registrate():
     global Conf
     if Conf['registrated'] != None: return Conf['registrated']
@@ -160,49 +188,12 @@ def send2Community(info,values, timestamp=None):
         raise IOError("Exception ERROR in post2Community as %s\n" % str(e))
     return Rslt
         
-# seems https may hang once a while
+# seems https may hang once a while Signal works only in main thread
 import signal
 def alrmHandler(signal,frame):
     global Conf
     Conf['log'](WHERE(True),'ATTENT','HTTP POST hangup, post aborted. Alarm nr %d' % signal)
     # signal.signal(signal.SIGALRM,None)
-
-def watchOn(url):
-    if url[:6] != 'https:': return None
-    rts = [None,0,0]
-    rts[0] = signal.signal(signal.SIGALRM,alrmHandler)
-    rts[1] = int(time())
-    rts[2] = signal.alarm(Conf['timeout'])
-    return rts
-
-def watchOff(prev):
-    if prev == None: return 1
-    alrm = signal.alarm(0)
-    if prev[0] and (prev[0] != alrmHandler):
-        signal.signal(signal.SIGALRM,prev[0])
-        if prev[2] > 0: # another alarm and handler was active
-            prev[1] = prev[2] - (int(time()) - prev[1])
-            if prev[1] <= 0:
-                prev[1] = 1
-            signal.alarm(prev[1])
-    return alrm
-    
-# do an HTTP POST to [ Madavi.de, Luftdaten, ...]
-Posts = {}
-def PostError(key,cause,timeout=None):
-   global Posts, Conf
-   try:
-       Conf['log'](WHERE(True),'ERROR',"For %s: %s" % (key,cause))
-   except: pass
-   if timeout: # no warnings case
-       # madavi.de seems to forbid most traffic since May 2020, check every 2 days
-       Posts[key] = { 'timeout':timeout + 60*60*(48 if key.find('madavi') > 0 else 1), 'warned': 6}
-       return 
-   elif not key in Posts.keys():
-       Posts[key] = { 'timeout': int(time()) + 60*60, 'warned': 1 }
-   else:
-       Posts[key]['warned'] += 1
-       if Posts[key]['warned'] > 5: Posts[key]['timeout'] = int(time()) + 1*60*60
 
 ####### examples
 # from: https://discourse.nodered.org/t/send-data-from-local-dust-sensor-to-lufdaten/25943/8 2021-09-12
@@ -310,11 +301,132 @@ def PostError(key,cause,timeout=None):
 #     }
 #######
 
+#  HTTP_POST dict: per hostname {
+#          'queue': None,
+#          'stop': False,
+#          'running': False,
+#          'timeout': 0,   # optional in case of error or timeout
+#          'warned': 0,    # optional
+#          'url': None
+#       }
+# HTTP POST thread. One thread per host? For now only Luftdaten   ############ POST THREAD
+# To Do: use Python multiprocessing and queue
+def HTTPposter(ahost):
+    global Conf, HTTP_POST
+    try:
+      host = HTTP_POST[ahost]
+      if not host['url'] or not host['queue']: raise ValueError()
+      if host['stop']: return False
+    except:
+      Conf['log'](WHERE(True),'ERROR',"HTTP POST config error for host '%s'" % str(host))
+      return False
+
+    def PostTimeout(timeout=None):
+      if timeout: # no warning case
+        # madavi.de seems to forbid most traffic since May 2020, check every 2 days
+        host['timeout'] = timeout + 60*60*(48 if ahost.find('madavi') > 0 else 1)
+        host['warned'] = 6
+      elif not 'timeout' in host.keys() or not host['timeout']:
+        host['timeout'] = int(time()) + 60*60; host['warned'] = 1
+      else:
+        host['warned'] += 1
+        if host['warned'] > 5: host['timeout'] = int(time()) + 1*60*60
+
+    def DumpPost(id,ahost,adata,status):
+      global Conf
+      sys.stderr.write("Community ID %s%s POST to %s:\n" % (Conf['id_prefix'],id,ahost['url']))
+      sys.stderr.write("    Headers: %s\n" % str(adata[0]))
+      sys.stderr.write("    Body (json data): %s\n" % str(json.dumps(adata[1],indent=2)))
+      sys.stderr.write("    Timeout: %s secs\n" % str(Conf['timeout']))
+      sys.stderr.write("    returns: %d\n" % status)
+
+    host['running'] = True; ID = None; data = None; PostSkip = {}
+    while not host['stop']:   # run loop
+      if 'timeout' in host.keys() and int(time()) < host['timeout']:  # POSTs should wait
+        sleep(10)
+        if host['queue'].full():
+          try:
+            ID, data = host['queue'].get(timeout=30)
+          except: continue
+        continue
+      if data == None:  # get new post record
+        try:
+          ID, data = host['queue'].get(timeout=30)
+        except: continue
+      if ID == None:   # stop thread
+        host['running'] = False; host['stop'] = True
+        return False # exit thread
+
+      #sys.stderr.write("Got a record for ID %s, data %s\n" % (ID, str(data)))
+      #timing = time()
+      try:                           # connect and POST to Sensors.Community
+        if not data or not data[1]: continue
+        try:
+          if PostSkip[host]%20:
+            PostSkip[host] += 1; continue
+        except: pass
+
+        #timing = time()
+        if Conf['id_prefix'] != 'TTN-':  # TEST MODUS: do not POST
+          ok_status = 200
+          DumpPost(ID,host,data,ok_status)
+          ok = True
+        else:
+          #timing = time()
+          r = requests.post(host['url'], json=data[1], headers=data[0], timeout=Conf['timeout'])
+          #sys.stderr.write("Request took %.2f secs\n" % (time()-timing))
+          ok = r.ok; ok_status = r.status_code
+
+        Conf['log'](WHERE(True),'DEBUG','Post to %s returned status: %d' % (ahost,ok_status))
+        if Conf['DEBUG']:
+          if not ok:
+            DumpPost(ID,host,data,ok_status)
+          else:
+            sys.stderr.write("%s POST %s OK(%d) to %s ID(%s).\n" % (ahost,ID,ok_status,ahost,data[0]['X-Sensor']))
+        data = None  # try next post record
+        if ok:                       # POST OK
+          if 'timeout' in host.keys() and host['timeout']:
+            Conf['log'](WHERE(),'ATTENT','Postage to %s recovered. OK.' % ahost)
+            host['timeout'] = 0; host['warned'] = 0 # clear errors
+          Conf['log'](WHERE(True),'DEBUG','Sent %s postage to %s OK.' % (ID,ahost))
+          if ID in PostSkip.keys(): del PostSkip[ID]
+        else:                        # POST NOT OK, skipped
+          if ok_status == 403 or ok_status == 400:
+            try: PostSkip[ID] += 1
+            except: PostSkip[ID] = 0
+            if ok_status == 403: # may need to stop forwarding
+              if not PostSkip[ID]%100:
+                Conf['log'](WHERE(),'ATTENT','Post %s to %s ID %s returned status code: forbidden (403)' % (ID,ahost,data[0]['X-Sensor']))
+            elif ok_status == 400:
+              if not PostSkip[ID]%100:
+                Conf['log'](WHERE(),'ATTENT','Not registered POST %s to %s with header: %s, data %s and ID %s, status code: 400' % (ID,ahost,str(data[0]),str(json.dumps(data[1])),data[0]['X-Sensor']))
+          else: # temporary error?
+            Conf['log'](WHERE(),'ATTENT','Post %s with ID %s returned status code: %d' % (ID,data[0]['X-Sensor'],ok_status))
+        continue
+
+      # try to post it again
+      except requests.ConnectionError as e:
+        if str(e).find('Interrupted system call') < 0: # if so watchdog interrupt
+          Conf['log'](WHERE(True),'ERROR','Connection error: ' + str(e))
+          timeout = int(time())+2*60*60
+        #sys.stderr.write("Request took %.2f secs\n" % (time()-timing))
+      except requests.exceptions.Timeout as e:
+        Conf['log'](WHERE(),'ERROR','HTTP %d sec request timeout POST error with ID %s' % (Conf['timeout'],data[0]['X-Sensor']))
+        #sys.stderr.write("Request took %.2f secs\n" % (time()-timing))
+      except Exception as e:
+        if str(e).find('EVENT') >= 0:
+          raise ValueError(str(e)) # send notice event
+        Conf['log'](WHERE(),'ERROR','Error: %s. Stop POST thread for host %s.' % (str(e),ahost))
+        host['stop'] = True
+        # PostTimeout(timeout=int(time()+10))
+###########                              END OF POST THREAD
+      
 # to each element of array of POST URL's, 
 #    POST all posting elements tuple of type, header dict and data dict
 def post2Community(postTo,postings,ID):
     global Conf, Posts, sense_table
-    def getCategory(PinNr):
+    global HTTP_POST
+    def getCategory(PinNr):  # get category name like dust, meteo via pin number
         global sense_table
         ctgr = ''
         for cat, types in sense_table.items():
@@ -336,83 +448,38 @@ def post2Community(postTo,postings,ID):
       if host > 0: host = url[host+3:url.find('/',host+3)]
       else: # just make a guess
         host = ('api.luftdaten.info' if url.find('luftdaten') > 0 else 'api-rrd.madavi.de')
-      key = ID + '@' + host.split('.')[1]
-      # avoid holding up other posts and input
-      if key in Posts.keys():
-        if int(time()) < Posts[key]['timeout']:
-          if Posts[key]['warned'] == 6:
-            Conf['log'](WHERE(True),'ATTENT','HTTP too many connect errors: ID@URL %s skipping up to %s' % (key,datetime.datetime.fromtimestamp(Posts[key]['timeout']).strftime("%Y-%m-%d %H:%M")) )   
-            if key.find('madavi') < 0: # if unimportant host no message
-              Conf['message'] = 'HTTP POST connection failuring: ID@URL %s.\nSkip postages up to %s' % (key,datetime.datetime.fromtimestamp(Posts[key]['timeout']).strftime("%Y-%m-%d %H:%M"))
-          if Posts[key]['warned'] > 5: # after 5 warnings just skip till timeout
-            Posts[key]['warned'] += 1
-            continue
-        else: del Posts[key] # reset
+      if not host in HTTP_POST.keys():
+        HTTP_POST[host] = {
+            'queue':  Queue.Queue(maxsize=100), 'url': url,
+            'stop': False, 'running': False }
+        threading.Thread(name='HTTPposter', target=HTTPposter, args=(host,)).start()
+      for _ in range(5):
+        if HTTP_POST[host]['stop']: return False
+        if HTTP_POST[host]['running']: break
+        sleep(0.1)
+      if not HTTP_POST[host]['running']:
+        Conf['log'](WHERE(True),'ERROR',"Post thread does not run start host %s. Skipping." % host)
+        Conf['output'] = False
+        return False
 
       timeout = 6
       for data in postings:
-        category = getCategory(int(data[0]['X-Pin']))
+        try:
+          HTTP_POST[host]['queue'].put((ID,data), timeout=(timeout+1))
+          cat = getCategory(int(data[0]['X-Pin'])); IDhost = "%s@%s" % (ID,host.split('.')[1])
+          try: rts[IDhost].append(cat)
+          except: rts[IDhost] = [cat]
+          #sleep(self.timeout)  # give thread time to do something
+        except HTTP_POST[host]['queue'].FULL:
+          Conf['log'](WHERE(True),'ATTENT',"Postage queue full timeout. Skip record to host %s" % host)
+          sleep(timeout)  # give thread time to do something
+          break
+        except:
+          Conf['log'](WHERE(True),'ERROR',"HTTP POST queue put error for host %s. Skipping." % host)
+          break
 
-        if Conf['id_prefix'] != 'TTN-':  # TEST MODUS: do not POST
-          sys.stderr.write("Post to: %s\n" % url)
-          sys.stderr.write("Headers: %s\n" % str(data[0]))
-          sys.stderr.write("Body (json data): %s\n" % str(json.dumps(data[1],indent=2)))
-          sys.stderr.write("Timeout: %s secs\n" % str(timeout))
-          try: rts[key].append(category)
-          except: rts[key] = [category]
-        else:
-
-          try:                           # connect and POST to Sensors.Community
-            prev = watchOn(host)         # set timeout to avoid long hang
-            r = requests.post(url, json=data[1], headers=data[0], timeout=timeout)
-            Conf['log'](WHERE(True),'DEBUG','Post %s returned status: %d' % (host,r.status_code))
-            #if not r.ok:
-            #  sys.stderr.write("Luftdaten %s POST to %s:\n" % (ID,url))
-            #  sys.stderr.write("     headers: %s\n" % str(data[0]))
-            #  sys.stderr.write("     data   : %s\n" % str(json.dumps(data[1])))
-            #  sys.stderr.write("     returns: %d\n" % r.status_code)
-            if Conf['DEBUG']:
-              if not r.ok:
-                sys.stderr.write("Luftdaten ID %s POST to %s:\n" % (ID,url))
-                sys.stderr.write("     headers: %s\n" % str(data[0]))
-                sys.stderr.write("     data   : %s\n" % str(json.dumps(data[1])))
-                sys.stderr.write("     returns: %d\n" % r.status_code)
-              else:
-                sys.stderr.write("%s POST %s OK(%d) to %s ID(%s).\n" % (host,ID,r.status_code,host,data[0]['X-Sensor']))
-            if not r.ok:
-              if r.status_code == 403:
-                PostError(key,'Post %s to %s ID %s returned status code: forbidden (%d)' % (ID,host,data[0]['X-Sensor'],r.status_code), int(time())+2*60*60)
-              elif r.status_code == 400:
-                # PostError(key,'Not registered post %s to %s with ID %s, status code: %d' % (ID,host,data[0]['X-Sensor'],r.status_code),int(time())+1*60*60)
-                PostError(key,'Not registered post %s to %s with header: %s, data %s and ID %s, status code: %d' % (ID,host,str(data[0]),str(json.dumps(data[1])),data[0]['X-Sensor'],r.status_code),int(time())+1*60*60)
-                # raise ValueError("EVENT Not registered %s POST for ID %s" % (url,data[0]['X-Sensor']))
-              else: # temporary error?
-                PostError(key,'Post %s with ID %s returned status code: %d' % (ID,data[0]['X-Sensor'],r.status_code))
-              break
-            else: # POST OK
-              if key in Posts.keys():
-                Conf['log'](WHERE(),'ATTENT','Postage to %s recovered. OK.' % key)
-                del Posts[key] # clear errors
-              Conf['log'](WHERE(True),'DEBUG','Sent %s postage to %s OK.' % (ID,key))
-              try: rts[key].append(category)
-              except: rts[key] = [category]
-          except requests.ConnectionError as e:
-            if str(e).find('Interrupted system call') < 0: # if so watchdog interrupt
-              PostError(key,'Connection error: ' + str(e))
-          except requests.exceptions.Timeout as e:
-            PostError(key,'HTTP %d sec request timeout POST error with ID %s' % (timeout,data[0]['X-Sensor']))
-          except Exception as e:
-            if str(e).find('EVENT') >= 0:
-              raise ValueError(str(e)) # send notice event
-            PostError(key,'Error: ' + str(e))
-          if not watchOff(prev): # 5 X tryout, then timeout on this url
-            PostError(key,'HTTP %d sec timeout error with ID %s' % (Conf['timeout'],data[0]['X-Sensor']))
-            break  # no more POSTs to this host for a while
-      # end of postings loop to one host
-    # end of URL loop
     if rts:
       return ['%s (%s)' % (a,', '.join(v)) for (a,v) in rts.items() ]
-      # return ['%s (%s)' % (a,', '.join(set(v))) for (a,v) in rts.items() ]
     return False
 
 # publish argument examples
@@ -711,6 +778,7 @@ if __name__ == '__main__':
             print("Sleep for %d seconds" % timings)
             sleep(timings)
 
+    Conf['stop']() # stop HTTP POST threads
     # just a hack to exit also with blocked threads
     import os
     import signal
