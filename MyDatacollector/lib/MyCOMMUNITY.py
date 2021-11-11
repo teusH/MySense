@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyCOMMUNITY.py,v 5.3 2021/11/11 11:40:39 teus Exp teus $
+# $Id: MyCOMMUNITY.py,v 5.4 2021/11/11 12:57:17 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program.
 """
 __modulename__='$RCSfile: MyCOMMUNITY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.3 $"[11:-2]
+__version__ = "0." + "$Revision: 5.4 $"[11:-2]
 import re
 import inspect
 def WHERE(fie=False):
@@ -341,6 +341,7 @@ def HTTPposter(ahost):
       sys.stderr.write("    returns: %d\n" % status)
 
     host['running'] = True; ID = None; data = None; PostSkip = {}
+    tmin = 1000; tmax = 0; tcnt = 0; tavg = 0.0
     while not host['stop']:   # run loop
       if 'timeout' in host.keys() and int(time()) < host['timeout']:  # POSTs should wait
         sleep(10)
@@ -359,6 +360,7 @@ def HTTPposter(ahost):
 
       #sys.stderr.write("Got a record for ID %s, data %s\n" % (ID, str(data)))
       #timing = time()
+      #sys.stderr.write("Queue size: %d\n" % (host['queue'].qsize()+1))
       try:                           # connect and POST to Sensors.Community
         if not data or not data[1]: continue
         try:
@@ -374,7 +376,9 @@ def HTTPposter(ahost):
         else:
           #timing = time()
           r = requests.post(host['url'], json=data[1], headers=data[0], timeout=Conf['timeout'])
-          #sys.stderr.write("Request took %.2f secs\n" % (time()-timing))
+          #timing = time()-timing
+          #tmin = min(tmin,timing); tmax = max(tmax,timing); tcnt += 1; tavg += (timing-tavg)/tcnt
+          #sys.stderr.write("Request took %.2f secs, min %.2f - avg %.2f - max %.2f\n" % (timing,tmin,tavg,tmax))
           ok = r.ok; ok_status = r.status_code
 
         Conf['log'](WHERE(True),'DEBUG','Post to %s returned status: %d' % (ahost,ok_status))
@@ -398,7 +402,8 @@ def HTTPposter(ahost):
                 Conf['log'](WHERE(),'ATTENT','Post %s to %s ID %s returned status code: forbidden (403)' % (ID,ahost,data[0]['X-Sensor']))
             elif ok_status == 400:
               if not PostSkip[ID]%100:
-                Conf['log'](WHERE(),'ATTENT','Not registered POST %s to %s with header: %s, data %s and ID %s, status code: 400' % (ID,ahost,str(data[0]),str(json.dumps(data[1])),data[0]['X-Sensor']))
+                Conf['log'](WHERE(),'ATTENT','Not registered POST %s to %s with ID %s, count %d' % (ID,ahost,data[0]['X-Sensor'],PostSkip[ID]))
+                #Conf['log'](WHERE(),'ATTENT','Not registered POST %s to %s with header: %s, data %s and ID %s, status code: 400' % (ID,ahost,str(data[0]),str(json.dumps(data[1])),data[0]['X-Sensor']))
           else: # temporary error?
             Conf['log'](WHERE(),'ATTENT','Post %s with ID %s returned status code: %d' % (ID,data[0]['X-Sensor'],ok_status))
         data = None  # try next post record
