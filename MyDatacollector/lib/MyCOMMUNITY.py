@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyCOMMUNITY.py,v 5.2 2021/11/11 10:28:13 teus Exp teus $
+# $Id: MyCOMMUNITY.py,v 5.3 2021/11/11 11:40:39 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program.
 """
 __modulename__='$RCSfile: MyCOMMUNITY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.2 $"[11:-2]
+__version__ = "0." + "$Revision: 5.3 $"[11:-2]
 import re
 import inspect
 def WHERE(fie=False):
@@ -383,7 +383,6 @@ def HTTPposter(ahost):
             DumpPost(ID,host,data,ok_status)
           else:
             sys.stderr.write("%s POST %s OK(%d) to %s ID(%s).\n" % (ahost,ID,ok_status,ahost,data[0]['X-Sensor']))
-        data = None  # try next post record
         if ok:                       # POST OK
           if 'timeout' in host.keys() and host['timeout']:
             Conf['log'](WHERE(),'ATTENT','Postage to %s recovered. OK.' % ahost)
@@ -402,6 +401,7 @@ def HTTPposter(ahost):
                 Conf['log'](WHERE(),'ATTENT','Not registered POST %s to %s with header: %s, data %s and ID %s, status code: 400' % (ID,ahost,str(data[0]),str(json.dumps(data[1])),data[0]['X-Sensor']))
           else: # temporary error?
             Conf['log'](WHERE(),'ATTENT','Post %s with ID %s returned status code: %d' % (ID,data[0]['X-Sensor'],ok_status))
+        data = None  # try next post record
         continue
 
       # try to post it again
@@ -416,8 +416,10 @@ def HTTPposter(ahost):
       except Exception as e:
         if str(e).find('EVENT') >= 0:
           raise ValueError(str(e)) # send notice event
-        Conf['log'](WHERE(),'ERROR','Error: %s. Stop POST thread for host %s.' % (str(e),ahost))
-        host['stop'] = True
+        data = None  # skip data record
+        Conf['log'](WHERE(),'ERROR','Exception error: %s POST thread for host %s.' % (str(e),ahost))
+        #Conf['log'](WHERE(),'ERROR','Error: %s. Stop POST thread for host %s.' % (str(e),ahost))
+        #host['stop'] = True
         # PostTimeout(timeout=int(time()+10))
 ###########                              END OF POST THREAD
       
