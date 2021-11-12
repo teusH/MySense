@@ -1,11 +1,11 @@
 {
 "project": "ABCD",
 "brokers": [{
-        "address": "eu.thethings.network",
-        "port": 1883,
-        "user": "201802215971az",
-        "password": "ttn-account-v2.GW3123456712345671234567123456712345672Ixts",
-        "topic": "+/devices/+/up"  // appId/devices/devID/up
+        "address": "eu1.cloud.thethings.network",  // V3 stack TTN MQTT server
+        "port": 1883,   // alternative for V2 brownout 11883
+        "user": "mysense",
+        "password": "NNXXX.XP25PWX3HKL6ACACADABRAMR6AVLO2YBTWWO6WQ.FMKV3D7DP6WDACACADABRAS6VIACACADABRALJMH5SHUCPM3V3DQ",
+        "topic": "v3/+/devices/+/up"  // appId/devices/devID/up
        }],
 // send notices node pattern, to...
 // more dynamic way to get notice addresses periodically
@@ -14,14 +14,14 @@
 "notice": [
         [".*", "email:MySense monitoring<TTNall@home.org>"],
         [".*event.*", "email:MySense events<events@home.org>"],
-        // , "slack:hooks.slack.com/services/TGA12345671234567123456712345671234567fylWl0", "slack:hooks.slack.com/services/T9W3R1234567451234567123456712345671234567SQ" ],
+        // , "slack:hooks.slack.com/services/TGA12345671234ACACADABRA12345671234567fylWl0", "slack:hooks.slack.com/services/T9W3R1234567451234ACACADABRA12345671234567SQ" ],
         ["(ABC.*|ABCD.*)", "email:kit monitoring<noreply@gmail.com>" ],
         ["(ABCD.*|ABCD.*)", "email:meetkits <MySense@home.org>" ],
-        ["DEFG.*", "email:stichting<noreply@gmail.com>, email:varkens<KIP@home.org>" ],
+        ["DEFG.*", "email:stichting<noreply@gmail.com>, email:bioindustry<KIP@farmer.org>" ],
         ["test.*", "email:MySense tests<MySense+test@home.org>" ]
     ],
 "from": "Notice from MySense data collector <noreply@home.nl>",
-"SMTP": "home.org",
+"SMTP": "home.org",  // email forwarder
 // measurement and meta info database credentials, if null use environment vars
 "MyDB": { "host": "localhost", "user": "MyUser", "pass": "acacadabra", "db": "luchtmeti
 ngen" },
