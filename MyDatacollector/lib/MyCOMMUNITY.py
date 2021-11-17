@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyCOMMUNITY.py,v 5.4 2021/11/11 12:57:17 teus Exp teus $
+# $Id: MyCOMMUNITY.py,v 5.5 2021/11/17 19:16:48 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program.
 """
 __modulename__='$RCSfile: MyCOMMUNITY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.4 $"[11:-2]
+__version__ = "0." + "$Revision: 5.5 $"[11:-2]
 import re
 import inspect
 def WHERE(fie=False):
@@ -341,7 +341,7 @@ def HTTPposter(ahost):
       sys.stderr.write("    returns: %d\n" % status)
 
     host['running'] = True; ID = None; data = None; PostSkip = {}
-    tmin = 1000; tmax = 0; tcnt = 0; tavg = 0.0
+    #tmin = 1000; tmax = 0; tcnt = 0; tavg = 0.0
     while not host['stop']:   # run loop
       if 'timeout' in host.keys() and int(time()) < host['timeout']:  # POSTs should wait
         sleep(10)
@@ -457,7 +457,7 @@ def post2Community(postTo,postings,ID):
         host = ('api.luftdaten.info' if url.find('luftdaten') > 0 else 'api-rrd.madavi.de')
       if not host in HTTP_POST.keys():
         HTTP_POST[host] = {
-            'queue':  Queue.Queue(maxsize=100), 'url': url,
+            'queue':  Queue.Queue(maxsize=25), 'url': url,  # queue size used probably 6 max
             'stop': False, 'running': False }
         threading.Thread(name='HTTPposter', target=HTTPposter, args=(host,)).start()
       for _ in range(5):
@@ -469,7 +469,7 @@ def post2Community(postTo,postings,ID):
         Conf['output'] = False
         return False
 
-      timeout = 6
+      timeout = 6; errorCnt = 0
       for data in postings:
         try:
           HTTP_POST[host]['queue'].put((ID,data), timeout=(timeout+1))
@@ -477,10 +477,10 @@ def post2Community(postTo,postings,ID):
           try: rts[IDhost].append(cat)
           except: rts[IDhost] = [cat]
           #sleep(self.timeout)  # give thread time to do something
-        except HTTP_POST[host]['queue'].FULL:
+        except Queue.Full:
           Conf['log'](WHERE(True),'ATTENT',"Postage queue full timeout. Skip record to host %s" % host)
-          sleep(timeout)  # give thread time to do something
-          break
+          errorCnt += 1; sleep(timeout)  # give thread time to do something
+          if errorCnt > 5: break
         except:
           Conf['log'](WHERE(True),'ERROR',"HTTP POST queue put error for host %s. Skipping." % host)
           break
