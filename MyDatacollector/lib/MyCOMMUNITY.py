@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyCOMMUNITY.py,v 5.5 2021/11/17 19:16:48 teus Exp teus $
+# $Id: MyCOMMUNITY.py,v 5.7 2021/11/18 11:52:01 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program.
 """
 __modulename__='$RCSfile: MyCOMMUNITY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.5 $"[11:-2]
+__version__ = "0." + "$Revision: 5.7 $"[11:-2]
 import re
 import inspect
 def WHERE(fie=False):
@@ -46,7 +46,7 @@ try:
     import sys
     if sys.version_info[0] >= 3: unicode = str
     import datetime
-    from time import time
+    from time import time, sleep
     import json
     import requests
     import signal
@@ -73,14 +73,22 @@ HTTP_POST = {}
 #          'warned': 0,    # optional
 #          'url': None
 #       }
-def HTTPstop():
+def HTTPstop(immediate=False):
     global HTTP_POST
     for on in HTTP_POST.keys():
       try:
-        one['stop'] = True
-        if not one['running']: continue
-        with one['queue'].mutex: one['queue'].clear()
+        if not one['running']:
+          one['stop'] = True; continue
+        if immediate:
+          one['stop'] = True
+          with one['queue'].mutex: one['queue'].clear()
+        else:
+          while one['queue'].full(): sleep(1)
         one['queue'].put((None,[]),timeout=5)
+        waiting = 0
+        while not one['queue'].empty() and waiting < 15: 
+          waiting += 1; sleep(1)
+        one['stop'] = True
       except: pass
 
 Conf = {
@@ -471,7 +479,10 @@ def post2Community(postTo,postings,ID):
 
       timeout = 6; errorCnt = 0
       for data in postings:
+        errorCnt = 0
         try:
+          while HTTP_POST[host]['queue'].full() and errorCnt < 5:
+            errorCnt += 1; sleep(timeout+1)
           HTTP_POST[host]['queue'].put((ID,data), timeout=(timeout+1))
           cat = getCategory(int(data[0]['X-Pin'])); IDhost = "%s@%s" % (ID,host.split('.')[1])
           try: rts[IDhost].append(cat)
@@ -479,8 +490,7 @@ def post2Community(postTo,postings,ID):
           #sleep(self.timeout)  # give thread time to do something
         except Queue.Full:
           Conf['log'](WHERE(True),'ATTENT',"Postage queue full timeout. Skip record to host %s" % host)
-          errorCnt += 1; sleep(timeout)  # give thread time to do something
-          if errorCnt > 5: break
+          break
         except:
           Conf['log'](WHERE(True),'ERROR',"HTTP POST queue put error for host %s. Skipping." % host)
           break

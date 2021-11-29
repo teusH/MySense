@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.51 $"[11:-2]
+__version__ = "0." + "$Revision: 2.52 $"[11:-2]
 import inspect
 import random
 def WHERE(fie=False):
@@ -30,7 +30,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.51 2021/11/05 14:51:41 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.52 2021/11/29 11:18:06 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -148,7 +148,7 @@ import signal
 
 # TTN Stack V3 messages
 # From: https://www.thethingsindustries.com/docs/reference/data-formats/
-# CLI subscribe: mosquitto_sub -h eu.thethings.network -d -t 'my-app-id/devices/+/up'
+# CLI subscribe: mosquitto_sub -h eu1.cloud.thethings.network -d -t 'v3/my-app-id/devices/+/up'
 # Username: Application ID, Password: Application Access Key
 # Downlink messages not yet implemented: events, messages. Use console.
 # Join accept message
@@ -419,7 +419,7 @@ class TTN2MySense:
 # collect records in RecordQueue[] using QueueLock
 # broker with MQTT connection details: host, user credentials, list of topics
 # broker = {
-#        "resource": "eu.thethings.network", # Broker address default
+#        "resource": ""eu1.cloud.thethings.network", # Broker address default
 #        "port":  1883,                      # Broker port default
 #        "user":  "20201126grub",            # Connection username
 #                                            # Connection password
@@ -1053,12 +1053,12 @@ if __name__ == '__main__':
     files = []          # read json records from input file
 
     # TTN MQTT access information and credentials
-    clientID = 'TTNV2TESTbroker'   # default client MQTT ID
+    clientID = 'TTNV3TESTbroker'   # default client MQTT ID
     initfile = '../MyDatacollector.conf.json' # TTN MQTT broker information MySense init file
     # TTN credentials, only for test purposes
-    resource = "eu.thethings.network"  # default Broker address
+    resource = ""eu1.cloud.thethings.network"  # default Broker address
     # user = "1234567890abc"       # connection user name
-    # password = "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
+    # password = "ttnaccountACACADABRAacacadabraACACADABRAacacadabra"
     port = 1883                    # default MQTT port
     keepalive = None               # play with keepalive connection settings, dflt 180 secs
 
@@ -1106,7 +1106,8 @@ if __name__ == '__main__':
         # nodes info are exported to Database tables Sensors and TTNtable
         dfltBroker = {
           'clientID': clientID,
-          'resource': "eu.thethings.network",  # Broker address
+          #'resource': "eu.thethings.network",  # Broker address
+          'resource': "eu1.cloud.thethings.network",  # Broker address
           'user': "1234567890abc",             # connection user name
           'password': "ttn-account-v2.ACACADABRAacacadabraACACADABRAacacadabra"
         }
@@ -1142,7 +1143,7 @@ if __name__ == '__main__':
         init=filename use JSON init file to collect MQTT broker(s) information. Dflt '%s'.
         keepalive=secs   keep connection alive dflt: 180
         If one of the next arguments are define it will undefine the use of init file.
-        resource=eu.thethings.network (dflt use init file)
+        resource=eu1.cloud.thethings.network (dflt V3 TTN use init file)
         user|password=(TTN) MQTT credentials    dflt: use init file
 """ % initfile)
             exit(0)
@@ -1187,8 +1188,8 @@ if __name__ == '__main__':
     # TTN MQTT broker access details
     MQTTbrokers = []               # access list of TTN brokers
     topics = []
-    for topic in node.split(','): # list of topics ie devID's: appID/devices/devID
-      topics.append(("+/devices/" + topic + "/up",0))
+    for topic in node.split(','): # list of topics ie devID's: v3/appID/devices/devID
+      topics.append(("v3/+/devices/" + topic + "/up",0))
 
     for file in files: # reading data records from file(s)
       if file == '-': broker['resource'] = sys.stdin  # just read from stdin

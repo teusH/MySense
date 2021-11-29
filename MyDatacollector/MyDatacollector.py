@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.63 2021/11/06 12:26:23 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.64 2021/11/29 11:19:18 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.63 $"[11:-2]
+__version__ = "1." + "$Revision: 4.64 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -178,8 +178,8 @@ __options__ = [
         ]
 
 MQTTdefaults = {
-            'resource': 'eu.thethings.network', # server host number for mqtt broker
-            'topic': '+/devices/+/up',  # topic: appID/devices/devID/up, maybe a list of topics
+            'resource': 'eu1.cloud.thethings.network', # server host number for mqtt broker
+            'topic': 'v3/+/devices/+/up',  # topic: appID/devices/devID/up, maybe a list of topics
             # use new import class for MQTT data to Internal Exchange Format
             #`'import': None, # MyMQTTclient.TTN2MySense(logger=None).RecordImport,
             'import': MyMQTTclient.TTN2MySense().RecordImport,
@@ -188,7 +188,7 @@ MQTTdefaults = {
             # + is a wild card in TTN
             # credentials to access broker
             'user': 'account_name',
-            'password': 'ttn-account-v2.acacadabra',
+            'password': 'ttnaccountacacadabra',
             # TODO: 'cert' : None,       # X.509 encryption
         }
 
@@ -1668,7 +1668,7 @@ def Configure():
                 'output': True,
                 'id_prefix': "TTN-", # prefix ID prepended to serial number of module
                 'community': 'https://api.luftdaten.info/v1/push-sensor-data/', # api end point
-                'timeout': 1*15,  # wait timeout on http request result
+                'timeout': 3*15,  # wait timeout on http request result
                 # expression to identify serials subjected for data to be forwarded
                 'active': True,    # output to sensors.community is also activated
                 'DEBUG' : False,   # show what is sent and POST status
