@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.52 $"[11:-2]
+__version__ = "0." + "$Revision: 2.53 $"[11:-2]
 import inspect
 import random
 def WHERE(fie=False):
@@ -30,7 +30,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.52 2021/11/29 11:18:06 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.53 2021/12/05 14:16:40 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -419,11 +419,11 @@ class TTN2MySense:
 # collect records in RecordQueue[] using QueueLock
 # broker with MQTT connection details: host, user credentials, list of topics
 # broker = {
-#        "resource": ""eu1.cloud.thethings.network", # Broker address default
+#        "resource": "eu1.cloud.thethings.network", # Broker address default
 #        "port":  1883,                      # Broker port default
 #        "user":  "20201126grub",            # Connection username
 #                                            # Connection password
-#        "password": ttn-account-v2.GW36kBmsaNZaXYCs0jx4cbPiSfaK6r0q9Zj0jx4Bmsts"
+#        "password": ttnaccountv3.GW36kBmsaNZaXYCs0jx4cbPiSfaK6r0q9Zj0jx4Bmsts"
 #        "topic": "+" , # topic or list of topics to subscribe to
 #    }
 class MQTT_broker:
@@ -696,11 +696,13 @@ class KitCache:
             fnd = True
         self.updateCacheTime += self.redoCache
       if fnd: return
-      first = float('inf')
+      #first = float('inf')
+      first = timestamp + 24*60*60
       for one, val in self.KitCached.items():
         if val['ttl'] < first:
           fnd = one; first = val['ttl']
       if fnd: del self.KitCached[fnd]
+      else: self._logger('ERROR',"Cache exhausted current length %d" % len(self.KitCached))
 
     # add key,value to a info record
     def addEntry( self, record, keys, values ):
@@ -712,15 +714,15 @@ class KitCache:
     # rts: ref to KitCached entry
     def AccessInfo(self, ID):
         self.cleanCache()
-        record = {}
+        CacheInfo = {}
         try:
           one = self.KitCached[ID]
           if one['ttl'] > int(time.time()): return one
           # force update entry for tables Sensors and TTNtable
           for i in ['count','interval','gtw','unknown_fields','last_seen']:
-            record[i] = self.KitCached[ID][i] # copy cache statistics
+            CacheInfo[i] = self.KitCached[ID][i] # copy cache statistics
           del self.KitCached[ID]
-        except: pass # create a record
+        except: pass # create a CacheInfo
 
         match2 = None
         try:
@@ -732,10 +734,11 @@ class KitCache:
             col1 = 'project'; col2 = 'serial'
           except: pass
         if not match2:
-          self._logger('ATTENT','Skip record from not registrated node: %s' % ID)
+          self._logger('ATTENT','Skip CacheInfo from not registrated node: %s' % ID)
           return None
-        if not record:
-          record = {'last_seen': 0, # cache entry lives 6 hours max
+        if not CacheInfo:
+            # cache entry lives 24 hours max
+            CacheInfo = {'ttl': int(time.time())+24*60*60,'last_seen': 0,
                   'count': 0, 'interval': 15*16, 'gtw': [], 'unknown_fields': [], }
         try:  # get info items from TTNtables into KIT cache. TTL cell values is 6 hours.
           qry = """SELECT
@@ -754,21 +757,22 @@ class KitCache:
                      AND Sensors.project = TTNtable.project AND Sensors.serial = TTNtable.serial
                    ORDER BY Sensors.active DESC, Sensors.datum DESC
                    LIMIT 1""" % (col1,match1,col2,match2)
-          qry = self.DB.db_query( re.sub(r'\n *',' ',qry).strip(), True)[0]
-        except:
-          self._logger('ATTENT','Skip record with ID %s (not registrated).' % ID)
+          if len(qry[0]): qry = self.DB.db_query( re.sub(r'\n *',' ',qry).strip(), True)[0]
+          else: raise ValueError("Not registered in TTNtable")
+        except Exception as e:
+          self._logger('ATTENT','Skip CacheInfo with ID %s (%s).' % (ID,str(e)))
           return {}
-        self.addEntry(record,['ttl','TTNtableID','DATAid','MQTTid','Luftdaten','WEBactive','SensorsID','sensors','location','active','valid','version'],qry[2:])
-        record['id'] = { 'project': qry[0], 'serial': qry[1] }
+        self.addEntry(CacheInfo,['ttl','TTNtableID','DATAid','MQTTid','Luftdaten','WEBactive','SensorsID','sensors','location','active','valid','version'],qry[2:])
+        CacheInfo['id'] = { 'project': qry[0], 'serial': qry[1] }
         try: # measurement kit firmware version detection expected in field 'description'
-          record['version'] = re.compile(r'.*(?P<version>V[0-9][0-9\.]*)').match(record['version']).group('version')
-        except: del record['version']
-        if not record['last_seen']:
+          CacheInfo['version'] = re.compile(r'.*(?P<version>V[0-9][0-9\.]*)').match(CacheInfo['version']).group('version')
+        except: del CacheInfo['version']
+        if not CacheInfo['last_seen']:
           try:
-            record['last_seen'] = self.DB.db_query("SELECT UNIX_TIMESTAMP(datum) FROM %s ORDER BY datum DESC LIMIT 1" % (qry[0]+'_'+qry[1]), True)[0][0]
+            CacheInfo['last_seen'] = self.DB.db_query("SELECT UNIX_TIMESTAMP(datum) FROM %s ORDER BY datum DESC LIMIT 1" % (qry[0]+'_'+qry[1]), True)[0][0]
           except: pass
-        self.KitCached[ID] = record
-        return record
+        self.KitCached[ID] = CacheInfo
+        return CacheInfo
 
     # use cache to get last meta info for app, dev ID conversion to project, serial
     def getDataInfo(self, record, FromFile=False):
@@ -786,9 +790,12 @@ class KitCache:
               break
           except: pass
       if not entry:
-        try: RecID = "MQTT %s/%s" % (record['TTN_app'],record['TTN_id'])
-        except: RecID = 'NO MQTT applID/topic'
+        try: RecID = "MQTT %s/%s" % (record['net']['TTN_app'],record['net']['TTN_id'])
+        except:
+          RecID = 'MQTT missing applID/topic'
+          self._logger("ERROR","NO MQTT appID/topic in record %s found" % str(record))
         self._logger("ATTENT","Skip record with ID: '%s' (not registrated node)." % RecID)
+        entry = {}
       else:
         try: # remove location guessed from GTW location from data dict
           if entry['location'] and record['meta']['geolocation']['GeoGuess']:
@@ -1056,7 +1063,7 @@ if __name__ == '__main__':
     clientID = 'TTNV3TESTbroker'   # default client MQTT ID
     initfile = '../MyDatacollector.conf.json' # TTN MQTT broker information MySense init file
     # TTN credentials, only for test purposes
-    resource = ""eu1.cloud.thethings.network"  # default Broker address
+    resource = "eu1.cloud.thethings.network"  # default Broker address
     # user = "1234567890abc"       # connection user name
     # password = "ttnaccountACACADABRAacacadabraACACADABRAacacadabra"
     port = 1883                    # default MQTT port
