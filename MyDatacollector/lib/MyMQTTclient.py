@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.53 $"[11:-2]
+__version__ = "0." + "$Revision: 2.54 $"[11:-2]
 import inspect
 import random
 def WHERE(fie=False):
@@ -30,7 +30,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.53 2021/12/05 14:16:40 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.54 2021/12/08 16:47:34 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -603,7 +603,7 @@ class MQTT_broker:
 # KitCache: cache with refs DB kit info into KitCached dict cache
 class KitCache:
     import signal
-    def __init__(self, ReDoCache=3*60*60, DB=None, logger=None):
+    def __init__(self, ReDoCache=24*60*60, DB=None, logger=None):
       self.logger=logger
       # cached meta info  and handling info measurement kits
       # cache to limit DB access
@@ -687,22 +687,29 @@ class KitCache:
       # if self.dirtyCache:
       #   self.KitCached = {}; self.dirtyCache = False
       #   return
-      if len(self.KitCached) <= 50: return # allow max 50 cache entries
-      timestamp = int(time.time()); fnd = False
+      #if len(self.KitCached) <= 50: return # allow max 50 cache entries
+      timestamp = int(time.time()) #; fnd = False
       if self.updateCacheTime <  timestamp: # try to keep in sync
         for one, val in self.KitCached.items():
           if val['ttl'] < timestamp:
             del self.KitCached[one]  # refresh entry from DB
-            fnd = True
+            #fnd = True
         self.updateCacheTime += self.redoCache
-      if fnd: return
+      if len(self.KitCached) <= 50: return # allow max 50 cache entries
+      #if fnd:
+      #  #self._logger('ERROR',"TTL Size Kit Cache %d" % len(self.KitCached))
+      #  return True
       #first = float('inf')
-      first = timestamp + 24*60*60
+      first = timestamp + 24*60*60; fnd = None
       for one, val in self.KitCached.items():
         if val['ttl'] < first:
           fnd = one; first = val['ttl']
-      if fnd: del self.KitCached[fnd]
+      if fnd:
+        del self.KitCached[fnd]
+        #self._logger('ERROR',"first TTL Size Kit Cache %d" % len(self.KitCached))
+        return True
       else: self._logger('ERROR',"Cache exhausted current length %d" % len(self.KitCached))
+      return False
 
     # add key,value to a info record
     def addEntry( self, record, keys, values ):
@@ -713,16 +720,18 @@ class KitCache:
     # initialize new cache record and put it into KitCached
     # rts: ref to KitCached entry
     def AccessInfo(self, ID):
-        self.cleanCache()
-        CacheInfo = {}
+        #self.cleanCache()
         try:
           one = self.KitCached[ID]
           if one['ttl'] > int(time.time()): return one
-          # force update entry for tables Sensors and TTNtable
-          for i in ['count','interval','gtw','unknown_fields','last_seen']:
-            CacheInfo[i] = self.KitCached[ID][i] # copy cache statistics
-          del self.KitCached[ID]
-        except: pass # create a CacheInfo
+          # force update entry with info from tables Sensors and TTNtable
+          # this enables updates of meta info in running state
+          CacheInfo = self.KitCached[ID] # copy cache statistics
+          self._logger('INFO','Update cached meta info for %s' % ID)
+        except:
+          # measurement kit not seen so far
+          CacheInfo = {'last_seen': 0, 'count': 0, 'interval': 15*16,
+                    'gtw': [], 'unknown_fields': [], }
 
         match2 = None
         try:
@@ -734,16 +743,12 @@ class KitCache:
             col1 = 'project'; col2 = 'serial'
           except: pass
         if not match2:
-          self._logger('ATTENT','Skip CacheInfo from not registrated node: %s' % ID)
-          return None
-        if not CacheInfo:
-            # cache entry lives 24 hours max
-            CacheInfo = {'ttl': int(time.time())+24*60*60,'last_seen': 0,
-                  'count': 0, 'interval': 15*16, 'gtw': [], 'unknown_fields': [], }
-        try:  # get info items from TTNtables into KIT cache. TTL cell values is 6 hours.
+          self._logger('ATTENT','Skip record, a not registered end node: %s' % ID)
+          return {}
+        try:  # get meta info items from database into KIT cache. ttl info is 24 hours.
           qry = """SELECT
                      TTNtable.project, TTNtable.serial,
-                     UNIX_TIMESTAMP(now())+6*60*60, UNIX_TIMESTAMP(TTNtable.id),
+                     UNIX_TIMESTAMP(TTNtable.id),
                      IF(NOT ISNULL(TTNtable.DBactive) AND TTNtable.DBactive,
                           CONCAT(TTNtable.project,'_',TTNtable.serial),NULL),
                      IF(NOT ISNULL(TTNtable.TTN_id),
@@ -762,21 +767,26 @@ class KitCache:
         except Exception as e:
           self._logger('ATTENT','Skip CacheInfo with ID %s (%s).' % (ID,str(e)))
           return {}
-        self.addEntry(CacheInfo,['ttl','TTNtableID','DATAid','MQTTid','Luftdaten','WEBactive','SensorsID','sensors','location','active','valid','version'],qry[2:])
-        CacheInfo['id'] = { 'project': qry[0], 'serial': qry[1] }
+        # update cache with database measurement table meta info
+        self.addEntry(CacheInfo,['TTNtableID','DATAid','MQTTid','Luftdaten','WEBactive','SensorsID','sensors','location','active','valid','version'],qry[2:])
         try: # measurement kit firmware version detection expected in field 'description'
           CacheInfo['version'] = re.compile(r'.*(?P<version>V[0-9][0-9\.]*)').match(CacheInfo['version']).group('version')
         except: del CacheInfo['version']
-        if not CacheInfo['last_seen']:
+        if not CacheInfo['last_seen'] or not 'last_seen' in CacheInfo.keys():
+          # it is a brand new entry in the cache
+          CacheInfo['id'] = { 'project': qry[0], 'serial': qry[1] }
           try:
-            CacheInfo['last_seen'] = self.DB.db_query("SELECT UNIX_TIMESTAMP(datum) FROM %s ORDER BY datum DESC LIMIT 1" % (qry[0]+'_'+qry[1]), True)[0][0]
-          except: pass
+            CacheInfo['last_seen'] = self.DB.db_query("SELECT UNIX_TIMESTAMP(datum) FROM %s_%s ORDER BY datum DESC LIMIT 1" % (CacheInfo['id']['project'],CacheInfo['id']['serial']), True)[0][0]
+            self._logger('INFO','Last seen %s_%s at %d' % (CacheInfo['id']['project'],CacheInfo['id']['serial'],CacheInfo['last_seen']))
+          except:
+            CacheInfo['last_seen'] = int(time.time())
+        CacheInfo['ttl'] = int(time.time())+24*60*60  # update with meta DB info after 24 hours
         self.KitCached[ID] = CacheInfo
-        return CacheInfo
+        return self.KitCached[ID]
 
     # use cache to get last meta info for app, dev ID conversion to project, serial
     def getDataInfo(self, record, FromFile=False):
-      self.cleanCache()  # cache maintenance
+      self.cleanCache()  # cache maintenance, make sure there is no overflow of entries
       entry = {}
       try: entry = self.AccessInfo(record['id']['project']+'_'+record['id']['serial'])
       except: pass
@@ -786,16 +796,20 @@ class KitCache:
             entry = self.AccessInfo(record['net'][MQTTid[0]]+'/'+record['net'][MQTTid[1]])
             if entry:
               if FromFile: entry['FromFILE'] = True
-              record.update({'id': entry['id']})
+              #record.update({'id': entry['id']})
+              record['id'] = entry['id']
               break
-          except: pass
+          except Exception as e:
+              self._logger("ERROR","Cache entry failure with %s" % str(e))
+              #pass
       if not entry:
         try: RecID = "MQTT %s/%s" % (record['net']['TTN_app'],record['net']['TTN_id'])
         except:
           RecID = 'MQTT missing applID/topic'
           self._logger("ERROR","NO MQTT appID/topic in record %s found" % str(record))
+        self._logger("ERROR","MQTT appID/topic in record %s found. Cache size %d" % (str(record),len(self.KitCached)))
         self._logger("ATTENT","Skip record with ID: '%s' (not registrated node)." % RecID)
-        entry = {}
+        #entry = self.AccessInfo(RecID)
       else:
         try: # remove location guessed from GTW location from data dict
           if entry['location'] and record['meta']['geolocation']['GeoGuess']:

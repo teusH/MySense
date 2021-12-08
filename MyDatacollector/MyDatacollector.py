@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.64 2021/11/29 11:19:18 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.65 2021/12/08 16:48:30 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.64 $"[11:-2]
+__version__ = "1." + "$Revision: 4.65 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -188,7 +188,7 @@ MQTTdefaults = {
             # + is a wild card in TTN
             # credentials to access broker
             'user': 'account_name',
-            'password': 'ttnaccountacacadabra',
+            'password': 'ttn-account.acacadabra',
             # TODO: 'cert' : None,       # X.509 encryption
         }
 
@@ -1558,11 +1558,18 @@ def GetDataRecord():
     if not Conf['input']:
       MyLogger.log(WHERE(True),'ERROR','No input resource available. Exiting.')
       return (None,None,['No input resources'])  # artifact
-    data = None; info = None
     # yet on only handle one input channel of TTN MQTT
     while True:
+      data = None; info = None
       try:
         (info, data) = Resources.GetData()
+        if not info and data:
+          try: info = str(data['id'])
+          except:
+            try: info = "%s/%s" % (data['net']['TTN_app'],data['net']['TTN_id'])
+            except: info = 'Unknown ID'
+          MyLogger.log(WHERE(True),'ATTENT',"Skipping record from not registrated %s" % info)
+          continue   # no cached info, probably not registrated
         if data == None:
           return (info,data,['End of iNput Data']) # artifact
         if not type(data) is dict or not data:
