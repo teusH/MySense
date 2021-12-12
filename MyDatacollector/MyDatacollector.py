@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.65 2021/12/08 16:48:30 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.66 2021/12/11 13:52:08 teus Exp teus $
 
 # Data collector (MQTT data abckup, MQTT and other measurement data resources)
 # and data forwarder to monitor operations, notify events, console output,
@@ -108,7 +108,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.65 $"[11:-2]
+__version__ = "1." + "$Revision: 4.66 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -2029,7 +2029,9 @@ def RUNcollector():
                   elif Rslt:
                     if type(Rslt) is str or type(Rslt) is unicode:
                       MyLogger.log(WHERE(),'INFO','Kit %s/%s data output to %s: %s' % (info['id']['project'],info['id']['serial'],Channels[indx]['name'],str(Rslt)))
-                      monitorPrt("    %s %s" % ('Attent forwarding record to %s, result ' % Channels[indx]['name'],str(Rslt)))
+                      if Rslt.upper().find('DISABLED') < 0: # output was not disabled for kit
+                        # output not OK
+                        monitorPrt("    %s %s" % ('Attent forwarding record to %s, result ' % Channels[indx]['name'],str(Rslt)))
                     elif type(Rslt) is list:
                       try: Rslt = ', '.join(Rslt)
                       except: Rslt = str(Rslt)
