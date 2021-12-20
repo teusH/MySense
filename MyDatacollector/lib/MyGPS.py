@@ -18,10 +18,10 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyGPS.py,v 1.8 2021/10/25 09:41:42 teus Exp teus $
+# $Id: MyGPS.py,v 1.9 2021/12/20 21:38:42 teus Exp teus $
 
 __modulename__='$RCSfile: MyGPS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.8 $"[11:-2]
+__version__ = "0." + "$Revision: 1.9 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -151,26 +151,54 @@ def GPSdistance(geo_1, geo_2, aprox=False):
 
 # obtain aproximate address info from a GPS coordinate or geohash
 # returns dict with human location info
-def GPS2Address(coordinates, verbose=False):
+def GPS2Address(place, city=None, verbose=False):
     # 51.419563,6.14741,20  LAT,LON,ALT style
-    if type(coordinates) is unicode: coordinates = str(coordinates)
-    if type(coordinates) is str and coordinates.find(',') > 0:
-        oord = coordinates.replace(' ','').split(',')[:2]
-    elif type(coordinates) is str:
-        oord = geohash.decode(coordinates.lower())
-    else:
-        oord = [coordinates[0],coordinates[1]]
-    oord = [float(oord[0]),float(oord[1])]
-    # correct ordinates swap
-    oord = [max(oord),min(oord)] # only ok for Nld
-    Rslt = {'longitude': str(oord[1]), 'latitude': str(oord[0]), 'altitude': float(0),
+    Rslt = {}
+    if not city:
+      if type(place) is unicode: place = str(place)
+      if type(place) is str and place.find(',') > 0:
+        oord = place.replace(' ','').split(',')[:2]
+      elif type(place) is str:
+        oord = geohash.decode(place.lower())
+      else:
+        oord = [place[0],place[1]]
+      oord = [float(oord[0]),float(oord[1])]
+      # correct ordinates swap
+      oord = [max(oord),min(oord)] # only ok for Nld
+      Rslt = {'longitude': str(oord[1]), 'latitude': str(oord[0]), 'altitude': float(0),
             'geohash': geohash.encode(oord[0],oord[1],10),
             # 'coordinates': "%.7f,%.7f,0.0" % (oord[1],oord[0]) # coodinates is deprecated
            }
-    if not len(oord) == 2: return {}
-    if not oord[0]: return {}
-    # using GPS reverse from Nominatim OpenSteetmap.org
-    get = 'reverse?format=jsonv2&addressdetails=1&zoom=18&lat=%.7f&lon=%.7f' % (oord[0],oord[1])
+      if not len(oord) == 2: return {}
+      if not oord[0]: return {}
+      # using GPS reverse from Nominatim OpenSteetmap.org
+      get = 'reverse?format=jsonv2&addressdetails=1&zoom=18&lat=%.7f&lon=%.7f' % (oord[0],oord[1])
+    else:
+      # ref: https://nominatim.org/release-docs/develop/api/Search/
+      # street=<street name>+<housenr> Nld style
+      # city=<city>
+      # country=<country>
+      # postalcode=<postal code>
+      # countrycode=<country code>
+      # limit=<integer>
+      # example:
+      # 'https://nominatim.openstreetmap.org/search?
+      #         q=deBide+2&city=gorst&format=json&addressdetails=1&limit=1&countrycode=N'
+      # result:
+      # [{"place_id":301644,
+      #  "licence":"Data OpenStreetMap contributors, ODbL 1.0. https://osm.org/copyright",
+      #  "osm_type":"node",
+      #  "osm_id":2793717064,
+      #  "boundingbox":["51.4206003","51.4203","6.1331","6.1331"],
+      #  "lat":"51.4206503","lon":"6.135481",
+      #  "display_name":"28, De Bisweide, Lovendaal, Grrst, Hoaas, Lirg, Nand, 59AZ, Nederland",
+      #  "class":"place","type":"house","importance":0.411,
+      #  "address":{"house_number":"8","road":"De Bie",
+      #  "hamlet":"Lovendaal","village":"Grubbenvorst",
+      #  "municipality":"Horst aan de Maas",
+      #  "state":"Limburg","country":"Nederland",
+      #   "postcode":"5971AZ","country_code":"nl"}}]
+      get = 'search?q=%s,+%s&format=jsonv2&addressdetails=1&countrycode=NL&limit=1' % (place.replace(' ','+'),city.replace(' ','+'))
     url = 'https://nominatim.openstreetmap.org/'
 
     try:
@@ -183,15 +211,25 @@ def GPS2Address(coordinates, verbose=False):
         response.raise_for_status()
     except HTTPError as http_err:
         sys.stderr.write('HTTP error occurred: %s\n' % http_err)
-        return Rlst
+        return {}
     except Exception as err:
         sys.stderr.write('Other error occurred: %s' % err)
-        return Rlst
-    response = response.json()
+        return {}
+    try: response = response.json()
+    except: return {}
+    if not response: return {}
+    if type(response) is list:
+      response = response[0]
     for item in [(u'postcode','pcode'),(u'road','street'),(u'house_number','housenr'),(u'suburb','village'),(u'city','municipality'),(u'state','province'),(u'municipality','municipality')]:
         try:
             Rslt[item[1]] = str(response[u'address'][item[0]])
         except: pass
+    if 'boundingbox' in response.keys():
+      try:
+        Rslt['latitude'] = "%.7f" % float(response['lat'])
+        Rslt['longitude'] = "%.7f" % float(response['lon'])
+        Rslt['geohash'] = convert2geohash([float(response['lat']),float(response['lon'])])
+      except: pass
     # house number is lossy
     #try: Rslt['street'] += ' ' + str(response[u'address'][u'house_number'])
     #except: pass
@@ -329,44 +367,77 @@ def FindNeighbours(kits, area=5000, db=None, verbose=False, correct=False):
 # correct date only from this date
 def AddressCorrect(project, serial='%', correct=True, date='', db=None, verbose=False):
     if not db: raise ValueError("Database object not defined.")
-    address = ['street','village','municipality','province','pcode']
-    kits = db.db_query("SELECT UNIX_TIMESTAMP(id), coordinates, project, serial, %s FROM Sensors WHERE %s active AND project like '%s' AND serial like '%s'" % (','.join(address),date,project,serial), True)
+    def abbreviate(strg): # make usual changes in names similar
+        strg = str(strg).lower()
+        for one in [('straat','str'),('str.','str'),('aan de','ad'),('van de','vd')]:
+            strg = strg.replace(one[0],one[1])
+        return strg
+
+    address = ['NULL','NULL','NULL','street','housenr','village','municipality','province','pcode']
+    for loc in db.db_query("DESCRIBE Sensors", True): # if available
+        if loc[0] == 'geohash': address[0] = 'geohash'
+        elif loc[0] == 'coordinates':
+            address[1] = "SUBSTRING_INDEX(coordinates,',',1)"   # longitude
+            address[2] = "SUBSTRING_INDEX(SUBSTRING_INDEX(coordinates,',',2),',',-1)"  # latitude
+    if address[0] == 'NULL' and address[1] != 'NULL':
+        address[0] = "ST_GeoHash(SUBSTRING_INDEX(coordinates,',',1),SUBSTRING_INDEX(SUBSTRING_INDEX(coordinates,',',2),',',-1),12)"
+    kits = db.db_query("SELECT UNIX_TIMESTAMP(id), project, serial, %s FROM Sensors WHERE %s active AND project like '%s' AND serial like '%s'" % (','.join(address),date,project,serial), True)
+    address[:3] = ['geohash','longitude','latitude']
     if not len(kits):
         sys.stderr.write("Kit home location for project %s are not defined.\n" % project)
         return False
     for kit in kits:
+        result = False
         kit = list(kit) # convert tuple to list
-        if len(kit[4:]) != len(address):
+        if len(kit[3:]) != len(address):
             sys.stderr.write("Unable to extract enough column values in project %s for %s." % (kit[2],', '.join(address)))
             continue
-        result = GPS2Adress(kit[1], verbose=verbose)
-        if not result:
-            if verbose:
-              sys.stderr.write("Precision coordinates %s to low for project %s serial %s\n" % (kit[1],kit[2],kit[3]))
-            continue
+        if kit[6] and kit[8]: # 6: street, 7: house nr, 8: village
+          # street,house nr,village takes precedence for ordinates and address search
+          result =  GPS2Address(kit[6]+' '+kit[7],city=kit[8],verbose=verbose)
+        if not result:  # try to get address info via ordinates, a reverse search
+          # 3: geohash, 4: latitude, 5: longitude
+          if kit[2]: result = GPS2Address([float(kit[4]),float(kit[5])], verbose=verbose) # coordinates column takes precedence
+          elif kit[1]: result = GPS2Address(kit[1], verbose=verbose) # geohash
         if verbose:
-            sys.stderr.write("project %s, serial %s, GPS: %s\n" % (kit[2],kit[3],kit[1]))
+            sys.stderr.write("Project %s, serial %s: \n" % (kit[1],kit[2]))
+            if not result:
+              sys.stderr.write("   No geo info found.\n")
+            else: sys.stderr.write("  %-13.12s: %20.19s | %-20.19s\n" % ('item','database','openstreet map'))
+        if not result: continue
         qry = []
         for item in result.keys():
             try:
               if verbose:
-                 sys.stderr.write("\t%s Database: %s" % (item,str(kit[4+address.index(item)])) )
-                 sys.stderr.write("\tOpenStreetMap: %s\n" % str(result[item]))
+                 sys.stderr.write("  %-13.12s: %20.19s " % (item,str(kit[3+address.index(item)])) )
+                 sys.stderr.write("| %-20.19s" % str(result[item]))
+              if item in ['latitude','longitude']:
+                  if verbose: sys.stderr.write("\n")
+                  continue
               if item == 'pcode': # sometimes it is as '1234 AB' or as '1234AB'
-                kit[4+address.index(item)] = str(kit[4+address.index(item)]).replace(' ','')
+                kit[3+address.index(item)] = str(kit[3+address.index(item)]).replace(' ','')
               # street house number from reverse GPS is lossy
-              length = len(str(result[item]))
-              if item == 'street':
-                  try:
-                    length = len(str(result[item])[:str(result[item]).rindex(' ')])
-                  except: pass
-              if str(kit[4+address.index(item)])[:length].lower() != str(result[item])[:length].lower():
+              differ = False
+              if item == 'geohash':
+                  if GPS2Aproximate(kit[3],result['geohash']) > 118: # > 118 meters
+                      differ = True
+              elif abbreviate(kit[3+address.index(item)]) != abbreviate(result[item]):
+                  differ = True
+              if differ:
                   qry.append("%s = '%s'" % (item,str(result[item])) )
+              if verbose:
+                  if differ: sys.stderr.write(" DIFFER")
+                  else: sys.stderr.write(" SAME")
             except: pass
-        if not qry: continue
-        if verbose:
-            sys.stderr.write("Correcting entry ID %s, project %s, SN %s with: %s\n" % (datetime.datetime.fromtimestamp(kit[0]).strftime("%Y-%m-%d %H:%M"),kit[2],kit[3],', '.join(qry)))
+            if verbose: sys.stderr.write("\n")
         if not correct: continue
+        if verbose:
+            sys.stderr.write("Correcting entry ID %s, project %s, SN %s" % (datetime.datetime.fromtimestamp(kit[0]).strftime("%Y-%m-%d %H:%M"),kit[2],kit[3]))
+        if not qry:
+            if verbose: sys.stderr.write(": No correction\n")
+            continue
+        if verbose:
+            sys.stderr.write(" with: %s\n" % ', '.join(qry))
         try:
             db.db_query("UPDATE Sensors SET %s WHERE UNIX_TIMESTAMP(id) = %d" % (','.join(qry),kit[0]),False)
         except Exception as e:
@@ -380,7 +451,8 @@ if __name__ == '__main__':
    --verbose | -v       Be more verbose (std err channel)
    --correct | -c       Correct address in Sensors table
    --date S  | -d S     Correct address only from date S (seconds from POSIX timestamp) 
-   --distance           Calculates and list distances from arg1 to argI
+   --distance           Calculates and list distances from arg1 to arg2
+   --neighbour          Calculates distance to neighbours from arg1 to arg2, ... argN
    --aproximate | -a    Use in distance calculation geohash aproximates
    --area=2000          Max circel area for distance calculations, dflt 2000 meter
    --lookup  | -l       Lookup location information for a home location
@@ -404,7 +476,8 @@ if __name__ == '__main__':
     lookup = False     # search home location details
     correct = False    # make correction / update MySQL table Sensor with address items
     date    = ''       # select measurement kit emta with datum from up to now, dflt all
-    distance = False   # calculate distances
+    distance = False   # calculate distances between list of measurement kits
+    neighbour = False  # calculate distance between 2 GPS locations
     aproximate = False # use geohash aproximates in distance calculations
     area = 5000        # area is 5 km
  
@@ -423,12 +496,14 @@ if __name__ == '__main__':
             if not date:
                 print(help); exit(1)
             date = 'datum >= FROM_UNIXTIME(%d) AND ' % date
+        elif sys.argv[i] in ['--neighbour']:      # calculate distances
+            neighbour = True
         elif sys.argv[i] in ['--distance']:      # calculate distances
             distance = True
         elif sys.argv[i] in ['--aproximate','-a']: # use geohash aproximation
-            aproximate = True; distance = True
+            aproximate = True; neighbour = True
         elif sys.argv[i][:7] in ['--area=']:  # limit to area in meters
-            distance = True
+            neighbour = True
             if sys.argv[i][8:].isdigit():
               area = int(sys.argv[i][8:])
         else: argv.append(sys.argv[i])
@@ -440,9 +515,9 @@ if __name__ == '__main__':
       if not argv: # just a small geo query test run
         print("Lookup test:")
         argv = [
-          'de Bisweide 28, Grubbenvorst',
-          '6.135481, 51.4206503, 21.3',
-          'u1hke8gdz']
+          'de Bisweide 14, Grubbenvorst',
+          '6.134581, 51.4026503, 21.3',
+          'u1hek8gdz']
       for one in argv:
         print("Geo query home location for '%s'" % one)
         for item in sorted(GeoQuery(one).items()):
@@ -454,19 +529,32 @@ if __name__ == '__main__':
     DB.Conf['hostname'] = 'localhost'         # host InFlux server
     DB.Conf['database'] = 'luchtmetingen'     # the MySql db for test usage, must exists
     DB.Conf['user'] = 'IoS'                   # user with insert permission of InFlux DB
-    DB.Conf['password'] = 'acacadabra'        # DB credential secret to use InFlux DB
+    DB.Conf['password'] = None                # DB credential secret to use InFlux DB
     if not verbose: DB.Conf['level'] = 'WARNING' # log level less verbose
+    import os
+    for credit in ['hostname','user','password','database']:
+      try:
+        DB.Conf[credit] = os.getenv('DB'+(credit[0:4].upper() if credit != 'database' else ''),DB.Conf[credit])
+      except:
+        pass
+
   
-    if not distance:
+    if not neighbour and not distance:
       # get addresses for some kits
       for project in argv:
+        if not DB.Conf['password']:
+          print('Database credentials eg password missing. Exiting.')
+          exit(1)
         if project.find('_') < 0:
             AddressCorrect(project, db=DB, correct=correct, date=date, verbose=verbose)
         else:
             AddressCorrect(project[:project.index('_')],serial=project[project.index('_')+1:],correct=correct, db=DB, date=date, verbose=verbose)
 
-    else: # distance calculations for a list of kits.
+    elif distance:
+       dist = GPSdistance(argv[0],argv[1])
+       sys.stderr.write("Distance from %s to %s: %.2f\n" % (argv[0],argv[1],dist))
+    elif neighbour: # neighbour  distances calculations for a list of kits.
        # First (may be a coordinate, or geohash) is center
        for kit in FindNeighbours(argv, area=area, db=DB, verbose=verbose, correct=correct):
           sys.stderr.write("Kit project %s, serial %s (%s) is on distance %.1f\n" % (kit[0][0],kit[0][1], str(kit[1]), kit[2]))
-
+    DB.Conf['STOP']()
