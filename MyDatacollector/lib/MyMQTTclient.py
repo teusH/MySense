@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.55 $"[11:-2]
+__version__ = "0." + "$Revision: 2.56 $"[11:-2]
 import inspect
 import random
 def WHERE(fie=False):
@@ -30,7 +30,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.55 2021/12/11 13:27:27 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.56 2021/12/13 14:53:06 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -780,7 +780,7 @@ class KitCache:
             Seen = 'Last'
           except:
             CacheInfo['last_seen'] = int(time.time()); Seen = 'First'
-          self._logger('INFO','%s seen %s_%s at %s' % (Seen,CacheInfo['id']['project'],CacheInfo['id']['serial'],datetime.datetime.fromtimestamp(int(CacheInfo['last_seen'])).strftime("%%m-%d %H:%M:%S")))
+          self._logger('INFO','%s seen %s_%s at %s' % (Seen,CacheInfo['id']['project'],CacheInfo['id']['serial'],datetime.datetime.fromtimestamp(int(CacheInfo['last_seen'])).strftime("%Y-%m-%d %H:%M:%S")))
         CacheInfo['ttl'] = int(time.time())+24*60*60  # update with meta DB info after 24 hours
         self.KitCached[ID] = CacheInfo
         return self.KitCached[ID]
