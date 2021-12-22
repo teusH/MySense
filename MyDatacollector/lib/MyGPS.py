@@ -18,10 +18,10 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyGPS.py,v 1.9 2021/12/20 21:38:42 teus Exp teus $
+# $Id: MyGPS.py,v 1.10 2021/12/22 12:35:28 teus Exp teus $
 
 __modulename__='$RCSfile: MyGPS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.9 $"[11:-2]
+__version__ = "0." + "$Revision: 1.10 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -364,14 +364,26 @@ def FindNeighbours(kits, area=5000, db=None, verbose=False, correct=False):
     neighbours.sort(key=takeSecond)
     return neighbours
        
-# correct date only from this date
-def AddressCorrect(project, serial='%', correct=True, date='', db=None, verbose=False):
+# correct meta location/address info in database against geo info from Nominatim
+# Nominatim: try first with street house nr, village if not try with ordinate/geohash
+# correct argument 0: no correction, 1: correct, 2: correct only via interaction request
+# to do: interact with possibility to enter better info
+import re
+def AddressCorrect(project, serial='%', correct=1, date='', db=None, verbose=False):
     if not db: raise ValueError("Database object not defined.")
     def abbreviate(strg): # make usual changes in names similar
         strg = str(strg).lower()
-        for one in [('straat','str'),('str.','str'),('aan de','ad'),('van de','vd')]:
-            strg = strg.replace(one[0],one[1])
+        # make the comparison lossy
+        for one in [(r'str(aat|\.)','str'),(r'a(an |/)de* ','ad '),(r'van de','vd'),(r'-[0-9a-z]{0,4}$',''),(r's(in)*t ','st. '),(r'burg[emdtr]* ','burg. '),(r'past[or]* ','past. ')]:
+            strg = re.sub(one[0],one[1],strg)
         return strg
+    # interact
+    def GetAnswer(question): # interact for a change
+        try: line = raw_input("Changes to be made in DB ([y]/n) update to \033[32m%s\033[0m? " % question)
+        except: line = input("Changes to be made in DB ([y]/n) update to \033[32m%s\033[0m? " % question)
+        line = line.strip()
+        if not line or (line.lower()[0] == 'y'): return True
+        return False
 
     address = ['NULL','NULL','NULL','street','housenr','village','municipality','province','pcode']
     for loc in db.db_query("DESCRIBE Sensors", True): # if available
@@ -399,38 +411,42 @@ def AddressCorrect(project, serial='%', correct=True, date='', db=None, verbose=
           # 3: geohash, 4: latitude, 5: longitude
           if kit[2]: result = GPS2Address([float(kit[4]),float(kit[5])], verbose=verbose) # coordinates column takes precedence
           elif kit[1]: result = GPS2Address(kit[1], verbose=verbose) # geohash
-        if verbose:
+        if verbose or correct > 1:
             sys.stderr.write("Project %s, serial %s: \n" % (kit[1],kit[2]))
             if not result:
               sys.stderr.write("   No geo info found.\n")
             else: sys.stderr.write("  %-13.12s: %20.19s | %-20.19s\n" % ('item','database','openstreet map'))
         if not result: continue
         qry = []
-        for item in result.keys():
+        for item in sorted(result.keys(),reverse=True):
+            if not item in address: continue
             try:
-              if verbose:
-                 sys.stderr.write("  %-13.12s: %20.19s " % (item,str(kit[3+address.index(item)])) )
-                 sys.stderr.write("| %-20.19s" % str(result[item]))
+              if verbose or correct > 1:
+                sys.stderr.write("  %-13.12s: %20.19s " % (item,str(kit[3+address.index(item)])) )
+                sys.stderr.write("| %-20.19s" % str(result[item]))
               if item in ['latitude','longitude']:
-                  if verbose: sys.stderr.write("\n")
-                  continue
+                if verbose or correct > 1: sys.stderr.write("\n")
+                continue
               if item == 'pcode': # sometimes it is as '1234 AB' or as '1234AB'
                 kit[3+address.index(item)] = str(kit[3+address.index(item)]).replace(' ','')
               # street house number from reverse GPS is lossy
               differ = False
               if item == 'geohash':
-                  if GPS2Aproximate(kit[3],result['geohash']) > 118: # > 118 meters
-                      differ = True
-              elif abbreviate(kit[3+address.index(item)]) != abbreviate(result[item]):
+                if GPS2Aproximate(kit[3],result['geohash']) > 118: # > 118 meters
                   differ = True
+              elif abbreviate(kit[3+address.index(item)]) != abbreviate(result[item]):
+                differ = True
+              if verbose or correct > 1:
+                if differ: sys.stderr.write(" \033[31mDIFFER\033[0m\n")
+                else: sys.stderr.write(" \033[1mSAME\033[0m\n")
               if differ:
-                  qry.append("%s = '%s'" % (item,str(result[item])) )
-              if verbose:
-                  if differ: sys.stderr.write(" DIFFER")
-                  else: sys.stderr.write(" SAME")
+                if correct:
+                  if correct < 2:
+                    qry.append("%s = '%s'" % (item,str(result[item])) )
+                  elif GetAnswer(str(result[item])):
+                    qry.append("%s = '%s'" % (item,str(result[item])) )
             except: pass
-            if verbose: sys.stderr.write("\n")
-        if not correct: continue
+        if not qry: continue
         if verbose:
             sys.stderr.write("Correcting entry ID %s, project %s, SN %s" % (datetime.datetime.fromtimestamp(kit[0]).strftime("%Y-%m-%d %H:%M"),kit[2],kit[3]))
         if not qry:
@@ -474,7 +490,7 @@ if __name__ == '__main__':
     
     verbose = False    # be more versatile
     lookup = False     # search home location details
-    correct = False    # make correction / update MySQL table Sensor with address items
+    correct = 0        # make correction / update MySQL table Sensor with address items
     date    = ''       # select measurement kit emta with datum from up to now, dflt all
     distance = False   # calculate distances between list of measurement kits
     neighbour = False  # calculate distance between 2 GPS locations
@@ -488,7 +504,9 @@ if __name__ == '__main__':
         elif sys.argv[i] in ['--verbose', '-v']: # be more verbose
             verbose = True
         elif sys.argv[i] in ['--correct', '-c']: # correct address in Sensors table
-            correct = True
+            correct = 1
+        elif sys.argv[i] in ['--interact', '-i']: # correct address interactively
+            correct = 2
         elif sys.argv[i] in ['--lookup', '-l']:  # search home location info
             lookup = True
         elif sys.argv[i] in ['--date', '-d']:    # correct address in Sensors table
@@ -558,3 +576,16 @@ if __name__ == '__main__':
        for kit in FindNeighbours(argv, area=area, db=DB, verbose=verbose, correct=correct):
           sys.stderr.write("Kit project %s, serial %s (%s) is on distance %.1f\n" % (kit[0][0],kit[0][1], str(kit[1]), kit[2]))
     DB.Conf['STOP']()
+    # just a hack to exit also with blocked threads
+    import os
+    import signal
+    import platform
+    # get the current PID for safe terminate server if needed:
+    PID = os.getpid()
+    if platform.system() != 'Windows':
+        os.killpg(os.getpgid(PID), signal.SIGKILL)
+    else:
+        os.kill(PID, signal.SIGTERM)
+    # for one in __threads__: stop(one) and join(one)
+    exit(status)
+
