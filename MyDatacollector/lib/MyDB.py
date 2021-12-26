@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDB.py,v 5.10 2021/10/30 12:03:04 teus Exp teus $
+# $Id: MyDB.py,v 5.11 2021/12/26 10:33:26 teus Exp teus $
 
 # reminder: MySQL is able to sync tables with other MySQL servers
 
@@ -27,7 +27,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 __modulename__='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.10 $"[11:-2]
+__version__ = "0." + "$Revision: 5.11 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -300,8 +300,13 @@ def db_query(query,answer):
         else:
           FailType = sys.exc_info()[1]
           Conf['log'](WHERE(True),'ERROR',"Failure type: %s; value: %s" % (sys.exc_info()[0],FailType) )
-          Conf['log'](WHERE(True),'ERROR',"On query: %s" % query)
-          db_tableColError(FailType,query)  # maybe we can correct this
+          if str(FailType).find('onnection not avail') > 0:
+              Conf['log'](WHERE(True),'ERROR','Retry to connect with DB')
+              Conf['fd'].close; Conf['fd'] = None; Conf['waitCnt'] += 1
+              if not db_connect(): raise IOError("Connection broke down.")
+          else:
+              Conf['log'](WHERE(True),'ERROR',"On query: %s" % query)
+              db_tableColError(FailType,query)  # maybe we can correct this
         if Retry:
             return False
         Retry = True
