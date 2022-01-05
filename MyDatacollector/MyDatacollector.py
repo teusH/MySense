@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Contact Teus Hagen webmaster@behouddeparel.nl to report improvements and bugs
+# Contact Teus Hagen MySense@behouddeparel.nl to report improvements and bugs
 # 
 # Copyright (C) 2017, Behoud de Parel, Teus Hagen, the Netherlands
 # Open Source Initiative  https://opensource.org/licenses/RPL-1.5
@@ -19,11 +19,17 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.66 2021/12/11 13:52:08 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.67 2022/01/05 11:25:10 teus Exp teus $
 
-# Data collector (MQTT data abckup, MQTT and other measurement data resources)
-# and data forwarder to monitor operations, notify events, console output,
-# MySQL DB archive, forward measurements to  dataportals as e.g. Sensors.Community, etc.
+# Data collector: multiple MQTT data brokers, data backup restore, MQTT and
+# other measurement data resources,
+# measurement kit monitoring: to monitor operations, notify events (email,
+# Slack, etc), detailed console output, system logging,
+# detect out of band values, dead  and moved measurement kits,
+# and forwarding measurement data: MySQL DB archive, to  dataportals as e.g.
+# Sensors.Community  (HHTP POSTs),
+# and extentions to e.g. MQTT publication, InfluxDB data stream, etc.
+
 
 # MySQL DB if nodes  (measurement kits) meta info is loaded, updated on the fly.
 # The datacollector will use an internal Measurement Exchange Format (draft).
@@ -108,7 +114,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.66 $"[11:-2]
+__version__ = "1." + "$Revision: 4.67 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -859,7 +865,7 @@ def CheckPMmass( field, value, cnt ):
         "dust": "PMSx003",       // dust sensor types/manufacturer
         // default home location of measurement kit
         "geolocation": { “geohash”: “u1hjjnwhfn” },
-        "GeoGuess": True,        // optional if location comes from gateway location
+        "GeoGuess": True,        // optional if geolocation geohash is gateway location
         "meteo": [ "BME680", ”SHT31” ], // more as one type present in kit
         “energy”: { “solar”: “5W”, “accu”: “Li-Ion” }, // energy type: dflt "adapter": "5V"
         "gps": "NEO-6",
@@ -870,7 +876,7 @@ def CheckPMmass( field, value, cnt ):
       "net": {
         'TTN_id': u'kipster-k1', 'TTN_app': u'201802215971az', 'type': 'TTNV2',
         'gateways': [
-          {'rssi': -94,  'gtw_id': u'eui-ac1f09fffe014c16', 'snr': 9.5},
+          {'rssi': -94,  'gateway_id': u'eui-ac1f09fffe014c16', 'snr': 9.5},
         ]},
 
       // measurement data
@@ -900,7 +906,12 @@ def CheckPMmass( field, value, cnt ):
 #            'SensorsID': Sensors table database row id
 #            'active':    kit active?
 #            'location':  current home location as geohash, None unknown
-#            'sensors':   sensor types (manufacturer ProdID's): converting to list of senors type dicts
+#            'kit_loc':   last known location of kit as geohash, None or '' if same
+#                         as (home) location measurement database geohash field
+#                         is None/NULL on same as previous measurement geohash value
+#                         eg mobile support.
+#            'sensors':   sensor types (manufacturer ProdID's):
+#                         converting to list of senors type dicts
 #
 #            'TTNtableID':TTNtable table database row id
 #            'MQTTid':    MQTT subscription ID eg TTN subscribe: TTN_app/TTN_id
@@ -920,8 +931,7 @@ def CheckPMmass( field, value, cnt ):
 #        },
 #      }
 # Example:
-# {'count': 0, 'DATAid': u'SAN_b4e62df4b311', 'WEBactive': 1, 'TTNtableID': 1590665967, 'valid': 1, 'timestamp': 1629569059, 'id': {'project': u'SAN', 'serial': u'b4e62df4b311'}, 'interval': 240, 'SensorsID': 1593163787, 'MQTTid': u'201802215971az/bwlvc-b311', 'location': u'u1hjtzwmqd', 'gtw': [], 'active': 1, 'Luftdaten': u'b4e62df4b311', 'unknown_fields': [], 'sensors': u'PMSX003,BME280,NEO-6', 'last_seen': 1627828712, 'check': {'rv': [5,100.0}}
-
+# {'count': 0, 'DATAid': u'SAN_b4e62df4b311', 'WEBactive': 1, 'TTNtableID': 1590665967, 'valid': 1, 'timestamp': 1629569059, 'id': {'project': u'SAN', 'serial': u'b4e62df4b311'}, 'interval': 240, 'SensorsID': 1593163787, 'MQTTid': u'201802215971az/bwlvc-b311', 'location': u'u1hjtzwmqd', 'kit_loc': None, 'gtw': [], 'active': 1, 'Luftdaten': u'b4e62df4b311', 'unknown_fields': [], 'sensors': u'PMSX003,BME280,NEO-6', 'last_seen': 1627828712, 'check': {'rv': [5,100.0}}
 
 # check if measurement kit is behaving: activated, needs to be throttled
 def IsBehavingKit(info,now):
@@ -935,7 +945,13 @@ def IsBehavingKit(info,now):
         try:
           if info['FromFILE']: return None
         except: pass
-        if (info['count'] > 3) and ((now - info['last_seen']) < (Conf['rate'])):
+        # try to guess interval timing of measurement
+        if not info['interval'] or (now - info['last_seen'] > 60*60): # initialize
+          info['interval'] = 15*60  # reset
+        else:  # average guess
+          info['interval'] = min((info['interval']*info['count']+(now - info['last_seen']))/(info['count']+1),30*60)
+        #if (info['count'] > 3) and ((now - info['last_seen']) < (Conf['rate'])):
+        if (info['count'] > 3) and info['interval'] < Conf['rate']:
             if not 'throttling' in info.keys():
                 info['throttling'] = now
                 MyLogger.log(WHERE(),'ERROR','%s (re)start throttling kit: %s (rate %d < throttle %d secs).' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),str(info['id']),now - info['last_seen'],Conf['rate']))
@@ -948,11 +964,6 @@ def IsBehavingKit(info,now):
               MyLogger.log(WHERE(True),'DEBUG','%s Throttling kit: %s\n' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),ID))
               info['last_seen'] = now
               return 'Skip data. Throttling kit.' # artifacts
-        # try to guess interval timing of measurement
-        if not info['interval'] or (now - info['last_seen'] > 60*60): # initialize
-          info['interval'] = 15*60  # reset
-        else:  # average guess
-          info['interval'] = min((info['interval']*info['count']+(now - info['last_seen']))/(info['count']+1),30*60)
     except: pass
     return None
 
@@ -1023,110 +1034,189 @@ def HasEvent(info, meta):
    except: pass
    return []
 
+# compare geohash address info with address infor in database
+# update home location in database if needed
+# if geohash in DB is NULL the meta or data geohash will define home location
+# and address difference will be corrected via Open Street Map service
 def UpdateNewHome(info, geoloc, alt):
+   def lossy(strg): # make usual changes in names similar, country dependent
+     if not strg: return strg
+     rts = str(strg).lower().strip()
+     # make the comparison lossy
+     for one in [(r'str(aat|\.)','str'),(r'a(an |/)de* ','ad '),(r'van de','vd'),(r'-[0-9a-z]{0,4}$',''),(r's(in)*t ','st. '),(r'burg[emdtr]* ','burg. '),(r'past[or]* ','past. '),(r'^([0-9]{4}) ([a-z]{2})$','\\1\\2')]:
+       rts = re.sub(one[0],one[1],rts)
+     return rts
+
    global DB
    address = MyGPS.GPS2Address(geoloc)
-   inTBL = DB.getNodeFields(info['SensorsID'],['geohash','alt','street','village','province','municipality','pcode','housenr','region'])
-   fields = []; values = []
+   # do not add altitude as we use meters above ground level
+   inTBL = DB.getNodeFields(info['SensorsID'],['geohash','street','village','province','municipality','pcode','housenr','region'])
+   if not 'geohash' in inTBL.keys(): inTBL['geohash'] = ''
+   if inTBL['geohash'] and MyGPS.GPSdistance(inTBL['geohash'],geoloc) < 119:
+     return False
+   # new home location measurement kit
+   fields = []; values = [] # lists of address info which differ
    for (field,value) in inTBL.items():
      try:
        if address[field] == None: continue
-       if address[field] == inTBL[field]: continue
+       if field == 'altitude':
+         if abs(float(address[field])-float(inTBL[field])) < 15: continue
+       elif lossy(address[field]) == lossy(inTBL[field]): continue
        fields.append(field); values.append(address[field])
      except: pass
    if fields:  # some value changed
-     setNodeFields(info['SensorsID'],fields,values)
+     DB.setNodeFields(info['SensorsID'],fields,values)
 
-     msg = 'MySense measurement kit project %s, serial %s has been installed to new home location: ' % (info['project'],info['serial'])
-     for one in ['longitude','latitude','street','housenr','village']:
+     msg = 'MySense measurement kit project %s, serial %s has been installed to new home location: ' % (info['id']['project'],info['id']['serial'])
+     for one in ['latitude','longitude','street','housenr','village']:
        try: msg += address[one]+', '
        except: pass
-     sendNotice(msg,info=info,all=False)
-     MyLogger.log(WHERE(),'ATTENT',"Installed home location %s for kit project %s, serial %s" % (geoloc,info['project'],info['serial']))
-     monitorPrt('Installed home location %s for kit project %s, serial %s' % (geoloc,info['project'],info['serial']), PURPLE)
+     sendNotice(re.sub(r', *$','.',msg),info=info,all=False)
+     MyLogger.log(WHERE(),'ATTENT',"Installed home location %s for kit project %s, serial %s" % (geoloc,info['id']['project'],info['id']['serial']))
+     monitorPrt("Installed new home geohash location '%s' for kit project %s, serial %s" % (geoloc,info['id']['project'],info['id']['serial']), PURPLE)
      return True
    return False
 
 # handle meta home location: cache: location, meta data: geolocation
+# if 'location' is not defined either in Sensors DB table or
+# cache try from data record
+# location info from data record:
+# data['meta']['geolocation'] has geohash value periodically received as meta info
+# data['data']['longitude'], etc. received if kit is moved distances >= 118 meter
+# side effect: location (geohash, address) in database is updated inititially
+# on power (or shortly after it) when geohash is NULL in database.
+# info['valid']: 1 (valid measurements), 0 (located indoor)
+# info['kit_loc']: None or '' (at home location), geohash (current not home location)
+# info['location']: geohash (home location), None (home location not yet defined)
+# if DB geohash is defined and meta or data is defined and distance >= 118 meter
+# the data 'valid' field is changed to false, if less as 118 'valid' is set to true
+# it is left to archive and forwarding channel handlers how to react on this
+# eg archive will set sensor_valid to NULL (not at home or indoor location).
 def HasNewHomeGPS(info, data):
    global DB
-   try: home = info['location']
+   try: home = info['location']  # geohash in cache, None if not defined
    except: home = None
-   geoloc = None; alt = None; guessed = False
-   try:
+   geoloc = None; gps = None; alt = None
+   try:                          # geoloc has geohash if avaialble from meta info
      geoloc = data['meta']['geolocation']
-     try: guessed = data['meta']['GeoGuess']
-     except: pass
+     if 'alt' in geoloc.keys(): alt = geoloc['alt']
+     if 'altitude' in geoloc.keys():
+       alt = geoloc['altitude']; del geoloc['altitude']
      if 'geohash' in geoloc.keys(): geoloc = geoloc['geohash']
      elif 'lon' in  geoloc.keys() and 'lat' in geoloc.keys():
-       geoloc['geohash'] = convert2geohash([geoloc['lon'],geoloc['lat']])
+       geoloc['geohash'] = MyGPS.convert2geohash([geoloc['lon'],geoloc['lat']])
        del geoloc['lon']; del geoloc['lat']
        geoloc = geoloc['geohash']
-     if 'alt' in geoloc.keys(): alt = geoloc['alt']
    except: pass
-   if not home and not geoloc: # maybe the data record has home geolocation kit
-     try:
-       loc = data['data']['gps']
-       geoloc = loc['geohash']; guessed = False
+   if home and geoloc and MyGPS.GPSdistance(home,geoloc) < 118: geoloc = None
+   try:
+     for geo, loc in data['data'].items(): # gps has location from data part
+       if not type(loc) is dict: continue
+       if not (set(['geohash','lon','longitude']) & set(loc.keys())): continue
        try:
-         if not alt: alt = loc['alt']
+        if not alt:
+          try: alt = loc['alt']
+          except: alt = loc['altitude']
        except: pass
-     except:
        try:
-         geoloc = convert2geohash([loc['lon'],loc['lat']])
-         if not alt: alt = loc['alt']
+         if 'geohash' in loc.keys(): gps = loc['geohash']
+         elif 'lon' in loc.keys():
+           gps = MyGPS.convert2geohash([loc['lon'],loc['lat']])
+         elif 'longitude' in loc.keys():
+           gps = MyGPS.convert2geohash([loc['longitude'],loc['latitude']])
+         # if gps is close to geoloc or home skip it
+         if home:
+           if MyGPS.GPSdistance(home,gps) < 118:
+             if info['valid']:
+               gps = None; del data['data'][geo] # save DB mem use size
+         elif geoloc:
+           if MyGPS.GPSdistance(geoloc,gps) < 118:
+             if info['valid']:
+               gps = None; del data['data'][geo]  # save DB mem use size
+         #else: geoloc = gps
+         break
        except: pass
-   elif not geoloc or guessed: return []
-   # if new location: update Sensors table
-   rts = []
-   if not home and geoloc:  # no home location defined, but there is a location via GPS
-      home = info['location'] = geoloc
-      try:
-        if UpdateNewHome(info, geoloc, alt): rts.append('Updated home location') # artifacts
-      except: pass
-   if home and geoloc:      # maybe measurement kit is not on home location
-      if MyGPS.GPS2Aproximate(home,geoloc) < 118: # distance in meters is about the same
-        if info['valid'] == None:                 # kit is back home
-          info['valid'] = True
-          try:
-            DB.db_query("UPDATE TTNtable SET valid = 1, refresh = NULL WHERE UNIX_TIMESTAMP(id) = %d" % info['TTNtableID'], False)
-            MyLogger.log(WHERE(),'ATTENT',"Kit project %s, serial %s installed back to home location" % (info['project'],info['serial']))
-            sendNotice("MySense measurement kit project %s, serial %s installed back to home location" % (info['project'],info['serial']),info=info,all=False)
-            rts.append['Kit back to home location']
-          except: pass
-        # delete geohash from data record
-        for item in ['NEO-6']:
-          try:
-            del data['data'][item]
-            # if abs(data['data']['altitude'] - alt) < 10: # to be corrected
-            #   del data['data']['altitude']
-          except: pass
-      else:  # kit is not at home location
-        if info['valid']:                         # denote kit is from now eg in repair
-          try:
-            DB.dbquery("UPDATE TTNtable SET valid = NULL, refresh = now() WHERE UNIX_TIMESTAMP(id) = %d" % info['TTNtableID'], False)
-            MyLogger.log(WHERE(),'ATTENT',"Kit project %s, serial %s has been removed from home location to %s" % (info['project'],info['serial'],geoloc))
-            where = MyGPS.GPS2Address(geoloc)
-            msg = 'MySense measurement kit project %s, serial %s has been removed from home location to: ' % (info['project'],info['serial'])
-            for one in ['longitude','latitude','street','housenr','village']:
-              try: msg += where[one]+', '
+   except: pass
+   try: # maybe we guessed location from gateway info # To Do: MQTTclient improve guess 
+     if data['meta']['GeoGuess'] and not gps: # we use NEO-6 as GPS sensor
+       # if not 'data' in data.keys(): data['data'] = {}
+       if geoloc and not gps:
+         if not 'NEO-6' in data['data'].keys(): data['data']['NEO-6'] = {}
+         data['data']['NEO-6']['geohash'] = geoloc
+         geoloc = None
+   except: pass # no guessed location
+   if not geoloc and not gps: return []         # no kit location to change
+
+   # if new home location: update Sensors table
+   rts = []; msg = ''
+   if geoloc or gps: # geoloc: geoloc (from meta) or gps (from data)
+     if not home:                               # kit home not yet known
+       if not geoloc: geoloc = gps              # use data as home loc source
+       home = info['location'] = geoloc
+       try:
+         if UpdateNewHome(info, geoloc, alt):
+           rts.append('Updated home location')  # artifacts
+         if not info['valid']:
+           info['valid'] = True
+           DB.db_query("UPDATE TTNtable SET valid = 1, refresh = NULL WHERE UNIX_TIMESTAMP(id) = %d" % info['TTNtableID'], False)
+           MyLogger.log(WHERE(),'ATTENT',"Kit project %s, serial %s set to valid." % (info['id']['project'],info['id']['serial']))
+         info['kit_loc'] = None
+       except: pass
+     else:      # measurement kit removed from home home location?
+       if not gps: gps = geoloc
+       if MyGPS.GPSdistance(home,gps) < 118:    # distance in meters is about the same
+         info['kit_loc'] = ''                   # kit is at home location
+         if not info['valid']:                  # kit is back home
+           info['valid'] = True; info['kit_loc'] = None
+           try:
+             DB.db_query("UPDATE TTNtable SET valid = 1, refresh = NULL WHERE UNIX_TIMESTAMP(id) = %d" % info['TTNtableID'], False)
+             msg = "Kit project %s, serial %s installed back to home location" % (info['id']['project'],info['id']['serial'])
+             MyLogger.log(WHERE(),'ATTENT',msg + '. Set to valid.')
+             msg = "MySense measurements: " + msg
+             rts.append('Kit back to home location')
+           except: pass
+         # else kit is still at home location
+       else:                                     # kit is on the move
+         try: info['kit_loc']
+         except: info['kit_loc'] = None
+         if info['valid']:                       # kit is located indoor or in repair
+           msg = "Kit project %s, serial %s has been relocated" % (info['id']['project'],info['id']['serial'])
+           MyLogger.log(WHERE(),'ATTENT',"%s to geohash '%s' and set to invalid." % (msg,gps))
+           info['valid'] = None
+           try:
+             DB.db_query("UPDATE TTNtable SET valid = NULL, refresh = now() WHERE UNIX_TIMESTAMP(id) = %d" % info['TTNtableID'], False)
+             rts.append('Kit is set invalid') # artifacts
+           except: pass
+           if not info['kit_loc']:
+              # first move away: denote kit is from now 'mobile' eg in repair or indoor
+              try:
+                MyLogger.log(WHERE(),'ATTENT',"%s to geohash '%s'" % (msg,gps))
+                msg += " to: "
+                where = MyGPS.GPS2Address(gps)
+                for one in ['latitude','longitude','street','housenr','village']:
+                  try: msg += where[one]+', '
+                  except: pass
+                msg = re.sub(r', *$','.',msg)
+                rts.append('Kit removed from home location') # artifacts
+                info['kit_loc'] = gps
               except: pass
-            sendNotice(msg,info=info,all=True)
-            info['valid'] = None
-            rts.append('Kit removed from home location') # artifacts
-          except: pass
+         elif info['kit_loc'] and MyGPS.GPSdistance(info['kit_loc'],gps) >= 118:
+           MyLogger.log(WHERE(),'ATTENT',"%s to new geohash '%s'." % (msg,gps))
+       if msg: sendNotice(msg,info=info,all=True)
    return rts
 
 # is this kit restarted after some time out?
 def IsRestarting(tstamp,info):
+    global ProcessStart
     try:
       if tstamp == None:  # measurement table has no measurements
         MyLogger.log(WHERE(),'ATTENT','Kit %s is newly installed.' % str(info['id']))
-        sendNotice('Kit project %s, serial %s is newly installed. First recort at time: %s.\nMySense kit identification: %s.' % (ID,datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),info['id']['project'],info['id']['serial']),info=info,all=True)
+        sendNotice('Kit project %s, serial %s is newly installed. First recort at time: %s.\nMySense kit identification: %s.' % (info['id']['project'],info['id']['serial'],datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),info['id']['project'],info['id']['serial']),info=info,all=True)
         return ['New kit'] # artifact
-      elif tstamp > 90*60:
-        MyLogger.log(WHERE(),'ATTENT','Kit %s is restarted after %dh%dm%ds' % (str(ID),tstamp/3600,(tstamp%3600)/60,tstamp%60))
-        sendNotice('Kit %s is restarted at time: %s after %dh%dm%ds.\nMySense kit identification: %s.' % (str(ID),datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),tstamp/3600,(tstamp%3600)/60,tstamp%60,str(ID)),info=info,all=False)
+      elif tstamp > 90*60: # 90 minutes maximal delay
+        MyLogger.log(WHERE(),'ATTENT','Kit %s is restarted after %dh%dm%ds' % (str(info['id']),tstamp/3600,(tstamp%3600)/60,tstamp%60))
+        if ProcessStart < time()-(90*60): # do not notice during process startup
+          sendNotice('Kit project %s, serial %s is restarted at time: %s after %dh%dm%ds.\nMySense kit identification: %s.' % (info['id']['project'],info['id']['serial'],datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),tstamp/3600,(tstamp%3600)/60,tstamp%60,str(ID)),info=info,all=False)
         return ['Restarted kit'] # artifact
     except: pass
     return []
@@ -1319,7 +1409,7 @@ def HasMeasurements(info,data,DBchanges):
     msmnt = {}; OoR = []; SVS = [] # measurement data, OutOfRange, None valued
     # data['data'] = {'version': '1.0', 'BME280': dict {'rv':2.1,}/list [('rv',2.1),]/tuple ('rv',2.1,'%',[0,1]), ...}
     if not 'data' in data.keys():  # probably an event
-      # MyLogger.log(WHERE(),'ATTENT',"No data found in data record for measurment %s/%s" % (info['id']['project'],info['id']['serial']))
+      # MyLogger.log(WHERE(),'ATTENT',"No data found in data record for measurement %s/%s" % (info['id']['project'],info['id']['serial']))
       data['data'] = {}
     thisData = copy.deepcopy(data['data'])
     for item, value in data['data'].items():   # pick up sensors from data part, convert values
@@ -1389,11 +1479,14 @@ def BestGtw(gateways):
     except: return None
     strength = -1000; gtws = []; best = None
     for one in gateways: # get weighted best gateway signal
-        gwSet = set(['gtw_id','rssi','snr']) # minimal gtw info needed to compare
+        # use for V2 'gtw_id' in stead of V3 'gateway_id'
+        gtwID = 'gateway_id'
+        if 'gtw_id' in one.keys(): gtwID = 'gtw_id'
+        gwSet = set([gtwID,'rssi','snr']) # minimal gtw info needed to compare
         if len(set(one.keys()) & gwSet) != len(gwSet): continue
-        if WSNR*one['snr']+WRSSI*one['rssi'] > strength:
+        if GTWstrength(one['snr'],one['rssi']) > strength:
           strength = GTWstrength(one['snr'],one['rssi'])
-          best = one['gtw_id']
+          best = one['gateway_id']
         location = None
         try: location = one['geohash']
         except:
@@ -1401,8 +1494,8 @@ def BestGtw(gateways):
           except: pass
         # rssi/snr: [ min, max, value ]
         if not location:
-          gtws.append([one['gtw_id'], [one['rssi'],one['rssi'],one['rssi']], [one['snr'],one['snr'],one['snr']]])
-        else: gtw.append([one['gtw_id'], [one['rssi'],one['rssi'],one['rssi']], [one['snr'],one['snr'],one['snr'],location]])
+          gtws.append([one[gtwID], [one['rssi'],one['rssi'],one['rssi']], [one['snr'],one['snr'],one['snr']]])
+        else: gtws.append([one[gtwID], [one['rssi'],one['rssi'],one['rssi']], [one['snr'],one['snr'],one['snr'],location]])
     return (gtws,best,strength)
 
 # handle event and/or meta information in data part, usually obtained via LoRa TTN port 3
@@ -1506,7 +1599,7 @@ def Data2Frwrd(info, data):
     except: data['timestamp'] = timestamp = int(time())
 
     # collect artifacts
-    rtsMsg += HasNewHomeGPS(info, data) # has new home location or is in repair?
+    rtsMsg += HasNewHomeGPS(info, data) # has new home location or is in located indoor?
     try:
       data['meta']                           # handle meta data
       try:
@@ -1863,7 +1956,7 @@ def RUNcollector():
                 MyLogger.log(WHERE(),'DEBUG',"Record info: %s" % str(info))
                 MyLogger.log(WHERE(),'DEBUG',"Record record data: %s" % str(record))
                 MyLogger.log(WHERE(),'DEBUG',"Record artifacts: %s" % str(artifacts))
-            # data record example: info (dict), record (dict), artifacts (list)
+            # return tuple GetDataRecord example: info (dict), record (dict), artifacts (list)
             #
             # info:
             # {'count': 1,
@@ -1964,15 +2057,22 @@ def RUNcollector():
             except: timestamp = int(time())
             try: sensors = ','.join([sensors for sensors in record['data'].keys()])
             except: sensors = ''
-            try: NrGtws = ' %d gtws' % len(record['net']['gateways'])
+            try: NrGtws = ' #gtws:%2.d' % len(info['gtw'])
             except: NrGtws = ''
+            try:
+              if info['valid'] == None: validity = ' mobile'
+              elif info['valid']: validity = ''
+              else: validity = ' invalid'
+            except: validity = ' validity undefined'
+            if 'kit_loc' in info.keys() and info['kit_loc']:
+              validity += " geo '%s'" % info['kit_loc']
             monitorPrt(
               "%-92.91s #%4.d%s" % (
-                '%s %s (%s%s)%s' % (datetime.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M"),
-                    MQTTid, TBLid, '[%s]'%sensors if sensors else '',NrGtws),
+                '%s %s (%s%s%s)%s' % (datetime.datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M"),
+                    MQTTid, TBLid, '[%s]' % sensors if sensors else ' meta/event info',validity,NrGtws),
                 info['count'],
                 (' at %dm%ds' % (info['interval']/60,info['interval']%60)) if (info['interval'] <= 60*60) else ''),
-              BLUE)
+              BLUE if sensors else LBLUE)
             Acnt = 0
             for one in artifacts:
               if one == 'Forward data': continue
