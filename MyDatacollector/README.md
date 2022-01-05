@@ -75,6 +75,19 @@ The MySQL tables 'Sensors' and 'TTNtable' are initialy created when needed. Howe
 
 The bash script 'MyDB-upgrade.sh' is a scriot which will upgrade the MYSQL database to a newer release. E.g. support of sensor types, SensorTypes DB table, geohash, etc.
 
+## kit location handling
+Data record optionaly may have kit location GPS information. This information is converted to a geohash (precision up to 12) string.
+Meta kit information typically sent via eg LoRaWan port 3, will eventually carry geohash updates.
+If the measurement record has GPS location this information will also be used to update home location if needed and/or detect the removal of the kit from the home location.
+In the latter case measurements will be marked to indicate that measurements come from a different location.
+The mark will be reset if the kit returns to the home location.
+The so called kit `home location` information will be updated in the `Sensors` database table if this is missing information (initial state of the kit).
+
+If the location can be guessed from nearby gateway information this information is handled as well. The guessed info needs to be improved.
+
+If sensor measurements do not originate from the `home location` the measurments may not be handled by some forwarding output channel modules as e.g. Sensors.Community, website graphics, etc.
+As this improves the reality of measurements of the kit locations.
+
 ## monitoring
 Default the MyDatacollector the monitor output is switch ON (monitor:output=true).
 On standard error output monitoring (global processing) information will be supplied.
@@ -92,6 +105,9 @@ Note that a measurement kit can remotely via LoRa be instructed for configuratio
 Default logging output (priority driven: info, ..., debug) is on standard error terminal. Configuration allow to forward logging to the OS syslog system, or even for remore simple access to a named pipe.
 It is possible to configure each module with a different priority level.
 One can configure via Conf['file'] the way logging is done: sys.stderr.write, syslog, name pipe, or a logfile.
+
+## LoRaWan gateway statistics
+The datacollector will maintain information of gateways involeved with uploading kit measurements.
 
 ## upgrading DB
 MyDatacollector is dependent on meta information and measurement data tables.
