@@ -19,9 +19,9 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__ ='$RCSfile: MyCONSOLE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.26 $"[11:-2]
+__version__ = "0." + "$Revision: 3.27 $"[11:-2]
 #
-# $Id: MyCONSOLE.py,v 3.26 2021/10/26 14:03:43 teus Exp teus $
+# $Id: MyCONSOLE.py,v 3.27 2022/01/05 11:28:06 teus Exp teus $
 
 """ Publish measurements to console STDOUT (uses terminal colors in printout).
     Meta info will be shown on first new data record and at later intervals.
@@ -158,6 +158,23 @@ def registrate(info,artifacts):
           ident[one] = 'True' if info[one] else 'False'
         elif info[one] != None: ident[one] = info[one]
       except: pass
+    for one in [('Validity measurements','valid'),('Kit location','kit_loc')]:
+      color = DFLT
+      try:
+        value = info[one[1]]
+      except: continue
+      if one[1] == 'kit_loc':
+        if not value: value = 'at home location'
+        else:
+          value = "at geo '%s'" % str(value); color = RED
+      elif one[1] == 'valid':
+        if not value: color = RED
+        if value: value = 'valid'
+        elif value == None:
+          value = 'undefined (indoor)'; color = PURPLE
+        else: value = 'invalid'
+      else: continue
+      printc("    %-32.31s: %s" % (one[0],value), color)
     for one in [
        ('Label',["label"]),
        ('Identity',["project","serial"]),
@@ -181,7 +198,7 @@ def registrate(info,artifacts):
           elif type(ident[item]) is str: string += ident[item]+', '
           elif type(ident[item]) is unicode: string += str(ident[item])+', '
           elif item[:4] == 'alti': string += 'alt %dm, ' % int(ident[item])
-          elif type(ident[item]) is float: string += 'l%s %.7f, ' % (item[1:3],ident[item])
+          elif type(ident[item]) is float: string += '%s %.7f, ' % (item[1:3],ident[item])
           else: string += str(ident[item])+', '
       except: pass
       if string: printc('    '+string[:-2])
@@ -381,17 +398,6 @@ def publish(**args):
         printc("    %-32s: %s" % ('unknown',str(data[one])))
 
     extra = []; color = BLACK
-    for one in [('validity measurements','valid'),]:
-      try:
-        value = info[one[1]]
-      except: continue
-      if value != None:
-        if one[1] != 'count': value = True if value else False
-        if not value: color = RED
-      else:
-        value = 'TESTED'; color = YELLOW
-      extra.append("%s: %s" % (one[0],str(value)))
-    if extra: printc("    %s" % ', '.join(extra),color)
 
     refs = []
     try: refs = info['CalRefs']

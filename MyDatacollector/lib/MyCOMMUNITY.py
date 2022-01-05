@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyCOMMUNITY.py,v 5.7 2021/11/18 11:52:01 teus Exp teus $
+# $Id: MyCOMMUNITY.py,v 5.8 2022/01/05 11:28:06 teus Exp teus $
 
 # TO DO: write to file or cache
 # reminder: InFlux is able to sync tables with other MySQL servers
@@ -31,7 +31,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program.
 """
 __modulename__='$RCSfile: MyCOMMUNITY.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.7 $"[11:-2]
+__version__ = "0." + "$Revision: 5.8 $"[11:-2]
 import re
 import inspect
 def WHERE(fie=False):
@@ -507,9 +507,11 @@ def post2Community(postTo,postings,ID):
 #     'interval': 240,
 #     'DATAid': u'SAN_b4e62df4b311',
 #     'MQTTid': u'201802215971az/bwlvc-b311',
-#     'valid': 1,   # null in repair
+#     'valid': 1,               # null: indoor measurements
 #     'SensorsID': 1593163787, 'TTNtableID': 1590665967,
-#     'active': 1,  # kit active
+#     'active': 1,              # kit active
+#     'location': u'u1hjtzwmqd',
+#     'kit_loc": 'u1hjtuabc',   # current location if not None or '' (at home)
 #     'Luftdaten': u'b4e62df4b311',
 #     'WEBactive': 1,
 #     'sensors': [
@@ -522,7 +524,6 @@ def post2Community(postTo,postings,ID):
 #       ],
 #     'FromFILE': True,
 #     'CatRefs': ['SDS011'],
-#     'location': u'u1hjtzwmqd',
 #   }
 # record = {
 #     'timestamp': 1629463231, 'version': '2.0.1',
@@ -729,9 +730,11 @@ def publish(**args):
     # skip records not to forward to Sensors.Community
     if not 'Forward data' in artifacts: return "Forwarding to Sensors.Community disabled"
     reasons = []
-    for one in ['id','active','Luftdaten','valid']:
+    for one in ['id','active','Luftdaten','valid','kit_loc']:
       try:
-        if not info[one]: reasons.append('no '+one)
+        if one == 'kit_loc' and one in info.keys() and  info[one]:
+           reasons.append('kit not at home')
+        elif not info[one]: reasons.append('no '+one)
       except: reasons.append('not defined: %s' % one)
     if reasons:
       return "Disabled: '%s'" % ','.join(reasons)

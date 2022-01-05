@@ -18,10 +18,10 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyGPS.py,v 1.10 2021/12/22 12:35:28 teus Exp teus $
+# $Id: MyGPS.py,v 1.11 2022/01/05 11:28:06 teus Exp teus $
 
 __modulename__='$RCSfile: MyGPS.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 1.10 $"[11:-2]
+__version__ = "0." + "$Revision: 1.11 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -45,7 +45,7 @@ def convert2geohash(coordinates,precision=12, verbose=False):
         oord = oord.split(',')[:2]
       oord = [ float(x) for x in oord[:2]]
       # geohash uses (lat, long). Correction action max/min only works in Nld
-      return '%s' % str(geohash.encode(float(max(oord[0],oord[1])), float(min(oord[0],oord[1])), precision))
+      return '%s' % geohash.encode(max(float(oord[0]),float(oord[1])), min(float(oord[0]),float(oord[1])), precision)
     except:
       raise ValueError("location coordinates error with %s" % str(coordinates))
 
@@ -138,6 +138,7 @@ def GPSdistance(geo_1, geo_2, aprox=False):
 #      u'house_number': u'13',
 #      u'city': u'MyMunicipality',
 #      u'suburb': u'MyVillage',
+#      u'village': u'MyVillage',
 #      u'postcode': u'1234AB',
 #      u'state': u'MyState',
 #      u'country': u'MyCountry',
@@ -205,7 +206,8 @@ def GPS2Address(place, city=None, verbose=False):
         import requests
         if not verbose:
           import logging
-          logging.getLogger("requests").setLevel(logging.WARNING)
+          #logging.getLogger("requests").setLevel(logging.WARNING)
+          logging.getLogger("urllib3").setLevel(logging.WARNING)
         response = requests.get(url+get,timeout=3.0)
         # If the response was successful, no Exception will be raised
         response.raise_for_status()
@@ -220,7 +222,7 @@ def GPS2Address(place, city=None, verbose=False):
     if not response: return {}
     if type(response) is list:
       response = response[0]
-    for item in [(u'postcode','pcode'),(u'road','street'),(u'house_number','housenr'),(u'suburb','village'),(u'city','municipality'),(u'state','province'),(u'municipality','municipality')]:
+    for item in [(u'postcode','pcode'),(u'road','street'),(u'house_number','housenr'),(u'suburb','village'),(u'village','village'),(u'city','municipality'),(u'state','province'),(u'municipality','municipality')]:
         try:
             Rslt[item[1]] = str(response[u'address'][item[0]])
         except: pass
@@ -527,7 +529,8 @@ if __name__ == '__main__':
         else: argv.append(sys.argv[i])
     if not verbose:
         import logging
-        logging.getLogger("requests").setLevel(logging.WARNING)
+        #logging.getLogger("requests").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
 
     if lookup:
       if not argv: # just a small geo query test run

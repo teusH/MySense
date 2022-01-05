@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyARCHIVE.py,v 5.17 2021/10/26 14:03:43 teus Exp teus $
+# $Id: MyARCHIVE.py,v 5.18 2022/01/05 11:28:06 teus Exp teus $
 
 # reminder: MySQL is able to sync tables with other MySQL servers
 # based on MyDB.py V4.5
@@ -28,7 +28,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 __modulename__='$RCSfile: MyARCHIVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.17 $"[11:-2]
+__version__ = "0." + "$Revision: 5.18 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -118,7 +118,7 @@ def UpgradeTable(tableName,field):
 #  'id': {'project': u'SAN', 'serial': u'b4e2df4b3611'},
 #  'DATAid': u'SAN_b4e62d4fb311',
 #  'TTNtableID': 1565969067,
-#  'valid': 1,
+#  'valid': 1,  # if None values are not valid e.g. indoor measurements
 #  'SensorsID': 1531639787,
 #  'active': 1,
 #  'Luftdaten': u'b462d4fe3b11',
@@ -141,6 +141,7 @@ def UpgradeTable(tableName,field):
 #     'ttl': 1630373493}
 #   ],
 #  'location': u'u1hjztwmqd',
+#  'kit_loc': '',  # if not atr home location it has the geohash
 #  'MQTTid': u'201802215971az/bwvlc-1b31',
 #  'unknown_fields': set([]),
 #  'FromFILE': True,
@@ -187,12 +188,12 @@ def registrate(tableName, info, data):
       else: table_flds -= set(['sensors'])
       info['fields'] = table_flds
     valid = True
-    try:  # True if in operation, None if in repair, False if not active
+    try:  # True if in operation, None if invalid values, False if not active
       valid = True if info['valid'] else None
       if not info['active']: valid = False if valid else None
     except: pass
 
-    # all measurments, column names to update, new column names, sensors used, double field names
+    # all measurements, column names to update, new column names, sensors used, double field names
     measurements = []; fields = []; toAdd = []; sensors = []; doubles = []
     Lon = None; Lat = None; GeoIndx = None
     # allow only one field name, skip double fields. To Do: use average
@@ -256,6 +257,7 @@ def registrate(tableName, info, data):
     #     for j in range(len(mnts)-1):
     #       if  fld = mnts[j][0]: mnts[j] = (fld,(val+mnts[j][1])/(cnt+1.0))
     # if doubles: calcAvg(measurements, doubles)
+    # To Do: add kit_loc geohash if kit is mobile and if kit not producing geo info
 
     if not measurements: return ([],[])
     sensors = sorted(set(sensors))
@@ -297,20 +299,22 @@ def correctValue(info,field,value,unit): # unit is [unit,[value calibration seq]
       except: pass
     return value
 
-# publish argument examples
-# info = {
+# publish argument examples: cached info, measurements record, record artifacts.
+# info = {                           # cached meta info per measurement kit
 #     'count': 1,
 #     'id': {'project': u'SAN', 'serial': u'b4e62df4b311'},
-#     'last_seen': 1627828712,
-#     'interval': 240,
-#     'DATAid': u'SAN_b4e62df4b311',
-#     'MQTTid': u'201802215971az/bwlvc-b311',
-#     'valid': 1,   # null in repair
+#     'last_seen': 1627828712,       # Posix timestamp in seconds
+#     'interval': 240,               # guessed interval
+#     'DATAid': u'SAN_b4e62df4b311', # DB measurements table name
+#     'MQTTid': u'201802215971az/bwlvc-b311', # MQTT inpuit channel topic
+#     'active': 1,                   # kit active, in operation
+#     'valid': 1,   # null or false: 'mobile' e.g. in repair, not at home address
+#     'location': u'u1hjtzwmqd',     # geohash home location, null: undefined
+#     'kit_loc': null,               # if string: geohash of current not home location
 #     'SensorsID': 1593163787, 'TTNtableID': 1590665967,
-#     'active': 1,  # kit active
-#     'Luftdaten': u'b4e62df4b311',
-#     'WEBactive': 1,
-#     'sensors': [
+#     'Luftdaten': u'b4e62df4b311',  # Sensors.Community ID if null use serial
+#     'WEBactive': 1,                # published on website
+#     'sensors': [                   # sensors meta info
 #       {  'category': u'dust', 'type': u'PMSx003', 'match': u'PMS.003',
 #          'producer': u'Plantower',
 #          'fields': ((u'pm25', u'ug/m3',[-1.619,1/1.545]), (u'pm10',u'ug/m3',[-3.760,1/1.157]),(u'grain', u'um')),
@@ -321,18 +325,17 @@ def correctValue(info,field,value,unit): # unit is [unit,[value calibration seq]
 #          'producer': u'NEO',
 #          'fields': ((u'geohash', u'geohash'), (u'altitude', u'm')),
 #       ],
-#     'FromFILE': True,
+#     'FromFILE': True,             # reading from file
 #     'CatRefs': ['SDS011'],
-#     'location': u'u1hjtzwmqd',
 #   }
-# record = {
+# record = {                        # record data: measurements
 #     'timestamp': 1629463231, 'version': '2.0.1',
 #     'data': {
 #        'BME680':  [(u'temp', 12.8)],
 #        'PMS7003': [(u'pm1', 1.8),(u'pm25', 2.5)],   # has unknown field pm25
 #     },
 #   }
-# artifacts = [  # all known ones
+# artifacts = [                     # a selection, subject to change
 #     'Forward data',                   'Start throttling kit: %%s',
 #     'Skip data. Throttling kit.',     'Unknown kit: %%s',
 #     'Unregistered kit: %%s',          'MQTT id:%%s, %%s kit. Skipped.',
@@ -341,6 +344,8 @@ def correctValue(info,field,value,unit): # unit is [unit,[value calibration seq]
 #     'Restarted kit',                  'Out of Range sensors: %%s',
 #     'Static value sensors: %%s',      'Change of sensor types: %%s -> %%s',
 #     'Measurement data format error',  'No input resources',
+#     'Kit back to home location',      'Kit is set invalid',
+#     'Kit removed from home location',
 #     'End of iNput Data',              'Fatal error on subscriptions',],
 #  ]
 
@@ -382,11 +387,18 @@ def publish(**args):
       # registrate side effect: measurements table is updated with all fields needed
       if not data: return "No data to archive"
     except Exception as e: return str(e)
+    try: DfltValid = info['valid']           # meta info about validity of measurements
+    except: DfltValid = True
+    try:
+      if info['kit_loc']: DfltValid = False  # kit is not at home location
+    except: pass
 
     # table is created and updated with missing fields, insert data into database
     cols = []; vals = []; DB = Conf['DB']
     for one in data:  # one: (field,value,valid[,Taylor calibration seq])
         if one[1] == None: continue
+        if DfltValid: validity = one[2]
+        else: validity = DfltValid
         # To Do: check one[0] for fields supported in DB archive
         if type(one[1]) in [str, unicode]: vals.append("'%s'" % one[1])
         elif type(one[1]) is bool: vals.append("1" if one[1] else "0")
@@ -401,8 +413,12 @@ def publish(**args):
         else: # not supported type, e.g. list. Skipped
           continue
         cols.append(one[0])
-        if not one[2]:
-          cols.append(one[0]+'_valid'); vals.append('NULL' if one[2] == None else "0")
+        # if info['FromFILE']: continue   # do not handle validity if restored from file
+        if one[0] != 'geohash':
+          cols.append(one[0]+'_valid')
+          if validity == None: vals.append('NULL')
+          elif validity: vals.append('1')
+          else: vals.append('0')
     if not vals: return False
     cols += ['datum','sensors']; vals += ["FROM_UNIXTIME(%d)" % int(timestamp),"'%s'" % ','.join(sensors)]
 

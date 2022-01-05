@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDB.py,v 5.11 2021/12/26 10:33:26 teus Exp teus $
+# $Id: MyDB.py,v 5.12 2022/01/05 11:28:06 teus Exp teus $
 
 # reminder: MySQL is able to sync tables with other MySQL servers
 
@@ -27,7 +27,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 __modulename__='$RCSfile: MyDB.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.11 $"[11:-2]
+__version__ = "0." + "$Revision: 5.12 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -332,7 +332,7 @@ def CreateLoRaTable(table):
         serial  varchar(16)     DEFAULT NULL              COMMENT 'serial kit hex, reference to measurements',
         active  tinyint(1)      DEFAULT 0                 COMMENT 'DB values enabled',
         refresh datetime        DEFAULT NULL              COMMENT 'date from which kit is in repair',
-        valid   tinyint(1)      DEFAULT 1                 COMMENT 'validate measurements, if NULL in repair, False omit in DB',
+        valid   tinyint(1)      DEFAULT 1                 COMMENT 'validate measurements, if NULL in repair or indoor, False omit in DB',
 
         TTN_app varchar(32)     DEFAULT '20108225197a1z'  COMMENT 'TTN application ID',
         TTN_id  varchar(32)     DEFAULT NULL              COMMENT 'TTN device topic name',
