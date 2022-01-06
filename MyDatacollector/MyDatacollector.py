@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.67 2022/01/05 11:25:10 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.68 2022/01/06 14:44:37 teus Exp teus $
 
 # Data collector: multiple MQTT data brokers, data backup restore, MQTT and
 # other measurement data resources,
@@ -114,7 +114,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.67 $"[11:-2]
+__version__ = "1." + "$Revision: 4.68 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -1096,7 +1096,7 @@ def HasNewHomeGPS(info, data):
    global DB
    try: home = info['location']  # geohash in cache, None if not defined
    except: home = None
-   geoloc = None; gps = None; alt = None
+   geoloc = None
    try:                          # geoloc has geohash if avaialble from meta info
      geoloc = data['meta']['geolocation']
      if 'alt' in geoloc.keys(): alt = geoloc['alt']
@@ -1109,6 +1109,7 @@ def HasNewHomeGPS(info, data):
        geoloc = geoloc['geohash']
    except: pass
    if home and geoloc and MyGPS.GPSdistance(home,geoloc) < 118: geoloc = None
+   gps = None; alt = None
    try:
      for geo, loc in data['data'].items(): # gps has location from data part
        if not type(loc) is dict: continue
@@ -1124,47 +1125,36 @@ def HasNewHomeGPS(info, data):
            gps = MyGPS.convert2geohash([loc['lon'],loc['lat']])
          elif 'longitude' in loc.keys():
            gps = MyGPS.convert2geohash([loc['longitude'],loc['latitude']])
-         # if gps is close to geoloc or home skip it
-         if home:
-           if MyGPS.GPSdistance(home,gps) < 118:
-             if info['valid']:
-               gps = None; del data['data'][geo] # save DB mem use size
-         elif geoloc:
-           if MyGPS.GPSdistance(geoloc,gps) < 118:
-             if info['valid']:
-               gps = None; del data['data'][geo]  # save DB mem use size
-         #else: geoloc = gps
+         if not gps: continue
+         geoloc = gps  # geohash in data has priority
          break
        except: pass
    except: pass
    try: # maybe we guessed location from gateway info # To Do: MQTTclient improve guess 
      if data['meta']['GeoGuess'] and not gps: # we use NEO-6 as GPS sensor
        # if not 'data' in data.keys(): data['data'] = {}
-       if geoloc and not gps:
+       if geoloc:
          if not 'NEO-6' in data['data'].keys(): data['data']['NEO-6'] = {}
          data['data']['NEO-6']['geohash'] = geoloc
-         geoloc = None
    except: pass # no guessed location
-   if not geoloc and not gps: return []         # no kit location to change
+   if not geoloc: return []         # no kit location to change
+   if home:
+     if MyGPS.GPSdistance(home,geoloc) < 118:
+       if info['valid']:
+         if gps: del data['data'][geo]
+       return []
 
    # if new home location: update Sensors table
    rts = []; msg = ''
-   if geoloc or gps: # geoloc: geoloc (from meta) or gps (from data)
-     if not home:                               # kit home not yet known
-       if not geoloc: geoloc = gps              # use data as home loc source
+   if geoloc: # geoloc: from meta or from data
+     if not home:                               # kit home location not yet known
        home = info['location'] = geoloc
        try:
          if UpdateNewHome(info, geoloc, alt):
            rts.append('Updated home location')  # artifacts
-         if not info['valid']:
-           info['valid'] = True
-           DB.db_query("UPDATE TTNtable SET valid = 1, refresh = NULL WHERE UNIX_TIMESTAMP(id) = %d" % info['TTNtableID'], False)
-           MyLogger.log(WHERE(),'ATTENT',"Kit project %s, serial %s set to valid." % (info['id']['project'],info['id']['serial']))
-         info['kit_loc'] = None
        except: pass
-     else:      # measurement kit removed from home home location?
-       if not gps: gps = geoloc
-       if MyGPS.GPSdistance(home,gps) < 118:    # distance in meters is about the same
+     if home:      # measurement kit removed from home home location?
+       if MyGPS.GPSdistance(home,geoloc) < 118:    # distance in meters is about the same
          info['kit_loc'] = ''                   # kit is at home location
          if not info['valid']:                  # kit is back home
            info['valid'] = True; info['kit_loc'] = None
@@ -1176,13 +1166,13 @@ def HasNewHomeGPS(info, data):
              rts.append('Kit back to home location')
            except: pass
          # else kit is still at home location
-       else:                                     # kit is on the move
+       else:                                    # kit is on the move
          try: info['kit_loc']
          except: info['kit_loc'] = None
-         if info['valid']:                       # kit is located indoor or in repair
+         if info['valid']:                      # kit is located indoor or in repair
            msg = "Kit project %s, serial %s has been relocated" % (info['id']['project'],info['id']['serial'])
-           MyLogger.log(WHERE(),'ATTENT',"%s to geohash '%s' and set to invalid." % (msg,gps))
-           info['valid'] = None
+           MyLogger.log(WHERE(),'ATTENT',"%s to geohash '%s' and set to invalid." % (msg,geoloc))
+           info['valid'] = None                 # invalidate all measurements
            try:
              DB.db_query("UPDATE TTNtable SET valid = NULL, refresh = now() WHERE UNIX_TIMESTAMP(id) = %d" % info['TTNtableID'], False)
              rts.append('Kit is set invalid') # artifacts
@@ -1190,19 +1180,24 @@ def HasNewHomeGPS(info, data):
            if not info['kit_loc']:
               # first move away: denote kit is from now 'mobile' eg in repair or indoor
               try:
-                MyLogger.log(WHERE(),'ATTENT',"%s to geohash '%s'" % (msg,gps))
+                MyLogger.log(WHERE(),'ATTENT',"%s to geohash '%s'" % (msg,geoloc))
                 msg += " to: "
-                where = MyGPS.GPS2Address(gps)
+                where = MyGPS.GPS2Address(geoloc)
                 for one in ['latitude','longitude','street','housenr','village']:
                   try: msg += where[one]+', '
                   except: pass
                 msg = re.sub(r', *$','.',msg)
                 rts.append('Kit removed from home location') # artifacts
-                info['kit_loc'] = gps
+                info['kit_loc'] = geoloc
               except: pass
-         elif info['kit_loc'] and MyGPS.GPSdistance(info['kit_loc'],gps) >= 118:
-           MyLogger.log(WHERE(),'ATTENT',"%s to new geohash '%s'." % (msg,gps))
+           info['kit_loc'] = geoloc
+         elif info['kit_loc'] and MyGPS.GPSdistance(info['kit_loc'],geoloc) >= 118:
+           MyLogger.log(WHERE(),'ATTENT',"%s to new geohash '%s'." % (msg,geoloc))
+         else: info['kit_loc'] = geoloc
        if msg: sendNotice(msg,info=info,all=True)
+   # try:  # clean up
+   #   if not info['kit_loc']: del info['kit_loc']
+   # except: pass
    return rts
 
 # is this kit restarted after some time out?
@@ -1567,6 +1562,38 @@ def LogInvalids(info):
       return ["Sensor(s) '%s' have Out of Band values" % ','.join([a[0] for a in invalids])]
     return []
 
+# adjust 'valid' and 'kit_loc' when reading from file
+def adjustValid(info,timestamp):
+    # try: if not (info['FromFILE'] and info['count'] <= 1): return False
+    global DB
+    try: tbl = info['DATAid']
+    except: return False
+    pols = [str(r[0]) for r in DB.db_query("DESCRIBE %s" % tbl, True)]
+    for _ in reversed(range(len(pols))):
+      if pols[_].find('_valid') < 0:
+        pols.pop(_); continue
+      else:
+        if re.match(r'.*(geohash|itude|gps)',pols[_],re.IGNORECASE):
+          pols.pop(_); continue
+      pols[_] = "IF(ISNULL(%s),'',',%s')" % (pols[_],pols[_].replace('_valid',''))
+    if not pols: return False
+    
+    try:
+      prevTime, prevVal = DB.db_query("SELECT UNIX_TIMESTAMP(datum),CONCAT(%s) FROM %s WHERE UNIX_TIMESTAMP(datum) <= %d LIMIT 1" % (','.join(pols),tbl,timestamp), True)[0]
+      if prevVal:
+        info['valid'] = True; info['kit_loc'] = None
+        return True # some pol is qualified as not NULL valid
+    except: return False       # table does not exists
+    try: prevLoc = DB.db_query("SELECT geohash FROM %s WHERE UNIX_TIMESTAMP(datum) <= %d AND not ISNULL(geohash) LIMIT 1" % (tbl,timestamp), True)[0]
+    except: prevLoc = ''
+    info['valid'] = None     # till timestamp valid was None
+    try:
+      if prevLoc and MyGPS.GPSdistance(info['location'],prevLoc) < 119:
+        info['kit_loc'] = ''
+      else: info['kit_loc'] = prevLoc
+    except: pass
+    return True
+
 # convert 'sensors' key into a list of refs.
 # Return list of refs to sensor type descr dicts (type, fields, units, calibrations) or sensor type names
 def Data2Frwrd(info, data):
@@ -1597,6 +1624,11 @@ def Data2Frwrd(info, data):
     # define timestamp when needed           # get best timestamp for this datagram
     try: timestamp = data['timestamp']
     except: data['timestamp'] = timestamp = int(time())
+
+    # home location and measurements at home location validity check
+    try:
+      if info['FromFILE'] and info['count'] <= 1: adjustValid(info,timestamp)
+    except: pass
 
     # collect artifacts
     rtsMsg += HasNewHomeGPS(info, data) # has new home location or is in located indoor?
