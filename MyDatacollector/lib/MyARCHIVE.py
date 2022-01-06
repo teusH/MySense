@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyARCHIVE.py,v 5.18 2022/01/05 11:28:06 teus Exp teus $
+# $Id: MyARCHIVE.py,v 5.19 2022/01/06 15:16:17 teus Exp teus $
 
 # reminder: MySQL is able to sync tables with other MySQL servers
 # based on MyDB.py V4.5
@@ -28,7 +28,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 __modulename__='$RCSfile: MyARCHIVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.18 $"[11:-2]
+__version__ = "0." + "$Revision: 5.19 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -390,7 +390,7 @@ def publish(**args):
     try: DfltValid = info['valid']           # meta info about validity of measurements
     except: DfltValid = True
     try:
-      if info['kit_loc']: DfltValid = False  # kit is not at home location
+      if info['kit_loc']: DfltValid = None   # validity undefined (not at home location)
     except: pass
 
     # table is created and updated with missing fields, insert data into database
