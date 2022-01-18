@@ -21,7 +21,7 @@
 #   language governing rights and limitations under the RPL.
 #
 
-# $Id: FilterShow.py,v 3.1 2021/02/27 13:34:36 teus Exp teus $
+# $Id: FilterShow.py,v 3.4 2022/01/18 19:37:10 teus Exp teus $
 
 
 # To Do: support CSV file by converting the data to MySense DB format
@@ -42,7 +42,7 @@
     Database credentials can be provided from command environment.
 """
 progname='$RCSfile: FilterShow.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.1 $"[11:-2]
+__version__ = "0." + "$Revision: 3.4 $"[11:-2]
 __License__ = 'Open Source Initiative RPL-1.5'
 
 try:
@@ -56,7 +56,8 @@ try:
     import re
     from time import time
     import numpy as np
-    from scipy.stats import t, zscore
+    #from scipy.stats import t, zscore
+    from scipy import stats
 except ImportError as e:
     sys.exit("One of the import modules not found: %s" % e)
  
@@ -131,8 +132,10 @@ def Joost(data,args=None):
 # 2nd: minimum and maximum for outliers detection
 # 3th: unit + class per pollutant for charts
 # 4th: database column names translated to something humans understand
-# 5th: EU norm daily average and WHO (to be completed)
-Norms = ['EU norm','WHO norm'] # norm type
+# 5th: EU norm (2008) daily average and WHO guidelines (2021) (to be completed)
+# ref: https://ec.europa.eu/environment/air/quality/standards.htm
+# ref: https://www.who.int/news-room/feature-stories/detail/what-are-the-who-air-quality-guidelines
+Norms = ['EU norm','WHO guidelines'] # norm type
 # 6th: array with correction routine and routine arg or None
 # To Do: complete with more values
 polAttrs = [False,
@@ -147,22 +150,28 @@ polAttrs = [False,
         'air pressure',None,None],
     ['^[a-oq-z]?pm_?10$',                    # dust class PM10
         [0,200,None],['PM $\mu g/m^3$','dust'],
-        'PM$_1$$_0$',[32,20],[Joost,['pm','rv']]],
+        'PM$_1$$_0$',[32,15],[Joost,['pm','rv']]],
     ['^[a-oq-z]?pm_?25$',                    # dust class PM2.5
         [0,200,None],['PM $\mu g/m^3$','dust'],
-        'PM$_2$.$_5$',[25,10],[Joost,['pm','rv']]],
+        'PM$_2$.$_5$',[25,5],[Joost,['pm','rv']]],
     ['^[a-oq-z]?pm_?1$',                     # dust class PM1
         [0,200,None],['PM $\mu g/m^3$','dust'],
-        'PM$_1$.$_0$',[Joost,['pm','rv']]],
+        'PM$_1$.$_0$',None,[Joost,['pm','rv']]],
     ['^[a-np-z]?[Oo]3',                      # gas classes O3
-        [0,250,None],['ozon','gas'],
+        [0,250,None],['ozon ppm','gas'],
         'O$_3$',None,None],
     ['^[a-mo-z]?[Nn][Oo]2?',                 # gas classes NOx
-        [0,100,None],['stikstofoxides','gas'],
-        'NO$_x$',None,None],
+        [0,100,None],['stikstofoxides ppm','gas'],
+        'NO$_x$',[50,25],None],
     ['^[a-mo-z]?[Nn][Hh]3',                  # gas classes NH3
-        [0,100,None],['NH$_3$','gas'],
+        [0,100,None],['ammoniak ppm','gas'],
         'NH$_3$',None,None],
+    ['^[a-mo-z]?[Ss][Oo]2',                  # gas classes SO2
+        [0,500,None],['zwaveloxides ppm','gas'],
+        'SO$_2$',[125,40],None],
+    ['^[a-mo-z]?[Cc][Oo]',                   # gas classes CO
+        [0,500,None],['koolmonoxide ppm','gas'],
+        'CO',[10,4],None],
     # next must be general class, catch all
     ['.*',
        None,None,
@@ -328,7 +337,7 @@ def Check(table,pollutant,period=None, valid=True,db=net):
     if not len(checked['table']):
         for col in db_query("DESCRIBE %s" % table,True,db=db):
             fnd = False
-            for item in ['_valid','id','datum']:
+            for item in ['_valid','id','datum','sensors','geohash']:
                 if str(col[0]).find(item) >= 0:
                     fnd = True; break
             if fnd: continue
@@ -387,6 +396,24 @@ def AdjustPM( table, pollutant, periodStrt, periodEnd, db=net):
     db_query("UPDATE %s SET %s = 0.013, %s_valid = 1 WHERE UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %s AND ISNULL(%s) AND NOT ISNULL(%s_cnt)" % (table,pollutant,pollutant,startPM if startPM else periodStrt,periodEnd,pollutant,pollutant), False, db=db)
     return True
 
+# make pollutants invalid if kit is inrepair in this period
+def InvalidateInRepair(table, pollutants, period, db=net):
+    global debug, verbose
+    DateRepair=[]
+    try:
+      DateRepair = db_query("SELECT UNIX_TIMESTAMP(refresh) FROM TTNtable WHERE project = '%s' AND serial = '%s' ORDER BY datum DESC LIMIT 1" %  (table.split('_')[0],table.split('_')[1]), True, db=db)
+      if not (period[0] <= int(DateRepair[0]) <= period[1]): return
+    except: return
+    # invalidate pollutant measurements in this period
+    qry = []
+    for pollutant in pollutants:
+        qry.append("UPDATE %s SET %s_valid = NULL WHERE UNIX_TIMESTAMP(datum) >= %s AND UNIX_TIMESTAMP(datum) <= %s" % (table,pollutant,DateRepair[0],DateRepair[0]))
+    if len(qry):
+      try:
+        db_query(';'.join(qry),False,db=db)
+      except: pass
+    return
+
 # invalidate cel value if values are NULL or are static (failing)
 # 
 def rawCleanUp(table, pollutants,period,cleanup=3,db=net):
@@ -399,6 +426,7 @@ def rawCleanUp(table, pollutants,period,cleanup=3,db=net):
           subperiod[0] = period[0]+cleanup*7*24*3600-2*24*3600; subperiod[1] = period[1]
           return rawCleanUp(table, pollutants,subperiod,cleanup=cleanup,db=net)
         except: return False
+    InvalidateInRepair(table, pollutants, period, db=db)
     for pollutant in pollutants:
       if adjustPM and (pollutant.lower() in ['pm1','pm25','pm10']): # hack
         AdjustPM(table,pollutant,period[0],period[1],db=db)
@@ -842,6 +870,9 @@ def grubbs(X, test='two-tailed', alpha=0.05, ddof=1):
     floor: (minimal,maximal) value of array with outliers removed
     '''
  
+    try:
+      np.min(X); np.max(X)
+    except: return None
     if np.min(X) == np.min(X):
         return { # static values give stddev == 0 and so division error
                 'valid': len(X),
@@ -852,7 +883,7 @@ def grubbs(X, test='two-tailed', alpha=0.05, ddof=1):
                 'stddev': 0.0,
                 }
     try:
-        Z = zscore(X, ddof=ddof)  # Z-score
+        Z = stats.zscore(X, ddof=ddof)  # Z-score
     except: return { # static values give stddev == 0 and so division error
                 'valid': len(X),
                 'liers': 0,
@@ -893,7 +924,7 @@ def grubbs(X, test='two-tailed', alpha=0.05, ddof=1):
         X = np.delete(X, extreme_ix(Z))
         # repeat Z score
         try:
-            Z = zscore(X, ddof=ddof)
+            Z = stats.zscore(X, ddof=ddof)
         except:
             print("ERROR in grubbs/zscore call (stddev == 0)\n")
             break
@@ -926,8 +957,11 @@ def resetValid(table,pollutant,period,db=net, lossy=True):
             datetime.datetime.fromtimestamp(start).strftime('%d %b %Y %H:%M'), \
             datetime.datetime.fromtimestamp(period[1]).strftime('%d %b %Y %H:%M'), \
             cnt[0][0]))
-    qry = 'UPDATE %s SET %s_valid = 1 WHERE NOT ISNULL(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d' % \
+    qry = 'UPDATE %s SET %s_valid = NULL WHERE ISNULL(%s) AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d' % \
         (table, pollutant, pollutant, start, period[1])
+    db_query(qry, False, db=db)
+    qry = 'UPDATE %s SET %s_valid = 1 WHERE NOT ISNULL(%s) AND NOT ISNULL(%s_valid)  AND UNIX_TIMESTAMP(datum) >= %d AND UNIX_TIMESTAMP(datum) <= %d' % \
+        (table, pollutant, pollutant, pollutant, start, period[1])
     return db_query(qry, False, db=db)
 
 def doStatistics(table,pollutant,period,db=net,string=''):
@@ -1151,7 +1185,7 @@ def plotAverage(pollutant,period,floor,ceil,plt,color='b',interval=3600,db=net, 
         (interval,interval,pol, pol, table, pol, pol, period[0], period[1])
     data = db_query(qry, True, db=db)
     if len(data) < threshold: return False
-    spg = (data[-1][0]-data[0][0]+int(grid/2))/grid     # secs per grid 
+    spg = int((data[-1][0]-data[0][0]+int(grid/2))/grid)     # secs per grid 
     data.append((None,None,None))
     x = []; m = []; su = []; sl = []
     for idx in range(0,len(data)):
