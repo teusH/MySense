@@ -19,14 +19,14 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyLogger.py,v 3.10 2021/11/03 16:38:29 teus Exp teus $
+# $Id: MyLogger.py,v 3.11 2022/01/21 12:08:44 teus Exp teus $
 
 # TO DO:
 
 """ Push logging to the external world.
 """
 modulename='$RCSfile: MyLogger.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.10 $"[11:-2]
+__version__ = "0." + "$Revision: 3.11 $"[11:-2]
 
 import sys
 from time import sleep
@@ -133,13 +133,17 @@ def log(name,level,message): # logging to console or log file
         except:
             Conf['fd'].setLevel(logging.WARNING)
         if Conf['date']:
-            log_frmt = logging.Formatter("%(asctime)s IoS %(levelname)s: %(message)s", datefmt='%Y/%m/%d %H:%M:%S')
+            log_frmt = logging.Formatter("%(asctime)s MySense-IoS[%(process)d]: %(levelname)s %(message)s", datefmt='%Y/%m/%d %H:%M:%S')
         else:
-            log_frmt = logging.Formatter("IoS log %(levelname)s: %(message)s")
+            log_frmt = logging.Formatter("MySense-IoS[%(process)d]: %(levelname)s %(message)s")
         if type(Conf['file']) is str:
           if Conf['file'].lower() == 'syslog':
             log_handle = logging.handlers.SysLogHandler(address = '/dev/log')
             log_handle.setFormatter(log_frmt)
+          elif Conf['file'].lower() == 'stderr':
+            log_handle = sys.stderr
+          elif Conf['file'].lower() == 'stdout':
+            log_handle = sys.stdout
           else:
             log_handle = logging.FileHandler(Conf['file'])
             log_handle.setFormatter(log_frmt)
