@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.56 $"[11:-2]
+__version__ = "0." + "$Revision: 2.57 $"[11:-2]
 import inspect
 import random
 def WHERE(fie=False):
@@ -30,7 +30,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.56 2021/12/13 14:53:06 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.57 2022/01/21 12:10:06 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -762,10 +762,13 @@ class KitCache:
                      AND Sensors.project = TTNtable.project AND Sensors.serial = TTNtable.serial
                    ORDER BY Sensors.active DESC, Sensors.datum DESC
                    LIMIT 1""" % (col1,match1,col2,match2)
-          if len(qry[0]): qry = self.DB.db_query( re.sub(r'\n *',' ',qry).strip(), True)[0]
-          else: raise ValueError("Not registered in TTNtable")
+          qry = self.DB.db_query( re.sub(r'\n *',' ',qry).strip(), True)
+          if not qry or not len(qry):
+            self._logger('INFO','Skip meta info of record broker ID %s (not registered device).' % ID)
+            return {}
+          qry = qry[0]
         except Exception as e:
-          self._logger('ATTENT','Skip CacheInfo with ID %s (%s).' % (ID,str(e)))
+          self._logger('ATTENT','Exception will skip CacheInfo with ID %s (%s).' % (ID,str(e)))
           return {}
         # update cache with database measurement table meta info
         self.addEntry(CacheInfo,['TTNtableID','DATAid','MQTTid','Luftdaten','WEBactive','SensorsID','sensors','location','active','valid','version'],qry[2:])
@@ -808,8 +811,8 @@ class KitCache:
         except:
           RecID = 'MQTT missing applID/topic'
           self._logger("ERROR","NO MQTT appID/topic in record %s found" % str(record))
-        self._logger("ERROR","MQTT appID/topic in record %s found. Cache size %d" % (str(record),len(self.KitCached)))
-        self._logger("ATTENT","Skip record with ID: '%s' (not registrated node)." % RecID)
+        #self._logger("ERROR","MQTT appID/topic in record %s found. Cache size %d" % (str(record),len(self.KitCached)))
+        self._logger("INFO","Skip record with ID: '%s' (not registrated node)." % RecID)
         #entry = self.AccessInfo(RecID)
       else:
         try: # remove location guessed from GTW location from data dict

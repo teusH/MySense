@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyDatacollector.py,v 4.68 2022/01/06 14:44:37 teus Exp teus $
+# $Id: MyDatacollector.py,v 4.70 2022/01/21 12:23:24 teus Exp teus $
 
 # Data collector: multiple MQTT data brokers, data backup restore, MQTT and
 # other measurement data resources,
@@ -114,7 +114,7 @@ __HELP__ = """ Download measurements from a server (for now TTN MQTT server):
 """
 
 __modulename__='$RCSfile: MyDatacollector.py,v $'[10:-4]
-__version__ = "1." + "$Revision: 4.68 $"[11:-2]
+__version__ = "1." + "$Revision: 4.70 $"[11:-2]
 import inspect
 def WHERE(fie=False):
     global __modulename__, __version__
@@ -833,12 +833,12 @@ def FluctCheck(info,afield,avalue):
     for one in toBeChck:  # get amount of static values permitted for afield
       if Conf['check'][0] == afield:
         trigger = Conf['check'][1]; break
-    else: trigger = 20
-    if chk[afield][0] <= trigger: # await fluctuations for ca 5 hours
+    else: trigger = 40
+    if chk[afield][0] <= trigger: # await fluctuations for ca 10 hours
       return None
-    if chk[afield][0] > trigger+1 and (chk[afield][0] % 100): # have already give notice
+    if chk[afield][0] > trigger+1 and (chk[afield][0] % 200): # have already give notice
       return afield
-    MyLogger.log(WHERE(True),'ERROR','kit %s/%s has (malfunctioning) sensor field %s, which gives static value of %.2f #%d.' % (info['id']['project'],info['id']['serial'],afield,avalue,chk[afield][0]))
+    MyLogger.log(WHERE(True),'ATTENT','kit %s/%s has (malfunctioning) sensor field %s, which gives static value of %.2f #%d.' % (info['id']['project'],info['id']['serial'],afield,avalue,chk[afield][0]))
     sendNotice('%s: kit project %s, serial %s has (malfunctioning) sensor field %s, which gives static value of %.2f on a row of %d times. Skipped data.' % (datetime.datetime.fromtimestamp(time()).strftime("%Y-%m-%d %H:%M"),info['id']['project'],info['id']['serial'],afield,avalue,chk[afield][0]),info=info,all=False)
     return afield
 
@@ -1154,47 +1154,50 @@ def HasNewHomeGPS(info, data):
            rts.append('Updated home location')  # artifacts
        except: pass
      if home:      # measurement kit removed from home home location?
+       msg = None
        if MyGPS.GPSdistance(home,geoloc) < 118:    # distance in meters is about the same
          info['kit_loc'] = ''                   # kit is at home location
          if not info['valid']:                  # kit is back home
            info['valid'] = True; info['kit_loc'] = None
            try:
-             DB.db_query("UPDATE TTNtable SET valid = 1, refresh = NULL WHERE UNIX_TIMESTAMP(id) = %d" % info['TTNtableID'], False)
-             msg = "Kit project %s, serial %s installed back to home location" % (info['id']['project'],info['id']['serial'])
-             MyLogger.log(WHERE(),'ATTENT',msg + '. Set to valid.')
-             msg = "MySense measurements: " + msg
-             rts.append('Kit back to home location')
+             if not DB.db_query("SELECT valid FROM TTNtable WHERE UNIX_TIMESTAMP(id) = %d"  % info['TTNtableID'], True)[0][0]:
+               DB.db_query("UPDATE TTNtable SET valid = 1, refresh = NULL WHERE UNIX_TIMESTAMP(id) = %d AND ISNULL(valid)" % info['TTNtableID'], False)
+               msg = "Kit project %s, serial %s installed back to home location" % (info['id']['project'],info['id']['serial'])
+               MyLogger.log(WHERE(),'ATTENT',msg + '. Set to valid.')
+               msg = "MySense measurements: " + msg
+               rts.append('back to home location')
            except: pass
          # else kit is still at home location
        else:                                    # kit is on the move
          try: info['kit_loc']
          except: info['kit_loc'] = None
+         msg = "Kit project %s, serial %s has been relocated to geohash %s" % (info['id']['project'],info['id']['serial'],geoloc)
          if info['valid']:                      # kit is located indoor or in repair
-           msg = "Kit project %s, serial %s has been relocated" % (info['id']['project'],info['id']['serial'])
-           MyLogger.log(WHERE(),'ATTENT',"%s to geohash '%s' and set to invalid." % (msg,geoloc))
-           info['valid'] = None                 # invalidate all measurements
            try:
-             DB.db_query("UPDATE TTNtable SET valid = NULL, refresh = now() WHERE UNIX_TIMESTAMP(id) = %d" % info['TTNtableID'], False)
-             rts.append('Kit is set invalid') # artifacts
+             if DB.db_query("SELECT valid FROM TTNtable WHERE UNIX_TIMESTAMP(id) = %d"  % info['TTNtableID'], True)[0][0]:
+               DB.db_query("UPDATE TTNtable SET valid = NULL, refresh = now() WHERE UNIX_TIMESTAMP(id) = %d AND NOT ISNULL(valid)" % info['TTNtableID'], False)
+               rts.append("set to invalid values")  # artifacts
            except: pass
+           msg += " and set to invalid"
+           info['valid'] = None                 # invalidate all measurements
+           MyLogger.log(WHERE(),'ATTENT',"%s." % msg)
            if not info['kit_loc']:
               # first move away: denote kit is from now 'mobile' eg in repair or indoor
               try:
-                MyLogger.log(WHERE(),'ATTENT',"%s to geohash '%s'" % (msg,geoloc))
                 msg += " to: "
                 where = MyGPS.GPS2Address(geoloc)
                 for one in ['latitude','longitude','street','housenr','village']:
                   try: msg += where[one]+', '
                   except: pass
                 msg = re.sub(r', *$','.',msg)
-                rts.append('Kit removed from home location') # artifacts
+                rts.append('removed from home location') # artifacts
                 info['kit_loc'] = geoloc
               except: pass
+           sendNotice(msg,info=info,all=True)
            info['kit_loc'] = geoloc
          elif info['kit_loc'] and MyGPS.GPSdistance(info['kit_loc'],geoloc) >= 118:
-           MyLogger.log(WHERE(),'ATTENT',"%s to new geohash '%s'." % (msg,geoloc))
+           MyLogger.log(WHERE(),'ATTENT',"%s (new %.2f km)." % (msg,MyGPS.GPSdistance(info['kit_loc'],geoloc)/1000.0))
          else: info['kit_loc'] = geoloc
-       if msg: sendNotice(msg,info=info,all=True)
    # try:  # clean up
    #   if not info['kit_loc']: del info['kit_loc']
    # except: pass
@@ -1821,7 +1824,7 @@ def ImportArguments():
     for arg in sys.argv[1:]:
         if arg in ['help','-help','-h']:
           print(__HELP__); exit(0)
-        Match =  re.match(r'\s*(?P<channel>community:|console:|archive:|monitor:|notices:)?(?P<key>[^=]+)=(?P<value>.*)', arg, re.IGNORECASE)
+        Match =  re.match(r'\s*(?P<channel>community:|console:|archive:|monitor:|notices:|logger:)?(?P<key>[^=]+)=(?P<value>.*)', arg, re.IGNORECASE)
         if Match:
             Match = Match.groupdict()
             if Match['value'] == '': Match['value'] = None
@@ -1846,13 +1849,16 @@ def ImportArguments():
                 if CMatch:
                     if Match['key'].lower() in ['smtp','debug','file']:
                         Conf[Match['key'].upper()] = Match['value'].split(',') if type(Conf[Match['key'].upper()]) is list else  Match['value']
-                        MyLogger.log(WHERE(),'INFO',"New value Conf[%s]: %s\n" %(Match['key'].upper(),str(Match['value'])))
+                        # MyLogger.log(WHERE(),'INFO',"New value Conf[%s]: %s\n" %(Match['key'].upper(),str(Match['value'])))
+                        sys.stderr.write("New value Conf[%s]: %s\n" %(Match['key'].upper(),str(Match['value'])) )
                     elif Match['key'].lower() == 'calibrate':
                         Conf['CalRefs'] = Match['value'].split(',')
-                        MyLogger.log(WHERE(),'INFO',"New value Conf[%s]: %s (sensor types as ref to calibrate)\n" %('CalRefs',str(Match['value'])))
+                        # MyLogger.log(WHERE(),'INFO',"New value Conf[%s]: %s (sensor types as ref to calibrate)\n" %('CalRefs',str(Match['value'])))
+                        sys.stderr.write("New value Conf[%s]: %s (sensor types as ref to calibrate)\n" %('CalRefs',str(Match['value'])))
                     else:
                         Conf[Match['key']] = Match['value'].split(',') if type(Conf[Match['key'].upper()]) is list else  Match['value']
-                        MyLogger.log(WHERE(),'INFO',"New value Conf[%s]: %s\n" %(Match['key'],str(Match['value'])))
+                        # MyLogger.log(WHERE(),'INFO',"New value Conf[%s]: %s\n" %(Match['key'],str(Match['value'])))
+                        sys.stderr.write("New value Conf[%s]: %s\n" %(Match['key'],str(Match['value'])))
     debug = Conf['DEBUG']
     return True
 
@@ -1892,6 +1898,9 @@ def UpdateChannelsConf():
         elif Channels[indx]['name'] == 'logger':
           for item in Channels[indx]['Conf'].keys():
             MyLogger.Conf[item] = Channels[indx]['Conf'][item]
+          try:
+            if MyLogger.Conf['file'][:6] == 'syslog': MyLogger.Conf['print'] = None
+          except: pass
           if (type(MyLogger.Conf['level']) is str) and (not MyLogger.Conf['level'] in [ 'NOTSET','DEBUG','INFO','ATTENT','WARNING','ERROR','CRITICAL','FATAL']):
             sys.stderr.write("Wrong logging level '%s', reset to WARNING\n" % MyLogger.Conf['level'])
             MyLogger.Conf['level'] = 'WARNING'
