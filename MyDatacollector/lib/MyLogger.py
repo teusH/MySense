@@ -19,14 +19,14 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyLogger.py,v 3.12 2022/01/22 17:09:39 teus Exp teus $
+# $Id: MyLogger.py,v 3.13 2022/01/23 12:10:55 teus Exp teus $
 
 # TO DO:
 
 """ Push logging to the external world.
 """
 modulename='$RCSfile: MyLogger.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 3.12 $"[11:-2]
+__version__ = "0." + "$Revision: 3.13 $"[11:-2]
 
 import sys
 from time import sleep
@@ -119,8 +119,8 @@ def log(name,level,message): # logging to console or log file
             # add next content to /etc/rsyslog.d/30-MySense.conf and 
             # restart rsyslogd: service rsyslog restart
             # # create /var/log/IoS dir group owner adm
-            # :rawmsg,contains,"IoS-sensor_log:" -/var/log/IoS/MySense.log
-            Conf['fd'] = logging.getLogger("IoS-sensor_log")
+            # :programname,contains,"MySense-IoS" -/var/log/IoS/MySense.log
+            Conf['fd'] = logging.getLogger("MySense-log")
             try:
               if Conf['stop'] == None: Conf['stop'] = [logging.shutdown]
               else: Conf['stop'].append(logging.shutdown)
