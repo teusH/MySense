@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 
-# $Id: MyARCHIVE.py,v 5.19 2022/01/06 15:16:17 teus Exp teus $
+# $Id: MyARCHIVE.py,v 5.20 2022/02/06 14:58:40 teus Exp teus $
 
 # reminder: MySQL is able to sync tables with other MySQL servers
 # based on MyDB.py V4.5
@@ -28,7 +28,7 @@ __license__ = 'RPL-1.5'
     Relies on Conf setting by main program
 """
 __modulename__='$RCSfile: MyARCHIVE.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 5.19 $"[11:-2]
+__version__ = "0." + "$Revision: 5.20 $"[11:-2]
 import inspect
 def WHERE(fie=False):
    global __modulename__, __version__
@@ -423,12 +423,13 @@ def publish(**args):
     cols += ['datum','sensors']; vals += ["FROM_UNIXTIME(%d)" % int(timestamp),"'%s'" % ','.join(sensors)]
 
     # assert len(cols) == len(vals)
-    query = "INSERT INTO %s " % info['DATAid']
+    query = "REPLACE INTO %s " % info['DATAid']
     query += "(%s) " % ','.join(cols)
     query += "VALUES (%s)" % ','.join(vals)
     # speedup reasons suggests to first try without on duplicate flag first and try again
     #if info['FromFILE']:  # measurements from file have probably duplicate timestamps
-    query += " ON DUPLICATE KEY UPDATE %s" % ','.join(['%s=VALUES(%s)' % (a,a) for a in cols])
+    # use next with INSERT iso REPLACE
+    #query += " ON DUPLICATE KEY UPDATE %s" % ','.join(['%s=VALUES(%s)' % (a,a) for a in cols])
 
     # insert or update new measurement
     if Conf['DEBUG']:
