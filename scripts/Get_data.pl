@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 # This package will only download data from various websites:
-# extract data from the Provincial Limburg (PLIM), RIVM/NSL website
+# extract data from the Provincial Limburg (RUD Z-Limburg), RIVM/LMN website
 # and/or Nord Rhein West Falen NRWF(DE) website.
 # and stores the data into database.
 # Use --help argument to obtain the different functions.
@@ -21,8 +21,8 @@
 # Once run do not change the constants anymore.
 #
 
-# $Id: Get_data.pl,v 8.1 2020/02/24 14:45:09 teus Exp teus $
-my $Version = '$Revision: 8.1 $, $Date: 2020/02/24 14:45:09 $.';
+# $Id: Get_data.pl,v 8.5 2020/04/10 12:09:41 teus Exp teus $
+my $Version = '$Revision: 8.5 $, $Date: 2020/04/10 12:09:41 $.';
 $Version =~ s/\$//g;
 
 # 
@@ -95,13 +95,13 @@ use constant {
 };
 
 # make sure we work in a well known dir
-my $WDir = WDIR;
-if( -d $WDir ){
-   chdir( $WDir) ; 
-} else {
-   print STDERR "Cannot chdir to working dir $WDir\n";
-   $WDir = './';
-}
+my $WDir     = WDIR;
+my $rrd      = RRD_DIR . RRD;	# the file name of the RRD database
+my $myhost   = HOST;	# mysql server
+my $mydb     = DB;	# mysql database name
+my $myuser   = USER;	# mysql user
+my $mypass   = PASSWD;	# mysql password
+my $mytbl    = DBTBL;   # mysql dflt table
 
 my %locations;  # hash table with details of measurement locations from file or DB
 my $AQI_Indices;     #  ref to  hash table datastructure from AQI.pl
@@ -118,35 +118,35 @@ my $AQI_qual = 1;    # the aqi columns with color and message are generated
 %locations = (
     # bron: luchtkwaliteit.limburg.nl, binary search for first and last dates
     '01' => {
-	name => "Buggenum", organisation => 'PLIM', id => 'NLBUG01',
+	name => "Buggenum", organisation => 'RUD', id => 'NLBUG01',
 	table => 'Bug',
 	},
     '02' => {
-	name => "Geleen Vouershof", organisation => 'PLIM', id => 'NL50002',
+	name => "Geleen Vouershof", organisation => 'RUD', id => 'NL50002',
 	table => 'GV',
 	},
     '03' => {
-	name => "Geleen Asterstraat", organisation => 'PLIM', id => 'NL50003',
+	name => "Geleen Asterstraat", organisation => 'RUD', id => 'NL50003',
 	table => 'GA',
 	},
     '04' => {
-	name => "Maastricht A2-Nassaulaan", organisation => 'PLIM', id => 'NL50004',
+	name => "Maastricht A2-Nassaulaan", organisation => 'RUD', id => 'NL50004',
 	table => 'MA2',
 	},
     '05' => {
-	name => "Roermond", organisation => 'PLIM', id => 'NLROE05',
+	name => "Roermond", organisation => 'RUD', id => 'NLROE05',
 	table => 'Roer',
 	},
     '06' => {
-	name => "Horst aan de Maas", organisation => 'PLIM', id => 'NL50006',
+	name => "Horst aan de Maas", organisation => 'RUD', id => 'NL50006',
 	table => 'HadM',
 	},
     '07' => {
-	name => "Maastricht Hoge Fronten", organisation => 'PLIM', id => 'NL50007',
+	name => "Maastricht Hoge Fronten", organisation => 'RUD', id => 'NL50007',
 	table => 'MHF',
 	},
     '09' => {
-	name => "Maastricht Kasteel Hillenraadweg", organisation => 'PLIM', id => 'NL50009',
+	name => "Maastricht Kasteel Hillenraadweg", organisation => 'RUD', id => 'NL50009',
 	table => 'MKH',
 	},
 
@@ -190,7 +190,7 @@ my %datahosts = (
 	     protocol => 'http',
 	     action => '/ajax/measurement/measurement.asp',
 	     content => 'h=0&s=%s&d=%d&c=',
-	     organisation => 'PLIM',
+	     organisation => 'RUD',
 	     # url => 'luchtkwaliteit.limburg.nl',
 	     # action => '/meetwaarden_popup/dagwaarden_popup.asp/',
 	     # content => 'station=%s&dag=%d',
@@ -201,7 +201,7 @@ my %datahosts = (
 	     protocol => 'https',
 	     action => '/ajax/measurement/measurement.asp',
 	     content => 'h=0&s=%s&d=%d&c=',
-	     organisation => 'PLIM',
+	     organisation => 'RUD',
 	},
 	# validated data, per month, > 1 month behind now, get action
         # if still works on luchtmeetnet is not tested
@@ -284,22 +284,16 @@ my %agents = (
     'windows' => "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:18.0) Gecko/20100101 Firefox/18.0",
 );
 
-my $rrd      ;	# the file name of the RRD database
-my $myhost   = HOST;	# mysql server
 $myhost      = $DBHOST if defined $DBHOST;
-my $mydb     = DB;	# mysql database name
 $mydb        = $DB if defined $DB;
-my $myuser   = USER;	# mysql user
 $myuser      = $DBUSER if defined $DBUSER;
-my $mypass   = PASSWD;	# mysql password
 if( $mypass =~ /somepass/ ){
     $mypass = '';
     $mypass = $DBPASS if defined $DBPASS;
 }
 
-my $dflt_hst = 'second'; # default datahost for Limburg (PLIM) from Aug 2014
+my $dflt_hst = 'second'; # default datahost for Limburg (RUD) from Aug 2014
 my $town     = "unknown";	# town of location (received from website)
-my $mytbl     = DBTBL;   # mysql dflt table
 
 my $location;	# location number, default '06' Horst aan de Maas
 my $AQI      = 0;       # fill (>1) AQI DB tables, dflt: no fill or initiation (3)
@@ -560,7 +554,7 @@ sub Add_RRA {
     my $time = shift;
     my $val = shift;
     my $ext = '';
-    state $warned = 0;
+    state $warned = '';
     state $RRD_failed = FALSE;
     state $RRD_save = ""; state $RRD_time = 0;
     $ext = NORM if $norm;
@@ -580,10 +574,11 @@ sub Add_RRA {
     # delete non existing sensor types in rrd database
     for( my $i = 0; $i >= 0 && $i <= $#ds; $i++ ){
 	if( not rrd_sensor($rrd.$ext, $ds[$i]) ){
-	    # if( not $warned++ ){
+	    if( $warned !~ /;$ds[$i]:$rrd$ext/ ){
 	        print STDERR "$WARNING Skip $ds[$i], as sensor is not defined in $rrd$ext.rrd\n" if not $quiet;
 	        print STDERR "$ATTENT Rebuild RRD database, please\n";
-	    # }
+                $warned = "$warned;$ds[$i]:$rrd$ext";
+	    }
 	    splice @ds, $i, 1; splice @vs, $i, 1;
 	    $i--;
 	}
@@ -599,8 +594,10 @@ sub Add_RRA {
 	    while(<$RRDout> ){
 	        chomp;
                 if( /ERROR:/ ){
-                    print STDERR "$ERROR while reading info from RRD database $rrd\n$_\n"
-                        if not $warned++;
+                    if( $warned !~ /;$rrd/ ) {
+                        print STDERR "$ERROR while reading info from RRD database $rrd\n$_\n";
+                        $warned = "$warned;$rrd";
+                    }
                     return 0;
                 }
 	        $last_one = $_ if /^[0-9]+$/;
@@ -610,8 +607,11 @@ sub Add_RRA {
 	}
     }
     if( $RRD_time >= $time ){
+        if ( not $quiet  && $RRD_errors[$norm] == 0 && ($warned !~ /;$rrd/ )) {
+            $warned = "$warned;$rrd";
+	    print STDERR sprintf("$WARNING You may want to rebuild the RRD database: $rrd$ext.rrd. Update timing: $st (last: %s)\n",strftime("%Y/%m/%d %H:%M", localtime($RRD_time)));
+        }
 	$RRD_errors[$norm]++;
-	print STDERR sprintf("$WARNING You may want to rebuild the RRD database: $rrd$ext.rrd. Update timing: $st (last: %s)\n",strftime("%Y/%m/%d %H:%M", localtime($RRD_time))) if ( not $quiet ) && ($warned++ == 0);
         print STDERR sprintf("$ATTENT RRD $rrd$ext update error time preceeds last update time (%s): Skip for date/time $st.\n",strftime("%Y/%m/%d %H:%M", localtime($RRD_time))) if $verbose > 1;
         return 0;
     }
@@ -860,6 +860,8 @@ sub Check_AQI_Col {
                     my $cmt = Add_comment($DB_table{'aqi'},
                         strftime(", added: %Y/%m/%d", localtime(time)) );
                     $rate   .= ", ADD COLUMN $index".$cmt;
+                    # issue on _aqiaqi and _lkiaqi reason???: patch
+                    $rate =~ s/_(aqi|lki)aqi/_$1/;
                     if( $AQI_qual ) {
                         $rate   .= ", ADD COLUMN $index".$DB_table{'name_color'};
                         $rate   .= ", ADD COLUMN $index".$DB_table{'name_mesg'};
@@ -2091,7 +2093,6 @@ sub parse_NRWF_365 {
 sub get_a_day_NRWFtillAug2015 {
     my ( $loc, $day ) = @_;
     my $hour = 0;
-    state $my_day;
     return 0 if defined $locations{$loc}{last} && (get_YYYYMMDD($locations{$loc}{last}) < get_YYYYMMDD($day));
     return 0 if defined $locations{$loc}{first} && (get_YYYYMMDD($locations{$loc}{first}) > get_YYYYMMDD($day));
     # check first if we have validated data
@@ -2400,6 +2401,7 @@ sub get_a_day_RIVM {
        }
        print STDERR "$ATTENT No hourly data ($day $hour:00), will try to get validated values for the whole month\n" if $verbose;
        return 0 if $my_day == get_YYYYMM($day);
+       $my_day = get_YYYYMMDD($day) if $my_day =~ /00000000/;
      }
 
     return 1;
@@ -2639,7 +2641,7 @@ sub get_cells {
 # get_a_day_RIVM('131', $ARGV[0], ('all',) );
 ########################################### end of RIVM functions
 
-########################################### prov. Limburg: PLIM
+########################################### prov. Limburg: RUD
 # parse data data convention based on Limburg website up to 14th Aug 2014
 # identified as 'first'
 sub parse_2010 {
@@ -2917,7 +2919,7 @@ sub parse {
 }
 
 # get the data file from Limburg website(s): 'first' or 'second'
-sub get_a_day_PLIM {
+sub get_a_day_RUD {
     my ($station,$day) = @_;
     $host = $datahosts{$dflt_hst}{url} if not $host;	# default datahost
     $action = $datahosts{$dflt_hst}{action} if not $action;
@@ -3026,8 +3028,8 @@ sub get_a_day {
     }
     if( $locations{$station}{organisation} eq 'RIVM' ){
 	return get_a_day_RIVM( $station, $day, ('all',) );
-    } elsif( $locations{$station}{organisation} eq 'PLIM' ){
-	return get_a_day_PLIM( $station, $day );
+    } elsif( $locations{$station}{organisation} eq 'RUD' ){
+	return get_a_day_RUD( $station, $day );
     } elsif( $locations{$station}{organisation} eq 'NRWF' ){
         return get_a_day_NRWF( $station, $day );
     }
@@ -3261,7 +3263,7 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
     $option eq 'P' and do { print_location($value); exit(0); last OPTION; };
     $option eq 'A' and do { $action = $value; $action =~ s/\s//g; last OPTION; };
     $option eq 'U' and do { $host = $value; $host =~ s/\s//g; last OPTION; };
-    $option eq 'r' and do { $rrd = RRD_DIR . $value; $rrd =~ s/\s//g; last OPTION; };
+    $option eq 'r' and do { $rrd = $value; $rrd =~ s/\s//g; last OPTION; };
     $option eq 'O' and do { $overwrite++; last OPTION; };
     $option eq 'a' and do { $onlyRRD++; last OPTION; };
     $option eq 'n' and do { $normalized++; last OPTION; };
@@ -3272,13 +3274,13 @@ while( my($option, $value, $arg) = Getopt::Mixed::nextOption() ){
     $option eq 'c' and do { $factors = TRUE; last OPTION; };
     $option eq 'R' and do { $Roption = TRUE; last OPTION; };
     $option eq 'C' and do { $Coption = TRUE; last OPTION; };
-    $option eq 'W' and do { $WDir = $value; chdir(WDir); last OPTION; };
+    $option eq 'W' and do { $WDir = $value; chdir($WDir); last OPTION; };
     $option eq 'i' and do {
 	parse_html( $value ); $content = '';
         last OPTION;
         };
     $option eq 'H' and do {
-	my $rrd_me = WDIR . RRD_DIR . RRD . '-' . DBTBL;
+	my $rrd_me = $rrd . '-' . DBTBL;
         print STDERR <<EOF ;
         $0 [options] [arg...] (default/no arguments: catch up to previous day)
         $0 takes the arguments and either scan luchtkwaliteit.nl site
@@ -3335,7 +3337,7 @@ Next website access details can only be changed for Limburg websites
  -f|--first	Use data from first province website (upto August 2014) as default $datahosts{first}{url}.
 		Deprecated after 14 Aug 2014.
  -s|--second	Use data from second province website (from May 2014) as default $datahosts{second}{url}.
-		Default for Limburg (PLIM).
+		Default for Limburg (RUD).
  -h|--host	The DB host for DB access (default: $myhost).
  -A|--action	The ASP action to post for datacollection (default: $datahosts{$dflt_hst}{action}).
  -U|--URL	The host providing the measurements data (default: $datahosts{$dflt_hst}{url}).
@@ -3346,7 +3348,7 @@ Next website access details can only be changed for Limburg websites
 		Disable DB storage by making one of the DB defs empty (name with only spaces).
  -W|--wdir	The working directory with eg rrd database in rrd_data directory.
  -r|--rrd	The RRD database file name 
-                (default wdir path/rrd dir: ${rrd_me}.rrd)
+                (default n working dir  ${WDir}/ :${rrd_me}.rrd)
 		Disable DB storage by making it empty (name with only spaces).
 
 		Default website to collect data from $dflt_hst:
@@ -3383,6 +3385,12 @@ EOF
    };
 }
 Getopt::Mixed::cleanup();
+if( -d $WDir ){
+   chdir( $WDir) ; 
+} else {
+   print STDERR "Working dir current dir ./ (so default $WDir)\n";
+   $WDir = './';
+}
 $verbose = 0 if $quiet && $debug == 0;
 
 die "FATAL ERROR: no database user/password defined, e.g. define use environment variable DBUSER and/or DBPASS\n" if length($mypass) <= 0;
@@ -3412,7 +3420,7 @@ if( $location && (not defined $mytbl) ){
     }
 }
 
-$rrd = RRD_DIR . RRD . '-' . $locations{$location}{table} if $locations{$location}{table} && not length($rrd);
+$rrd .=  '-' . $locations{$location}{table} if $locations{$location}{table} && not length($rrd);
 
 $first = Time::Piece->strptime("$locations{$location}{first} 00.00.01 +0100", "%d-%m-%Y %H.%M.%S %z")->epoch
     if $locations{$location} && (defined $locations{$location}{first}) &&
@@ -3423,14 +3431,14 @@ $last = Time::Piece->strptime("$locations{$location}{last} 23.59.59 +0100", "%d-
 
 if( $Coption ){	# create new database, destroys _all_ collected data
 	Create_DB();
-        system("rm -f " . RRD_DIR . RRD . "-$mytbl*.rrd");
-	print STDERR "Create a new MySQL $mydb and RRD database $rrd.rrd with empty table $mytbl on host $myhost.
+        system("rm -f ${rrd}-$mytbl*.rrd");
+	print STDERR "Create a new MySQL $mydb and RRD database ${rrd}.rrd with empty table $mytbl on host $myhost.
 	Deleted existing database(s) and table(s).\n";
 	exit 0;
 };
 if( $Roption ){	# delete RRD data files
-        system("rm -f " . RRD_DIR . RRD . "-$mytbl*.rrd");
-	print STDERR "Create new RRD databases " . RRD . "$mytbl*.rrd in dir " . RRD_DIR . "\nDeleted existing RRD database(s).\n";
+        system("rm -f ${rrd}-$mytbl*.rrd");
+	print STDERR "Create new RRD databases ${rrd}*.rrd\nDeleted existing RRD database(s).\n";
 	New_RRA(0,1);
 	exit 0;
 }; 

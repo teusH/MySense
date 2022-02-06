@@ -17,25 +17,26 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# $Id: GeneratePMcharts.sh,v 1.8 2020/06/29 08:37:19 teus Exp teus $
+# $Id: GeneratePMcharts.sh,v 1.14 2020/10/07 06:09:27 teus Exp teus $
 
 if [ "${1/*-h*/help}" == help ]
 then
     echo "
-    script to generate measurement PM HighCharts chart HTML page for sensor kits of a project
-    script will notify by email non active sensor kits as well
-    if defined also AQI data will be updated on website page  via updateAQI bash script.
+    Script to generate measurement PM HighCharts chart HTML page for sensor kits of a project
+    Script will notify by email non active sensor kits as well.
+    If defined also AQI data will be updated on website page  via updateAQI bash script.
     Destination of HighCharts HTML page part: serialnr.html and PROJECT_Overview.html
-    in directory RHOST:DIR/[Meetkits/]REGION
+    in directory WEBHOST:DIR/[Meetkits/]REGION.
+    Script will synchronize official station measurements tables from WEBHOST to DBHOST.
 
     Environment variables definitions and defaults:
     need DB credentials to access measurement Database DB{USER,HOST,PASS}
           Default: $USER, localhost, ask interactive PASS
     REGION defines region and project, kit serials, avoid kits, last day, etc.
-         Defaulkt REGION=BdP
+         Default REGION=BdP
     START defines from which date graphs should start. Understands date option.
          Default: START='3 weeks a go'
-    LAST defines date of graphs upto LAST. Understanmd 'date' arguments.
+    LAST defines date of graphs upto LAST. Understands 'date' arguments.
          Default LAST=now
     WDIR working directory. Default /webdata/luchtmetingen/
           Generated files will temporary reside in WDIR/tmp
@@ -53,10 +54,11 @@ then
     mysql will take passwords from user mysql config file via login-path argument.
     
     run example:
-    DBUSER=name DBHOST=localhost DBPASS=acacadabra REGION=BdP RHOST=localhost
+    DBUSER=name DBHOST=localhost DBPASS=acacadabra REGION=BdP WEBHOST=localhost
          GeneratePMcharts.sh  [all|kits|overview]
     default all: all kits in region and overview charts of all kits in region
     in one html page.
+    NODRUSH='' If NODRUSH=1 run Drush cache clean on WEBHOST webserver.
 " 1>&2
     exit 0
 fi
@@ -101,7 +103,7 @@ if [ -z "$REGION" ]
 then
     read -p 'Choose region to generate PM charts for: ' REGION
 fi
-RHOST=${RHOST:-localhost}       # host where webfiles reside
+WEBHOST=${WEBHOST:-lunar}       # host where webfiles reside
 if [ -z "$LAST" ] || ! date --date="$LAST" >/dev/null # last date to show in graphs
 then
   LAST=now       # use measurement data up to $LAST
@@ -114,28 +116,31 @@ else
 fi
 #START="$(date --date='494 days ago' '+%Y/%m/%d %H:%M')" # only last 3 weeks from now
 
-WDIR=${WDIR:-/webdata/luchtmetingen/}    # working directory
+WDIR=${WDIR:-/MySense/scripts}    # working directory
 TMPWDIR=${WDIR}/tmp                         # temporary dir for generated files
 # website target directory
 DIR=${DIR:-/webdata/Drupal/cmsdata/BdP/files/luchtmetingen} # webpage files reside here
 # avoid table names matching in average regio calculations
 AVG_AVOID=xyz
 
-GENERATOR="${WDIR}/ChartsPM.pl -j"   # script to generate webpage with chart
+# GENERATOR=${GENERATOR:-${WDIR}/ChartsPM.pl -j} # script to generate webpage with chart
 # default arguments for GENERATOR
 # FIRST='-f'
 MYREGION=''    # name of region for chart
 POLLUTANTS='pm10|pm25|pm1,pm25|rv|temp' # pollutants shown in chart
 SENSORTYPES='PM,Meteo'              # buttons to select graph
+CORRECTION=''           # apply correction to wards a ref sensor XYZ
 REFERENCE=''   # reference station, dflt HadM
 REMOVE_SPIKES='pm1,pm25,pm10,rv,temp'
 SPIKES_CMD=FilterShow.py
+#SPIKES_OPT="-q --adjustPM"
+SPIKES_OPT="-q"
 # default pollutants for chart webpage with overview of all sensor kits 
 #POLs=pm25
 POLs=pm25,pm10
 AVOID=none
 AVOID_METEO='avoid these kits for meteo'
-MAILTO=teus@theunis.org         # email address to send inactive sensor kits notices
+MAILTO=teus@lunar.theunis.org         # email address to send inactive sensor kits notices
 # send event to slack notification forum
 #SLACK='https://hooks.slack.com/services/TGA1TNDDFG7CPH/BG8Z/AOJRkKxdYK1QpNRBwufylWl0'
 declare -i CNT=0  # count generated graph pages of stations
@@ -221,7 +226,8 @@ function GetActiveKits() {
        DQRY+=" AND datum <= '$T'"
    fi
 
-   for TBL in $(GetKits ${PR})
+   local TBLS=$(GetKits ${PR})
+   for TBL in $TBLS
    do
       echo "SELECT IF( (SELECT count(datum) FROM $TBL WHERE ( not isnull(pm10) OR not isnull(pm25) ) AND ${DQRY}) >= 10, '$TBL','');"
    done | $MYSQL | tr "\n" " "
@@ -237,6 +243,53 @@ function GetInactiveKits() {
    done | $MYSQL 2>/dev/null | tr "\n" " "
 }
 
+# synchronize DB tables with governmental stations measurements
+declare -A LastRecords
+function SYNC2DBHOST() {
+    local RDBHOST=${1:-$WEBHOST}
+    shift
+    if [ "$DBHOST" = "$RDBHOST" ] ; then return 0 ; fi
+    if ! ping4 -c 1 -W 5 -q $RDBHOST >/dev/null
+    then
+       echo "ATTENT: host $RDBHOST is not up and running."  1>&2
+       return 1
+    fi
+    local LAST RTS=0
+    local TBL CREATE='--no-create-info'
+    for TBL in $*
+    do
+        if [ -n "${LastRecords[$TBL]}" ] ; then continue ; fi
+        LastRecords[$TBL]=$($MYSQL -e "SELECT UNIX_TIMESTAMP(id) FROM $TBL ORDER BY id DESC LIMIT 1")
+        if (( $? > 0 ))
+        then
+            echo "ERROR: no table $TBL on $DBHOST" 1>&2
+            LastRecords[$TBL]=$(date +%s)  # up to date
+	    RTS=1 ; continue
+        elif [ -z "${LastRecords[$TBL]}" ]
+        then
+	    CREATE=''
+	    LastRecords[$TBL]=0
+	    echo "WARNING: create new table $TBL" 1>&2
+        fi
+        LAST=$(${MYSQL/$DBHOST/$RDBHOST} -e "SELECT UNIX_TIMESTAMP(datum) FROM $TBL WHERE UNIX_TIMESTAMP(id) > ${LastRecords[$TBL]} ORDER BY id DESC LIMIT 1")
+        if (( $? > 0 ))
+        then
+            echo "ERROR: on table $TBL on host $WEBHOST" 1>&2
+            RTS=1 ; continue
+        fi
+        if [ -z "$LAST" ] ; then continue ; fi
+        if (( $LAST <= ${LastRecords[$TBL]} )) ; then continue ; fi
+        if ! mysqldump --login-path=${DB:-luchtmetingen} -h ${RDBHOST:-localhost} --no-create-info --column-statistics=0 ${DB:-luchtmetingen} ${TBL} --where="UNIX_TIMESTAMP(id) > ${LastRecords[$TBL]}"  | $MYSQL # >/var/tmp/$RDBHOST-$$.sql
+	then
+	    echo "ERROR: synchronisation $RDBHOST to $DBHOST for $TBL failed." 1>&2
+	    RTS=1
+	fi
+        LastRecords[$TBL]=$LAST
+    done
+    return $RTS
+}
+# SYNC2DBHOST $WEBHOST HadM NL10131 NETT
+
 function SetParameters() {
     local REGIO=${1:-HadM}
     # what to do for different regions and which kits
@@ -251,6 +304,7 @@ function SetParameters() {
         AVOID='(f07df1c50[2-57-9]|93d73279dd)'
         MYREGION='-r Venray'
         REFERENCE='-R NL10131'
+        CORRECTION=''   # no correction to sensor type
     ;;
     WANROIJ|STANTHONIS|SAN|BWL[vV]C)  # St. Anthonis, Wanroij, etc. (Boxmeer)
         GENERATOR="${WDIR}/ChartsPM.pl -j"   # script to generate webpage with chart
@@ -261,9 +315,11 @@ function SetParameters() {
         #AVOID='_(?!30aea45059|f07df1c50|93d73279dc)'  # avoid all but
         #AVOID='_(?!30aea450(59|9e)|3c71bf876dbc|b4e62df55731|f07df1c50|e101f76c60|807d3a93(5cb8|9eb4|76dc))'  # avoid all but
         AVOID='(30aea4505988)'      # avoid old SDS011 kit Tonnie
-        AVG_AVOID="(b4e62df48ff9|cc50e39c7500|b4e62df4(9cd5|a6b9|8fe9|ad0d))"  # avoid test kits in avg count
+        AVG_AVOID="(cc50e39c7500|b4e62df49ca5|30aea4509eb4)"  # avoid test kits in avg count
         REFERENCE='-R NL10131'
         UPDATE_AQI=1   # update LKI index for the kits in this region/project
+        START="$(date --date='1 July 2020' '+%Y/%m/%d %H:%M')"
+        CORRECTION='--type SPS30'  # apply correction to dust sensor SPS30
     ;;
     KIPSTER|OIRLO|KIP)
         GENERATOR="${WDIR}/ChartsPM.pl -j"   # script to generate webpage with chart
@@ -275,6 +331,7 @@ function SetParameters() {
         STATIONS=${STATIONS:-NL0131} # add reference stations
         PROJ=${PROJ:-KIP}_ # use this as project identifier
         #AVOID='_(?!D54990(6DC049|0C6C33)|30aea4505(9f9|a00|a01|a03|a04)|130aea4ec9e2|788d27294ac5)' # avoid all but
+        CORRECTION='--type SPS30'  # apply correction to dust sensor SPS30
         REFERENCE='-R NL10131'
         # METEO="${PROJ}CECEA5167524"               # use for meteo data this table
         # METEO_AVOID="(788d27294ac5|130aea4ec9e2)" # do not use meteo table for these ones
@@ -290,9 +347,10 @@ function SetParameters() {
         PROJ=${PROJ:-HadM}_   # use this as project identifier, may well be a perl reg exp
         #AVOID='_(?!30aea4505888|30aea45075e4|30aea44e1934)'  # avoid all but
         UPDATE_AQI=1   # update LKI index for the kits in this region/project
+        CORRECTION='--type SPS30'  # apply correction to dust sensor SPS30
     ;;
     RIVM|[CK]ALIBR*|VREDEPEEL)  # calibratie tests Vredepeel
-        GENERATOR="${WDIR}/ChartsPM.pl -j"   # script to generate webpage with chart
+        GENERATOR="${WDIR}/ChartsPM.pl -j -x 120"   # script to generate webpage with chart
         REGION=RIVM
         # POLs=pm10,pm25,pm1
         STATIONS=${STATIONS:-NL0131} # add reference stations, HadM is always included 
@@ -300,6 +358,9 @@ function SetParameters() {
         #AVOID='_(?!30aea4505888|30aea45075e4|30aea4ec7cf8)'  # avoid all but
         REFERENCE='-R NL10131'
         UPDATE_AQI=1   # update LKI index for the kits in this region/project
+        START="$(date --date='4 May 2020' '+%Y/%m/%d %H:%M')"
+        #LAST="$(date --date='1 Jan 2021' '+%Y/%m/%d %H:%M')"
+        CORRECTION=''   # no correction to sensor type
     ;;
     *)
         echo "$CMD FATAL: region '$REGIO' is unknown!" 1>&2
@@ -466,7 +527,8 @@ function DoOnePMchart() {
     then
         if [ -z "$DEBUG" ]
         then
-            VERBOSE=${VERBOSE} DBWeb=${DBWeb:-parel7} DBaq=${DB:-luchtmetingen} $UPDATE_AQI ${ThisKIT}
+	    # NODRUSH=1 do not run drush cache flush on website
+            VERBOSE=${VERBOSE} NODRUSH=${NODRUSH} WEBHOST=${WEBHOST:-lunar} DEHOST=${DBHOST:-localhost} DBWeb=${DBWeb:-parel7} DBaq=${DB:-luchtmetingen} $UPDATE_AQI ${ThisKIT}
         else
             echo "No run in debug modus: VERBOSE=${VERBOSE} DBWeb=${DBWeb:-parel7} DBaq=${DB:-luchtmetingen} $UPDATE_AQI ${ThisKIT}" 1>&2
         fi
@@ -474,15 +536,21 @@ function DoOnePMchart() {
 
     if [ -x "$SPIKES_CMD" ] && [ -n "$REMOVE_SPIKES" ] # update removal of spikes
     then
-        local OPT='-q'
-        if (( $VERBOSE > 0 )) ; then OPT=''; fi
-        if [ -z "$DEBUG" ] ; then OPT+=' -d'; fi
-        if ! python "$SPIKES_CMD" $OPT ${ThisKIT}/"$REMOVE_SPIKES"
+        if (( $VERBOSE > 1 )) ; then SPIKES_OPT="${SPIKES_OPT/-q/}"; fi
+        if [ -n "$DEBUG" ] ; then SPIKES_OPT+=' -d'; fi
+        # for start to delete --startPM '2 years ago'
+        if ! DBHOST=${DBHOST:-localhost} python3 "$SPIKES_CMD" $SPIKES_OPT ${ThisKIT}/"$REMOVE_SPIKES" 2>&1 | tee /var/tmp/spikes$$
         then
             echo "$CMD ERROR: failed to exec $SPIKES_CMD $OPT ${ThisKIT}/$REMOVE_SPIKES" 1>&2
         fi
+        if [ -s /var/tmp/spikes$$ ]
+        then
+            echo "$CMD fail while exec $SPIKES_CMD $SPIKES_OPT ${ThisKIT}/$REMOVE_SPIKES" 1>&2
+        fi
+        rm -f /var/tmp/spikes$$
     fi
 
+    if [ -z "$GENERATOR" ] ; then return 0 ; fi
     # /home/teus/BehoudDeParel/luchtmetingen/IoS/BdP/PMcharts-website/ChartsPM.pl -w /webdata/Drupal/cmsdata/BdP/files/luchtmetingen/BdP/ -d -v -c -e "pm10|pm25,pm10|rv|temp" -b PM,Meteo -O 30aea4505888 -R HadM -L now HadM_30aea4505888
     if [ -n "$METEO" ] # maybe use alternative meteo data
     then
@@ -491,21 +559,36 @@ function DoOnePMchart() {
         fi
     fi
     rm -f "$TMPWDIR/${ThisKIT/${PROJ}/}.html"
-    if ! perl $GENERATOR $MYREGION $LNG --alias "http://behouddeparel.nl/" $DEBUG -w "$TMPWDIR/" -e "$POLLUTANTS" -b "$SENSORTYPES" -S "$START" -O ${ThisKIT/${PROJ}/} $REFERENCE -L "$LAST" $FIRST $AMETEO ${ThisKIT} 2>$TMPWDIR/ERRORS # Ref is HadM
+    if ! perl $GENERATOR $MYREGION $LNG --alias "http://behouddeparel.nl/" $DEBUG -w "$TMPWDIR/" -e "$POLLUTANTS" -b "$SENSORTYPES" -S "$START" -O ${ThisKIT/${PROJ}/} $REFERENCE $CORRECTION -L "$LAST" $FIRST $AMETEO ${ThisKIT} 2>$TMPWDIR/ERRORS # Ref is HadM
     then # ERROR
         date 1>&2
-        echo "$CMD ERROR: Failed to generate chart for ${ThisKIT}"  1>&2
+        echo "Using command arguments: $MYREGION $LNG --alias 'http://behouddeparel.nl/' $DEBUG -w '$TMPWDIR/' -e '$POLLUTANTS' -b '$SENSORTYPES' -S '$START' -O ${ThisKIT/${PROJ}/} $REFERENCE -L '$LAST' $FIRST $AMETEO ${ThisKIT}" 1>&2
+        echo "$CMD WARNING: $GENERATOR failed to generate $TMPWDIR/${ThisKIT/${PROJ}/}.html for chart" 1>&2
+        echo "$CMD $GENERATOR ERRORS:" 1>&2
+        cat $TMPWDIR/ERRORS 1>&2
+        rm -f $TMPWDIR/ERRORS
         return
     fi
     if [ ! -f $TMPWDIR/${ThisKIT/${PROJ}/}.html ]
     then
         date
-        if (( $VERBOSE > 0 )) ; then cat $TMPWDIR/ERRORS 1>&2 ; fi
-        echo "$CMD WARNING: Failed to get file $TMPWDIR/${ThisKIT/${PROJ}/}.html for chart" 1>&2
+        if (( $VERBOSE > -1 ))
+        then
+            echo "$CMD $GENERATOR ERRORS:" 1>&2
+            cat $TMPWDIR/ERRORS 1>&2
+        fi
+        echo "Using: $GENERATOR $MYREGION $LNG --alias 'http://behouddeparel.nl/' $DEBUG -w '$TMPWDIR/' -e '$POLLUTANTS' -b '$SENSORTYPES' -S '$START' -O ${ThisKIT/${PROJ}/} $REFERENCE -L '$LAST' $FIRST $AMETEO ${ThisKIT}" 1>&2
+        echo "$CMD WARNING: $GENERATE failed to generate file $TMPWDIR/${ThisKIT/${PROJ}/}.html for chart" 1>&2
+        rm -f $TMPWDIR/ERRORS
         return
     elif [ -n "$DEBUG" ] || (( $VERBOSE > 2 ))
     then
         cat $TMPWDIR/ERRORS 1>&2
+    fi
+    if grep -q -P "(WARNING|ERROR)" $TMPWDIR/ERRORS
+    then
+        echo "$CMD $GENERATOR ERRORS:" 1>&2
+        grep -P "(ERROR|WARNING)" $TMPWDIR/ERRORS 1>&2
     fi
     rm -f $TMPWDIR/ERRORS ; CNT+=1
     if [ -n "$DEBUG" ]
@@ -515,20 +598,20 @@ function DoOnePMchart() {
     fi
 
     # copy generated html file to website destination
-    if [ "${RHOST:-localhost}" != localhost ]   # remote RHOST website
+    if [ "${WEBHOST:-localhost}" != localhost ]   # remote WEBHOST website
     then
-        if ! ssh ${RHOST} mkdir -p ${DIR}/Meetkits/$REGION
+        if ! ssh ${WEBHOST} mkdir -p ${DIR}/Meetkits/$REGION
         then
-            echo "$CMD ERROR: failed to get access to ${RHOST}:${DIR}/Meetkits/" 1>&2
+            echo "$CMD ERROR: failed to get access to ${WEBHOST}:${DIR}/Meetkits/" 1>&2
             return
         fi
-        ssh ${RHOST} chgrp -f www-data $DIR/Meetkits/$REGION
-        if ! scp -q $TMPWDIR/${ThisKIT/${PROJ}/}.html ${RHOST}:$DIR/Meetkits/$REGION/${ThisKIT/${PROJ}/}.html
+        ssh ${WEBHOST} chgrp -f www-data $DIR/Meetkits/$REGION
+        if ! scp -q $TMPWDIR/${ThisKIT/${PROJ}/}.html ${WEBHOST}:$DIR/Meetkits/$REGION/${ThisKIT/${PROJ}/}.html
         then
             date 1>&2
-            echo "$CMD ERROR: failed to copy chart to ${RHOST} for ${ThisKIT}" 1>&2
+            echo "$CMD ERROR: failed to copy chart to ${WEBHOST} for ${ThisKIT}" 1>&2
         else
-            ssh ${RHOST} chgrp -f www-data $DIR/Meetkits/$REGION/${ThisKIT/${PROJ}/}.html
+            ssh ${WEBHOST} chgrp -f www-data $DIR/Meetkits/$REGION/${ThisKIT/${PROJ}/}.html
         fi
     else
         mkdir -p ${DIR}/Meetkits/$REGION
@@ -539,7 +622,7 @@ function DoOnePMchart() {
 
     rm -f $TMPWDIR/${ThisKIT/${PROJ}/}.html
     if (( $VERBOSE > 1 )) ; then
-        echo "$CMD MESG: Installed PMchart on $RHOST:$DIR/Meetkits/$REGION" 1>&2
+        echo "$CMD MESG: Installed PMchart on $WEBHOST:$DIR/Meetkits/$REGION" 1>&2
     fi
 }
 
@@ -549,9 +632,9 @@ function DoPM_Overview() {
 
     if [ -n "$DEBUG" ]
     then
-        echo "perl $GENERATOR $MYREGION $LNG $REFERENCE --avoid '$AVG_AVOID' --alias 'http://behouddeparel.nl/' $DEBUG -w '$TMPWDIR/' -e '$POLs' -b '$POLs' -L '$LAST' -S '$START' $FIRST -O ${OVERVIEW/.html/} $*" 1>&2
+        echo "perl $GENERATOR $MYREGION $LNG $REFERENCE --avoid '$AVG_AVOID' --alias 'http://behouddeparel.nl/' $DEBUG -w '$TMPWDIR/' -e '$POLs' -b '$POLs' $CORRECTION -L '$LAST' -S '$START' $FIRST -O ${OVERVIEW/.html/} $*" 1>&2
     fi
-    if ! perl $GENERATOR $MYREGION $LNG $REFERENCE --alias "$REGION" $DEBUG --avoid "$AVG_AVOID"  -w "$TMPWDIR/" -e "$POLs" -b "$POLs" -L "$LAST" -S "$START" $FIRST -O ${OVERVIEW/.html/} $* 2>$TMPWDIR/ERRORS
+    if ! perl $GENERATOR $MYREGION $LNG $REFERENCE --alias "$REGION" $DEBUG --avoid "$AVG_AVOID"  -w "$TMPWDIR/" -e "$POLs" -b "$POLs" $CORRECTION -L "$LAST" -S "$START" $FIRST -O ${OVERVIEW/.html/} $* 2>$TMPWDIR/ERRORS
     then # ERROR
         date 1>&2
         echo "$CMD ERROR: Failed to generate chart for ${OVERVIEW}" 1>&2
@@ -567,22 +650,22 @@ function DoPM_Overview() {
             echo -e "$CMD MESG: generated overview for project ${OVERVIEW} with kits:\n\t$KITS" 1>&2
             if [ -n "$DEBUG" ] ; then return ; fi
         fi
-        if [ "${RHOST:-localhost}" = localhost ] ; then
+        if [ "${WEBHOST:-localhost}" = localhost ] ; then
             if cp $TMPWDIR/${OVERVIEW} $DIR/Meetkits/$REGION/ ; then
                 chgrp -f www-data $DIR/Meetkits/$REGION/${OVERVIEW}
             fi
-        else # install on remote host RHOST
-            if ! scp -q $TMPWDIR/${OVERVIEW} ${RHOST}:$DIR/Meetkits/$REGION/
+        else # install on remote host WEBHOST
+            if ! scp -q $TMPWDIR/${OVERVIEW} ${WEBHOST}:$DIR/Meetkits/$REGION/
             then
                 date 1>&2
-                echo "$CMD ERROR: Failed to copy chart to ${RHOST} for ${OVERVIEW}" 1>&2
+                echo "$CMD ERROR: Failed to copy chart to ${WEBHOST} for ${OVERVIEW}" 1>&2
                 exit 1
             else
-                ssh ${RHOST} chgrp -f www-data $DIR/Meetkits/$REGION/${OVERVIEW}
+                ssh ${WEBHOST} chgrp -f www-data $DIR/Meetkits/$REGION/${OVERVIEW}
             fi
         fi
         if (( $VERBOSE > 1 )) ; then
-            echo "$CMD MESG: installed chart ${OVERVIEW} to ${RHOST}:$DIR/Meetkits/$REGION" 1>&2
+            echo "$CMD MESG: installed chart ${OVERVIEW} to ${WEBHOST}:$DIR/Meetkits/$REGION" 1>&2
         fi
     fi
     rm -f $TMPWDIR/ERRORS
@@ -590,6 +673,10 @@ function DoPM_Overview() {
 
 ##########################################################
 SetParameters "$REGION"   # get parameters
+if [ -n "$STATIONS" ]
+then    # synchronize measurements tables of official stations with DBHOST tables
+    SYNC2DBHOST ${WEBHOST:-localhost} $STATIONS
+fi
 
 if [ ! -f ${GENERATOR/ */} ] || [ ! -d $WDIR ] # working directory
 then
