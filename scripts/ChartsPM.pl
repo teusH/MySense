@@ -52,7 +52,7 @@ use constant {
         COORDINATES => '51.42083,6.13541', # default location coordinates
         PROJECT   => 'VW2017',          # default project id
         SENSORS   => 'Sensors',         # name of sensors desciption table
-        REF       => 'HadM',            # most recent measurement station PLIM
+        REF       => 'HadM',            # most recent measurement station RUD Z-Limburg
         POLLUTANTS => 'pm25|pm10',      # dflt choices of pollutants to show in graph
         BUTTONS   =>  'BdP',            # dflt button name
 
@@ -2135,10 +2135,10 @@ sub ChartyAxis {
 # boundaries are for PM2.5  [from,to,quality mark]
 my %bands = (
     EU => [
-        [0,20,'EU norm, PM\u2081\u2080 fase 2'],
-        [20,25,'WHO norm, PM\u2082.\u2085'],
-        [25,40,'EU norm, PM\u2081\u2080 jaargem.'],
-        [40,50,'EU norm, PM\u2081\u2080 daggemiddelde'],
+        [0,15,'WHO AQG, PM\u2081\u2080 jaargem.'],
+        [15,40,'EU norm, PM\u2081\u2080 jaargem.'],
+        [40,45,'WHO AQG, PM\u2081\u2080 daggemiddelde'],
+        [45,50,'EU norm, PM\u2081\u2080 daggemiddelde'],
         [50,200,''],
         ],
     LKI => [
@@ -2258,7 +2258,7 @@ Experiments show a good relation to the refence sensor equipment of RIVM if the 
 <p>Het blijkt dat de metingen van enkele meetstations om een of andere reden verschoven zijn in de tijd. Hiervoor is zonodig een tijdscorrectie toegepast.</p>
 <p>Samen met het RIVM wordt gekeken of de procedures voor het meten van PM fijnstof waarden verbeterd kunnen worden.
 Als experiment worden de PM<sub>1</sub>, PM<sub>2.5</sub> en PM<sub>10</sub> fijnstof waarden gecorrigeerd door de rel. vochtigheidsmeting er in te betrekken.
-Door toepassing van deze correcties worden de lokale metingen redelijk tot goed vergelijkbaar met de referentie fijnstof metingen van een RIVM/PLIM meetstation in de buurt.
+Door toepassing van deze correcties worden de lokale metingen redelijk tot goed vergelijkbaar met de referentie fijnstof metingen van een RIVM LuchtMeetNet station in de buurt.
 "       ;
     }
     return $txt if not $correctPM;
@@ -3000,6 +3000,7 @@ $(function () { // on DOM ready
 //END DOM
 });
 </script>
+<p>Vanwege werk aan een update van data communicatie infrastructuur via LoRa en The Things Network kunnen de metingen in de maand december 2021 flinke onderbrekingen vertonen.
 <p>
 <a id="metingen" name="metingen"></a>
 <!-- START TableHdr -->
@@ -3032,7 +3033,7 @@ ma 12 dec 04:26
 </caption>
 <tbody>
 <tr>
-<td style='padding:1%'><div title="De metingen zijn gevalideerd.">
+<td style='padding:1%'><div title="De metingen zijn gevalideerd en zo mogelijk op type sensor gecorrigeerd.">
 <!-- START HIGHCHART -->
 <div id="VUURWERK" style="width:510px; height:340px;margin:0 auto"></div>
 <!-- END HIGHCHART -->
@@ -3065,7 +3066,7 @@ Regio Limburg
 </p><p>
 In de grafieken worden de sensorkit metingen weergegeven van de meetstation(s) &#150;
 <!-- START stations -->
-Landelijk Meetstation, Limburg (PLIM)
+Landelijk Meetstation, Limburg (RUD Z-Limburg)
 <!-- END stations -->
 &#150;
 in vergelijking met de grafiek van metingen met de eenvoudiger en betaalbare Plantower, Sensirion of Nova sensor uitgeruste MySense meetkit
@@ -3083,7 +3084,7 @@ Fake Adres, Location ERROR (Fake)
 De fijnstof sensor van deze meetkits telt het aantal fijnstof deeltjes (PM<span style="font-size:80%">1</span>, PM<span style="font-size:80%">2.5</span> en PM<span style="font-size:80%">10</span>) elke 15 munten voor ca een minuut lang het aantal deeltjes in 6 verschillende groottes. De fijnstof meting wordt door de fabrikant vervolgens omgerekend naar het gewicht van de deeltjes in &micro;g/m&sup3;.
 <br />
 In de omrekening door de fabrikant wordt geen rekening gehouden met relatieve vochtigheid, regen, soort en grootte van de deeltjes en andere lokale invloeden. Bijv. hogere relatieve vochtigheid geeft hogere waarden dan de werkelijkheid, PM10 varieert meer als PM2.5 over een periode. Lokale wind sterkte op 1.70 m hoogte maakt veel uit. Maw er is een lokale afhankelijk tav de zekerheid of de waarden juist zijn: ze zijn per definitie indicatief.
-<br />De fijnstof metingen van de RIVM/PLIM landelijke meetstations zijn ook gewichtsmetingen (&micro;g/m&sup3;) van gemiddelden per uur.
+<br />De fijnstof metingen van de RIVM LuchtMeetNet landelijke stations zijn ook gewichtsmetingen (&micro;g/m&sup3;) van gemiddelden per uur.
 De apparatuur van het landelijk meetstation wordt periodiek (lokaal) geijkt. 
 <br /><I>Notitie tav meetwaarden</I>:
 <br />Elke sensor is verschillend. De onderlinge verschillen zijn met met tijdrovende regressie tests (R2 > 0.6) over lange perioden goed te corrigeren.
@@ -3208,7 +3209,7 @@ Regio Limburg
 </p><p>
 The graphs show the sensor kit measurements for the location(s) &#150;
 <!-- START stations -->
-Landelijk Meetstation, Limburg (PLIM)
+Landelijk Meetstation, Limburg (RUD Z-Limburg)
 <!-- END stations -->
 &#150;
 compared with the graphs of the measurements of the more affortable e.g. Plantower, Sensirion or Nova sensor equipped MySense measurement kit
@@ -3229,7 +3230,7 @@ The measurement value shown differ between the manufacturer to particles weight:
 <!-- END sensorType -->
 &micro;g/m&sup3;.
 In the calculation the influence of humidity to the count is however neglected.
-The dust values from the reference sensors used e.g. by RIVM or PLIM is showed as
+The dust values from the reference sensors used e.g. by RIVM or RUD Z-Limburg is showed as
 (&micro;g/m&sup3;) as average per hour.
 The reference sensor are calibrated on a regular base.
 <br />Note:

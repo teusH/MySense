@@ -121,6 +121,7 @@ function DropKit() {
 # use RDBHOST is empty when TTN V2 period is not used.
 # host with TTN V2 measurements DB, defines invalid measurements start timestamp
 RDBHOST=${RDBHOST}
+RDBHOST=lunar
 # give manual end date of invaliding period a possibility
 # from Harrie 22-01-03 email
 declare -A EndDate
@@ -323,8 +324,21 @@ function COLVals() {
 # invalidate measurements in a period of time
 function InvalidateVals() {
    local CNT ICOLS
-   if ! $MYSQL -e 'SHOW TABLES' | grep -q "$TBL" ; then return 0 ; fi
-   local TBL=$1 FROM=${2:-0} TO=$3 COLS ICOLS LAST
+   local FROM=${2:-0} TO=$3 COLS ICOLS LAST
+
+   declare -a TBL="$1"
+   TBL=($($MYSQL -e "SHOW TABLES" | grep -P "$TBL") )
+   if (( ${#TBL[@]} != 1 ))
+   then
+     VERBOSITY "Found none or more as one in database: ${TBL[@]}. Improve pattern!"
+     return 1
+   fi
+   if [ "$FROM" = 0 ]
+   then 
+     VERBOSITY "ERROR Invalidate from date 1970? Skipped"
+     return 1
+   fi
+
    if [ -z "$TO" ] ; then TO=$(date --date=tomorrow +%s) ; fi
 
    ICOLS=$(COLVals $TBL )                  # get condition for all sensors are NULL
@@ -378,8 +392,15 @@ function InvalidateVals() {
 # set measurements with valid = NULL (not at home) to valid (correction routine)
 function ValidateVals() {
    local CNT ICOLS
+   local FROM=${2:-0} TO=$3 COLS ICOLS LAST
+   declare -a TBL="$1"
+   TBL=($($MYSQL -e "SHOW TABLES" | grep -P "$TBL") )
+   if (( ${#TBL[@]} != 1 ))
+   then
+     VERBOSITY "Found none or more as one in database: ${TBL[@]}. Improve pattern!"
+     return 1
+   fi
    if ! $MYSQL -e 'SHOW TABLES' | grep -q "$TBL" ; then return 0 ; fi
-   local TBL=$1 FROM=${2:-0} TO=$3 COLS ICOLS LAST
    if [ -z "$TO" ] ; then TO=$(date --date=tomorrow +%s) ; fi
 
    ICOLS=$(COLVals $TBL )                  # get condition for all sensors are NULL
@@ -617,19 +638,36 @@ EOF
 
 # main part args: 
 if [ "${1/--/}" = help ]
-then cat <<EOF
-# to drop measurement tables and meta info row in meta tables
-# command dropit args (args: project serial ...) serial is reg exp kits to check to delete
-# to reset values in a period: environment var FROM up to TO (default tomorrow)
-# command ValidateVals args (args project_expression)
-# to update measurements tables (invalid/valid in a period) and update meta info
-# command args: reg expression for kits to show and check
-#               (FROM=timestamp) meta kit info
-# Period definition either via environment var FROM (default no period) up to TO (flt tomorrow)
-# If RDBHOST is defined use mysql measurement table from this host to define FROM
-# If FROM nor RDBHOST is defined upodate will only show meta info for project/serial kits.
+then
+   cat <<EOF
+To drop measurement tables and meta info row in meta tables
+Command 'dropit args' (args: project serial ...) serial is reg exp kits to check to delete
+
+To set values in a period as valid: environment var FROM up to TO (default tomorrow)
+command 'validate args' (args project_<reg. exp.>)
+
+To set values in a period as invalid: environmenmt FROM up to TO (default tomorrow)
+command 'invalidate args' (args project_<reg.exp.>)
+
+To update measurements tables (invalid/valid in a period) and update meta info
+command 'args': reg expression for kits to show and check
+              (FROM=timestamp) meta kit info
+
+Environment variables:
+Period definition either via environment FROM (default no period) up to TO (flt tomorrow)
+If RDBHOST is defined use mysql measurement table from this host to define FROM
+If FROM nor RDBHOST is defined update will only show meta info for project/serial kits.
 EOF
     exit 0
+fi
+if [ -n "$FROM" ] && ! echo "$FROM" | grep -q -P '^[0-9]{6,}$'
+then
+    FROM=$(date --date="$FROM" +%s)
+    if (( $? > 0 ))
+    then
+    	echo "From $FROM is not a date!" 1>&2
+    	exit 1
+    fi
 fi
 if [ "${1,,}" = dropkit ]
 then
@@ -639,7 +677,7 @@ then
       DropKit "$1" "$2"
       shift ; shift
    done
-if [ "${1,,}" =  resetvals ]
+elif [ "${1,,}" =  validate ]
 then
     shift
     if [ -z "$FROM" ]
@@ -647,7 +685,20 @@ then
     else
       while [ -n "$1" ]
       do
-        ValidateVals "$1"
+        ValidateVals "$1" "$FROM" >/dev/null
+	shift
+      done
+    fi
+elif [ "${1,,}" =  invalidate ]
+then
+    shift
+    if [ -z "$FROM" ]
+    then VERBOSITY "ERROR need definition of FROM env. var."
+    else
+      while [ -n "$1" ]
+      do
+        InvalidateVals "$1" "$FROM" >/dev/null
+	shift
       done
     fi
 else
