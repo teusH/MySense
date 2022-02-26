@@ -21,17 +21,32 @@ The right side pins top down are numbered as: Vin V3.3/V5, Gnd, 3V3, P23, P22, .
 <img src="images/PyCom-wiring-BME-SDS-PMS-SSD-GPS.png" align=right width=400>
 
 ### TTL/UART devices connections
-SDS011/PMS7003/PMSx003 TTL UART connection:
-* SDS Gnd (black) -> LoPy Gnd (on right side 2nd pin, same pin as for BME)
-* SDS V5 (red)    -> LoPy V5 (on right side, top pin)
-* SDS Rx (yellow) -> LoPy P3 / Tx1 (on left side, 5th pin from top)
-* SDS Tx (white)  -> LoPy P4 / Rx1 (on left side, 6th pin from top)
+SDS011/PMS7003/PMSx003 TTL1 5V (LoPy TTL3) UART connection:
+* PM Gnd (black) -> LoPy Gnd (on right side 2nd pin, same pin as for BME)
+* PCB V2 (PCB BWLvC V2) to be checked with Config.py!
+** PM V5 (red)    -> PCB V2: LoPy P19 PWR (on right side)
+** PM Rx (yellow) -> PCB V2: LoPy P3 / Tx1 (on left side, 5th pin from top)
+** PM Tx (white)  -> PCB V2: LoPy P4 / Rx1 (on left side, 6th pin from top)
+* PCB V1 (PCB V1 GTL V1/V2) default (2019-02-27)
+** PM V5 (red)    -> PCB V1: LoPy P20 PWR (on right side shared with console) dflt
+** PM Rx (yellow) -> PCB V1: LoPy P10 / Tx1 (on left side, 5th pin from top) dlft
+** PM Tx (white)  -> PCB V1: LoPy P11 / Rx1 (on left side, 6th pin from top) dlft
 
-Grove GPS TTL Uart connection:
+Grove GPS TTL2 3V3 (LoPy TTL2) Uart connection:
 * GPS Gnd (black) -> LoPy Gnd (on right side, shared pin)
-* GPS Vcc (red) -> LoPy 3V3 (shared with others)
-* GPS Rx (green) -> LoPy P12 / Tx2 (on left side, 1st pin from bottom)
-* GPS Tx (yellow) -> LoPy P11 / Rx2 (on left side, 2nd pin from bottom)
+* GPS Vcc (red) -> LoPy 3V3 P9
+* PCB V2 (PCB BWLvC V2) to be checked with Config.py!
+** GPS Rx (green) -> LoPy P12 / Tx2 (on left side, 1st pin from bottom)
+** GPS Tx (yellow) -> LoPy P11 / Rx2 (on left side, 2nd pin from bottom)
+* PCB V1 (PCB GTL V1) default
+** GPS Rx (green) -> LoPy P4 / Tx2 (on left side, 1st pin from bottom)
+** GPS Tx (yellow) -> LoPy P3 / Rx2 (on left side, 2nd pin from bottom)
+
+Console TTL TTL3 (LoPy TTL1) Uart connection (default):
+* Gnd (black)
+* 5V/3V3  (red) V1: P9 PWR used by TTL2 due to HW bug)
+* Rx: P1
+* Tx: P0
 
 In `Config.py` one is able to define the pins. MySense will automatically detect on the defined UART pins the GPS and dust connector.
 
@@ -43,7 +58,7 @@ SHT31/BME280/680 I2C  connection (default I2C address):
 * BME SCL (yellow) -> LoPy CLK (on right side, 5th pin from top)
 The oled SSD1306 display I2C bus is connected parallel to each other.
 
-### Optional SPI device
+### Optional SPI device deprecated
 Optional SSD1306 SPI connection (using GPIO pins):
 * SSD CS (blue) -> LoPi P18
 * SSD DC (purple) -> LoPy P20
@@ -52,6 +67,11 @@ Optional SSD1306 SPI connection (using GPIO pins):
 * SSD D0 (orange) -> LoPy P19
 * SSD VCC (red) -> LoPy 3V3 (shared with BME280)
 * SSD GND (black) -> LoPy Gnd (on right side, same pin as for SDS)
+
+### configuration pins
+* P13 (Hall magnetic sensor) Use REPL mode (only PCB BWLvC V2)
+* P17 Accu voltage (PCB V2) near TTL sockets (if 0V and deepsleep P18 closed: go into REPL modus)
+* P18 Closed (gnd) use deepsleep (on PCB near I2C sockets)
 
 Warning: SPI oled display seems not run with PyCom firmware 1.17.3.b1 (April 2018). A previous version was running ok.
 
@@ -155,3 +175,15 @@ Currently ports used by MySense:
 * port 3 to send meta data as which sensors and location if available.
 
 The LoRa implementation supports to collect data sent to the sensor kit. Define the argument `callback=commandRoutine` on the connect initialisation. The callback rooutin on reception of data on any LoRa port will be called as: `commandRoutine(port,receieved_data)`. See lora_test.py for examples. 
+
+### RGB led signals
+The MySense routine (loop) will provide some basic signaling via RGB led:
+* orange/blue repeat 3: Go into REPL console modus (use wifi to direct access)
+* red/orange repeat 3: low battery
+* green repeat 2: reach sensing end sequence, LoRa joined, sensor successfull
+* purple: sensor error
+* red: no sensor found, no LoRa join 
+* blue repeat 4: LoRa join success
+* blue repeat 1: send LoRa
+* green,orange: go into seepsleep
+* 
