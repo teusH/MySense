@@ -19,7 +19,7 @@
 #   language governing rights and limitations under the RPL.
 __license__ = 'RPL-1.5'
 __modulename__='$RCSfile: MyMQTTclient.py,v $'[10:-4]
-__version__ = "0." + "$Revision: 2.57 $"[11:-2]
+__version__ = "0." + "$Revision: 2.58 $"[11:-2]
 import inspect
 import random
 def WHERE(fie=False):
@@ -30,7 +30,7 @@ def WHERE(fie=False):
      except: pass
    return "%s V%s" % (__modulename__ ,__version__)
 
-# $Id: MyMQTTclient.py,v 2.57 2022/01/21 12:10:06 teus Exp teus $
+# $Id: MyMQTTclient.py,v 2.58 2022/02/26 13:51:37 teus Exp teus $
 
 # Data collector for MQTT (TTN) data stream brokers for
 # forwarding data in internal data format to eg: luftdaten.info map and MySQL DB
@@ -369,12 +369,14 @@ class TTN2MySense:
             msg = msg['rx_metadata']
             for i in list(range(len(msg))):
               gtw = {}
-              if 'packet_broker' in msg[i].keys(): continue # skip brokers
               for one in ['gateway_id','rssi','snr']:
                 v = None
                 try:
                   if one == 'gateway_id':
                     v = msg[i]['gateway_ids']['gateway_id']
+                    if v == 'packetbroker': # ttnv2 home_network broker
+                      try: v = msg[i]['packet_broker']['forwarder_gateway_id'] # ttnv2 tenant
+                      except: break
                   else: v = msg[i][one]
                   if not v == None: gtw[one] = v
                 except: pass
@@ -1246,7 +1248,8 @@ if __name__ == '__main__':
     timing = time.time()      # last time record reception
     while True:
       try:
-        DataRecord = TTNdata.GetData()[1]
+        DataRecord = TTNdata.GetData()
+        DataRecord = DataRecord[1]
 
         if DataRecord: # print out some details
           ID = None; ApID = None; net = None; timestamp = None
