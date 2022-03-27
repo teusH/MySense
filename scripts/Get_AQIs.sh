@@ -1,7 +1,7 @@
 #!/bin/bash
 # script to produce e.g. script for HIGHcharts
 
-# $Id: Get_AQIs.sh,v 2.6 2022/03/26 15:43:02 teus Exp teus $
+# $Id: Get_AQIs.sh,v 2.7 2022/03/27 11:22:06 teus Exp teus $
 # 
 
 # Copyright (C) 2014, Teus Hagen, the Netherlands
@@ -1469,7 +1469,6 @@ EOF
 # output DOM chart instantiation
 function Get_CHARTscript() {
    local CHRT
-   echo "Get_CHARTscript $@" >/dev/stderr
    echo "document.addEventListener('DOMContentLoaded', function () {"
    for CHRT in $@
    do
@@ -1625,8 +1624,7 @@ AQI"
     echo '<script type="text/javascript">' >>$OUTPUT
 
     # if available compress the JS code
-    local COMPRESS="/usr/bin/uglifyjs" # "yui-compressor --type js"
-    COMPRESS=cat # To Do: seems uglify has errors on functions
+    local COMPRESS="/usr/bin/uglifyjs" # alternative "yui-compressor --type js"
     local FORECAST_ADDED
     if ! which ${COMPRESS/ */} >/dev/null ; then COMPRESS=cat ; fi 
     if (( $DEBUG > 0 )) ; then COMPRESS=cat ; fi
@@ -1672,17 +1670,23 @@ AQI"
         return 1
     fi
     if ! (
+      echo '// FORECAST data part';
       cat /var/tmp/FORECAST.GLOB.json ;
+      echo '// BdP data part';
       echo 'var BdP = new Object();' ;
       cat $OUTPUTdata ;
-      cat $OUTPUTscript ;
-      cat /var/tmp/FORECAST.DOM.json ;
-      Get_BUTTONscript ${AQIs[@]}
+      echo '// END of compress'
         ) | $COMPRESS  2>/dev/null >>$OUTPUT
     then
         echo "ERROR: failed to compress $OUTPUTscript to output $OUTPUT." 1>&2
         return 1
     fi
+    echo '// tables chart script' >>$OUTPUT
+    cat $OUTPUTscript >>$OUTPUT
+    echo '// forecast script' >>$OUTPUT
+    cat /var/tmp/FORECAST.DOM.json >>$OUTPUT
+    echo '// button script' >>$OUTPUT
+    Get_BUTTONscript ${AQIs[@]} >>$OUTPUT
     Get_CHARTscript ${TYPES/+/ } ${FORECAST_ADDED/*I*/FORECAST} >>$OUTPUT
     echo "</script>" >>$OUTPUT
     rm -f /var/tmp/FORECAST.{GLOB,DOM}.json

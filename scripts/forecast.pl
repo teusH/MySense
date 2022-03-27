@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: forecast.pl,v 1.13 2022/03/26 14:09:30 teus Exp teus $
+# $Id: forecast.pl,v 1.14 2022/03/27 11:23:03 teus Exp teus $
 
 # Copyright (C) 2016, Teus Hagen, the Netherlands
 #
@@ -959,7 +959,9 @@ var weather =
 // START weather
 {};
 // END weather
+// FORECAST end GLOB
 
+// FORECAST start DOM
 /* translate wind speed labels to Dutch
  * beaufortName: ['Calm','Light air','Light breeze','Gentle breeze','Moderate breeze',
  *                'Fresh breeze','Strong breeze','Near gale','Gale','Strong gale',
@@ -1722,9 +1724,6 @@ Meteogram.prototype.parseYrData = function () {
     // Create the chart when the data is loaded
     this.createChart();
 };
-// FORECAST end GLOB
-
-// FORECAST start DOM
 // FORECAST end DOM
 
 document.addEventListener('DOMContentLoaded', function () {
