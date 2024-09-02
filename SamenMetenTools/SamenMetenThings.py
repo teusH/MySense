@@ -63,7 +63,7 @@ get_StationData(Name: str, ProductID=None, Address=None, Humanise=None, Start=No
 # TO DO: docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.5 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.6 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -656,7 +656,7 @@ def MunicipalityName(item: Union[str,int], region="gemeente") -> str:
     # Things gemeentecode has no leading zero's
     try: result = re.sub(r'^0+','',execute_request(url)[select][0])  # if len(select) > 0 ???
     except Exception:
-        logging.warning(f"Coding region {region}: unable to find name or code {item}")
+        logging.warning(f"Coding region {region}: unable to find name or code for {item}")
         return ''
         # raise ValueError(f"Unable to get municipality info from {item}")
     return result
@@ -743,7 +743,7 @@ class SamenMetenThings:
      Class default parameters (if None leave it to subroutines):
        Verbosity=1    Progress verbosity level.
        Meta=False     Get also station measurements header information as dict.
-       Sensors="pm10 kal,pm10,pm2.5 kal,pm2.5,rh%,temp" Default sensor (column) name list.
+       Sensors="pm10 kal,pm10,pm2.5 kal,pm2.5,rh,temp" Default sensor (column) name list.
        Start=None     (from start measurements) or yyyy-mm-dd, yyyy-mm-dd-hh in local time.
        End=None       (till end measurements). period (start,end) are exclusive timestamps.
        Unit=False     May add unit information to column name.
@@ -779,7 +779,7 @@ class SamenMetenThings:
         inits['Utf8'] = False      # humanised names in utf-8 strings
         # default list of sensors to get observasions from
         # if Sensors string is a regular expression apply this as sensor filter for observations
-        inits['Sensors'] = "pm10 kal,pm10,pm2.5 kal,pm2.5,rh%,temp"
+        inits['Sensors'] = "pm10 kal,pm10,pm2.5 kal,pm2.5,rh,temp"
         inits['Product'] = True    # add sensor manufacturer product ID
         inits['Neighbours'] = 0    # amount to list as neighbours of station max 500 meter
         # note: Things GPS ordinates are rounded to 3 decimals. A 75 meters resolution.
@@ -943,13 +943,16 @@ class SamenMetenThings:
             url = f"/Things?$select=id,properties/codegemeente&$filter=name eq '{GemCode}'"
             try: gemcode = self._execute_request(url)[0]["properties"]["codegemeente"]
             except:
-                self_Verbose(f"unable to find station {GemCode} municipality.",f"Find stations in municipality",-1)
+                self_Verbose(f"unable to find municipality code for {GemCode}.",f"Find stations in municipality",-1)
                 return None
-        elif type(GemCode) is str and not GemCode.isdigit():
-            # station name is municipality name, get gemeente code from external resource
-            gemcode = MunicipalityName(GemCode)
+        elif type(GemCode) is str:
+            if not GemCode.isdigit():
+                # station name is municipality name, get gemeente code from external resource
+                gemcode = MunicipalityName(GemCode)
+            else: gemcode = GemCode
+        elif type(GemCode) is int and GemCode < 5000: gemcode = GemCode
         if not gemcode:
-            self._Verbose(f"unable to find municipality {GemCode}.","Find stations",0)
+            self._Verbose(f"unable to find municipality code for {GemCode}.","Find stations in municipality",0)
             return None
         # select: name or id, or both. properties: e.g. owner, project
         select = []; properties = []
@@ -980,7 +983,7 @@ class SamenMetenThings:
 
         # convert: [{iot:Union[str,int],name:str,Locations:{location:{coordinates:[]}},
         #           Datastreams:[{name:"???-sensorName"},...] -> { stationName: {} ...}
-        stations = dict()
+        stations = dict(); selected = 0
         for station in data:
             info = dict(); name = None
             for item, value in station.items():
@@ -1012,10 +1015,12 @@ class SamenMetenThings:
                     if not fnd:                                # no sensor of interest skip station
                         if not info.get('sensors'): info = dict()
                         break
+                    else: selected += 1
+
             if len(info) and name: stations[name] = info.copy() # else skip station
 
-        self._Verbose(f"selected {len(data)} stations. If needed limit this via Sensors and/or station Select filter!", f"Stations in {GemCode}",2)
-        if len(stations) > 100:
+        self._Verbose(f"selected {len(data)} stations. {selected} stations with selected sensor observations.", f"Stations in {GemCode}",2)
+        if selected > 100:
             self._Verbose(f"{len(data)} stations!. Try to limit it via Sensors and/or station Select filter!", f"Attention nr of stations in {GemCode}",0)
         if not len(stations):
             self._Verbose(f"Unable to identify stations by {By}",f"Municipality name or id '{GemCode}'",1)
@@ -1790,11 +1795,12 @@ class SamenMetenThings:
         # Meta clean up dict: empty keys. @iot.id's have limited lifetime: cleared.
         if Meta['observations'] is None or Meta['observations'].empty:
             del Meta['observations']
-        if Meta.get('@iot.id',False): del Meta['@iot.id']
+        # it is unclear if @iot.id survives a longer period. Use with care.
+        #if Meta.get('@iot.id',False): del Meta['@iot.id']
         for n,v in  Meta.items():             # clean up on highest dict level
             if not len(v): del Meta[n]
-        for sensor in Meta['sensors'].keys(): # clean up all @iot.id sensor id's
-            if  Meta['sensors'][sensor].get('@iot.id',False): del Meta['sensors'][sensor]['@iot.id']
+        #for sensor in Meta['sensors'].keys(): # clean up all @iot.id sensor id's
+        #    if  Meta['sensors'][sensor].get('@iot.id',False): del Meta['sensors'][sensor]['@iot.id']
         return Meta
 
 ################## command line tests of (class) subroutines or command line checks
@@ -1942,7 +1948,7 @@ Some test cases for how to use the routines:
             SamenMetenPandasClass.Threading = True     # turn multithreading ON
         else:
             SamenMetenPandasClass.Threading = False    # turn multithreading OFF
-    print(f"Multitheading is {Tests['Threading']}, verbosity level is {Tests['Verbosity']}.")
+        print(f"Multitheading is {Tests['Threading']}, verbosity level is {Tests['Verbosity']}.")
     for test,val in Tests.items():
         if not re.match('test',test): continue
 
