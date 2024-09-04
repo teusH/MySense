@@ -20,15 +20,18 @@ Python3.8+ library script to download Things (Samen Meten API) station informati
 Returns station info (location, sensors, types, status, station neighbours, etc.) in a dictionary,
 and sensor observations as Pandas dataframe.
 As well stations near a location point or station name, or stations within a municipality.
-As external website queries (Things, Open Soft Data, Street Map) consume a lot of time,
+As external website queries (Things, Open Soft Data, Open Street Map, TOOI) consume a lot of time,
 multi threading can be used for a speedup factor of 2-5.
+The module can be called stand alone. Try 'python3 ModuleName help'.
 
 Hint: keep your development area clean by: export PYTHONDONTWRITEBYTECODE=1
 
 Some example of routines:
 StreetMap(GPS:Union[str,tuple]) -> str # obtain address via Open Street Map
-MunicipalityName(item: Union[str,int], region="gemeente") -> str # obtain municpality
-Class SamenMetenThings:                # obtain station names in municipality
+Municipality_NameCode(item: Union[str,int]) -> str # municipality info via standaarden overheid (TOOI)
+MunicipalityName(item: Union[str,int], region="gemeente") -> str # municpality info via Open Data Soft
+Class SamenMetenThings:                # Things API query routines
+                                       # station names in a municipality
 get_MunicipalityStations(self,GemCode: Union[int,str], By="name", Select=None) -> Union[list,dict]
                                        # ordered list of neighbour stations near station
 get_Neighbours(self,Point:Union[str,List[float]],Range=None,SRID=4326,Max=50,Select=None, Address=None) -> Dict[str,tuple]
@@ -63,7 +66,7 @@ get_StationData(Name: str, ProductID=None, Address=None, Humanise=None, Start=No
 # TO DO: docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.6 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.7 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -610,6 +613,7 @@ def execute_request(Url:str, callBack=None) -> Union[dict,list]:
                     elif not type(body['results']) is dict: return {}
                     else: return body['results']   # should be a dict
                 else: return body                  # Open Street Map
+            elif type(body) is list: return body   # TOOI standaarden.overheid.nl
             else:
                 raise ValueError(f"URL {Url} unexpected result: {response.read()}")
         except HTTPError as error:  # 400-510
@@ -662,6 +666,52 @@ def MunicipalityName(item: Union[str,int], region="gemeente") -> str:
     return result
 #
 # test: MunicipalityName('Venray') -> municipality code
+
+# ================================          = TOOI repository service
+# Wet Openbaarheid Bestuur: TOOI (Thesauri en Ontologieën voor Overheidsinformatie)
+# See: https://standaarden.overheid.nl/tooi
+#https://repository.officiele-overheidspublicaties.nl/waardelijsten/rwc_gemeenten_compleet/4/json/rwc_gemeenten_compleet_4.json
+#[ {
+#  "@id" : "https://identifier.overheid.nl/tooi/id/gemeente/gm0003",
+#  "@type" : [ "https://identifier.overheid.nl/tooi/def/ont/Gemeente" ],
+#  ...
+#  "https://identifier.overheid.nl/tooi/def/ont/officieleNaamExclSoort" : [ {
+#    "@value" : "Appingedam"
+#  } ],
+#  "https://identifier.overheid.nl/tooi/def/ont/gemeentecode" : [ {
+#    "@value" : "0003"
+#  } ], ....]
+# Obtain from governemental municipality name from municipality code (visa versa)
+# Parameter: either official municipality name or municipality code (int or str).
+# Returns: name or code (without leading zero's) as str.
+# To Do: selection by id=? n json format to create a selection from the query
+@lru_cache(maxsize=16)   # module sources this is thread save?
+def Municipality_NameCode(entity:Union[str,int]) -> str:
+    """Get from municipality code the municipality name and via versa"""
+    url = 'https://repository.officiele-overheidspublicaties.nl/waardelijsten/rwc_gemeenten_compleet/4/json/rwc_gemeenten_compleet_4.json'
+    data = execute_request(url)
+    TOOIont = 'https://identifier.overheid.nl/tooi/def/ont/'
+    if entity.isdigit():
+        search = TOOIont+'officieleNaamExclSoort'
+        key =  TOOIont+'gemeentecode'
+        entity = ('0000'+str(entity))[-4:]
+    else:
+        search = TOOIont+'gemeentecode'
+        key = TOOIont+'officieleNaamExclSoort'
+    for item in data:
+        id = item.get(key)
+        # assert only 1 element key dict in item list
+        if type(id) is list and len(id): id = id[0].get('@value')
+        if not id: continue
+        if entity != id: continue
+        id = item.get(search)   # found it
+        if type(id) is list and len(id): id = id[0].get('@value')
+        else: continue
+        while id[0] == '0': id = id[1:]  # municipality code: delete leading zero's
+        return id
+    return None
+#
+# test: Municipality_NameCode('Venray') -> municipality code
 
 # =======================================================================
 # ====================             = Things observation download routines
@@ -948,7 +998,7 @@ class SamenMetenThings:
         elif type(GemCode) is str:
             if not GemCode.isdigit():
                 # station name is municipality name, get gemeente code from external resource
-                gemcode = MunicipalityName(GemCode)
+                gemcode = Municipality_NameCode(GemCode)
             else: gemcode = GemCode
         elif type(GemCode) is int and GemCode < 5000: gemcode = GemCode
         if not gemcode:
@@ -1491,9 +1541,9 @@ class SamenMetenThings:
                 if not value: continue
                 if item == 'codegemeente' and Address:    # humanise municipality code
                     if workers:
-                        workers.Submit('municipality',MunicipalityName,value)
+                        workers.Submit('municipality',Municipality_NameCode,value)
                     else:
-                        try: meta['municipality'] = MunicipalityName(value)
+                        try: meta['municipality'] = Municipality_NameCode(value)
                         except: pass
                 else: meta[item] = value
             # get station 'location': GPS ordinates, optional address and 'neighbours'/addresses
@@ -1959,8 +2009,10 @@ Some test cases for how to use the routines:
         elif re.match('.+Dehumanise',test,re.I):       # sensor dehumanise test (use strict=True)
             result = HumaniseClass(utf8=True).DehumaniseSensor(val, strict=True)
             print_test(test,val,result)
-        elif re.match('.+MunicipalityName',test,re.I): # Open Data Soft API test
-            result = MunicipalityName(val)
+        elif re.match('.+MunicipalityName',test,re.I):
+            #result = MunicipalityName(val)             # Open Data Soft faster, less up to date
+            #print_test(test,val,result)
+            result = Municipality_NameCode(val)        # TOOI standaarden.overheid.nl API test
             print_test(test,val,result)
         elif re.match('.+Address',test,re.I):          # Address (humanised) from Open Street Map
             result = StreetMap(str(val))
