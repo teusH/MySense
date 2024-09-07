@@ -66,7 +66,7 @@ get_StationData(Name: str, ProductID=None, Address=None, Humanise=None, Start=No
 # TO DO: docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.7 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.8 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -266,9 +266,9 @@ class MyWorkers:
         else: self.Executor = None    # else (debugging modus) no threading
         self.Futures = {}             # dict with futures as key, submit id
         self.Results = {}             # dict with results of the thread when done
-        self.Number: int = -1         # count of submitted thread routines
+        self.Number:int = -1          # count of submitted thread routines
         self.Stamp = Timing           # timing threads
-        self.Metering: float = None   # start of first worker
+        self.Metering:float = None    # start timestamp of first worker
         self.SemaBaskit = Semaphore() # semaphore for Baskit handling
 
     def __enter__(self):
@@ -358,10 +358,6 @@ class MyWorkers:
         """Wait till all workers have been done. Workers.
            Results dict with worker ident: { result and work info}."""
 
-        if self.Stamp and self.Metering:
-            self.Metering = round(time()-self.Metering, 1)
-            logging.debug(f"All workers completed in {self.Metering:.1f} seconds")
-
         if not self.Executor is None:
             if timeout is None: timeout = 2*60         # all workers time metering
             for future in futures.as_completed(self.Futures, timeout=timeout):
@@ -417,8 +413,9 @@ class MyWorkers:
         except: raise ValueError("Submit workers argument error.")
 
                                           # start global teaTime metering
-        if self.Number < 0: self.Metering = round(time(),2)
-        self.Number += 1                  # current count workers. May be depricated.
+        with self.SemaBaskit:
+            if self.Metering is None : self.Metering = round(time(),2)
+            self.Number += 1              # current count workers. May be depricated.
         if not isinstance(Func,Callable):
             raise ValueError(f"Submit function '{str(Func)}' is not callable.")
         if Ident is None: Ident = f"{Func.__name__} {self.Number}"
@@ -872,6 +869,43 @@ class SamenMetenThings:
         self.Sema_Observe =  Semaphore(1)       # semaphores needed with threading
         return None
 
+    # collect sensor operational info (first/last timestamp in a period and count)
+    # push results in sensor dict baskit, period: Start/None-End/None. 
+    # this can take a while ... 2 X nr of sensors * ca 15 seconds if not parallel
+    # add status of sensors per station. This is time consuming!
+    def _AddSensorsStatus(self, Station:str, Sensors:dict, Start=None, End=None) -> None:
+        if not type(Sensors) is dict or not len(Sensors): return None
+        baskits = 0
+        for _ in Sensors.values():
+            if _ and _.get('@iot.id'): baskits += 1
+        if not self.Threading or baskits == 1:      # no multi threading
+            for sensor,baskit in Sensors.items():   # work to do?
+                if type(baskit) is dict and baskit.get('@iot.id'):
+                    Sensors[sensor].update(self._SensorStatus(baskit.get('@iot.id'), Start=Start,End=End))
+            return None
+
+        # use MaxWorkers=1 when debugging this routine
+        with MyWorkers(WorkerNames='StatusSensors', MaxWorkers=6, Timing=(self.Verbose > 2)) as workers:
+            for sensor,baskit in Sensors.items():
+                if type(baskit) is dict and baskit.get('@iot.id'):
+                    workers.Submit(f'{Station} {sensor} first',self._SensorStatus,baskit.get('@iot.id'),Status='first', Start=Start, End=End)
+                    workers.Submit(f'{Station} {sensor} last',self._SensorStatus,baskit.get('@iot.id'),Status='last', Start=Start, End=End)
+            results = workers.Wait4Workers()
+            self._Verbose(f"total time {round(workers.Timing,1)}.",f"Station {Station} sensor status timing",3)
+        for name, value in results.items():
+            # handle info about work done, synchronize results
+            if not value.get('timing',None) is None:
+                self._Verbose(f"{round(value.get('timing'),1)} seconds.",f"Timing {Station} sensors {name}",3)
+            if value.get('except',False): raise value.get('except')
+            elif type(value.get('result',None)) is dict:
+                try:
+                    station, sensor = name.split(' ')[:2]
+                    Sensors[sensor].update(value.get('result'))
+                    # if Sensors[sensor].get('@iot.id'): # short lifetime, cleanup 
+                    #    del Sensors[sensor]['@iot.id']
+                except: raise ValueError(f"Station {station} sensor status error.")
+            else: raise ValueError("Error in sensors status request for station {station}.")
+
     # ======== ROUTINE get_MunicipalityStations()
     # https://api-samenmeten.rivm.nl/v1.0/Things?$select=id,name&$filter=properties/codegemeente eq '984'
     # Since 2024-08-27: code gemeente has got a decimal e.g. 984.0 (no leading zero's.
@@ -917,10 +951,11 @@ class SamenMetenThings:
     #       'Sensors': reg exp or comma separated list: filter on available sensor types.
     #       'Status': add sensors status info (first/last record timestamps)
     #                 to stations sensors dicts. Default: None. This is time consuming!
+    #                 If period is defined by Start and End limit status timestamps in this period.
     # Returns list with station names optional with Things station IotID.
     #       or as dict with key station name: dict: '@iot.id';, 'owner', 'project',
     #       'location': list with GPS tuple and address[str].'sensors': list of supported sensor names.
-    def get_MunicipalityStations(self,GemCode: Union[int,str], By="name", Select=None, Sensors=None, Status=None) -> Union[list,dict]:
+    def get_MunicipalityStations(self,GemCode: Union[int,str], By="id,name", Select=None, Sensors=None, Status=None, Start=None, End=None) -> Union[list,dict]:
         """get_MunicipalityStations: get stations within a municipality and
            dict with required properties: iot.id, owner, project,
            location (with address), sensors.
@@ -939,40 +974,6 @@ class SamenMetenThings:
                 stations[n]['location'] = v
             return stations
 
-        # this can take a while ...
-        # add status of sensors per station. This is time consuming!
-        def AddSensorsStatus(station: str, sensors:dict) -> None:
-            if Status is None or not len(sensors): return None
-            baskits = 0
-            for _ in sensors.values():
-                if _ and _.get('@iot.id'): baskits += 1
-            if not self.Threading or baskits == 1:
-                for sensor,baskit in sensors.items():   # work to do?
-                    if type(baskit) is dict and baskit.get('@iot.id'):
-                        sensors[sensor].update(self._SensorStatus(baskit.get('@iot.id')))
-                return None
-            # use MaxWorkers=1 when debugging this routine
-            with MyWorkers(WorkerNames='StatusSensors', MaxWorkers=6, Timing=(self.Verbose > 2)) as workers:
-                for sensor,baskit in sensors.items():
-                    if type(baskit) is dict and baskit.get('@iot.id'):
-                        workers.Submit(f'{station} {sensor} first',self._SensorStatus,baskit.get('@iot.id'),Status='first',Count=False)
-                        workers.Submit(f'{station} {sensor} last',self._SensorStatus,baskit.get('@iot.id'),Status='last',Count=True)
-                results = workers.Wait4Workers()
-                self._Verbose(f"total time {round(workers.Timing,1)}.",f"Station {station} sensor status timing",3)
-            for name, value in results.items():
-                # handle info about work done, synchronize results
-                if not value.get('timing',None) is None:
-                    self._Verbose(f"{round(value.get('timing'),1)} seconds.",f"Timing {station} sensors {name}",3)
-                if value.get('except',False): raise value.get('except')
-                elif type(value.get('result',None)) is dict:
-                    try:
-                        station, sensor = name.split(' ')[:2]
-                        sensors[sensor].update(value.get('result'))
-                        # if sensors[sensor].get('@iot.id'): # short lifetime, cleanup 
-                        #    del sensors[sensor]['@iot.id']
-                    except: raise ValueError(f"Station {station} sensor status error.")
-                else: raise ValueError("Error in sensors status request for station {station}.")
-
         # convert comma separated string to reg exp for sensors type filtering
         if type(Sensors) is str and Sensors.find(',') > 0:
             Sensors = [x.strip() for x in Sensors.split(',')]
@@ -986,6 +987,11 @@ class SamenMetenThings:
                 station = self.get_MunicipalityStations(gemcode, By=By, Select=Select, Sensors=Sensors)
                 stations.update(station)
             return stations
+        # if None overwrite with class initialisation values
+        if Start is None: Start = self.Start   # None is from start observations
+        if not Start is None: Start = ISOtimestamp(Start)
+        if End is None:   End = self.End       # None is observations till recent
+        if not End is None: End = ISOtimestamp(End)
 
         gemcode = None                          # prepair website Things query
         if type(GemCode) is str and GemCode.find('_') > 0:
@@ -1000,7 +1006,7 @@ class SamenMetenThings:
                 # station name is municipality name, get gemeente code from external resource
                 gemcode = Municipality_NameCode(GemCode)
             else: gemcode = GemCode
-        elif type(GemCode) is int and GemCode < 5000: gemcode = GemCode
+        elif type(GemCode) is int and GemCode < 3000: gemcode = GemCode
         if not gemcode:
             self._Verbose(f"unable to find municipality code for {GemCode}.","Find stations in municipality",0)
             return None
@@ -1084,41 +1090,56 @@ class SamenMetenThings:
         if Status:
             for station,info in stations.items():
                 if len(info.get('sensors',{})):
-                    AddSensorsStatus(station,info.get('sensors'))
+                    self._AddSensorsStatus(station,info.get('sensors'), Start=Start, End=End)
+        # to do: if not By.find('id') >=0: del info['sensors'][all sensor][@iot.id]
         # { stationName:str: { @iot.id[str]:str,int, location: [(),address], sensors:[str,...]}
         # add addresses. This takes a small StreetMap while.
         if 'address' in properties: return AddAddresses(stations) # ordered by geohash
         return dict(sorted(stations.items()))  # clustering: use geohash of GPS as sort key?
     #
-    # simple test: get_MunicipalityStations(984) ->
-    #       station names:list (no properties, no select)
+    # test: get_MunicipalityStations(984,Status=True) ->
+    #       dict(stationName: {'@iot.id': ID, 'location':[(float,float), address:str ],
+    #            'sensors': { sensor:
+    #                 {'@iot.id':ID,'last':ISOstamp, 'first':ISOstamp, 'count': nr:int}}}, ...)
 
     # =========== routine _SensorStatus(@iot.id)   uses multi threading
     # parameters Things datastream IoT.id, Period ('last' or 'first' or None: records count)
-    #            Count: add number of observations for this sensor
     # returns    timestamp (ISO UTC) last observation record, first or only record count.
+    #            Count: add number of observations for this sensor in the Start-End period.
     # routine can take about 10-15 secs to run
-    def _SensorStatus(self, Iotid: Union[int,str], Status=None, Count=True) -> dict:
+    def _SensorStatus(self, Iotid: Union[int,str], Status=None, Start=None, End=None) -> dict:
         """ get Sensor Status for timestamp first/last/both and record count"""
+        # if None overwrite with class initialisation values
+        if Start is None: Start = self.Start   # None is from start observations
+        if not Start is None: Start = ISOtimestamp(Start)
+        if End is None:   End = self.End       # None is observations till recent
+        if not End is None: End = ISOtimestamp(End)
+
         if Status is False: return {}
-        result = {}
-        if Status in ['first','last']:
-            select = '&$select=phenomenonTime'
-            filtering = f"&$orderby=phenomenonTime {'asc' if Status == 'first' else 'desc'}"
+        result = {}; timestamp = 'phenomenonTime'
+        if Status in ['first','last']:         # try to save on bandwidth and memory
+            select = f'&$select={timestamp}'
+            select += f"&$orderby={timestamp} {'asc' if Status == 'first' else 'desc'}"
+            filtering = ''
+            for idx, key in enumerate([Start,End]):
+                if not key: continue
+                if filtering: filtering += ' and '
+                filtering += f"{timestamp} {'lt' if idx%2 else 'ge'} {key}"
+            if filtering: filtering = '&$filter=' + filtering
             url = f"/Datastreams({Iotid})/Observations?$count=true{select}{filtering}&$top=1"
             status = self._execute_request(url)    # this may take some time
             if not type(status) is list or len(status) < 2:
                 return {}
             try:
-                result['first' if Status == "first" else "last"] = status[0].get('phenomenonTime','')
-                if Count: result['count'] = status[1].get('@iot.count',0)
+                result['first' if Status == "first" else "last"] = status[0].get(timestamp,'')
+                result['count'] = status[1].get('@iot.count',0)
             except: pass
             return result
         if self.Threading:                         # use multi threading
             results = dict()
             with MyWorkers(WorkerNames='SensorStatus', MaxWorkers=2, Timing=(self.Verbose > 2)) as workers:
-                workers.Submit(f'Sensor IoT {str(Iotid)} first',self._SensorStatus,Iotid,Status='first',Count=False)
-                workers.Submit(f'Sensor IoT {str(Iotid)} last',self._SensorStatus,Iotid,Status='last',Count=Count)
+                workers.Submit(f'Sensor IoT {str(Iotid)} first',self._SensorStatus,Iotid,Status='first',End=End,Start=Start)
+                workers.Submit(f'Sensor IoT {str(Iotid)} last',self._SensorStatus,Iotid,Status='last',End=End,Start=Start)
                 results = workers.Wait4Workers()   # wait for results, using different baskits
                 self._Verbose(f"total time {round(workers.Timing,1)}.",f"sensor  {str(Iotid)} sensor status timing",3)
             for name, value in results:            # handle info about work done, synchronize results
@@ -1129,11 +1150,11 @@ class SamenMetenThings:
                     result.update(result.get('result'))
                 else: raise ValueError("No records found for sensor {str(Iotid)}.")
         else:
-            result.update(self._SensorStatus(Iotid,Status='first',Count=False))
-            result.update(self._SensorStatus(Iotid,Status='last', Count=Count))
+            result.update(self._SensorStatus(Iotid,Status='first', Start=Start,End=End))
+            result.update(self._SensorStatus(Iotid,Status='last', Start=Start,End=End))
         return result                              # empty dict: no records found
     #
-    # test: _SensorStatus(sensor IotID ->
+    # test: _SensorStatus(sensor IotID) ->
     #                          {'last': ISOstamp, 'first': ISOstamp, 'count': nr}
 
     # ============ routine _ThingsToDataFrame()
@@ -1341,15 +1362,15 @@ class SamenMetenThings:
 
     # ==================== routine get_Neighbours() may use multi threading for Address
     # get neighbour Things stations within range of 10km. (Walter thanks!)
-    # https://api-samenmeten.rivm.nl/v1.0/Locations?$filter=geo.distance(location, geography'SRID=4326;POINT(6.099 51.447)') lt 0.02&$select=name,location/coordinates
+    # https://api-samenmeten.rivm.nl/v1.0/Locations?$filter=geo.distance(location, geography'SRID=4326;POINT(6.099 51.447)') lt 0.02&$select=id,name,location/coordinates
     #{"value": [
-    #  { "name": "loc-name-OHN_gm-2135",
+    #  { "name": "loc-name-OHN_gm-2135", "@iot.id": 26578,
     #    "location": { "coordinates": [ 6.099, 51.447 ], "type": "Point" },
     #  },
-    #  { "name": "loc-name-LTD_68263",
+    #  { "name": "loc-name-LTD_68263", "@iot.id": 24349,
     #    "location": { "coordinates": [ 6.099, 51.447 ], "type": "Point" },
     #  },
-    #  { "name": "loc-name-LTD_61950",
+    #  { "name": "loc-name-LTD_61950", ""@iot.id": 21846,
     #    "location": { "coordinates": [ 6.097, 51.448 ], "type": "Point" },
     #  }]}
     #
@@ -1359,8 +1380,12 @@ class SamenMetenThings:
     #             Select=None Use regular expression to select stations name out of the list.
     # returns     dict with neighbouring station names sorted (asc) by distance
     #             from Point, and ordinates (list) of the neighbour.
-    # TO DO: add owners and project of the neighbour
+    # TO DO: add @iot.id, sensors, owners and project of the neighbour
     #        is there a query with orderby distance(location,Point) asc ???
+    #        alternative to Station Info:
+    #        return: dict(stationName: {'@iot.id': ID, 'location':[(float,float), address:str ],
+    #            'sensors': { sensor:
+    #                 {'@iot.id':ID,'last':ISOstamp, 'first':ISOstamp, 'count': nr:int}}}, ...)
     # Routine can be used in cluster detection?
     #def get_Neighbours(self,Point:Union[str,List[float]],Range=200.0,SRID=4326,Max=100,Select=None) -> Dict[str,tuple[List[float,float],int]]:
     def get_Neighbours(self,Point:Union[str,List[float]],Range=None,Max=50,Select=None, Address=None) -> Dict[str,tuple]:
@@ -1469,6 +1494,7 @@ class SamenMetenThings:
     #               if parameter is None, value is left to class defaults
     #               Sensors (deflt None) reg. expression for senors to get
     #                       'count' of observations per sensor and first/last UTC timestamp,
+    #               Using period Start-End from roution parameter or class.
     # returns       dict (gemeentecode (municipality code:int) or municipality name:str, owner, project, address,
     #                     (GPS) location [long,lat], id (IotID:int),
     #                     sensors dict SensorName: {@iot.id,symbol,product, count, last, first}, ...
@@ -1479,7 +1505,7 @@ class SamenMetenThings:
     #        Datastreams(@iot.id sensor)/Observations/?$count=true&$select={Timestamp}&$orderby={Timestamp} asc&$top=1
     #        Datastreams(@iot.id sensor)/Observations/?$count=true&$select={Timestamp}&$orderby={Timestamp} desc&$top=1
     # Reminder: @iot.id's have limited Time To Live, they may change in time!
-    def get_StationInfo(self, Name: str, Address=None, ProductID=None, Neighbours=None, Sensors=None) -> Dict:
+    def get_StationInfo(self, Name: str, Address=None, ProductID=None, Neighbours=None, Sensors=None, Start=None, End=None) -> Dict:
         """get_StationInfo meta info about station Name optional with: Address, Product ID,
            Neighbours (default region), sensor Status (record count, timestamps first/last.
            External info requests are done (default) via multi threading.
@@ -1506,6 +1532,11 @@ class SamenMetenThings:
                 Sensors = Sensors.replace(',','|')
                 Sensors = Sensors.replace('%','')
                 Sensors = '^('+Sensors+')$'
+        # if None overwrite with class initialisation values
+        if Start is None: Start = self.Start   # None is from start observations
+        if not Start is None: Start = ISOtimestamp(Start)
+        if End is None:   End = self.End       # None is observations till recent
+        if not End is None: End = ISOtimestamp(End)
 
         # self.URL has host service method and access URL info
         url = f"/Things?$filter=name eq '{Name}'&$select=id,properties&$expand=Locations($select=location),Datastreams($select=id,name,unitOfMeasurement)"
@@ -1596,10 +1627,10 @@ class SamenMetenThings:
                                    # is status last enough to request for?
                     meta["sensors"][sensor]['status'] = dict()
                     if workers:    # avoid concurrent (Sema Workers)
-                        workers.Submit(f"{sensor}",meta["sensors"][sensor]['status'],self._SensorStatus,meta["sensors"][sensor]['@iot.id'],Status='first',Count=True)
-                        workers.Submit(f"{sensor}",meta["sensors"][sensor]['status'],self._SensorStatus,meta["sensors"][sensor]['@iot.id'],Status='last',Count=False)
+                        workers.Submit(f"{sensor}",meta["sensors"][sensor]['status'],self._SensorStatus,meta["sensors"][sensor]['@iot.id'], Status='first',Start=Start,End=End)
+                        workers.Submit(f"{sensor}",meta["sensors"][sensor]['status'],self._SensorStatus,meta["sensors"][sensor]['@iot.id'], Status='last',Start=Start,End=End)
                     else:
-                        meta["sensors"][sensor]['status'].update(self._SensorStatus(meta["sensors"][sensor]['@iot.id']))
+                        meta["sensors"][sensor]['status'].update(self._SensorStatus(meta["sensors"][sensor]['@iot.id'], Start=Start, End=End))
                         if not meta["sensors"][sensor]['status']:
                             del meta["sensors"][sensor]['status']
                 # {name:{@iot.id,unitSymbol,sensor ProductID, nr records, first, last} ...}
@@ -1726,7 +1757,7 @@ class SamenMetenThings:
         # get meta info about Things station. Can take 15 upto 30 or even 60 seconds.
         Meta = {}
         # Meta info request takes between 15 secs to 50 secs with all options as True
-        Meta = self.get_StationInfo(Name, Address=Address, ProductID=ProductID, Neighbours=Neighbours, Sensors=Status)
+        Meta = self.get_StationInfo(Name, Address=Address, ProductID=ProductID, Neighbours=Neighbours, Sensors=Status,Start=Start,End=End)
         if not Meta or not Meta.get("@iot.id",False):
             logging.warning(f"Station '{Name}: WARNING: Things station is unknown.")
             return {}
