@@ -66,7 +66,7 @@ get_StationData(Name: str, ProductID=None, Address=None, Humanise=None, Start=No
 # TO DO: docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.8 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.9 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -361,7 +361,11 @@ class MyWorkers:
         if not self.Executor is None:
             if timeout is None: timeout = 2*60         # all workers time metering
             for future in futures.as_completed(self.Futures, timeout=timeout):
-                if not self._WorkDone(future): continue # should not happen
+                if not self._WorkDone(future):
+                    logging.debug(f"Worker {self.Futures[future]} timeout reached.")
+                    continue # should not happen
+            if self.Metering: self.Metering = time()-self.Metering
+        elif self.Metering: self.Metering = time()-self.Metering
         return self.Results                            # make all worker info available
 
     def Shutdown(self):
@@ -891,7 +895,8 @@ class SamenMetenThings:
                     workers.Submit(f'{Station} {sensor} first',self._SensorStatus,baskit.get('@iot.id'),Status='first', Start=Start, End=End)
                     workers.Submit(f'{Station} {sensor} last',self._SensorStatus,baskit.get('@iot.id'),Status='last', Start=Start, End=End)
             results = workers.Wait4Workers()
-            self._Verbose(f"total time {round(workers.Timing,1)}.",f"Station {Station} sensor status timing",3)
+            if workers.Timing:
+                self._Verbose(f"total time {round(workers.Timing,1)}.",f"Station {Station} sensor status timing",3)
         for name, value in results.items():
             # handle info about work done, synchronize results
             if not value.get('timing',None) is None:
@@ -1141,7 +1146,8 @@ class SamenMetenThings:
                 workers.Submit(f'Sensor IoT {str(Iotid)} first',self._SensorStatus,Iotid,Status='first',End=End,Start=Start)
                 workers.Submit(f'Sensor IoT {str(Iotid)} last',self._SensorStatus,Iotid,Status='last',End=End,Start=Start)
                 results = workers.Wait4Workers()   # wait for results, using different baskits
-                self._Verbose(f"total time {round(workers.Timing,1)}.",f"sensor  {str(Iotid)} sensor status timing",3)
+                if workers.Timing:
+                    self._Verbose(f"total time {round(workers.Timing,1)}.",f"sensor  {str(Iotid)} sensor status timing",3)
             for name, value in results:            # handle info about work done, synchronize results
                 if not value.get('timing',None) is None:
                     self.Verbose(f"{round(result.get('timing'),1)} seconds.",f"Timing {name}",3)
@@ -1314,13 +1320,14 @@ class SamenMetenThings:
                     if not type(Baskit) is list: return self.Addresses[location]['address']
                     return Baskit.append(self.Addresses[location]['address'])
                                                                # add to cache
+            # cache: [(('5.887,51.458', {'address': 'Timmer 112, steyn, gem. Venray, prov. Limburg', 'baskits': [], 'timing': 1725808951.2}), ...]
             if not self.Addresses.get(location,False):         # place holder
                 cnt = len(self.Addresses) - 20
-                if cnt >= 0:
+                if cnt >= 0:                                   # make place in cache
                     lru = sorted(self.Addresses.items(), key=lambda x: x[1]['timing'])
                     for one in lru:
-                        if lru[1]['baskits']: continue        # len cache may get > 20
-                        del self.Addresses[lru[0]]
+                        if one[1]['baskits']: continue         # len cache may get > 20
+                        del self.Addresses[one[0]]
                         if len(self.Addresses) < 20: break
                 self.Addresses.update({location: {'address': None,'baskits':[],'timing': None}})
             if Workers is None:                                # no threading
@@ -1340,8 +1347,8 @@ class SamenMetenThings:
     def _Addresses(self, Neighbours: Dict[str,list]) -> None:
         if self.Threading and len(Neighbours) > 1:
             workers = MyWorkers('neighbour addresses',
-                MaxWorkers=min(len(Neighbours),4),Timing=(self.Verbose > 2))
-                #MaxWorkers=min(len(Neighbours),1),Timing=(self.Verbose > 2)) # debug modus
+                #MaxWorkers=min(len(Neighbours),4),Timing=(self.Verbose > 2))
+                MaxWorkers=min(len(Neighbours),1),Timing=(self.Verbose > 2)) # debug modus
         else: workers = None
         for baskit in Neighbours.values():                      # work for Open Street Map
             if type(baskit) is list and len(baskit[0]):
