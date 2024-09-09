@@ -66,7 +66,7 @@ get_StationData(Name: str, ProductID=None, Address=None, Humanise=None, Start=No
 # TO DO: docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.9 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.10 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -1016,10 +1016,12 @@ class SamenMetenThings:
             self._Verbose(f"unable to find municipality code for {GemCode}.","Find stations in municipality",0)
             return None
         # select: name or id, or both. properties: e.g. owner, project
-        select = []; properties = []
+        select = []; properties = []; stationProps = []
         for item in [x.strip() for x in By.split(',')]:
             if re.match(r'^(name|id)$',item): select.append(item)
-            else: properties.append(item)
+            elif re.match(r'^(owner|project|(gem|knmi)code|(nh3|no2|pm[0-9]{1,2})(close|regio|stad)code)$',item):
+                stationProps.append(item)      # station properties of interest
+            else: properties.append(item)      # extra info of interest
         if not 'sensors' in properties:
             if Sensors: properties.append('sensors')
             else: Sensors = '.*'               # report all supported sensors names of station
@@ -1032,7 +1034,7 @@ class SamenMetenThings:
         if 'address' in properties and not 'location' in properties: properties.append('location')
         properties = set(properties)
         
-        url = f"/Things?$select={','.join(select)}&$filter=properties/codegemeente eq '{gemcode}'"
+        url = f"/Things?$select={','.join(select)}{',properties' if len(stationProps) else ''}&$filter=properties/codegemeente eq '{gemcode}'"
         expand = ''
         if 'location' in properties: expand = "&$expand=locations($select=location)"
         if 'sensors' in properties:
@@ -1062,6 +1064,9 @@ class SamenMetenThings:
                           if v.get('location').get('coordinates')[:2]:
                             info['location'] = [tuple(v.get('location').get('coordinates')[:2])]
                             break
+                elif item == 'properties' and type(value) is dict and len(value):
+                    for n,v in value.items():
+                        if n in stationProps: info[n] = v
                 elif item == 'Datastreams' and type(value) is list:
                     fnd = False
                     for item in value:
