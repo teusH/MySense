@@ -66,7 +66,7 @@ get_StationData(Name: str, ProductID=None, Address=None, Humanise=None, Start=No
 # TO DO: docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.12 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.13 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -1011,7 +1011,7 @@ class SamenMetenThings:
             url = f"/Things?$select=id,properties/codegemeente&$filter=name eq '{GemCode}'"
             try: gemcode = self._execute_request(url)[0]["properties"]["codegemeente"]
             except:
-                self_Verbose(f"unable to find municipality code for {GemCode}.",f"Find stations in municipality",-1)
+                self._Verbose(f"unable to find municipality code for {GemCode}.",f"Find stations in municipality",-1)
                 return None
         elif type(GemCode) is str:
             if not GemCode.isdigit():
@@ -1160,12 +1160,12 @@ class SamenMetenThings:
                 results = workers.Wait4Workers()   # wait for results, using different baskits
                 if workers.Timing:
                     self._Verbose(f"total time {round(workers.Timing,1)}.",f"sensor  {str(Iotid)} sensor status timing",3)
-            for name, value in results:            # handle info about work done, synchronize results
+            for name, value in results.items():    # handle info about work done, synchronize results
                 if not value.get('timing',None) is None:
-                    self.Verbose(f"{round(result.get('timing'),1)} seconds.",f"Timing {name}",3)
+                    self._Verbose(f"{round(value.get('timing'),1)} seconds.",f"Timing {name}",3)
                 if value.get('except',False): raise value.get('except')
                 elif type(value.get('result',False)) is dict:
-                    result.update(result.get('result'))
+                    value.update(value.get('result'))
                 else: raise ValueError("No records found for sensor {str(Iotid)}.")
         else:
             result.update(self._SensorStatus(Iotid,Status='first', Start=Start,End=End))
