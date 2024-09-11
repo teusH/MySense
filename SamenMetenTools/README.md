@@ -21,6 +21,14 @@ The current version is in alpha status and subjected to improvementrs and extent
 The module consists about of 50% of documentaion and help texts. It gives a good overview of backgrounds of the website query interfaces and use.
 So read the module script!
 
+### Things2Xlsx.py
+Things2Xlsx will generate XLSX spreadsheet with overview of Things station names, location (GPS, address),
+station properties (owner, project, gemcode, reference station codes),
+and operational data of installed sensors (type, first and last timestamps, record count).
+The spreadsheets will show per sheet the historical and current stations information.
+
+The script uses municipality stations routine of the SamenMetenThings class module.
+
 ## Licensing
    Open Source Initiative  https://opensource.org/licenses/RPL-1.5
    Unless explicitly acquired and licensed from Licensor under another
