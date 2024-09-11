@@ -66,7 +66,7 @@ get_StationData(Name: str, ProductID=None, Address=None, Humanise=None, Start=No
 # TO DO: docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.10 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.12 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -144,6 +144,11 @@ def pandas_to_local(utc: datetime) -> str:
 # returns with the help of a decorated function YYYY-MM-DDTHH:MMZ UTC timestamp
 def local2ISOstamp(func) -> str:
     def timestamp(*args, **kwargs):
+       # check if already ISOtimestamp
+       if re.match(r'[0-9]{4}-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]Z$',args[0]):
+           return args[0].replace('Z',':00Z')
+       elif re.match(r'[0-9]{4}-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z$',args[0]):
+           return args[0]
        if not re.match(r'[0-9]{4}-[01][0-9]*-[0-3][0-9](\s[0-2][0-9]:[0-5][0-9])?$',args[0]):
            return date2ISOutc(args[0])
        UTCstamp = local_to_pandas(func(*args, **kwargs))
@@ -151,7 +156,7 @@ def local2ISOstamp(func) -> str:
     return timestamp
 
 # converts any string representing some date/time
-# returns: ISO8601 UTC in YYYY-MM-DDTHH:MMZ timestamp format
+# returns: ISO8601 UTC in YYYY-MM-DDTHH:MM:SSZ timestamp format
 @local2ISOstamp   # the world of ease and transparant programming
 def ISOtimestamp(string:str) -> str:
     return YYYYMMDD(string)
@@ -968,18 +973,20 @@ class SamenMetenThings:
 
         # sort dict with geohash (type of clustering) and add humanised location to GPS
         def AddAddresses(stations: dict) -> dict:
-            # try to cluster station locations
-            stations = dict(sorted(stations.items(), key=lambda x: geohash(x[1]['location'][0])))
-            addresses = dict()
+            addresses = dict()                     # could be an OrderedDict()
             for n,v in stations.items():           # get locations ready for baskit values
-                if v.get('location'):
+                if not (location :=  v.get('location')): continue
+                if type(location) is list and len(location) > 0 and type(location[0]) is tuple:
                     addresses[n] = v['location']
+            # try to cluster station locations, so cache works better
+            addresses = dict(sorted(addresses.items(), key=lambda x: geohash(x[1][0])))
             self._Addresses(addresses)             # query for Open Street Map: can take a while
             for n,v in addresses.items():
                 stations[n]['location'] = v
             return stations
 
         # convert comma separated string to reg exp for sensors type filtering
+        if Sensors is None: Sensors = self.Sensors
         if type(Sensors) is str and Sensors.find(',') > 0:
             Sensors = [x.strip() for x in Sensors.split(',')]
             Sensors = '('+'|'.join(Sensors)+')'
@@ -993,10 +1000,10 @@ class SamenMetenThings:
                 stations.update(station)
             return stations
         # if None overwrite with class initialisation values
-        if Start is None: Start = self.Start   # None is from start observations
-        if not Start is None: Start = ISOtimestamp(Start)
-        if End is None:   End = self.End       # None is observations till recent
-        if not End is None: End = ISOtimestamp(End)
+        if not Start: Start = self.Start   # None is from start observations
+        Start = ISOtimestamp(Start) if Start else None
+        if not End:   End = self.End       # None is observations till recent
+        End = ISOtimestamp(End) if End else None
 
         gemcode = None                          # prepair website Things query
         if type(GemCode) is str and GemCode.find('_') > 0:
@@ -1120,10 +1127,10 @@ class SamenMetenThings:
     def _SensorStatus(self, Iotid: Union[int,str], Status=None, Start=None, End=None) -> dict:
         """ get Sensor Status for timestamp first/last/both and record count"""
         # if None overwrite with class initialisation values
-        if Start is None: Start = self.Start   # None is from start observations
-        if not Start is None: Start = ISOtimestamp(Start)
-        if End is None:   End = self.End       # None is observations till recent
-        if not End is None: End = ISOtimestamp(End)
+        if not Start: Start = self.Start   # None is from start observations
+        Start = ISOtimestamp(Start) if Start else None
+        if not End:   End = self.End       # None is observations till recent
+        End = ISOtimestamp(End) if End else None
 
         if Status is False: return {}
         result = {}; timestamp = 'phenomenonTime'
@@ -1202,15 +1209,15 @@ class SamenMetenThings:
         """get_ThingsObservations: get observations of a Things sensor into dataframe"""
         if not Key: Key = Iotid
         # if None overwrite with class initialisation values
-        if Start is None: Start = self.Start   # None is from start observations
-        if not Start is None: Start = ISOtimestamp(Start)
-        if End is None:   End = self.End       # None is observations till recent
-        if not End is None: End = ISOtimestamp(End)
+        if not Start: Start = self.Start   # None is from start observations
+        Start = ISOtimestamp(Start) if Start else None
+        if not End:   End = self.End       # None is observations till recent
+        End = ISOtimestamp(End) if End else None
         filtering = ''                         # webside Things query
         select = f"&$select={Timestamp},{','.join(Result)}"
         select += f"&$orderby={Timestamp} asc" # default Things is desc recent first
-        if Start is None and End is None:
-            raise ValueError("Period missing: Amount of observations can be too many!")
+        #if Start is None and End is None:
+        #    raise ValueError("Period missing: Amount of observations can be too many!")
         for idx, key in enumerate([Start,End]):
             if not key: continue
             if filtering: filtering += ' and '
@@ -1545,10 +1552,10 @@ class SamenMetenThings:
                 Sensors = Sensors.replace('%','')
                 Sensors = '^('+Sensors+')$'
         # if None overwrite with class initialisation values
-        if Start is None: Start = self.Start   # None is from start observations
-        if not Start is None: Start = ISOtimestamp(Start)
-        if End is None:   End = self.End       # None is observations till recent
-        if not End is None: End = ISOtimestamp(End)
+        if not Start: Start = self.Start   # None is from start observations
+        Start = ISOtimestamp(Start) if Start else None
+        if not End:  End = self.End        # None is observations till recent
+        End = ISOtimestamp(End) if End else None
 
         # self.URL has host service method and access URL info
         url = f"/Things?$filter=name eq '{Name}'&$select=id,properties&$expand=Locations($select=location),Datastreams($select=id,name,unitOfMeasurement)"
