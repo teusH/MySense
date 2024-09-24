@@ -66,7 +66,7 @@ get_StationData(Name: str, ProductID=None, Address=None, Humanise=None, Start=No
 # TO DO: docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.15 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.16 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -894,7 +894,7 @@ class SamenMetenThings:
             return None
 
         # use MaxWorkers=1 when debugging this routine
-        with MyWorkers(WorkerNames='StatusSensors', MaxWorkers=6, Timing=(self.Verbose > 2)) as workers:
+        with MyWorkers(WorkerNames='StatusSensors', MaxWorkers=2, Timing=(self.Verbose > 2)) as workers:
             for sensor,baskit in Sensors.items():
                 if type(baskit) is dict and baskit.get('@iot.id'):
                     workers.Submit(f'{Station} {sensor} first',self._SensorStatus,baskit.get('@iot.id'),Status='first', Start=Start, End=End)
@@ -1050,7 +1050,7 @@ class SamenMetenThings:
         url += expand
         try:
             data = self._execute_request(url)
-            data = dict(sorted(data.items()))
+            data = sorted(data, key=lambda station: station['name'])  # To Do: cluster sort
         except: return None
 
         # convert: [{iot:Union[str,int],name:str,Locations:{location:{coordinates:[]}},
@@ -1585,7 +1585,7 @@ class SamenMetenThings:
             workers = None
             if self.Threading:                            # requests with multi threading
                 # use MaxWorkers=1 when debugging threads in simulation modus
-                workers = MyWorkers(WorkerNames='StationInfo', MaxWorkers=6, Timing=(self.Verbose > 2))
+                workers = MyWorkers(WorkerNames='StationInfo', MaxWorkers=12, Timing=(self.Verbose > 2))
             # filter on codegemeente, owner and project
             properties = station_info.get("properties",{}).keys()
             for item in set(station_info.get("properties",{}).keys()) & set(['codegemeente','owner','project']):
