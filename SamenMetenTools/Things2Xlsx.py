@@ -28,25 +28,26 @@ import datetime
 
 import SamenMetenThings as RIVM
 
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.2 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.6 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
 # class defaults
-Period = ',now'                              # period of interest, comma separated
+Period = ',now'                         # period of interest, comma separated
 # calibrated example: pm25_kal, pm10_kal
+# To Do: may need to filter out unsupported sensors
 Sensors = '(pm25|pm10|temp|rh|pres|nh3|no2)' # sensor types (ordered) of interest, reg exp
-Select  = None                               # don't filter station names (dflt None) else Reg Exp.
-Verbosity = 0                                # level of verbosity for Things
-Expand  = 'location,address,owner,project'   # extra info of stations from Things
+Select  = None                          # don't filter station names (dflt None) else Reg Exp.
+Verbosity = 0                           # level of verbosity for Things
+Expand  = 'location,address,owner,project' # extra info of stations from Things
 # By = 'owner,project'
-DEBUG   = False                              # debug modus, do not use SamenMetenThings class
+DEBUG   = False                         # debug modus, do not use SamenMetenThings class
 
-# progress metering, teatime music
+# progress metering, teatime music: every station can take about 15-90 seconds download time
 def progress(Name,func,*args,**kwargs):
     from threading import Thread
     thread = Thread(target=func, args=args, kwargs=kwargs)
-    #thread.setDeamon(True)   # P 3.10+: thread.deamon(True)
+    #thread.setDeamon(True)              # P 3.10+: thread.deamon(True)
     thread.start()
     teaTime = time()
     while thread.is_alive():
@@ -58,10 +59,23 @@ def progress(Name,func,*args,**kwargs):
     sys.stderr.write(f'Download {Name} done in {mins.replace("m"," minutes ")}{int(secs)} seconds' + ' '*40 + '\n')
 
 import xlsxwriter
-Workbook = None                              # XLSX workbook handle
-def n2a(n:int) -> str:                       # convert column number to xlsx column name
-    d, m = divmod(n,26) # 26 is the number of ASCII letters
+# spreadsheet cell fg colors
+RED    = '#d92121'
+GREEN  = '#019b3f'
+YELLOW = '#c3b306'
+BLEW   = '#b7ebff'
+GRAY   = '#e8e8e8'
+MGRAY  = '#d8d8d8'
+DGRAY  = '#c8c8c8'
+ACTIVE = 7                               # 7 days before End is active
+nACTIVE = 21                             # 21 days before End is not active
+Workbook = None                          # XLSX workbook handle
+# take care: XLSX starts with row 1, not zero
+def n2a(n:int) -> str:                   # convert column number to xlsx column name
+    d, m = divmod(n,26)                  # 26 is the number of ASCII letters
     return '' if n < 0 else n2a(d-1)+chr(m+65) # chr(65) = 'A'
+def cell2xlsx(row:int,col:int) -> str:
+    return f"{n2a(col)}{row+1}"
 
 # XLSX matrix columns, sheet has name municipality
 # name     GPS ...   properties ...                 sensors (name, first, last, count)
@@ -71,29 +85,35 @@ def Add_Stations( Municipality:str, Things=None, Period=Period) -> bool:
     if Things is None:
         Things = RIVM.SamenMetenThings(Sensors=Sensors,Verbosity=0,Threading=True)
         if Verbosity > 2: Things.Verbose = Verbosity
+    if DEBUG:
+        Period = '2023/01/01,2024/08/22'
     if Period:
         period = [x.strip() for x in Period.strip().split(',')]
         Start = period[0]
         if len(period) > 1: End = period[1]
         else: End = None
-    else: Start = End = None
+    else:
+        period = [None,None]
+        Start = End = None
     # may expand properties: e.g. gemcode (984), knmicode (knmi_06391), pm25regiocode (NL10131), etc.
     if DEBUG:
         stations = {
-    'OHN_gm-2136': {'owner': 'Ohnics', 'project': 'Grenzeloos Meten', 'location': [(5.933, 51.474),'Veer 1, Blit, gem. Ven, prov. Lbg'], 'sensors': {'temp': None, 'pm25_kal': {'@iot.id': 42884}, 'pm25': {'@iot.id': 42883, 'first': '2023-10-05T08:00:00.000Z', 'count': 7968, 'last': '2024-09-08T14:00:00.000Z'}}},
-    'OHN_gm-2116': {'owner': 'Ohnics', 'project': 'Grenzeloos Meten', 'location': [(5.938, 51.503)], 'sensors': {'temp': None, 'pm10': {'@iot.id': 42860}, 'pm25': {'@iot.id': 42859}}}
+    'OHN_gm-2136': {'owner': 'Ohnics', 'project': 'Grenzeloos Meten', 'location': [(5.933, 51.474),'Veer 1, Blit, gem. Ven, prov. Lbg'], 'sensors': {'temp': None, 'pm25_kal': {'@iot.id': 42884}, 'pm25': {'@iot.id': 42883, 'first': '2023-10-05T08:00:00.000Z', 'count': 7968, 'last': '2024-08-10T14:00:00.000Z'}}},
+    'OHN_gm-2138': {'owner': 'Oh Niks', 'project': 'Meten', 'location': [(5.932, 51.574),'Veer 2, Blitter, gem. Venray, prov. Lbg'], 'sensors': {'temp': None, 'pm25_kal': {'@iot.id': 42884, 'first': '2023-10-05T08:00:00.000Z', 'count': 7968, 'last': '2024-12-09T14:00:00.000Z'}, 'pm25': {'@iot.id': 42883, 'first': '2023-10-05T08:00:00.000Z', 'count': 7968, 'last': '2025-12-08T14:00:00.000Z'}}},
+    'OHN_gm-2126': {'@iot.id': 1234, 'owner': 'Ohnics', 'project': 'Grenzeloos Meten', 'location': [(5.938, 51.503)], 'sensors': {'temp': None, 'pm10': {'@iot.id': 42860}, 'pm25': {'@iot.id': 42859}}},
+    'OHN_gm-2216': {'owner': 'niks', 'project': 'Palmes', 'sensors': {'rh': None, 'no2': {'@iot.id': 42860, 'first': '2023-10-05T08:00:00.000Z', 'count': 7968, 'last': '2024-07-30T08:00:00.000Z'}, 'pm25': {'@iot.id': 42859}}}
     }
     else:
         stations = Things.get_MunicipalityStations(Municipality, Select=Select, By=Expand, Status=True, Start=Start, End=End)
-    if End is None:
-        End = datetime.datetime.now(datetime.timezone.utc)
-    else:
-        End = datetime.datetime.strptime(RIVM.ISOtimestamp(End),'%Y-%m-%dT%H:%M%z')
+    if not type(stations) is dict: return False
+    if not len(stations):
+        sys.stderr.write(f"Unable to get stations for municipality {Municipality}.\n")
+        return False
     if not type(stations) is dict and not len(stations):
         sys.stderr.write(f"Unable to find stations in municipality {Municipality}\n")
         return False
     if Verbosity > 0:
-        sys.stderr.write(f"Found {len(stations)} in municipality {Municipality}\n")
+        sys.stderr.write(f"Found {len(stations)} stations in municipality {Municipality}\n")
     # Address=True, Start=None, End=None, Select=Sensors, By='address,id'
     #{ 'OHN_gm-2161: {   'location': [(6.126, 51.524), 'Veer 1, Blit, gem. Ven, prov. Lbg'],
     #                    '@iot.id': 12345, 'owner': 'XYS', 'project': 'XYZ',
@@ -104,134 +124,272 @@ def Add_Stations( Municipality:str, Things=None, Period=Period) -> bool:
     #                                                 'last': '2024-09-08T14:00:00.000Z'},
     #                                 ...  }}, ... } 
 
+    if End is None:
+        End = datetime.datetime.now(datetime.timezone.utc)
+    else:
+        End = datetime.datetime.strptime(RIVM.ISOtimestamp(End),'%Y-%m-%dT%H:%M%z')
+    if Start is None:
+        Start = datetime.datetime.strptime('1970-01-01T00:00Z','%Y-%m-%dT%H:%M%z')
+    else:
+        Start = datetime.datetime.strptime(RIVM.ISOtimestamp(Start),'%Y-%m-%dT%H:%M%z')
+
     Sensors = re.sub(r'[\(\)\s]','',Sensors).split('|') # ordered list of sensor names 
     expand = set(Expand.split(',')) - set(['location','address'])
     location = []
     for _ in ['location','address']:
         if Expand.find(_) >= 0: location.append(_)
 
-    # spreadsheet
-    hrd_bold = Workbook.add_format(
+    # spreadsheet cell formats          ============= cell formats
+    title_format      = Workbook.add_format(
+        { 'bold': True, 'align': 'center', 'valign': 'vcenter',
+          'border_color': DGRAY, 'fg_color': DGRAY,})
+    italic            = Workbook.add_format({ 'italic': True, 'bold': False,})
+    hrd_bold          = Workbook.add_format(
         { 'bold': True, 'align': 'center',
           'left': True, 'right': True, 'left_color': 'white', 'right_color': 'white',
-          'valign': 'vcenter','fg_color': '#d4d2d2',})
-    hrd_italic = Workbook.add_format(
+          'valign': 'vcenter','fg_color': DGRAY,})
+    hrd_italic        = Workbook.add_format(
         { 'italic': True, 'align': 'center', 'valign': 'vcenter',
           'left': True, 'right': True, 'left_color': 'white', 'right_color': 'white',
-          'fg_color': '#d4d2d2',})
-    gray_format = Workbook.add_format({'fg_color': '#d9d8d8'})
-    date_format = Workbook.add_format({'num_format': 'yyyy-mm-dd'})
-    orange_date_format =  Workbook.add_format({'num_format': 'yyyy-mm-dd', 'fg_color': '#ffcf90'})
-    orange_format = Workbook.add_format({'fg_color': '#ffcf90'})
-    gray_date_format = Workbook.add_format({'num_format': 'yyyy-mm-dd', 'fg_color': '#d9d8d8'})
+          'fg_color': MGRAY,})
+    ghrd_bold         = Workbook.add_format(
+        { 'bold': True, 'align': 'center',
+          'left': True, 'right': True, 'left_color': 'white', 'right_color': 'white',
+          'valign': 'vcenter','fg_color': '#b8b8b8',})
+    ghrd_italic       = Workbook.add_format(
+        { 'italic': True, 'align': 'center', 'valign': 'vcenter',
+          'left': True, 'right': True, 'left_color': 'white', 'right_color': 'white',
+          'fg_color': DGRAY,})
+    gray_format       = Workbook.add_format({'fg_color': GRAY})
+    gray_date_format  = Workbook.add_format({'num_format': 'yyyy-mm-dd', 'fg_color': GRAY})
+    mgray_format      = Workbook.add_format({'fg_color': MGRAY})
+    mgray_date_format = Workbook.add_format({'num_format': 'yyyy-mm-dd', 'fg_color': MGRAY})
+    dgray_format      = Workbook.add_format({'fg_color': DGRAY})
+    dgray_date_format = Workbook.add_format({'num_format': 'yyyy-mm-dd', 'fg_color': DGRAY})
+    date_format       = Workbook.add_format({'num_format': 'yyyy-mm-dd'})
+    human_date_format = Workbook.add_format({'num_format': 'd mmm yyyy'})
+    red_date_format   = Workbook.add_format({'num_format': 'yyyy-mm-dd', 'fg_color': RED})
+    red_format        = Workbook.add_format({'font_color': RED, 'bold':True})
+    yellow_date_format= Workbook.add_format({'num_format': 'yyyy-mm-dd', 'fg_color': YELLOW})
+    yellow_format     = Workbook.add_format({'font_color': YELLOW, 'bold': True})
+    green_format      = Workbook.add_format({'font_color': GREEN, 'bold': True})
+    bold_format      = Workbook.add_format({'bold': True})
+    invisible         = Workbook.add_format({'font_color': 'white'})
+    right             = Workbook.add_format({"align": "right"})
 
-    column = dict(); width = list(); row = -1; nr = -1; inactives = 0
+    # conditional cell Arow format station with activity from Brow
+    # to do: gas Palmes sensors are once a month ...
+    def bgCondition(row:int, col:int, ref:int) -> None:
+        # Period is defined in the cell periodCell [start,end] dlft: 1970/1/1, now()
+        # active = end period - datetime.timedelta(days=ACTIVE)    # GREEN BOLD
+        # sleeping = end period - datetime.timedelta(days=nACTIVE) # YELLOW BOLD
+        # inactive = start period - datetime.timedelta(days=1)     # RED BOLD
+        # else: not seen in period: normal
+        if ref is None: ref = col
+        formatCell = f"{cell2xlsx(row,col)}"
+        refCell = f"{cell2xlsx(row,ref)}"
+        worksheet.conditional_format(
+                formatCell,
+                {'type':     'formula',
+                 'criteria': f"{refCell} >= {periodCell[1]} - {ACTIVEcell}",
+                 'format':   bold_format })
+        worksheet.conditional_format(
+                formatCell,
+                {'type':     'formula',
+                 'criteria': f"{refCell} >= {periodCell[1]} - {nACTIVEcell}",
+                 'format':   yellow_format })
+        worksheet.conditional_format(
+                formatCell,
+                {'type':     'formula',
+                 'criteria': f"{refCell} > {periodCell[0]}",
+                 'format':   red_format })
+
+    column = dict(); width = list(); Row = -1; col = -1; inactives = 0; deads = []
     worksheet = Workbook.add_worksheet(name=Municipality)
-    # leave first 2 row blank for content info as nr of (in)active station in last part of period
-    row += 2
 
-    # header row, row+1
-    row += 1; nr += 1
-    worksheet.write_string(row,nr,'station',hrd_bold)
-    worksheet.write_string(row+1,nr,'Things ID',hrd_italic); width.append(12)
-    if len(location) > 1:
-        nr += 1
-        worksheet.merge_range(row,nr,row,nr+1,'location',hrd_bold)
-        worksheet.write_string(row+1,nr,"GPS",hrd_italic)
-        width.append(0); column['location'] = 1
-        nr += 1
-        worksheet.write_string(row+1,nr,"address",hrd_italic)
-        width.append(0); column['address'] = 2
-    elif len(location):
-        nr += 1
-        worksheet.write_string(row,nr,location[0],hrd_bold)
-        worksheet.write_string(row+1,nr,'',hrd_bold)
-        width.append(0); column[location[0]] = 1
-    for name in list(expand):
-        nr += 1
-        worksheet.write_string(row,nr,name,hrd_bold)
-        worksheet.write_string(row+1,nr,'property',hrd_italic)
-        column[name] = nr; width.append(0)
+    # Row with title (header) spreadsheet sheet 6 cells wide
+    Row += 2
+    title_location = f"{cell2xlsx(Row-1,1)}:{cell2xlsx(Row,7)}"
+    worksheet.merge_range(title_location,"")  # just location
+
+    #                                    =============== define cells with reference values
+    # Row with globals period first (C), period last (D), active (E), inactive (F) allowance
+    Row += 1
+                                         # sheet period of measurements
+    periodCell = [cell2xlsx(Row,2),cell2xlsx(Row,3)] # Row (3), col C and D
+    worksheet.write_datetime(periodCell[0],Start,human_date_format)
+    worksheet.write_comment(periodCell[0],"First date of period shown in spreadsheet sheet.")
+    worksheet.write_datetime(periodCell[1],End,human_date_format)
+    worksheet.write_comment(periodCell[1],"Last date of period shown in spreadsheet sheet.")
+    ACTIVEcell = cell2xlsx(Row,4)        # ACTIVE days minimum active up to End, col E
+    worksheet.write_number(ACTIVEcell,ACTIVE)   # End -days -> active
+    worksheet.write_comment(ACTIVEcell,"labeled active (green) if last timestamp is seen within  nr days before end period.")
+    nACTIVEcell = cell2xlsx(Row,5)       # nACTIVE days minimum of inactive, col F
+    worksheet.write_number(nACTIVEcell,nACTIVE) # End - days -> inactive
+    worksheet.write_comment(nACTIVEcell,"labeled inactive (yellow) if last timestamp is seen before active (green) period and after first date of period.")
+
+    # header Row, Row+1                  =============== set header stations table
+    Row += 1; col += 1                   # column station
+    column['station'] = col; width.append(12);
+    worksheet.write_string(Row,column['station'],'station',ghrd_bold)
+    worksheet.write_string(Row+1,column['station'],'Things ID',hrd_italic)
+
+    col += 1; column['period'] = col     # column period
+    worksheet.write_string(Row,column['period'],'last seen',hrd_bold)
+    worksheet.write_string(Row+1,column['period'],'in period',hrd_italic)
+    width.append(0)                      # hide period (Start/End) column 1 (B)
+
+    if len(location) > 1:                # columns location (GPS, address)
+        col += 1
+        worksheet.merge_range(Row,col,Row,col+1,'location',hrd_bold)
+        worksheet.write_string(Row+1,col,"GPS",hrd_italic)
+        width.append(0); column['GPS'] = col
+        col += 1
+        worksheet.write_string(Row+1,col,"address",hrd_italic)
+        width.append(0); column['address'] = col
+    elif len(location) == 1:             # column GPS
+        col += 1
+        worksheet.write_string(Row,col,'location',hrd_bold)
+        worksheet.write_string(Row+1,col,'GPS',hrd_italic)
+        width.append(0); column['GPS'] = col
+
+    for prop in list(expand):            # columns station properties
+        col += 1
+        worksheet.write_string(Row,col,prop,ghrd_bold)
+        worksheet.write_string(Row+1,col,prop,ghrd_italic)
+        column[prop] = col; width.append(0)
     humanise = RIVM.HumaniseClass(utf8=True)
-    for name in Sensors:
-        nr += 1
-        worksheet.merge_range(row,nr,row,nr+2,humanise.HumaniseSensor(name),hrd_bold)
-        worksheet.write_string(row+1,nr,'first',hrd_italic); width.append(0)
-        worksheet.write_string(row+1,nr+1,'last',hrd_italic); width.append(0)
-        worksheet.write_string(row+1,nr+2,'count',hrd_italic); width.append(0)
-        column[name] = nr; nr += 2
-    row += 2
+    lastColumn = []; lastRow = Row+1
 
-                                        # station info rows
-    active = []
+    dark = True
+    for name in Sensors:                 # sensors name: first/last timestamp, record count
+        col += 1
+        worksheet.merge_range(Row,col,Row,col+2,humanise.HumaniseSensor(name),ghrd_bold if dark else hrd_bold)
+        worksheet.write_string(Row+1,col,'first',ghrd_italic if dark else hrd_italic); width.append(0)
+        worksheet.write_string(Row+1,col+1,'last',ghrd_italic if dark else hrd_italic); width.append(0)
+        lastColumn.append(col+1)         # columns with last timestamp sensor record
+        worksheet.write_string(Row+1,col+2,'count',ghrd_italic if dark else hrd_italic); width.append(0)
+        # set timestamp and record count columns format
+        worksheet.set_column(f"{cell2xlsx(Row+2,col)}:{cell2xlsx(Row+2+len(stations),col+1)}",15,gray_date_format if dark else date_format)
+        if dark:
+            worksheet.set_column(f"{cell2xlsx(Row+1+2,col+2)}:{cell2xlsx(Row+1+2+len(stations),col+2)}",7,gray_format)
+        column[name] = col; col += 2; dark = not dark
+    Row += 2
+
+    #                                   ============= formula cells
+    RowsStart = Row                     # stations table data starts here
+
+    # set datetime formats and last date in station sensor cells
+    def maxFormula(row:int,columns:list) -> None:
+        if not columns: return
+        worksheet.write_comment(f"{cell2xlsx(RowsStart-2,column['station'])}","Spreadsheet may need to be recalculated.\nThis differs per version.\nForce cell recalutation by pressing F9 or change days value in cell {nACTIVEcell}.")
+        worksheet.write_comment(f"{cell2xlsx(row,column['period'])}","Spreadsheet may need to be recalculated.\nThis differs per version.\nForce recalutation by pressing F9 or change days value in cell {nACTIVEcell}.")
+        worksheet.set_column(f"{cell2xlsx(row,column['period'])}:{cell2xlsx(len(stations)+row,column['period'])}",None,date_format)
+        for r in range(row,len(stations)+row):
+            formula = ''
+            for c in columns:
+                formula += f",IF(ISBLANK({cell2xlsx(r,c)}),0,{cell2xlsx(r,c)})"
+            # ACTIVEcell IF() is just to cause recalculation. To Do: push button "recalculate"
+            formula = f"=IF({nACTIVEcell} > {ACTIVEcell},MAX({formula[1:]}),0)"
+            worksheet.write_formula(cell2xlsx(r,column['period']),formula)
+            bgCondition(r,column['station'], column['period']) # station background color condition
+
+    # set datetime and dark formats in sensors columns (first,last,count), every other gray
+    def sensorsFomatting(row:int,columns:list) -> None:
+        grayish = True
+        for c in columns:
+            worksheet.set_column(f"{cell2xlsx(row,c-1)}:{cell2xlsx(len(stations)+row,c)}",None,gray_date_format if grayish else date_format)
+            if grayish:
+                worksheet.set_column(f"{cell2xlsx(row,c+1)}:{cell2xlsx(len(stations)+row,c+1)}",None,gray_format)
+            grayish = not grayish
+
+    maxFormula(RowsStart,lastColumn)       # set formula for activity checks
+    sensorsFomatting(RowsStart,lastColumn) # set formats of sensor columns: dark, normal (swap)
+
+    #  spreadsheet station table         =============== station info Rows
+    active = 0                           # stations active or dead in period
     for station,info in stations.items():
-        row += 1
         operational = False
 
-        if column.get('address') or column.get('location'):
+                                         # location info: GPS, optional address
+        if column.get('address') or column.get('GPS'):
           if info.get('location') and len(info['location']):
-            if col := column.get('address'):
+            if column.get('address'):
                if len(info['location']) > 1 :
-                 address = re.sub(r',\s*(gem|prov)\.\s.*','',info['location'][1])
+                   address = re.sub(r',\s*(gem|prov)\.\s.*','',info['location'][1])
                else: address = ''
-               worksheet.write_string(row,col,address, gray_format)
-               width[col] = max(len(address)+2,width[col])
-            if col := column.get('location'):
+               worksheet.write_string(Row,column['address'],address)
+               width[column['address']] = max(len(address)+2,width[column['address']])
+            if column.get('GPS') and len(info['location']) and len(info['location'][0]):
                location = str(info['location'][0])
-               worksheet.write_string(row,col,location,gray_format)
-               width[col] = max(len(location)+2,width[col])
+               worksheet.write_string(Row,column['GPS'],location)
+               width[column['GPS']] = max(len(location)+2,width[column['GPS']])
 
-        for n in expand:                # owner, project, knmicode, etc.
-            if n == 'location' or n == 'address': continue
-            if not (item := info.get(n)): continue
-            if not (col := column.get(n)): continue
-            worksheet.write_string(row,col,str(item))
-            width[col] = max(len(str(item))+2,width[col])
+        for n in expand:                 # owner, project, knmicode, etc.
+            if n == 'location' or n == 'address':    continue
+            if not info.get(n) or not column.get(n): continue
+            worksheet.write_string(Row,column[n],str(info.get(n)))
+            width[column[n]] = max(len(str(info.get(n)))+2,width[column[n]])
 
-        if info.get('sensors'):
-            gray = False
+        if info.get('sensors'):          # sensors of the station
+            actives = []; sensing = 0
             for s,v in info.get('sensors').items():
+                if not (col := column.get(s)): continue # col -> first record
                 if type(info['sensors'][s]) is dict and info['sensors'][s].get('@iot.id'):
-                  if (col := column.get(s)):
-                    gray = not gray
                     if (first := info['sensors'][s].get('first',None)):
                         first = datetime.datetime.strptime(first,"%Y-%m-%dT%H:%M:%S.%f%z")
-                        worksheet.write_datetime(row,col,first,gray_date_format if gray else date_format)
+                        worksheet.write_datetime(Row,col,first)
                         width[col] = max(12,width[col])
+                    else:
+                        worksheet.write(Row,col,"")
                     if (last := info['sensors'][s].get('last',None)):
                         last = datetime.datetime.strptime(last,"%Y-%m-%dT%H:%M:%S.%f%z")
-                        if (End - last).days >= 1:   # at least till one day before end period
-                            operational = True
-                            worksheet.write_datetime(row,col+1,last,gray_date_format if gray else date_format)
-                        else:
-                            worksheet.write_datetime(row,col+1,last,orange_date_format)
-                        width[col+1] = max(12,width[col+1])
+                        bgCondition(Row,col+1, col+1)     # bg color condition on activity
+                        #if (End - last).days <= ACTIVE:   # at least till one day before end period
+                        #    worksheet.write_datetime(Row,col+1,last)
+                        #elif (End - last).days <= nACTIVE:
+                        #    worksheet.write_datetime(Row,col+1,last,yellow_date_format)
+                        #else:
+                        #    worksheet.write_datetime(Row,col+1,last,red_date_format)
+                        worksheet.write_datetime(Row,col+1,last)
+                        width[col+1] = max(12,width[col+1]); actives.append(s)
+                    else:
+                        worksheet.write(Row,col+1,"")
                     if (count := info['sensors'][s].get('count',None)):
-                        if gray: worksheet.write_number(row,col+2,count, gray_format)
-                        else: worksheet.write_number(row,col+2,count)
-                        width[col+2] = max(7,width[col+2])
+                        worksheet.write_number(Row,col+2,count)
+                        width[col+2] = max(7,width[col+2]); sensing += 1
+                    else:
+                        worksheet.write(Row,col+2,"")
 
-        if not operational:
-            worksheet.write_string(row,0,station,orange_format)
-            # worksheet.set_row(row, None, None, {'hidden':1})
-            if Verbosity:
-                sys.stderr.write(f"Station {station} ({Municipality}) was not operational in the period {Period}\n")
-            inactives +=1
-        else: worksheet.write_string(row,0,station)
-        width[0] = max(len(station)+2,width[0])
+        worksheet.write(Row,column['station'],station,gray_format)
+        width[column['station']] = max(7,len(station)+2)
+        if len(actives): active += 1
+        if not sensing: deads.append(Row)
+        if Verbosity:
+            sys.stderr.write(f"Station {station} ({Municipality}) was {'never' if not sensing else (str(len(actives))+' active')} sensor(s) operational.\n")
+        Row += 1
 
-    # sheet stations statistics info
+    # sheet stations statistics info     ================== wrap up
     if Verbosity:
-        sys.stderr.write(f"Stations in municipality {Municipality}: nr of stations: {len(stations)}, stations not active: {inactives}\n")
-    worksheet.merge_range(0,0,0,10,f'municipality {Municipality} statistics: nr of stations: {len(stations)}, stations not active: {inactives}',hrd_bold)
-    for i,w in enumerate(width):
+        sys.stderr.write(f"Stations in municipality {Municipality}: nr of station(s): {len(stations)}, station(s) active: {active}, {len(deads)} silent station(s).\n")
+    subtitle = f"\nnr of stations: {len(stations)} ({inactives} inactive, {len(deads)} unused)."
+    #if len(period):
+    #    subtitle += f" in period{Start.strftime(' %-d %b %Y') if period[0] else ''}{End.strftime(' upto %-d %b %Y') if End else ''} "
+    generated = f"              (generated at {datetime.datetime.now().strftime('%-d %b %Y')})"
+    #                                    ================= title with overall info
+    worksheet.write_rich_string(re.sub(r':.*','',title_location),f"station statistics of municipality {Municipality}",italic,subtitle,right,generated,title_format)
+    #worksheet.write_rich_string(0,1,f"station statistics of municipality {Municipality}\n",italic,f"nr of stations: {len(stations)} ({inactives} inactive, {len(deads)} unused){period}",title_format)
+
+    #                                    ================== cleanup sheet
+    for i,w in enumerate(width):         # adjust column width's
         if w: worksheet.set_column(f"{n2a(i)}:{n2a(i)}",w)
         else: worksheet.set_column(f"{n2a(i)}:{n2a(i)}", None, None, {'hidden': 1})
-    if row > 1: return True
-    else: return False
+    for i in deads:
+        worksheet.set_row(i, None, None, {'hidden':1}) # hide rows dead stations
+    return True
 
-#                                =================================== main
-XLSXfile = 'MunicipalityStations.xlsx'
+#                                        ===================== main
+XLSXfile = 'MunicipalityStations.xlsx'   # default XLSX spreadsheet file
 def help() -> None:
     sys.stderr.write(
         f"""
@@ -251,61 +409,66 @@ Options station info settings:
         Sensors='{Sensors}'                   Defines sensor types of interest (regular expression).
         Select='{Select if Select else 'None'}' Filter on station names. Default: do not filter.
         Expand='{Expand}'                     List of station properties of interest.
-Options XLSX book property settings:
+Options XLSX spreadsheet book property settings:
         File=Outputfile.xlsx                  Default '{XLSXfile}'.
         Company=YourCompanyName               Default empty.
         Status=BookStatus                     Default 'draft'.
 Command options:
         Verbosity={Verbosity}                 Verbosity level. Level 5 gives timings info.
-        DEBUG={'True' if DEBUG else 'False'}  In debig modus: Things queries will not be done.
+        DEBUG                                 In debig modus: Things queries will not be done.
         """)
 
-municipalities = []; company = ''; status = 'draft'
+municipalities = []; company = ''; status = 'draft'; idx = 0
 for Municipality in sys.argv[1:]:
     if re.match(r'^(--)?help$',Municipality,re.I):
         help(); Workbook = None
         break
+    idx += 1
     if m := re.match(r'^(--)?([^\s]*)\s*(=)\s*([^\s]+.*)$', Municipality):
       if m.groups()[2] == '=':
-        if m.groups()[1] == 'Period':           # only measurements in this period
+        if m.groups()[1] == 'Period':    # only measurements in this period
             Period = ','.join([x.strip() for x in m.groups()[3].strip().split(',')])
-        elif m.groups()[1] == 'Company':        # company of XLSX book creation
+        elif m.groups()[1] == 'Company': # company of XLSX book creation
             company = m.groups()[3].strip()
-        elif m.groups()[1] == 'Status':         # status of XLSX book
+        elif m.groups()[1] == 'Status':  # status of XLSX book
             status = m.groups()[3].strip()
-        elif m.groups()[1] == 'File':           # file name of XLSX book
+        elif m.groups()[1] == 'File':    # file name of XLSX book
             XLSXfile = m.groups()[3].strip()
-        elif m.groups()[1] == 'Sensors':        # sensor types of interest (reg exp)
+        elif m.groups()[1] == 'Sensors': # sensor types of interest (reg exp)
             Sensors = m.groups()[3].strip()
-        elif m.groups()[1] == 'Select':         # filter reg exp for stations names
+        elif m.groups()[1] == 'Select':  # filter reg exp for stations names
             Select = m.groups()[3].strip()
-        elif m.groups()[1] == 'Verbosity':      # verbosity level
+        elif m.groups()[1] == 'Verbosity': # verbosity level
             Verbosity = int(m.groups()[3].strip())
-        elif m.groups()[1] == 'Expand':         # show station property info as well
+        elif m.groups()[1] == 'Expand':  # show station property info as well
             Expand = m.groups()[3].strip()
-        elif m.groups()[1] == 'DEBUG':          # DEBUG use buildin station dict
-            DEBUG = True if m.groups()[3].strip() == 'True' else False
         continue
+    if re.match(r'^(--)?debug$',Municipality,re.I):   # DEBUG use buildin station dict
+        DEBUG = True; Verbosity = 1
+        XLSXfile = 'MunicipalityStations-TEST.xlsx'
     if Workbook is None:
         Workbook = xlsxwriter.Workbook(XLSXfile, {'remove_timezone': True})
         if Verbosity:
-            sys.stderr.write(f"Creating XLSX book: '{XLSXfile}'\n")
-            sys.stderr.write(f"""Add stations for municipality: '{Municipality}'
-            Filter on sensor types: '{Sensors}'
-            Filter station names: '{'all' if not Select else Select}'
-            Show also these station properties: '{Expand}'\n""")
+            sys.stderr.write(f"""Creating XLSX spreadsheet file: '{XLSXfile}'
+            for stations in municipalities: '{','.join(sys.argv[idx:])}'
+            Filter on sensor types: '{Sensors.replace('|','')[1:-1]}'
+            Filter station names: '{'turned off' if not Select else Select}'
+            Also showing station properties: '{Expand}'\n""")
     # next can take quite some time. To Do: add progress meter?
-    if Add_Stations( Municipality, Period=Period):
+    if DEBUG:
+        Add_Stations('fake region', Period=Period)
+        break
+    elif Add_Stations( Municipality, Period=Period):
         municipalities.append(Municipality)
     else:
         sys.stderr.write(f"Municipality '{Municipality}': no stations in period '{Period}'\n") 
 
-if Workbook:                                    # XLSX book creation
+if Workbook:                              # XLSX book creation
     import pwd
     user = re.sub(r'\s*,.*$','',pwd.getpwnam(os.environ["USER"]).pw_gecos)
     if user: user = f"{user} ({os.environ['USER']})"
     else: user = ''
-    properties = {                              # XLSX book properties
+    properties = {                        # XLSX book properties
         "title": "Air Quality measurements information from RIVM/Things",
         "subject": "Low-Cost stations in municipalities: " + ', '.join(municipalities),
         "author": user,
@@ -317,10 +480,13 @@ if Workbook:                                    # XLSX book creation
         "status": status,
       }
     Workbook.set_properties(properties)
+    # set to manual to speedup, use key F9 to recalculate cells
+    Workbook.set_calc_mode('auto')
     Workbook.close()
 
     if Verbosity >= 0:
-        sys.stderr.write(f"Created XLSX book: '{XLSXfile} with {len(municipalities)} municipalities (sheet(s))'\n")
+        if DEBUG: municipalities = [None]
+        sys.stderr.write(f"Created XLSX book: '{XLSXfile}' with {len(municipalities)} municipalities sheet(s)'\n")
     if Verbosity:
         sys.stderr.write(f"\tXLSX properties:\n")
         for p,v in properties.items():
