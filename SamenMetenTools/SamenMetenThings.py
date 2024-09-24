@@ -66,7 +66,7 @@ get_StationData(Name: str, ProductID=None, Address=None, Humanise=None, Start=No
 # TO DO: docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.13 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.15 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -359,12 +359,12 @@ class MyWorkers:
     # wait till all workers are completed. This may disrupt thread timing.
     # result: {nameWorker: result, ...} with result as { thread result, exception, time metering}
     # workers are mainly downloading data from internet. They may hang.
-    def Wait4Workers(self, timeout:int=None):
+    def Wait4Workers(self, timeout:int=None) -> dict:
         """Wait till all workers have been done. Workers.
            Results dict with worker ident: { result and work info}."""
 
         if not self.Executor is None:
-            if timeout is None: timeout = 2*60         # all workers time metering
+            if timeout is None: timeout = 4*60         # all workers time metering
             for future in futures.as_completed(self.Futures, timeout=timeout):
                 if not self._WorkDone(future):
                     logging.debug(f"Worker {self.Futures[future]} timeout reached.")
@@ -373,25 +373,25 @@ class MyWorkers:
         elif self.Metering: self.Metering = time()-self.Metering
         return self.Results                            # make all worker info available
 
-    def Shutdown(self):
+    def Shutdown(self) -> None:
         if not self.Executor is None:
             self.Executor.shutdown()                   # wait till done and release
         self.Executor = None
 
     @property
-    def Timing(self):
+    def Timing(self) -> Union[None,float]:
         """Timing when all Workers are done."""
 
-        if not self.Stamp: return None
-        return self.Metering if self.Metering < time()/2 else None
+        if not self.Stamp or self.Metering is None: return None
+        else: return self.Metering
 
     @property
-    def Count(self):
+    def Count(self) -> int:
         """Current total of submitted Workers for this Executor"""
         return self.Number+1
 
     # submit worker. The complicated way to shorten teaTime.
-    def Submit(self, *args:Any, **kwargs:Dict[str,Any]):
+    def Submit(self, *args:Any, **kwargs:Dict[str,Any]) -> None:
         """Submit task for a Worker. Returns result in a buffer (dict or list.
            If buffer has a length the buffer is appended/updated with the result.
            PARAMETERS: dict(optional 'ident' (name: str), optional 'baskit' Union[list,dict,function])
@@ -582,7 +582,7 @@ import json
 def execute_request(Url:str, callBack=None) -> Union[dict,list]:
     """execute_request: get info from the outside world"""
     def GetData(Url):
-        with urlopen(Request(requote_uri(Url)), timeout=45) as response:
+        with urlopen(Request(requote_uri(Url)), timeout=90) as response:
             return response.read()
 
     if _opener is None:
@@ -1048,7 +1048,9 @@ class SamenMetenThings:
             if expand: expand += ",datastreams($select=name,id)"
             else: expand = "&$expand=datastreams($select=name,id)"
         url += expand
-        try: data = self._execute_request(url)
+        try:
+            data = self._execute_request(url)
+            data = dict(sorted(data.items()))
         except: return None
 
         # convert: [{iot:Union[str,int],name:str,Locations:{location:{coordinates:[]}},
