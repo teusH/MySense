@@ -25,10 +25,11 @@ import re
 import sys,os
 from collections import OrderedDict
 import datetime
+import subprocess                      # check time period with UNIX subprocess date
 
 import SamenMetenThings as RIVM
 
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.6 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.7 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -88,13 +89,18 @@ def Add_Stations( Municipality:str, Things=None, Period=Period) -> bool:
     if DEBUG:
         Period = '2023/01/01,2024/08/22'
     if Period:
-        period = [x.strip() for x in Period.strip().split(',')]
-        Start = period[0]
-        if len(period) > 1: End = period[1]
-        else: End = None
-    else:
-        period = [None,None]
-        Start = End = None
+        period = []
+        for _ in Period.strip().split(','):
+            _ = _.strip()
+            try:
+              if len(_):
+                  _ = subprocess.check_output(["/bin/date","--date=%s" % _,"+%F"]).decode('utf-8').strip()
+              else: _ = None
+              period.append(_)
+            except: raise(f"Unable to convert '{_}' to reasonable date time")
+        if len(period) < 2: period.append(None)
+    else: period = [None,None]
+    Start = period[0]; End = period[1]
     # may expand properties: e.g. gemcode (984), knmicode (knmi_06391), pm25regiocode (NL10131), etc.
     if DEBUG:
         stations = {
@@ -127,11 +133,11 @@ def Add_Stations( Municipality:str, Things=None, Period=Period) -> bool:
     if End is None:
         End = datetime.datetime.now(datetime.timezone.utc)
     else:
-        End = datetime.datetime.strptime(RIVM.ISOtimestamp(End),'%Y-%m-%dT%H:%M%z')
+        End = datetime.datetime.strptime(RIVM.ISOtimestamp(End),'%Y-%m-%dT%H:%M:%S%z')
     if Start is None:
-        Start = datetime.datetime.strptime('1970-01-01T00:00Z','%Y-%m-%dT%H:%M%z')
+        Start = datetime.datetime.strptime('1970-01-01T00:00:00Z','%Y-%m-%dT%H:%M:%S%z')
     else:
-        Start = datetime.datetime.strptime(RIVM.ISOtimestamp(Start),'%Y-%m-%dT%H:%M%z')
+        Start = datetime.datetime.strptime(RIVM.ISOtimestamp(Start),'%Y-%m-%dT%H:%M:%S%z')
 
     Sensors = re.sub(r'[\(\)\s]','',Sensors).split('|') # ordered list of sensor names 
     expand = set(Expand.split(',')) - set(['location','address'])
@@ -451,7 +457,7 @@ for Municipality in sys.argv[1:]:
         if Verbosity:
             sys.stderr.write(f"""Creating XLSX spreadsheet file: '{XLSXfile}'
             for stations in municipalities: '{','.join(sys.argv[idx:])}'
-            Filter on sensor types: '{Sensors.replace('|','')[1:-1]}'
+            Filter on sensor types: '{Sensors.replace('|',', ')[1:-1]}'
             Filter station names: '{'turned off' if not Select else Select}'
             Also showing station properties: '{Expand}'\n""")
     # next can take quite some time. To Do: add progress meter?
