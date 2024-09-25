@@ -66,7 +66,7 @@ get_StationData(Name: str, ProductID=None, Address=None, Humanise=None, Start=No
 # TO DO: docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.16 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.17 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -582,7 +582,8 @@ import json
 def execute_request(Url:str, callBack=None) -> Union[dict,list]:
     """execute_request: get info from the outside world"""
     def GetData(Url):
-        with urlopen(Request(requote_uri(Url)), timeout=90) as response:
+        ttl = 180 if callBack else 90                # Thinks service is slow
+        with urlopen(Request(requote_uri(Url)), timeout=ttl) as response:
             return response.read()
 
     if _opener is None:
@@ -898,14 +899,14 @@ class SamenMetenThings:
             for sensor,baskit in Sensors.items():
                 if type(baskit) is dict and baskit.get('@iot.id'):
                     workers.Submit(f'{Station} {sensor} first',self._SensorStatus,baskit.get('@iot.id'),Status='first', Start=Start, End=End)
-                    workers.Submit(f'{Station} {sensor} last',self._SensorStatus,baskit.get('@iot.id'),Status='last', Start=Start, End=End)
+                    workers.Submit(f'{Station} {sensor} last ',self._SensorStatus,baskit.get('@iot.id'),Status='last', Start=Start, End=End)
             results = workers.Wait4Workers()
             if workers.Timing:
                 self._Verbose(f"total time {round(workers.Timing,1)}.",f"Station {Station} sensor status timing",3)
         for name, value in results.items():
             # handle info about work done, synchronize results
             if not value.get('timing',None) is None:
-                self._Verbose(f"{round(value.get('timing'),1)} seconds.",f"Timing {Station} sensors {name}",3)
+                self._Verbose(f"{round(value.get('timing'),1)} seconds",f"Timing {Station} sensors {name}",4)
             if value.get('except',False): raise value.get('except')
             elif type(value.get('result',None)) is dict:
                 try:
@@ -1032,7 +1033,7 @@ class SamenMetenThings:
         if not 'sensors' in properties:
             if Sensors: properties.append('sensors')
             else: Sensors = '.*'               # report all supported sensors names of station
-        if Sensors: Sensors = re.compile(Sensors) # filter on sensor types in station
+        if Sensors: Sensors = re.compile('^'+Sensors+'$') # filter on sensor types in station
         if Select: Select = re.compile(Select) # filter on station names
 
         if len(select) != 1: select = ['name'] # station name has priority
@@ -1045,8 +1046,8 @@ class SamenMetenThings:
         expand = ''
         if 'location' in properties: expand = "&$expand=locations($select=location)"
         if 'sensors' in properties:
-            if expand: expand += ",datastreams($select=name,id)"
-            else: expand = "&$expand=datastreams($select=name,id)"
+            if expand: expand += ",datastreams($select=name,id,unitOfMeasurement)"
+            else: expand = "&$expand=datastreams($select=name,id,unitOfMeasurement)"
         url += expand
         try:
             data = self._execute_request(url)
@@ -1055,9 +1056,12 @@ class SamenMetenThings:
 
         # convert: [{iot:Union[str,int],name:str,Locations:{location:{coordinates:[]}},
         #           Datastreams:[{name:"???-sensorName"},...] -> { stationName: {} ...}
-        stations = dict(); selected = 0
+        stations = dict(); selected = 0; nr = 0
         for station in data:
             info = dict(); name = None
+            if self.Verbose:                                   # teatime music
+                nr += 1
+                self._Verbose(f"(of stations {station.get('name','unknown')} (gem. {GemCode})", f"Collect info nr {nr} of {len(data}",1)
             for item, value in station.items():
                 if item == '@iot.id': info['@iot.id'] = value
                 elif item == 'name':
@@ -1164,7 +1168,7 @@ class SamenMetenThings:
                     self._Verbose(f"total time {round(workers.Timing,1)}.",f"sensor  {str(Iotid)} sensor status timing",3)
             for name, value in results.items():    # handle info about work done, synchronize results
                 if not value.get('timing',None) is None:
-                    self._Verbose(f"{round(value.get('timing'),1)} seconds.",f"Timing {name}",3)
+                    self._Verbose(f"{round(value.get('timing'),1)} seconds.",f"Timing {name}",4)
                 if value.get('except',False): raise value.get('except')
                 elif type(value.get('result',False)) is dict:
                     value.update(value.get('result'))
@@ -1585,7 +1589,7 @@ class SamenMetenThings:
             workers = None
             if self.Threading:                            # requests with multi threading
                 # use MaxWorkers=1 when debugging threads in simulation modus
-                workers = MyWorkers(WorkerNames='StationInfo', MaxWorkers=12, Timing=(self.Verbose > 2))
+                workers = MyWorkers(WorkerNames='StationInfo', MaxWorkers=8, Timing=(self.Verbose > 2))
             # filter on codegemeente, owner and project
             properties = station_info.get("properties",{}).keys()
             for item in set(station_info.get("properties",{}).keys()) & set(['codegemeente','owner','project']):
