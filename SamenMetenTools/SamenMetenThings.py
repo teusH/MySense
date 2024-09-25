@@ -28,17 +28,17 @@ Hint: keep your development area clean by: export PYTHONDONTWRITEBYTECODE=1
 
 Some example of routines:
 StreetMap(GPS:Union[str,tuple]) -> str # obtain address via Open Street Map
-Municipality_NameCode(item: Union[str,int]) -> str # municipality info via standaarden overheid (TOOI)
-MunicipalityName(item: Union[str,int], region="gemeente") -> str # municpality info via Open Data Soft
+Municipality_NameCode(item:Union[str,int]) -> str # municipality info via standaarden overheid (TOOI)
+MunicipalityName(item:Union[str,int], region="gemeente") -> str # municpality info via Open Data Soft
 Class SamenMetenThings:                # Things API query routines
                                        # station names in a municipality
-get_MunicipalityStations(self,GemCode: Union[int,str], By="name", Select=None) -> Union[list,dict]
+get_MunicipalityStations(self,GemCode:Union[int,str], By="name", Select=None) -> Union[list,dict]
                                        # ordered list of neighbour stations near station
 get_Neighbours(self,Point:Union[str,List[float]],Range=None,SRID=4326,Max=50,Select=None, Address=None) -> Dict[str,tuple]
                                        # meta informatio about a station
-get_StationInfo(Name: str, Address=None, ProductID=None, Neighbours=None, Status=None) -> Dict
+get_StationInfo(Name:str, Address=None, ProductID=None, Neighbours=None, Status=None) -> Dict
                                        # meta informatio plus observations records station
-get_StationData(Name: str, ProductID=None, Address=None, Humanise=None, Start=None, End=None, Sensors=None, Neighbours=None, Status=None, Utf8=None) ->
+get_StationData(Name:str, ProductID=None, Address=None, Humanise=None, Start=None, End=None, Sensors=None, Neighbours=None, Status=None, Utf8=None) ->
                                        Dict[str,Any] incl 'observations': Pandas dataframe
 """
 
@@ -66,7 +66,7 @@ get_StationData(Name: str, ProductID=None, Address=None, Humanise=None, Start=No
 # TO DO: docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.18 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.19 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -110,12 +110,12 @@ def date2ISOutc(string:str) -> str:     # just for the fun
 # test: date2ISOutc('now') or date2ISOutc('1 Feb 2023')
 
 #from time, datetime, ISO conversion coroutiness
-def datetime_iso8601(date: datetime) -> str:
+def datetime_iso8601(date:datetime) -> str:
     """datetime_iso8601: convert utc datetime to ISO8601 string"""
     return datetime.datetime.strftime(date, "%Y-%m-%dT%H:%M:%SZ")
 
 # local time string, add hh_mm and handle end inclusion time on end period
-def YYYYMMDD(yyyymmdd: str) -> str:
+def YYYYMMDD(yyyymmdd:str) -> str:
     """convert YYYY-MM-DD formated stamp to YYYY-MM-DD HH:MM:SS"""
     if not type(yyyymmdd) is str: return yyyymmdd
     if re.match(r'[0-9]{4}-[01][0-9]*-[0-3][0-9]$', yyyymmdd):
@@ -127,14 +127,14 @@ def YYYYMMDD(yyyymmdd: str) -> str:
     return date
 
 # convert local time to Pandas utc time ISO8601
-def local_to_pandas(local: str, tz='UTC') -> pd._libs.tslibs.timestamps.Timestamp:
+def local_to_pandas(local:str, tz:str='UTC') -> pd._libs.tslibs.timestamps.Timestamp:
     """local_to_pandas: ISO UTC convert local date string to Pandas timestamp"""
     date = pd.to_datetime(YYYYMMDD(local)).tz_localize(tz='Europe/Amsterdam')
     if not tz: return date
     else: return date.tz_convert(tz=tz)
 
 # convert to simple local humanised timestamp
-def pandas_to_local(utc: datetime) -> str:
+def pandas_to_local(utc:datetime) -> str:
     """pandas UTC timestamp to local timestamp string"""
     date = utc.tz_convert(tz='Europe/Amsterdam')
     return datetime.datetime.strftime(date, "%Y-%m-%d %H:%M")
@@ -167,7 +167,7 @@ def ISOtimestamp(string:str) -> str:
 # convert header names to Things header names, visa versa to humanised names
 class HumaniseClass:
     """HumaniseClass: (de)humanise sensor strings"""
-    def __init__(self, utf8=False) -> None:
+    def __init__(self, utf8:bool=False) -> None:
         self.utf8 = utf8  # use of utf-8 symbols can be turned off
         self.chr2utf8 = {
             '0': u'\u2080', '1': u'\u2081', '2': u'\u2082', '3': u'\u2083',
@@ -180,7 +180,7 @@ class HumaniseClass:
         return None
 
     # convert to humanised sensor type. Some spreadsheets may not handle utf-8!
-    def HumaniseSensor(self, name: str, Humanise=False) -> str:
+    def HumaniseSensor(self, name:str, Humanise:bool=False) -> str:
         """HumaniseSensor: convert a bare sensor string into human readable thing"""
         if Humanise is None: Humanise = self.utf8
         name = name.replace('_kal', ' (gekalibreerd)' if Humanise else ' kal')
@@ -191,7 +191,7 @@ class HumaniseClass:
         name = re.sub('hpa','hPa',name,re.I)            # pres symbol
 
         # uppercase sensor names
-        def UPPER(match: re.Match) -> str:
+        def UPPER(match:re.Match) -> str:
             _ = match.group(0).upper()
             return _
 
@@ -213,7 +213,7 @@ class HumaniseClass:
 
     # convert names to Things IoT sensor namings e.g. pm25_kal ug/m3 (SPS30)
     # strict=True will convert to bare Things sensor and/or symbol names
-    def DehumaniseSensor(self, name: str, strict=True) -> str:
+    def DehumaniseSensor(self, name:str, strict:bool=True) -> str:
         """DehumaniseSensor: conver a humanised sensor string into a bare string"""
         if not self.utf82chr: # poor man's utf-8 decoding
             for item,utf8 in self.chr2utf8.items():
@@ -536,7 +536,7 @@ def GPSdistance(geo_1:tuple, geo_2:tuple) -> int:
 
 # uses python geohash lib, try to correct lat/long swap
 @lru_cache(maxsize=8)   # cache is thread save?
-def geohash(coordinates,precision=12):
+def geohash(coordinates,precision:int=12):
     import pygeohash as GeoHash
     oord = coordinates
     try:
@@ -579,7 +579,7 @@ import json
 #           Samen Meten (value, Union[dict[str,Any],list]) query responses
 # It is time for standardisation of queries via an URL
 # this can be decorated?
-def execute_request(Url:str, callBack=None) -> Union[dict,list]:
+def execute_request(Url:str, callBack:Callable=None) -> Union[dict,list]:
     """execute_request: get info from the outside world"""
     def GetData(Url):
         ttl = 180 if callBack else 90                # Thinks service is slow
@@ -652,7 +652,7 @@ def execute_request(Url:str, callBack=None) -> Union[dict,list]:
 # TO DO: add support for 'buurt' (suburb) and village, and bounding box municipality.
 # TO DO: use CBS query service for this. Some municipality codes are not up to date.
 @lru_cache(maxsize=16)   # module sources this is thread save?
-def MunicipalityName(item: Union[str,int], region="gemeente") -> str:
+def MunicipalityName(item:Union[str,int], region:str="gemeente") -> str:
     """MunicipalityName translate municipality name or code"""
     if type(item) is int: item = str(item)
     select = ("gem_name","gem_code")
@@ -750,7 +750,7 @@ class SamenMetenThings:
 
     # be more verbose via Message and do not mix up lib messages
     # should decorate Message
-    def _Verbose(self,Line: str, ID:str, Level:int) -> None:
+    def _Verbose(self,Line:str, ID:str, Level:int) -> None:
         # TO DO: if no controlling terminal log the message (need to review msg levels)
         if ID: ID += ': '
         if Level < 0: logging.warning(ID + Line)
@@ -763,7 +763,7 @@ class SamenMetenThings:
     # returns    json decoded body (dict) or dict value from "value" dict key if defined.
     # Uses Things http error codes. Completes request string with http and domain part.
     # subject to python decorate
-    def _execute_request(self,Url: str) -> Union[dict,list]:
+    def _execute_request(self,Url:str) -> Union[dict,list]:
         """_execute_request and handle errors"""
         def requestsErrors(status:int,message:str,content=Union[None,dict]) -> bool:
             """requestsErrors call back coroutine on HTTP errors"""
@@ -883,7 +883,7 @@ class SamenMetenThings:
     # push results in sensor dict baskit, period: Start/None-End/None. 
     # this can take a while ... 2 X nr of sensors * ca 15 seconds if not parallel
     # add status of sensors per station. This is time consuming!
-    def _AddSensorsStatus(self, Station:str, Sensors:dict, Start=None, End=None) -> None:
+    def _AddSensorsStatus(self, Station:str, Sensors:dict, Start:Any=None, End:Any=None) -> None:
         if not type(Sensors) is dict or not len(Sensors): return None
         baskits = 0
         for _ in Sensors.values():
@@ -895,14 +895,16 @@ class SamenMetenThings:
             return None
 
         # use MaxWorkers=1 when debugging this routine
-        with MyWorkers(WorkerNames='StatusSensors', MaxWorkers=2, Timing=(self.Verbose > 2)) as workers:
+        with MyWorkers(WorkerNames='StatusSensors', MaxWorkers=3, Timing=(self.Verbose > 2)) as workers:
             for sensor,baskit in Sensors.items():
                 if type(baskit) is dict and baskit.get('@iot.id'):
                     workers.Submit(f'{Station} {sensor} first',self._SensorStatus,baskit.get('@iot.id'),Status='first', Start=Start, End=End)
                     workers.Submit(f'{Station} {sensor} last ',self._SensorStatus,baskit.get('@iot.id'),Status='last', Start=Start, End=End)
+                    if baskit.get('symbol'):  # need to add sensor product ID
+                        workers.Submit(f'{Station} {sensor} product',self._ProductID,baskit.get('@iot.id'))
             results = workers.Wait4Workers()
             if workers.Timing:
-                self._Verbose(f"total time {round(workers.Timing,1)}.",f"Station {Station} sensor status timing",3)
+                self._Verbose(f"thread '{workers.WorkerNames}' total timing {round(workers.Timing,1)}.",f"Station {Station} sensor status",3)
         for name, value in results.items():
             # handle info about work done, synchronize results
             if not value.get('timing',None) is None:
@@ -966,14 +968,14 @@ class SamenMetenThings:
     # Returns list with station names optional with Things station IotID.
     #       or as dict with key station name: dict: '@iot.id';, 'owner', 'project',
     #       'location': list with GPS tuple and address[str].'sensors': list of supported sensor names.
-    def get_MunicipalityStations(self,GemCode: Union[int,str], By="id,name", Select=None, Sensors=None, Status=None, Start=None, End=None) -> Union[list,dict]:
+    def get_MunicipalityStations(self,GemCode:Union[int,str], By:str="id,name", Select:str=None, Sensors=None, Status=None, Start=None, End=None) -> Union[list,dict]:
         """get_MunicipalityStations: get stations within a municipality and
            dict with required properties: iot.id, owner, project,
            location (with address), sensors.
            Filter stations on avaialble sensor types."""
 
         # sort dict with geohash (type of clustering) and add humanised location to GPS
-        def AddAddresses(stations: dict) -> dict:
+        def AddAddresses(stations:dict) -> dict:
             addresses = dict()                     # could be an OrderedDict()
             for n,v in stations.items():           # get locations ready for baskit values
                 if not (location :=  v.get('location')): continue
@@ -1046,8 +1048,10 @@ class SamenMetenThings:
         expand = ''
         if 'location' in properties: expand = "&$expand=locations($select=location)"
         if 'sensors' in properties:
-            if expand: expand += ",datastreams($select=name,id,unitOfMeasurement)"
-            else: expand = "&$expand=datastreams($select=name,id,unitOfMeasurement)"
+            if expand: expand += ",datastreams($select=name,id)"
+            else: expand = "&$expand=datastreams($select=name,id)"
+            if Status or self.ProductID:
+                expand = expand[:-1] + ',unitOfMeasurement)' # get measurement symbol
         url += expand
         try:
             data = self._execute_request(url)
@@ -1061,13 +1065,15 @@ class SamenMetenThings:
             info = dict(); name = None
             if self.Verbose:                                   # teatime music
                 nr += 1
-                self._Verbose(f"(of stations {station.get('name','unknown')} (gem. {GemCode})", f"Collect info nr {nr} of {len(data)}",1)
+                self._Verbose(f"station nr {nr} of {len(data)}", f"Collect info for {station.get('name','unknown')} (gem. {GemCode})",1)
             for item, value in station.items():
                 if item == '@iot.id': info['@iot.id'] = value
                 elif item == 'name':
                     if 'name' in select and Select:            # filtering station names
                         if not Select.match(value):
                             info = dict()                      # skip this station
+                            if self.Verbose:
+                                self._Verbose(f"station nr {nr} of {len(data)} not selected", f"Skip {station.get('name','unknown')})",3)
                             break
                     name = value
                 elif item == 'Locations' and type(value) is list and len(value):
@@ -1089,16 +1095,19 @@ class SamenMetenThings:
                         info['sensors'][sensor] = None
                         if Sensors and Sensors.match(sensor):  # is station sensor of interest?
                             fnd = True
-                            if Status and item.get('@iot.id'): # baskit for sensor status query
+                            if item.get('@iot.id'): # baskit for sensor status query
                                 info['sensors'][sensor] = {'@iot.id': item.get('@iot.id')}
-                    if not fnd:                                # no sensor of interest skip station
+                                if (symbol := item.get('unitOfMeasurement')):
+                                    if (symbol := symbol.get('symbol')):
+                                            info['sensors'][sensor]['symbol'] = symbol
+                    if not fnd:                                # no sensor of interest
                         if not info.get('sensors'): info = dict()
                         break
                     else: selected += 1
 
             if len(info) and name: stations[name] = info.copy() # else skip station
 
-        self._Verbose(f"selected {len(data)} stations. {selected} stations with selected sensor observations.", f"Stations in {GemCode}",2)
+        self._Verbose(f"collected {len(data)} stations. Selected {selected} stations with selected sensor observations.", f"Stations in {GemCode}",2)
         if selected > 100:
             self._Verbose(f"{len(data)} stations!. Try to limit it via Sensors and/or station Select filter!", f"Attention nr of stations in {GemCode}",0)
         if not len(stations):
@@ -1130,7 +1139,7 @@ class SamenMetenThings:
     # returns    timestamp (ISO UTC) last observation record, first or only record count.
     #            Count: add number of observations for this sensor in the Start-End period.
     # routine can take about 10-15 secs to run
-    def _SensorStatus(self, Iotid: Union[int,str], Status=None, Start=None, End=None) -> dict:
+    def _SensorStatus(self, Iotid:Union[int,str], Status:Union[bool,str]=None, Start:Any=None, End:Any=None) -> dict:
         """ get Sensor Status for timestamp first/last/both and record count"""
         # if None overwrite with class initialisation values
         if not Start: Start = self.Start   # None is from start observations
@@ -1139,8 +1148,10 @@ class SamenMetenThings:
         End = ISOtimestamp(End) if End else None
 
         if Status is False: return {}
-        result = {}; timestamp = 'phenomenonTime'
-        if Status in ['first','last']:         # try to save on bandwidth and memory
+        result = {}
+        if Status in ['first','last','product']:   # try to save on bandwidth and memory
+            if Status == 'product': return self._ProductID(Iotid)
+            timestamp = 'phenomenonTime'
             select = f'&$select={timestamp}'
             select += f"&$orderby={timestamp} {'asc' if Status == 'first' else 'desc'}"
             filtering = ''
@@ -1160,22 +1171,24 @@ class SamenMetenThings:
             return result
         if self.Threading:                         # use multi threading
             results = dict()
-            with MyWorkers(WorkerNames='SensorStatus', MaxWorkers=2, Timing=(self.Verbose > 2)) as workers:
+            with MyWorkers(WorkerNames='SensorStatus', MaxWorkers=3, Timing=(self.Verbose > 2)) as workers:
                 workers.Submit(f'Sensor IoT {str(Iotid)} first',self._SensorStatus,Iotid,Status='first',End=End,Start=Start)
                 workers.Submit(f'Sensor IoT {str(Iotid)} last',self._SensorStatus,Iotid,Status='last',End=End,Start=Start)
+                workers.Submit(f'Sensor IoT {str(Iotid)} product',self._SensorStatus,Iotid,Status='product')
                 results = workers.Wait4Workers()   # wait for results, using different baskits
                 if workers.Timing:
-                    self._Verbose(f"total time {round(workers.Timing,1)}.",f"sensor  {str(Iotid)} sensor status timing",3)
+                    self._Verbose(f"thread '{workers.WorkerNames}' total time {round(workers.Timing,1)}.",f"Sensor @iot.id '{str(Iotid)}' sensor status timing",3)
             for name, value in results.items():    # handle info about work done, synchronize results
                 if not value.get('timing',None) is None:
-                    self._Verbose(f"{round(value.get('timing'),1)} seconds.",f"Timing {name}",4)
+                    self._Verbose(f"{round(value.get('timing'),1)} seconds",f"Timing get {name}",4)
                 if value.get('except',False): raise value.get('except')
                 elif type(value.get('result',False)) is dict:
-                    value.update(value.get('result'))
+                    result.update(value.get('result'))
                 else: raise ValueError("No records found for sensor {str(Iotid)}.")
         else:
             result.update(self._SensorStatus(Iotid,Status='first', Start=Start,End=End))
             result.update(self._SensorStatus(Iotid,Status='last', Start=Start,End=End))
+            result.update(self._SensorStatus(Iotid,Status='product'))
         return result                              # empty dict: no records found
     #
     # test: _SensorStatus(sensor IotID) ->
@@ -1187,7 +1200,7 @@ class SamenMetenThings:
     #            [{"phenomenonTime":"2024-04-25T03:00:00.000Z","result": 1004.5,}, ...]
     # parameters Things dict with data, select column timestamp and value (list or string)
     # returns    Pandas dataframe: indexed by ascending timestamp in Pandas date format
-    def _ThingsToDataframe(self, Data: dict, Timestamp="phenomenonTime", ValueCols=["result"]) -> Union[pd.core.frame.DataFrame,None]:
+    def _ThingsToDataframe(self, Data:dict, Timestamp:str="phenomenonTime", ValueCols:list=["result"]) -> Union[pd.core.frame.DataFrame,None]:
         """_ThingsToDataframe: cleanup an observations dataframe"""
         if not type(Data) is list and len(Data) < 1: return None
         if type(ValueCols) is str: ValueCols = [x.strip() for x in ValueCols.split(',')]
@@ -1211,7 +1224,7 @@ class SamenMetenThings:
     #            dataframe index Timestamp (dflt phenomenonTime), column names Result ["result"]
     #            if Data is defined: observations dataframe will be returned in Data[Key].
     # Reminder: pm25_kal, pm10_kal etc. may be lacking and completed later on (granularity is 1H)
-    def get_ThingsObservations(self, Iotid: int, Start=None, End=None, Timestamp="phenomenonTime", Result=["result"],Data=None,Key=None) -> Union[pd.core.frame.DataFrame,None]:
+    def get_ThingsObservations(self, Iotid:int, Start:Any=None, End:Any=None, Timestamp:str="phenomenonTime", Result:list=["result"],Data:Any=None,Key:Any=None) -> Union[pd.core.frame.DataFrame,None]:
         """get_ThingsObservations: get observations of a Things sensor into dataframe"""
         if not Key: Key = Iotid
         # if None overwrite with class initialisation values
@@ -1362,7 +1375,7 @@ class SamenMetenThings:
     # =============== routine _Addresses() will use multi threading
     # complete dict with stationName: [GPSlocation, optional distance, ] with humanised address
     # use multi threading if needed
-    def _Addresses(self, Neighbours: Dict[str,list]) -> None:
+    def _Addresses(self, Neighbours:Dict[str,list]) -> None:
         if self.Threading and len(Neighbours) > 1:
             workers = MyWorkers('neighbour addresses',
                 #MaxWorkers=min(len(Neighbours),4),Timing=(self.Verbose > 2))
@@ -1379,7 +1392,7 @@ class SamenMetenThings:
                 if result.get('except'):
                   logging.warning(f"Address for {str(name)} raised exception {str(result.get('except'))}")
             if workers.Timing:
-                self._Verbose(f"{workers.Timing:.1f} seconds.","Get stations addresses timing (total elapsed time)",3)
+                self._Verbose(f"thread '{workers.WorkerNames}' total timing {workers.Timing:.1f} seconds.","Get stations addresses",3)
             workers.Shutdown()                                  # close workers pool
     #
     # test: _Addresses({'LTD_68263': [(6.099,51.447),], 'OHN_gm-2135': [...],...} ->
@@ -1413,7 +1426,7 @@ class SamenMetenThings:
     #                 {'@iot.id':ID,'last':ISOstamp, 'first':ISOstamp, 'count': nr:int}}}, ...)
     # Routine can be used in cluster detection?
     #def get_Neighbours(self,Point:Union[str,List[float]],Range=200.0,SRID=4326,Max=100,Select=None) -> Dict[str,tuple[List[float,float],int]]:
-    def get_Neighbours(self,Point:Union[str,List[float]],Range=None,Max=50,Select=None, Address=None) -> Dict[str,tuple]:
+    def get_Neighbours(self,Point:Union[str,List[float]],Range:int=None,Max:int=50,Select:str=None, Address:bool=None) -> Dict[str,tuple]:
         """get_Neighbours within a region opf N meters from Point"""
         if Range is None: Range = self.Range
         if Range is None: return {}
@@ -1530,7 +1543,7 @@ class SamenMetenThings:
     #        Datastreams(@iot.id sensor)/Observations/?$count=true&$select={Timestamp}&$orderby={Timestamp} asc&$top=1
     #        Datastreams(@iot.id sensor)/Observations/?$count=true&$select={Timestamp}&$orderby={Timestamp} desc&$top=1
     # Reminder: @iot.id's have limited Time To Live, they may change in time!
-    def get_StationInfo(self, Name: str, Address=None, ProductID=None, Neighbours=None, Sensors=None, Start=None, End=None) -> Dict:
+    def get_StationInfo(self, Name:str, Address:bool=None, ProductID:bool=None, Neighbours:bool=None, Sensors:str=None, Start:Any=None, End:Any=None) -> Dict:
         """get_StationInfo meta info about station Name optional with: Address, Product ID,
            Neighbours (default region), sensor Status (record count, timestamps first/last.
            External info requests are done (default) via multi threading.
@@ -1666,7 +1679,7 @@ class SamenMetenThings:
         if workers:
             results = workers.Wait4Workers()
             if workers.Timing:
-                self._Verbose(f"{round(workers.Timing,1):.1f} seconds.",f"Station {Name} timing external requests",3)
+                self._Verbose(f"thread '{workers.WorkerNames}' total timing {round(workers.Timing,1):.1f} seconds.",f"Station {Name} external requests",3)
             workers.Shutdown()
             for name, result in results.items():
                 if result.get('timing',False):
@@ -1754,7 +1767,7 @@ class SamenMetenThings:
     #         in ISO timestamp format, column sensor names humanised? if defined.
     #         e.g. 'pm25_kal' -> 'PM2.5 (gekalibreerd) ug/m3 (SPS30)' or 'pres' -> 'press hPa'
     #         ProductID, Address, sensor status, Humanise are typed Union[None,bool]
-    def get_StationData(self, Name: str, ProductID=None, Address=None, Humanise=None, Start=None, End=None, Sensors=None, Neighbours=None, Status=None, Utf8=None) -> Dict[str,Any]:
+    def get_StationData(self, Name:str, ProductID:bool=None, Address:bool=None, Humanise:bool=None, Start:Any=None, End:Any=None, Sensors:str=None, Neighbours:bool=None, Status:bool=None, Utf8:bool=None) -> Dict[str,Any]:
         """get_Station_Data: station meta info as dict, Things observations as Pandas dataframes.
            Things website observation requests are done with multi threading ON (default).
            Optional info for: manufacturer sensor id, location Address, Neigbour stations,
@@ -1774,7 +1787,7 @@ class SamenMetenThings:
         if Utf8      is None: Utf8 = self.UTF8       # sensor name in UTF8
 
         dataframes = OrderedDict()                   # observations per ordered Sensors
-        def MetaLoading(Data=None) -> None:
+        def MetaLoading(Data:dict=None) -> None:
             if Data is None: Data = {}
             Data.update(self.get_StationInfo(Name, Address=Address,
                       ProductID=ProductID, Neighbours=Neighbours))
@@ -1860,7 +1873,7 @@ class SamenMetenThings:
             self._Verbose(f"get observations from sensor {sensor}",f"Station {Name}",1)
             results = workers.Wait4Workers()  # pick up work done info (timing, events)
             if workers.Timing:
-                self._Verbose(f"total time {round(workers.Timing,1)}.",f"Station {Name} sensor observations timing",3)
+                self._Verbose(f"thread '{workers.WorkerNames}' total time {round(workers.Timing,1)}.",f"Station {Name} sensor observations",3)
             workers.Shutdown()
             # sorted as sensor names are ordered list -> list[tuple[str,dict], ...]
             for work in sorted(results.items(), key=lambda item: item[1]['nr']):
