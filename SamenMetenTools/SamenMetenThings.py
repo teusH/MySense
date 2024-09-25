@@ -66,7 +66,7 @@ get_StationData(Name: str, ProductID=None, Address=None, Humanise=None, Start=No
 # TO DO: docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.17 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.18 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -1061,7 +1061,7 @@ class SamenMetenThings:
             info = dict(); name = None
             if self.Verbose:                                   # teatime music
                 nr += 1
-                self._Verbose(f"(of stations {station.get('name','unknown')} (gem. {GemCode})", f"Collect info nr {nr} of {len(data}",1)
+                self._Verbose(f"(of stations {station.get('name','unknown')} (gem. {GemCode})", f"Collect info nr {nr} of {len(data)}",1)
             for item, value in station.items():
                 if item == '@iot.id': info['@iot.id'] = value
                 elif item == 'name':
