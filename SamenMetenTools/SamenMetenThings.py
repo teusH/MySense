@@ -66,7 +66,7 @@ get_StationData(Name:str, ProductID=None, Address=None, Humanise=None, Start=Non
 # TO DO: docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.19 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 3.21 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -879,17 +879,35 @@ class SamenMetenThings:
         self.Sema_Observe =  Semaphore(1)       # semaphores needed with threading
         return None
 
+    # create if needed a regular expression
+    def _RegExp(self, pattern:Union[str,re.Pattern]) -> re.Pattern:
+        if not pattern or type(pattern) is re.Pattern: return pattern
+        if type(pattern) is str:                # e.g. 'pm(25|10),no?' or 'pm25,pm10,no2'
+            if pattern.find(',') > 0:
+                pattern = '('+'|'.join(x.strip() for x in pattern.split(',')])+')'
+            pattern = '^'+ pattern +'$'         # match full pattern
+        return re.compile(pattern)
+
     # collect sensor operational info (first/last timestamp in a period and count)
     # push results in sensor dict baskit, period: Start/None-End/None. 
     # this can take a while ... 2 X nr of sensors * ca 15 seconds if not parallel
     # add status of sensors per station. This is time consuming!
     def _AddSensorsStatus(self, Station:str, Sensors:dict, Start:Any=None, End:Any=None) -> None:
+        """ _AddSensorsStatus: add sensor details first, last, count, unit, product id
+        to sensors dict. Is multi threaded. This operation can take a while."""
+
+        # if None overwrite with class initialisation values
+        if not Start: Start = self.Start        # None is from start observations
+        Start = ISOtimestamp(Start) if Start else None
+        if not End:   End = self.End            # None is observations till recent
+        End = ISOtimestamp(End) if End else None
+
         if not type(Sensors) is dict or not len(Sensors): return None
         baskits = 0
         for _ in Sensors.values():
             if _ and _.get('@iot.id'): baskits += 1
-        if not self.Threading or baskits == 1:      # no multi threading
-            for sensor,baskit in Sensors.items():   # work to do?
+        if not self.Threading or baskits == 1:  # no multi threading
+            for sensor,baskit in Sensors.items(): # work to do?
                 if type(baskit) is dict and baskit.get('@iot.id'):
                     Sensors[sensor].update(self._SensorStatus(baskit.get('@iot.id'), Start=Start,End=End))
             return None
@@ -900,7 +918,7 @@ class SamenMetenThings:
                 if type(baskit) is dict and baskit.get('@iot.id'):
                     workers.Submit(f'{Station} {sensor} first',self._SensorStatus,baskit.get('@iot.id'),Status='first', Start=Start, End=End)
                     workers.Submit(f'{Station} {sensor} last ',self._SensorStatus,baskit.get('@iot.id'),Status='last', Start=Start, End=End)
-                    if baskit.get('symbol'):  # need to add sensor product ID
+                    if baskit.get('symbol'):    # need to add sensor product ID
                         workers.Submit(f'{Station} {sensor} product',self._ProductID,baskit.get('@iot.id'))
             results = workers.Wait4Workers()
             if workers.Timing:
@@ -914,10 +932,93 @@ class SamenMetenThings:
                 try:
                     station, sensor = name.split(' ')[:2]
                     Sensors[sensor].update(value.get('result'))
-                    # if Sensors[sensor].get('@iot.id'): # short lifetime, cleanup 
-                    #    del Sensors[sensor]['@iot.id']
                 except: raise ValueError(f"Station {station} sensor status error.")
             else: raise ValueError("Error in sensors status request for station {station}.")
+
+    # add sensor status for each station in stations dict
+    def get_SensorStatus(self, Stations:dict, Start=None, End=None) -> None:
+        """get_SensorStatus add sensor details of a dict(stations:dict() (multi threaded)"""
+        for station,info in Stations.items():
+            if (sensors := info.get('sensors',{})) and len(sensors):
+                # next takes 15-90 secs per sensor, the thread ca 70 secs for all sensors
+                self._AddSensorsStatus(station, sensors, Start=Start,End=End)
+
+    # for a region with id:str as eg @iot.id, gemCode, municipality name, station name
+    # from a list of stations get details as addresses, sensor details, etc.
+    # convert Things inquiry results to internal Samen Meten Tools format: dict with stations.
+    # parameters: Region: name of region, Select: reg expr to filter station names
+    #         Data: list of dicts from Things data request
+    #               [{iot:Union[str,int],name:str,Locations:{location:{coordinates:[]}},
+    #                 Datastreams:[{name:"???-sensorName"},...] -> { stationName: {} ...}
+    #         Sensors str or reg exp: sensors to select,
+    #         Select str or reg expt to filter station names
+    #         PropSelect list of station properties e.g. owner, project, gemcode, ...
+    # returns dict(station names: dict with @iot.id's and Samen Meten Tools internal format)
+    def get_StationsInfo(self,Region:Union[int,str],Data:List[dict],Sensors:Union[str,re.Pattern]=None,Select:Union[str,re.Pattern]=None, PropSelect:List[str]=[]) -> dict:
+        """get_StationsInfo info details for list of stations for a Region, from list Data,
+        filtered by reg exp Select"""
+
+        if Sensors: Sensors = self._RegExp(Sensors)
+        if Select: Select = self._RegExp(Select)
+        stations = dict(); selected = 0; nr = 0
+ 
+        for station in Data:
+            info = dict(); name = None
+            if self.Verbose:                                   # teatime music
+                nr += 1
+                if self.Verbose:
+                    self._Verbose(f"station nr {nr} of {len(Data)}", f"Collect info for {station.get('name','unknown')} (region {str(Region)})",3)
+            for item, value in station.items():
+                if item == '@iot.id': info['@iot.id'] = value
+                elif item == 'name':
+                    if Select and not Select.match(value):     # filtering station names
+                        info = dict()                          # skip this station
+                        if self.Verbose:
+                            self._Verbose(f"station nr {nr} of {len(Data)} not selected", f"Skip {station.get('name','unknown')})",2)
+                        break
+                    name = value
+                elif item == 'Locations' and type(value) is list and len(value):
+                    for v in value:                            # list of locations (only one)
+                      if v.get('location', None):              # limit to only first location
+                        if v.get('location').get('coordinates') and v.get('location'):
+                          if v.get('location').get('coordinates')[:2]:
+                            info['location'] = [tuple(v.get('location').get('coordinates')[:2])]
+                            break
+                elif item == 'properties' and type(value) is dict:
+                    for n in PropSelect:
+                        if (v := value.get(n)): info[n] = v
+                elif item == 'Datastreams' and type(value) is list:
+                    fnd = False
+                    for item in value:
+                        if not type(item) is dict: continue
+                        sensor = item.get('name','-').split('-')[-1] # assert len > 0
+                        if not info.get('sensors'): info['sensors'] = dict()
+                        info['sensors'][sensor] = None
+                        if Sensors and Sensors.match(sensor):  # is station sensor of interest?
+                            fnd = True
+                            if item.get('@iot.id'): # baskit for sensor status query
+                                info['sensors'][sensor] = {'@iot.id': item.get('@iot.id')}
+                                if (symbol := item.get('unitOfMeasurement')):
+                                    if (symbol := symbol.get('symbol')):
+                                            info['sensors'][sensor]['symbol'] = symbol
+                    if not fnd:                                # no sensor of interest
+                        if not info.get('sensors'): info = dict()
+                        break
+                    else: selected += 1
+
+            if len(info) and name: stations[name] = info.copy() # else skip station
+
+        if self.Verbose:
+            if not len(stations):
+                self._Verbose(f"Unable to identify stations",f"Municipality name or region '{Region}'",1)
+                return None
+            else:
+                self._Verbose(f"selected {selected} (of {len(Data)}) stations with sensor observations.", f"Stations in {Region}",1)
+        return dict(sorted(stations.items()))  # clustering: use geohash of GPS as sort key?
+    #
+    # test: get_StationsInfo('IJmond',Data:list of dicts,Select=filter with '.*',) ->
+    #       dict(stationName: {'@iot.id': ID, 'location':[(float,float),],
+    #        'sensors': { sensor:str : {'@iot.id': int, 'symbol': str}, ... },}, ...)
 
     # ======== ROUTINE get_MunicipalityStations()
     # https://api-samenmeten.rivm.nl/v1.0/Things?$select=id,name&$filter=properties/codegemeente eq '984'
@@ -968,31 +1069,16 @@ class SamenMetenThings:
     # Returns list with station names optional with Things station IotID.
     #       or as dict with key station name: dict: '@iot.id';, 'owner', 'project',
     #       'location': list with GPS tuple and address[str].'sensors': list of supported sensor names.
-    def get_MunicipalityStations(self,GemCode:Union[int,str], By:str="id,name", Select:str=None, Sensors=None, Status=None, Start=None, End=None) -> Union[list,dict]:
+    def get_MunicipalityStations(self,GemCode:Union[int,str], By:str="id,name", Select:Union[str,re.Pattern]=None, Sensors:Union[str,re.Pattern]=None, Status=None, Start=None, End=None) -> Union[list,dict]:
         """get_MunicipalityStations: get stations within a municipality and
            dict with required properties: iot.id, owner, project,
            location (with address), sensors.
            Filter stations on avaialble sensor types."""
 
-        # sort dict with geohash (type of clustering) and add humanised location to GPS
-        def AddAddresses(stations:dict) -> dict:
-            addresses = dict()                     # could be an OrderedDict()
-            for n,v in stations.items():           # get locations ready for baskit values
-                if not (location :=  v.get('location')): continue
-                if type(location) is list and len(location) > 0 and type(location[0]) is tuple:
-                    addresses[n] = v['location']
-            # try to cluster station locations, so cache works better
-            addresses = dict(sorted(addresses.items(), key=lambda x: geohash(x[1][0])))
-            self._Addresses(addresses)             # query for Open Street Map: can take a while
-            for n,v in addresses.items():
-                stations[n]['location'] = v
-            return stations
-
         # convert comma separated string to reg exp for sensors type filtering
         if Sensors is None: Sensors = self.Sensors
-        if type(Sensors) is str and Sensors.find(',') > 0:
-            Sensors = [x.strip() for x in Sensors.split(',')]
-            Sensors = '('+'|'.join(Sensors)+')'
+        Sensors = self._RegExp(Sensors)
+        Select  = self._RegExp(Select)
         # handle list of GemCode's. Some municipalities were recently clustered.
         if type(GemCode) is str and GemCode.find(',') > 0:
             return self.get_MunicipalityStations([x.strip() for x in GemCode.split(',')], By=By, Select=Select, Sensors=Sensors)
@@ -1002,11 +1088,6 @@ class SamenMetenThings:
                 station = self.get_MunicipalityStations(gemcode, By=By, Select=Select, Sensors=Sensors)
                 stations.update(station)
             return stations
-        # if None overwrite with class initialisation values
-        if not Start: Start = self.Start   # None is from start observations
-        Start = ISOtimestamp(Start) if Start else None
-        if not End:   End = self.End       # None is observations till recent
-        End = ISOtimestamp(End) if End else None
 
         gemcode = None                          # prepair website Things query
         if type(GemCode) is str and GemCode.find('_') > 0:
@@ -1034,13 +1115,9 @@ class SamenMetenThings:
             else: properties.append(item)      # extra info of interest
         if not 'sensors' in properties:
             if Sensors: properties.append('sensors')
-            else: Sensors = '.*'               # report all supported sensors names of station
-        if Sensors: Sensors = re.compile('^'+Sensors+'$') # filter on sensor types in station
-        if Select: Select = re.compile(Select) # filter on station names
+            else: Sensors = self._RegExp('.*') # report all supported sensors names of station
 
-        if len(select) != 1: select = ['name'] # station name has priority
-        select = set(select + ['name'])
-        #if properties: select.append('properties')
+        select = set(select + ['name','id'])   # always select on name and @iot.id
         if 'address' in properties and not 'location' in properties: properties.append('location')
         properties = set(properties)
         
@@ -1058,81 +1135,42 @@ class SamenMetenThings:
             data = sorted(data, key=lambda station: station['name'])  # To Do: cluster sort
         except: return None
 
-        # convert: [{iot:Union[str,int],name:str,Locations:{location:{coordinates:[]}},
-        #           Datastreams:[{name:"???-sensorName"},...] -> { stationName: {} ...}
-        stations = dict(); selected = 0; nr = 0
-        for station in data:
-            info = dict(); name = None
-            if self.Verbose:                                   # teatime music
-                nr += 1
-                self._Verbose(f"station nr {nr} of {len(data)}", f"Collect info for {station.get('name','unknown')} (gem. {GemCode})",1)
-            for item, value in station.items():
-                if item == '@iot.id': info['@iot.id'] = value
-                elif item == 'name':
-                    if 'name' in select and Select:            # filtering station names
-                        if not Select.match(value):
-                            info = dict()                      # skip this station
-                            if self.Verbose:
-                                self._Verbose(f"station nr {nr} of {len(data)} not selected", f"Skip {station.get('name','unknown')})",3)
-                            break
-                    name = value
-                elif item == 'Locations' and type(value) is list and len(value):
-                    for v in value:                            # list of locations (only one)
-                      if v.get('location', None):              # limit to only first location
-                        if v.get('location').get('coordinates') and v.get('location'):
-                          if v.get('location').get('coordinates')[:2]:
-                            info['location'] = [tuple(v.get('location').get('coordinates')[:2])]
-                            break
-                elif item == 'properties' and type(value) is dict and len(value):
-                    for n,v in value.items():
-                        if n in stationProps: info[n] = v
-                elif item == 'Datastreams' and type(value) is list:
-                    fnd = False
-                    for item in value:
-                        if not type(item) is dict: continue
-                        sensor = item.get('name','-').split('-')[-1] # assert len > 0
-                        if not info.get('sensors'): info['sensors'] = dict()
-                        info['sensors'][sensor] = None
-                        if Sensors and Sensors.match(sensor):  # is station sensor of interest?
-                            fnd = True
-                            if item.get('@iot.id'): # baskit for sensor status query
-                                info['sensors'][sensor] = {'@iot.id': item.get('@iot.id')}
-                                if (symbol := item.get('unitOfMeasurement')):
-                                    if (symbol := symbol.get('symbol')):
-                                            info['sensors'][sensor]['symbol'] = symbol
-                    if not fnd:                                # no sensor of interest
-                        if not info.get('sensors'): info = dict()
-                        break
-                    else: selected += 1
+        # convert Things format to internal Tools format
+        stations = self.get_StationsInfo(GemCode,data,Select=Select,Sensors=Sensors,PropSelect=stationProps)
 
-            if len(info) and name: stations[name] = info.copy() # else skip station
+        # no extra info required, return list of station tuples: station name,@iot.id
+        if not properties:
+            return [(n,v.get('@iot.id')) for n,v in stations.items()]
 
-        self._Verbose(f"collected {len(data)} stations. Selected {selected} stations with selected sensor observations.", f"Stations in {GemCode}",2)
-        if selected > 100:
-            self._Verbose(f"{len(data)} stations!. Try to limit it via Sensors and/or station Select filter!", f"Attention nr of stations in {GemCode}",0)
-        if not len(stations):
-            self._Verbose(f"Unable to identify stations by {By}",f"Municipality name or id '{GemCode}'",1)
-            return None
-
-        if not properties:                 # case list of stations: names or @iot.id's
-            if '@iot.id' in select:
-                return [v.get('@iot.id') for n,v in stations.items()]
-            return [n for n in stations.keys()]
-        # add sensor status. This can take a Things while.
-        if Status:
-            for station,info in stations.items():
-                if len(info.get('sensors',{})):
-                    self._AddSensorsStatus(station,info.get('sensors'), Start=Start, End=End)
-        # to do: if not By.find('id') >=0: del info['sensors'][all sensor][@iot.id]
-        # { stationName:str: { @iot.id[str]:str,int, location: [(),address], sensors:[str,...]}
+        if not stations: return {}
+        # it is teatime from here. Next can take a while.
         # add addresses. This takes a small StreetMap while.
-        if 'address' in properties: return AddAddresses(stations) # ordered by geohash
-        return dict(sorted(stations.items()))  # clustering: use geohash of GPS as sort key?
+        if 'address' in properties: # teatime: 1-4 seconds per address, thread 9 secs
+            if len(stations) > 100 and not Status:
+                self._Verbose(f"{len(stations)} stations!. This can take a while. Try to limit it with station selection filter!", f"Attention nr of stations in {Region} region",0)
+            stations = self.AddAddresses(stations)  # will now be ordered by geohash clustering
+
+        # add sensor status. This can take a Things while.
+        if Status:   # add sensors details: first/last/count/unit/ID
+            if len(stations) > 100:
+                self._Verbose(f"{len(stations)} stations!. This can take a while. Try to limit it with station selection filter!", f"Attention nr of stations in {Region} region",0)
+                     # teatime: 15-75 seconds per sensor, thread 30-70 secs per station
+            self.get_SensorStatus(stations, Start=Start, End=End)
+
+        # to do: if not By.find('id') >=0: del info['sensors'][all sensor][@iot.id]
+        # warning: @iot.id (Things internal key number) may change in time!
+        # { stationName:str: { @iot.id[str]:str,int, location: [(),address], sensors:[str,...]}
+        return stations
     #
-    # test: get_MunicipalityStations(984,Status=True) ->
-    #       dict(stationName: {'@iot.id': ID, 'location':[(float,float), address:str ],
-    #            'sensors': { sensor:
-    #                 {'@iot.id':ID,'last':ISOstamp, 'first':ISOstamp, 'count': nr:int}}}, ...)
+    #  returns e.g.: {'GLBPB_033-030': {'owner': 'Globe', 'project': 'Palmes', '@iot.id': 1234,
+    #     'location': [(5.725, 51.721), 'Zandvoortschestraat, Langenboom, gem. Land van Cuijk, prov. Noord-Brabant'],
+    #      'sensors': {'no2': {'@iot.id': 45582, 'symbol': 'ug/m3', 'product': 'Palmes buisje'}}},
+    #       'LTD_60047': {'owner': 'Luftdaten', 'project': 'Luftdaten', '@iot.id': 1324,
+    #        'location': [(5.842, 51.644), 'Lamperen, Wanroij, gem. Land van Cuijk, prov. Noord-Brabant'],
+    #        'sensors': {'pres': None, 'rh': None, 'temp': None,
+    #                    'pm10': {'@iot.id': 37489, 'symbol': 'ug/m3', 'product': 'Nova SDS011', 'first': '2022-04-26T04:00:00.000Z', 'count': 2937, 'last': '2022-12-23T16:00:00.000Z'},
+    #                    'pm25': {'@iot.id': 34877, 'symbol': 'ug/m3', 'product': 'Nova SDS011', 'last': '2022-12-23T16:00:00.000Z', 'count': 2937, 'first': '2022-04-26T04:00:00.000Z'}}
+    #          },...}
 
     # =========== routine _SensorStatus(@iot.id)   uses multi threading
     # parameters Things datastream IoT.id, Period ('last' or 'first' or None: records count)
@@ -1372,10 +1410,24 @@ class SamenMetenThings:
             self.Addresses[location]['baskits'].append(Baskit) # worker completes address later
         Workers.Submit(f'{location}',self.AddressDone,StreetMap,location) # start worker
         
-    # =============== routine _Addresses() will use multi threading
+    # =============== routine AddAddresses() will use multi threading
+    # sort dict with geohash (type of clustering) and add humanised location to GPS
+    def AddAddresses(self,stations:dict) -> dict:
+        addresses = dict()                     # could be an OrderedDict()
+        for n,v in stations.items():           # get locations ready for baskit values
+            if not (location :=  v.get('location')): continue
+            if type(location) is list and len(location) > 0 and type(location[0]) is tuple:
+                addresses[n] = v['location']
+        # try to cluster station locations, so cache works better
+        addresses = dict(sorted(addresses.items(), key=lambda x: geohash(x[1][0])))
+        self._GetAddresses(addresses)             # query for Open Street Map: can take a while
+        for n,v in addresses.items():
+            stations[n]['location'] = v
+        return stations
+
     # complete dict with stationName: [GPSlocation, optional distance, ] with humanised address
     # use multi threading if needed
-    def _Addresses(self, Neighbours:Dict[str,list]) -> None:
+    def _GetAddresses(self, Neighbours:Dict[str,list]) -> None:
         if self.Threading and len(Neighbours) > 1:
             workers = MyWorkers('neighbour addresses',
                 #MaxWorkers=min(len(Neighbours),4),Timing=(self.Verbose > 2))
@@ -1395,7 +1447,7 @@ class SamenMetenThings:
                 self._Verbose(f"thread '{workers.WorkerNames}' total timing {workers.Timing:.1f} seconds.","Get stations addresses",3)
             workers.Shutdown()                                  # close workers pool
     #
-    # test: _Addresses({'LTD_68263': [(6.099,51.447),], 'OHN_gm-2135': [...],...} ->
+    # test: _GetAddresses({'LTD_68263': [(6.099,51.447),], 'OHN_gm-2135': [...],...} ->
     #       {'NL1234': [(6.123,51.123),120.5,"Hoogheide 10, Lottum, gem. Venray", ...}
 
     # ==================== routine get_Neighbours() may use multi threading for Address
@@ -1425,7 +1477,6 @@ class SamenMetenThings:
     #            'sensors': { sensor:
     #                 {'@iot.id':ID,'last':ISOstamp, 'first':ISOstamp, 'count': nr:int}}}, ...)
     # Routine can be used in cluster detection?
-    #def get_Neighbours(self,Point:Union[str,List[float]],Range=200.0,SRID=4326,Max=100,Select=None) -> Dict[str,tuple[List[float,float],int]]:
     def get_Neighbours(self,Point:Union[str,List[float]],Range:int=None,Max:int=50,Select:str=None, Address:bool=None) -> Dict[str,tuple]:
         """get_Neighbours within a region opf N meters from Point"""
         if Range is None: Range = self.Range
@@ -1443,35 +1494,36 @@ class SamenMetenThings:
         if len(location[:2]) != 2: raise ValueError(f"No GPS coordinates for {Point}.")
         location = (min(location[:2]),max(location[:2])) # MET coordinate zone
         url = f"/Locations?$top={Max+1}&$filter=geo.distance(location, geography'SRID={SRID};POINT({' '.join([f'{x:.5f}' for x in location])})') le {Range/100000.0:.4f}&$select=name,location"
-        neighbours = {}
         try:
-            stations = self._execute_request(url)
-            if len(stations) > Max:
-                self._Verbose(f"has more as {Max} neighbours (increase Max)",f"Location {Point}.",-1)
-            self._Verbose(f"Found cluster with {len(stations)} stations.",f"Location {Point}{' '+str(location) if name else ''}",4)
-            if type(stations) is list:
-                for item in stations:
-                    # Things names are mostly prepended with type location name
-                    _ = item['name'].replace('loc-name-','') # why is this prepended?
-                    #if name == _: continue                  # excl point station name
-                    # Select defines reg. expression to select from neigbours stations.
-                    if type(Select) is str and not re.match(Select,_): continue
-                    if tuple(item['location']['coordinates'][:2]) == location:
-                       self._Verbose(f"has same GPS ordinates with {'station' if name else 'point'} {Point}",f"Station {_}",6)
-                    neighbours[_]=tuple(item['location']['coordinates'][:2]) # or as string?
-                # add distance to item value. And sort ascending of distances
-                for N,L in neighbours.items():               # to do: add geohash?
-                    # [(lon,lat),meters to Point,humanised address]
-                    try: neighbours[N] = [L,GPSdistance(location,L)]  # L is hashable?
-                    except: neighbours[N] = [L,None]
-                # only Max neighbours nearby Point station
-                neighbours = OrderedDict(sorted(neighbours.items(),key=lambda x:(Range if x[1][1] is None else x[1][1]),reverse=False)[:Max])
-                self._Verbose(f"Selected {len(neighbours)} {('(incl '+name+') ') if name else ''}neighbouring stations.",f"{'Station' if name else 'Point'} {Point}",3)
-                if Address or self.Humanise: self._Addresses(neighbours)
-                return neighbours
+            neighbours = self._execute_request(url)
         except Exception: pass
-        self._Verbose(f"no neighbours found.",f"Location {Point}",1)
+        if not type(neighbours) is list or not len(neighbours):
+            self._Verbose(f"no neighbours found.",f"Location {Point}",1)
         return {}
+        if len(neighbours) > Max:
+            self._Verbose(f"has more as {Max} neighbours (increase Max)",f"Location {Point}.",-1)
+        self._Verbose(f"Found cluster with {len(neighbours)} stations.",f"Location {Point}{' '+str(location) if name else ''}",4)
+        stations = dict()
+        for station in neighbours:
+            # Things names are mostly prepended with type location name
+            _ = station['name'].replace('loc-name-','') # why is this prepended?
+            #if name == _: continue                  # excl point station name
+            # Select defines reg. expression to select from neigbours stations.
+            if type(Select) is str and not re.match(Select,_): continue
+            if tuple(station['location']['coordinates'][:2]) == location:
+               self._Verbose(f"has same GPS ordinates with {'station' if name else 'point'} {Point}",f"Station {_}",6)
+            stations[_]=tuple(station['location']['coordinates'][:2]) # or as string?
+        # add distance to station value. And sort ascending of distances
+        for N,L in stations.items():               # to do: add geohash?
+            # [(lon,lat),meters to Point,humanised address]
+            try: stations[N] = [L,GPSdistance(location,L)]  # L is hashable?
+            except: stations[N] = [L,None]
+        # only Max neighbours nearby Point station
+        stations = OrderedDict(sorted(stations.items(),key=lambda x:(Range if x[1][1] is None else x[1][1]),reverse=False)[:Max])
+        self._Verbose(f"Selected {len(stations)} {('(incl '+name+') ') if name else ''}neighbouring stations.",f"{'Station' if name else 'Point'} {Point}",3)
+        # To Do: add station status info and sensor info?
+        if Address or self.Humanise: self._GetAddresses(neighbours)
+        return neighbours
     #
     # tests: get_Neighbours('LTD_68263' or '6.099,51.447', Range=500)
     #                -> {name: [GPS:tuple,distance:float,address:str]
@@ -1691,7 +1743,7 @@ class SamenMetenThings:
                     elif name == 'neighbours':   # addresses look up in this wokers pool
                         meta['neighbours'] = value
                         if Address:              # add addresses in separate workers pool
-                            self._Addresses(meta['neighbours'])
+                            self._GetAddresses(meta['neighbours'])
                     elif name in meta['sensors'].keys():
                         if type(value) is dict:  # should not happen
                             meta["sensors"][name].update(value)
@@ -2091,7 +2143,7 @@ Some test cases for how to use the routines:
         elif re.match('.+MunicipalityStations',test,re.I): # get all stations in a municipality
             result = SamenMetenPandasClass.get_MunicipalityStations(val,
                     Select=Tests['Select'], By=Tests['Properties'],
-                    Sensors='pm25.*', Status=True)
+                    Sensors=Tests['Sensors'], Status=True)
             print_test(test,val,result)
         elif re.match('.+Neighbours',test,re.I):       # get station names with in a range
             if not Tests['Region']: region = 200
