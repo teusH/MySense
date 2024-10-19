@@ -1,9 +1,9 @@
 # MySense Samen Meten Tools
-Last update of the README on 30 August 2024
+Last update of the README on 14th October 2024
 
 ## Description
 Python toolset to do air quaility data analistics on measurement data from low-cost stations.
-This is work in progress, inspirated by the Samen Meten Tools from Zuinige Rijder (Rick).
+This is work in progress, inspired by the Samen Meten Tools from Zuinige Rijder (Rick).
 Current (first) module is to provide a Python engine to obtain meta stations information in Python dict format and sensor observation data over a period of time in Python Pandas format for processing these website queries results by other tooling.
 
 ## Outline of modules
@@ -14,11 +14,11 @@ The routines can be called as stant alone for test purposes.
 
 The module is operating in multiprocessing modus. This gives a factor of 2-5 of speedup.
 E.g. a website query can take 2-30 seconds (usualy 15 seconds). To obtain foe one sensor of a station it takes about 2 information requests, and 1 observation requests per sensor. A station has about 4-6 sensors. A municipality has about 100 stations: 100 X (2 X 5 X 6) X 15 seconds if done sequently.
-The amound of records in one observation stream is not the main delay factor.
+The amount of records in one observation stream is not the main delay factor.
 
 The current version is in alpha status and subjected to improvementrs and extent with more or better functionality.
 
-The module consists about of 50% of documentaion and help texts. It gives a good overview of backgrounds of the website query interfaces and use.
+The module consists about of 50% of documentation and help texts. It gives a good overview of backgrounds of the website query interfaces and use.
 So read the module script!
 
 ### Things2Xlsx.py
