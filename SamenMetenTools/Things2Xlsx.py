@@ -26,10 +26,11 @@ import sys,os
 from collections import OrderedDict
 import datetime
 import subprocess                      # check time period with UNIX subprocess date
+from typing import Union,List          # if Python 3.8
 
 import SamenMetenThings as RIVM
 
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.7 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.8 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -81,36 +82,71 @@ def cell2xlsx(row:int,col:int) -> str:
 # XLSX matrix columns, sheet has name municipality
 # name     GPS ...   properties ...                 sensors (name, first, last, count)
 # station, location, [address,] [owner,] [project,] [sensor-i, first, last, count] ,...
-def Add_Stations( Municipality:str, Things=None, Period=Period) -> bool:
+def Add_Stations( Municipality:str, Things=None, Period:Union[str,List[str]]=Period) -> bool:
+    """Add_Stations(str: municipality, or list of (GPS or station ID's),
+    options Period (Start,End) may use Unix date command to get dateformat,
+    Things class (sensors,product type, human readable sensor types, sensors status (first/last, count in period)
+    create a spreadsheet sheet with station information."""
     global Sensors, Select, Expand, Workbook, Verbosity
     if Things is None:
-        Things = RIVM.SamenMetenThings(Sensors=Sensors,Verbosity=0,Threading=True)
+        # human readable info, UTF8, add sensor status, sensor type info, use threading
+        Things = RIVM.SamenMetenThings(Sensors=Sensors,Product=True,Humanise=True,Utf8=True,Status=True,Verbosity=0,Threading=True)
         if Verbosity > 2: Things.Verbose = Verbosity
     if DEBUG:
         Period = '2023/01/01,2024/08/22'
-    if Period:
+    if Period and not type(Period) is list:
         period = []
         for _ in Period.strip().split(','):
             _ = _.strip()
             try:
-              if len(_):
-                  _ = subprocess.check_output(["/bin/date","--date=%s" % _,"+%F"]).decode('utf-8').strip()
+              if len(_):  # command date just to get proper timestamp format
+                  try:
+                    _ = subprocess.check_output(["/bin/date","--date=%s" % _,"+%F"]).decode('utf-8').strip()
+                  except:
+                    sys.stderr.write("Unix date command failure\n")
+                    return None
               else: _ = None
               period.append(_)
             except: raise(f"Unable to convert '{_}' to reasonable date time")
         if len(period) < 2: period.append(None)
+        elif type(Period) is list: period = Period[:2]
     else: period = [None,None]
+    municipality = list(); region = None
+    # filter low-cost station name, station @iot.id, or station GPS
+    if (m := re.findall(r'([\(\[]\s*\d+\.\d+\s*,\s*\d+\.\d+\s*[\)\]]|[a-z]+_[a-z0-9_-]+[a-z0-9]|\d+)',Municipality,re.I)):
+        # list of low-cost stations
+        for _ in m:
+                municipality.append(_.strip())
+        # a single low_cost station name will be used to identify municipality!
+        if len(municipality) == 1 and municipality[0].find('_'):
+            # use station name to identify municipality
+            municipality = municipality[0]
+    else: municipality = Municipality
+    if type(municipality) is list: region = 0  # no region, list of single station names
     Start = period[0]; End = period[1]
     # may expand properties: e.g. gemcode (984), knmicode (knmi_06391), pm25regiocode (NL10131), etc.
-    if DEBUG:
+    if DEBUG:                       # avoid wait on teatime 
         stations = {
-    'OHN_gm-2136': {'owner': 'Ohnics', 'project': 'Grenzeloos Meten', 'location': [(5.933, 51.474),'Veer 1, Blit, gem. Ven, prov. Lbg'], 'sensors': {'temp': None, 'pm25_kal': {'@iot.id': 42884}, 'pm25': {'@iot.id': 42883, 'first': '2023-10-05T08:00:00.000Z', 'count': 7968, 'last': '2024-08-10T14:00:00.000Z'}}},
-    'OHN_gm-2138': {'owner': 'Oh Niks', 'project': 'Meten', 'location': [(5.932, 51.574),'Veer 2, Blitter, gem. Venray, prov. Lbg'], 'sensors': {'temp': None, 'pm25_kal': {'@iot.id': 42884, 'first': '2023-10-05T08:00:00.000Z', 'count': 7968, 'last': '2024-12-09T14:00:00.000Z'}, 'pm25': {'@iot.id': 42883, 'first': '2023-10-05T08:00:00.000Z', 'count': 7968, 'last': '2025-12-08T14:00:00.000Z'}}},
-    'OHN_gm-2126': {'@iot.id': 1234, 'owner': 'Ohnics', 'project': 'Grenzeloos Meten', 'location': [(5.938, 51.503)], 'sensors': {'temp': None, 'pm10': {'@iot.id': 42860}, 'pm25': {'@iot.id': 42859}}},
-    'OHN_gm-2216': {'owner': 'niks', 'project': 'Palmes', 'sensors': {'rh': None, 'no2': {'@iot.id': 42860, 'first': '2023-10-05T08:00:00.000Z', 'count': 7968, 'last': '2024-07-30T08:00:00.000Z'}, 'pm25': {'@iot.id': 42859}}}
-    }
+           'OHN_gm-2136': {'@iot.id': 8236, 'owner': 'Ohnics', 'project': 'GM', 'location': [(5.933, 51.474), 'Eijk 5, Veen, gem. Ven, prov. Lirg'],
+               'sensors': {
+                   'temp': {'@iot.id': 42885, 'symbol': 'C', 'first': '2023-10-05T08:00:00.000Z', 'count': 9167, 'last': '2024-10-28T12:00:00.000Z', 'product': 'DS18B20'},
+                   'pm25_kal': {'@iot.id': 42884, 'symbol': 'ug/m3', 'first': '2023-10-05T08:00:00.000Z', 'count': 9106, 'last': '2024-10-28T11:00:00.000Z', 'product': 'Sensirion SPS030'},
+                   'pm25': {'@iot.id': 42883, 'symbol': 'ug/m3', 'first': '2023-10-05T08:00:00.000Z', 'count': 9167, 'last': '2024-10-28T12:00:00.000Z', 'product': 'Sensirion SPS030'}}},
+           'OHN_gm-2138': {'@iot.id': 8238, 'owner': 'Ohnics', 'project': 'GM', 'location': [(6.087, 51.511), 'Hoofd 4, Meer, gem. Horst, prov. Limburg'],
+               'sensors': {
+                   'temp': {'@iot.id': 42891, 'symbol': 'C', 'first': '2023-10-05T08:00:00.000Z', 'count': 9160, 'last': '2024-10-28T11:00:00.000Z', 'product': 'DS18B20'},
+                   'pm25_kal': {'@iot.id': 42890, 'symbol': 'ug/m3', 'first': '2023-10-05T08:00:00.000Z', 'count': 9096, 'last': '2024-10-28T11:00:00.000Z', 'product': 'Sensirion SPS030'},
+                   'pm25': {'@iot.id': 42889, 'symbol': 'ug/m3', 'first': '2023-10-05T08:00:00.000Z', 'count': 9160, 'last': '2024-10-28T11:00:00.000Z', 'product': 'Sensirion SPS030'}}},
+    'OHN_gm-2126': {'@iot.id': 1234, 'owner': 'Ohnics', 'project': 'GM', 'location': [(5.938, 51.503)],
+            'sensors': {
+                  'temp': None, 'pm10': {'@iot.id': 42860}, 'pm25': {'@iot.id': 42859}}},
+    'OHN_gm-2216': {'owner': 'niks', 'project': 'Palmes',
+            'sensors': {
+                'rh': None,
+                'no2': {'@iot.id': 42860, 'first': '2023-10-05T08:00:00.000Z', 'count': 10, 'last': '2024-07-30T08:00:00.000Z','product':'Palmes'}, 'pm25': {'@iot.id': 42859}}}
+        }
     else:
-        stations = Things.get_MunicipalityStations(Municipality, Select=Select, By=Expand, Status=True, Start=Start, End=End)
+        stations = Things.get_InfoNeighbours(Municipality, Region=region, Select=Select, By=Expand, Start=Start, End=End)
     if not type(stations) is dict: return False
     if not len(stations):
         sys.stderr.write(f"Unable to get stations for municipality {Municipality}.\n")
@@ -120,15 +156,6 @@ def Add_Stations( Municipality:str, Things=None, Period=Period) -> bool:
         return False
     if Verbosity > 0:
         sys.stderr.write(f"Found {len(stations)} stations in municipality {Municipality}\n")
-    # Address=True, Start=None, End=None, Select=Sensors, By='address,id'
-    #{ 'OHN_gm-2161: {   'location': [(6.126, 51.524), 'Veer 1, Blit, gem. Ven, prov. Lbg'],
-    #                    '@iot.id': 12345, 'owner': 'XYS', 'project': 'XYZ',
-    #                    'sensors': { 'temp': None,
-    #                                 'pm25_kal': {   '@iot.id': 42932,
-    #                                                 'first': '2023-10-05T08:00:00.000Z',
-    #                                                 'count': 7968,
-    #                                                 'last': '2024-09-08T14:00:00.000Z'},
-    #                                 ...  }}, ... } 
 
     if End is None:
         End = datetime.datetime.now(datetime.timezone.utc)
@@ -179,7 +206,7 @@ def Add_Stations( Municipality:str, Things=None, Period=Period) -> bool:
     yellow_date_format= Workbook.add_format({'num_format': 'yyyy-mm-dd', 'fg_color': YELLOW})
     yellow_format     = Workbook.add_format({'font_color': YELLOW, 'bold': True})
     green_format      = Workbook.add_format({'font_color': GREEN, 'bold': True})
-    bold_format      = Workbook.add_format({'bold': True})
+    bold_format       = Workbook.add_format({'bold': True})
     invisible         = Workbook.add_format({'font_color': 'white'})
     right             = Workbook.add_format({"align": "right"})
 
@@ -270,16 +297,17 @@ def Add_Stations( Municipality:str, Things=None, Period=Period) -> bool:
     dark = True
     for name in Sensors:                 # sensors name: first/last timestamp, record count
         col += 1
-        worksheet.merge_range(Row,col,Row,col+2,humanise.HumaniseSensor(name),ghrd_bold if dark else hrd_bold)
+        worksheet.merge_range(Row,col,Row,col+3,humanise.HumaniseSensor(name),ghrd_bold if dark else hrd_bold)
         worksheet.write_string(Row+1,col,'first',ghrd_italic if dark else hrd_italic); width.append(0)
         worksheet.write_string(Row+1,col+1,'last',ghrd_italic if dark else hrd_italic); width.append(0)
         lastColumn.append(col+1)         # columns with last timestamp sensor record
         worksheet.write_string(Row+1,col+2,'count',ghrd_italic if dark else hrd_italic); width.append(0)
+        worksheet.write_string(Row+1,col+3,'type',ghrd_italic if dark else hrd_italic); width.append(0)
         # set timestamp and record count columns format
         worksheet.set_column(f"{cell2xlsx(Row+2,col)}:{cell2xlsx(Row+2+len(stations),col+1)}",15,gray_date_format if dark else date_format)
         if dark:
-            worksheet.set_column(f"{cell2xlsx(Row+1+2,col+2)}:{cell2xlsx(Row+1+2+len(stations),col+2)}",7,gray_format)
-        column[name] = col; col += 2; dark = not dark
+            worksheet.set_column(f"{cell2xlsx(Row+1+2,col+2)}:{cell2xlsx(Row+1+2+len(stations),col+3)}",7,gray_format)
+        column[name] = col; col += 3; dark = not dark
     Row += 2
 
     #                                   ============= formula cells
@@ -306,7 +334,7 @@ def Add_Stations( Municipality:str, Things=None, Period=Period) -> bool:
         for c in columns:
             worksheet.set_column(f"{cell2xlsx(row,c-1)}:{cell2xlsx(len(stations)+row,c)}",None,gray_date_format if grayish else date_format)
             if grayish:
-                worksheet.set_column(f"{cell2xlsx(row,c+1)}:{cell2xlsx(len(stations)+row,c+1)}",None,gray_format)
+                worksheet.set_column(f"{cell2xlsx(row,c+1)}:{cell2xlsx(len(stations)+row,c+2)}",None,gray_format)
             grayish = not grayish
 
     maxFormula(RowsStart,lastColumn)       # set formula for activity checks
@@ -346,26 +374,22 @@ def Add_Stations( Municipality:str, Things=None, Period=Period) -> bool:
                         first = datetime.datetime.strptime(first,"%Y-%m-%dT%H:%M:%S.%f%z")
                         worksheet.write_datetime(Row,col,first)
                         width[col] = max(12,width[col])
-                    else:
-                        worksheet.write(Row,col,"")
+                    else: worksheet.write(Row,col,"")
                     if (last := info['sensors'][s].get('last',None)):
                         last = datetime.datetime.strptime(last,"%Y-%m-%dT%H:%M:%S.%f%z")
-                        bgCondition(Row,col+1, col+1)     # bg color condition on activity
-                        #if (End - last).days <= ACTIVE:   # at least till one day before end period
-                        #    worksheet.write_datetime(Row,col+1,last)
-                        #elif (End - last).days <= nACTIVE:
-                        #    worksheet.write_datetime(Row,col+1,last,yellow_date_format)
-                        #else:
-                        #    worksheet.write_datetime(Row,col+1,last,red_date_format)
+                        bgCondition(Row,col+1, col+1)   # bg color condition on activity
                         worksheet.write_datetime(Row,col+1,last)
                         width[col+1] = max(12,width[col+1]); actives.append(s)
-                    else:
-                        worksheet.write(Row,col+1,"")
+                    else: worksheet.write(Row,col+1,"")
                     if (count := info['sensors'][s].get('count',None)):
                         worksheet.write_number(Row,col+2,count)
                         width[col+2] = max(7,width[col+2]); sensing += 1
-                    else:
-                        worksheet.write(Row,col+2,"")
+                    else: worksheet.write(Row,col+2,"")
+                    if(product := info['sensors'][s].get('product',None)):
+                        product = product.split(' ')[0]
+                        worksheet.write(Row,col+3,product)
+                        width[col+3] = max(len(product)+1,width[col+3])
+                    else: worksheet.write(Row,col+3,"")
 
         worksheet.write(Row,column['station'],station,gray_format)
         width[column['station']] = max(7,len(station)+2)
@@ -378,7 +402,7 @@ def Add_Stations( Municipality:str, Things=None, Period=Period) -> bool:
     # sheet stations statistics info     ================== wrap up
     if Verbosity:
         sys.stderr.write(f"Stations in municipality {Municipality}: nr of station(s): {len(stations)}, station(s) active: {active}, {len(deads)} silent station(s).\n")
-    subtitle = f"\nnr of stations: {len(stations)} ({inactives} inactive, {len(deads)} unused)."
+    subtitle = f"\n{len(stations)} stations, {len(stations)-inactives} active, {len(deads)} unused."
     #if len(period):
     #    subtitle += f" in period{Start.strftime(' %-d %b %Y') if period[0] else ''}{End.strftime(' upto %-d %b %Y') if End else ''} "
     generated = f"              (generated at {datetime.datetime.now().strftime('%-d %b %Y')})"
@@ -399,13 +423,15 @@ XLSXfile = 'MunicipalityStations.xlsx'   # default XLSX spreadsheet file
 def help() -> None:
     sys.stderr.write(
         f"""
-Generate overview of low cost stations in municipalities (xlsx sheet per municipality)
-with measurements info:
+Generate overview of low cost stations in municipalities 
+or comman separated list of low-cost stations (xlsx sheet per argument name).
+Spreadsheet sheet with measurements info:
     location (GPS, address),
     station properties (owner,project, municipality code, ref codes), and
     sensors installed (sensor type, first-last record timestamp, record count) in a period.
 
-Command: {os.path.basename(__file__)} [options] help or municipality, ...
+Command: {os.path.basename(__file__)} [options] help or name, ...
+Name is either municipality name or comma separated list of low-cost station names.
 
 Output as XLSX formatted file (default: {XLSXfile}). Use File='Yours.xlsx' to change this.
 
