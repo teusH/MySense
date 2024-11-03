@@ -71,7 +71,7 @@ def get_SensorStatus(self, Stations:dict, Start=None, End=None) -> None:
 # Docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 4.2 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 4.4 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -101,12 +101,15 @@ def date2ISOutc(string:str) -> str:     # just for the fun
        External CLI date is used to convert humanised stamp (e.g. 'yesterday') to utc stamp."""
     timing_re = re.compile(r'^[0-9]{4}-[01][0-9]*-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]Z$')
     if timing_re.match(string): return int(string)
-    import subprocess
+    import dateparser                   # convert human readable time to datetime format
+    from dateutil import tz             # convert local datetime to UTC datetime
     try:
-        string = subprocess.check_output(["/bin/date","--date=%s" % string,"--utc","+%FT%H:%MZ"])
-        string = string.decode('utf-8').strip()
+        string =  dateparser.parse(string)
+        if not type(string) is datetime.datetime:
+            raise(f"Unix date {string} failure. Check LANG env. variable setting.")
+        string = datetime.datetime.strftime(string.astimezone(tz.UTC),"%Y-%m-%dT%H:%M:%SZ")
     except Exception:
-        sys.exit(f"Date command failure on {string}")
+        sys.exit(f"Date parse failure on {string}")
     if string:
         if timing_re.match(string): return string
     raise ValueError(f"Date conversion error on {string}")
