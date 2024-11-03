@@ -20,17 +20,19 @@ Python3.8+ script to generate overview in XLSX of measurements taken by low-cost
 in various municipalitiea (one municipality per XLSX sheet) in a certain period of time.
 Data is obtained via SamenMetenThings tools module from RIVM Samen Meten API.
 Script command line: python3 script [Period=one year ago,now] municipality_name ...
+Period name in human readable format is language dependant (command environment 'LANG').
 """
 import re
 import sys,os
 from collections import OrderedDict
 import datetime
-import subprocess                      # check time period with UNIX subprocess date
+import dateparser                      # check time period with Python dateparser
+from dateutil import tz                # get timezone
 from typing import Union,List          # if Python 3.8
 
 import SamenMetenThings as RIVM
 
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.8 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.9 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -38,12 +40,15 @@ __author__  = 'Teus Hagen'
 Period = ',now'                         # period of interest, comma separated
 # calibrated example: pm25_kal, pm10_kal
 # To Do: may need to filter out unsupported sensors
-Sensors = '(pm25|pm10|temp|rh|pres|nh3|no2)' # sensor types (ordered) of interest, reg exp
-Select  = None                          # don't filter station names (dflt None) else Reg Exp.
+Sensors   = '(pm25|pm10|temp|rh|pres|nh3|no2)' # sensor types (ordered) of interest, reg exp
+Select    = None                        # don't filter station names (dflt None) else Reg Exp.
 Verbosity = 0                           # level of verbosity for Things
-Expand  = 'location,address,owner,project' # extra info of stations from Things
+Expand    = 'location,address,owner,project' # extra info of stations from Things
 # By = 'owner,project'
-DEBUG   = False                         # debug modus, do not use SamenMetenThings class
+# next is comma separated list or '' (rows and columns with no data are hided anyway)
+# hide xlsx column: GPS,owner,project,address,first,last,count,type
+Hide      = 'GPS,owner,first,count'     # default Hide
+DEBUG     = False                       # debug modus, do not use SamenMetenThings class
 
 # progress metering, teatime music: every station can take about 15-90 seconds download time
 def progress(Name,func,*args,**kwargs):
@@ -82,12 +87,12 @@ def cell2xlsx(row:int,col:int) -> str:
 # XLSX matrix columns, sheet has name municipality
 # name     GPS ...   properties ...                 sensors (name, first, last, count)
 # station, location, [address,] [owner,] [project,] [sensor-i, first, last, count] ,...
-def Add_Stations( Municipality:str, Things=None, Period:Union[str,List[str]]=Period) -> bool:
+def Add_Stations( RegionName:str, Things=None, Period:Union[str,List[str]]=Period) -> bool:
     """Add_Stations(str: municipality, or list of (GPS or station ID's),
     options Period (Start,End) may use Unix date command to get dateformat,
     Things class (sensors,product type, human readable sensor types, sensors status (first/last, count in period)
     create a spreadsheet sheet with station information."""
-    global Sensors, Select, Expand, Workbook, Verbosity
+    global Sensors, Select, Expand, Workbook, Verbosity, Hide
     if Things is None:
         # human readable info, UTF8, add sensor status, sensor type info, use threading
         Things = RIVM.SamenMetenThings(Sensors=Sensors,Product=True,Humanise=True,Utf8=True,Status=True,Verbosity=0,Threading=True)
@@ -97,32 +102,31 @@ def Add_Stations( Municipality:str, Things=None, Period:Union[str,List[str]]=Per
     if Period and not type(Period) is list:
         period = []
         for _ in Period.strip().split(','):
-            _ = _.strip()
-            try:
-              if len(_):  # command date just to get proper timestamp format
-                  try:
-                    _ = subprocess.check_output(["/bin/date","--date=%s" % _,"+%F"]).decode('utf-8').strip()
-                  except:
-                    sys.stderr.write("Unix date command failure\n")
-                    return None
-              else: _ = None
-              period.append(_)
-            except: raise(f"Unable to convert '{_}' to reasonable date time")
+            _ = _.strip(); dt = None
+            if len(_):  # command date just to get proper timestamp format
+                dt = dateparser.parse(_)
+                if not type(dt) is datetime.datetime:
+                    raise(f"Unix date {_} failure. Check LANG env. variable setting.")
+                dt = dt.astimezone(tz.UTC)  # convert local time to utc
+                dt = datetime.datetime.strftime(dt,"%Y-%m-%dT%H:%M:%SZ")
+                if not re.match(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z',dt):
+                    raise(f"Unix date {_} failure. Check LANG env. variable setting.\n")
+            period.append(dt)
         if len(period) < 2: period.append(None)
         elif type(Period) is list: period = Period[:2]
     else: period = [None,None]
-    municipality = list(); region = None
+    sheetName = list(); region = None
     # filter low-cost station name, station @iot.id, or station GPS
-    if (m := re.findall(r'([\(\[]\s*\d+\.\d+\s*,\s*\d+\.\d+\s*[\)\]]|[a-z]+_[a-z0-9_-]+[a-z0-9]|\d+)',Municipality,re.I)):
+    if (m := re.findall(r'([\(\[]\s*\d+\.\d+\s*,\s*\d+\.\d+\s*[\)\]]|[a-z]+_[a-z0-9_-]+[a-z0-9]|\d+)',RegionName,re.I)):
         # list of low-cost stations
         for _ in m:
-                municipality.append(_.strip())
+                sheetName.append(_.strip())
         # a single low_cost station name will be used to identify municipality!
-        if len(municipality) == 1 and municipality[0].find('_'):
+        if len(sheetName) == 1 and sheetName[0].find('_'):
             # use station name to identify municipality
-            municipality = municipality[0]
-    else: municipality = Municipality
-    if type(municipality) is list: region = 0  # no region, list of single station names
+            sheetName = sheetName[0]
+    else: sheetName = RegionName
+    if type(sheetName) is list: region = 0  # no region, list of single station names
     Start = period[0]; End = period[1]
     # may expand properties: e.g. gemcode (984), knmicode (knmi_06391), pm25regiocode (NL10131), etc.
     if DEBUG:                       # avoid wait on teatime 
@@ -146,16 +150,16 @@ def Add_Stations( Municipality:str, Things=None, Period:Union[str,List[str]]=Per
                 'no2': {'@iot.id': 42860, 'first': '2023-10-05T08:00:00.000Z', 'count': 10, 'last': '2024-07-30T08:00:00.000Z','product':'Palmes'}, 'pm25': {'@iot.id': 42859}}}
         }
     else:
-        stations = Things.get_InfoNeighbours(Municipality, Region=region, Select=Select, By=Expand, Start=Start, End=End)
+        stations = Things.get_InfoNeighbours(RegionName, Region=region, Select=Select, By=Expand, Start=Start, End=End)
     if not type(stations) is dict: return False
     if not len(stations):
-        sys.stderr.write(f"Unable to get stations for municipality {Municipality}.\n")
+        sys.stderr.write(f"Unable to get stations for municipality {RegionName}.\n")
         return False
     if not type(stations) is dict and not len(stations):
-        sys.stderr.write(f"Unable to find stations in municipality {Municipality}\n")
+        sys.stderr.write(f"Unable to find stations in municipality {RegionName}\n")
         return False
     if Verbosity > 0:
-        sys.stderr.write(f"Found {len(stations)} stations in municipality {Municipality}\n")
+        sys.stderr.write(f"Found {len(stations)} stations in municipality {RegionName}\n")
 
     if End is None:
         End = datetime.datetime.now(datetime.timezone.utc)
@@ -237,8 +241,9 @@ def Add_Stations( Municipality:str, Things=None, Period:Union[str,List[str]]=Per
                  'criteria': f"{refCell} > {periodCell[0]}",
                  'format':   red_format })
 
-    column = dict(); width = list(); Row = -1; col = -1; inactives = 0; deads = []
-    worksheet = Workbook.add_worksheet(name=Municipality)
+    column = dict(); width = list()
+    Row = -1; col = -1; inactives = 0; deads = []
+    worksheet = Workbook.add_worksheet(name=RegionName)
 
     # Row with title (header) spreadsheet sheet 6 cells wide
     Row += 2
@@ -295,7 +300,7 @@ def Add_Stations( Municipality:str, Things=None, Period:Union[str,List[str]]=Per
     lastColumn = []; lastRow = Row+1
 
     dark = True
-    for name in Sensors:                 # sensors name: first/last timestamp, record count
+    for name in Sensors:                 # sensors name: first/last timestamp, record count, type
         col += 1
         worksheet.merge_range(Row,col,Row,col+3,humanise.HumaniseSensor(name),ghrd_bold if dark else hrd_bold)
         worksheet.write_string(Row+1,col,'first',ghrd_italic if dark else hrd_italic); width.append(0)
@@ -316,8 +321,7 @@ def Add_Stations( Municipality:str, Things=None, Period:Union[str,List[str]]=Per
     # set datetime formats and last date in station sensor cells
     def maxFormula(row:int,columns:list) -> None:
         if not columns: return
-        worksheet.write_comment(f"{cell2xlsx(RowsStart-2,column['station'])}","Spreadsheet may need to be recalculated.\nThis differs per version.\nForce cell recalutation by pressing F9 or change days value in cell {nACTIVEcell}.")
-        worksheet.write_comment(f"{cell2xlsx(row,column['period'])}","Spreadsheet may need to be recalculated.\nThis differs per version.\nForce recalutation by pressing F9 or change days value in cell {nACTIVEcell}.")
+        #worksheet.write_comment(f"{cell2xlsx(0,0)}",f"Spreadsheet may need to be recalculated.\nThis differs per version.\nForce recalutation by pressing F9 or change days value in cell {nACTIVEcell}.",{'visible': True})
         worksheet.set_column(f"{cell2xlsx(row,column['period'])}:{cell2xlsx(len(stations)+row,column['period'])}",None,date_format)
         for r in range(row,len(stations)+row):
             formula = ''
@@ -396,19 +400,19 @@ def Add_Stations( Municipality:str, Things=None, Period:Union[str,List[str]]=Per
         if len(actives): active += 1
         if not sensing: deads.append(Row)
         if Verbosity:
-            sys.stderr.write(f"Station {station} ({Municipality}) was {'never' if not sensing else (str(len(actives))+' active')} sensor(s) operational.\n")
+            sys.stderr.write(f"Station {station} ({RegionName}) was {'never' if not sensing else (str(len(actives))+' active')} sensor(s) operational.\n")
         Row += 1
 
     # sheet stations statistics info     ================== wrap up
     if Verbosity:
-        sys.stderr.write(f"Stations in municipality {Municipality}: nr of station(s): {len(stations)}, station(s) active: {active}, {len(deads)} silent station(s).\n")
+        sys.stderr.write(f"Stations in municipality {RegionName}: nr of station(s): {len(stations)}, station(s) active: {active}, {len(deads)} silent station(s).\n")
     subtitle = f"\n{len(stations)} stations, {len(stations)-inactives} active, {len(deads)} unused."
     #if len(period):
     #    subtitle += f" in period{Start.strftime(' %-d %b %Y') if period[0] else ''}{End.strftime(' upto %-d %b %Y') if End else ''} "
     generated = f"              (generated at {datetime.datetime.now().strftime('%-d %b %Y')})"
     #                                    ================= title with overall info
-    worksheet.write_rich_string(re.sub(r':.*','',title_location),f"station statistics of municipality {Municipality}",italic,subtitle,right,generated,title_format)
-    #worksheet.write_rich_string(0,1,f"station statistics of municipality {Municipality}\n",italic,f"nr of stations: {len(stations)} ({inactives} inactive, {len(deads)} unused){period}",title_format)
+    worksheet.write_rich_string(re.sub(r':.*','',title_location),f"station statistics of municipality {RegionName}",italic,subtitle,right,generated,title_format)
+    #worksheet.write_rich_string(0,1,f"station statistics of municipality {RegionName}\n",italic,f"nr of stations: {len(stations)} ({inactives} inactive, {len(deads)} unused){period}",title_format)
 
     #                                    ================== cleanup sheet
     for i,w in enumerate(width):         # adjust column width's
@@ -416,14 +420,26 @@ def Add_Stations( Municipality:str, Things=None, Period:Union[str,List[str]]=Per
         else: worksheet.set_column(f"{n2a(i)}:{n2a(i)}", None, None, {'hidden': 1})
     for i in deads:
         worksheet.set_row(i, None, None, {'hidden':1}) # hide rows dead stations
+    # hide sensor columns: first, lastColumn[], count, type
+    # column = {'station': 0, 'period': 1, 'GPS': 2, 'address': 3, 'owner': 4, 'project': 5, 'pm25': 6, 'pm10': 10, ...}
+    for col in (set(column.keys())-set(Sensors)).intersection(set(Hide.split(','))):
+        if (col := column.get(col)): # restrict hide to non sensors
+            worksheet.set_column(f"{n2a(col)}:{n2a(col)}", None, None, {'hidden': 1})
+    # sensor type
+    hide = { 'first': 0, 'last': 1, 'count': 2, 'type': 3, } # relative index
+    hide = [hide.get(_) for _ in  set(hide.keys()).intersection(set(Hide.split(',')))]
+    for rh in hide:
+        for col in Sensors:
+          if not (col := column.get(col)) is None:
+              worksheet.set_column(f"{n2a(rh+col)}:{n2a(rh+col)}", None, None, {'hidden': 1})
     return True
 
 #                                        ===================== main
-XLSXfile = 'MunicipalityStations.xlsx'   # default XLSX spreadsheet file
+XLSXfile = 'Regional_Stations.xlsx'   # default XLSX spreadsheet file
 def help() -> None:
     sys.stderr.write(
         f"""
-Generate overview of low cost stations in municipalities 
+Generate overview of low cost stations in regions 
 or comman separated list of low-cost stations (xlsx sheet per argument name).
 Spreadsheet sheet with measurements info:
     location (GPS, address),
@@ -440,85 +456,95 @@ Options station info settings:
         Period='one year ago,now'             Defines last year.
         Sensors='{Sensors}'                   Defines sensor types of interest (regular expression).
         Select='{Select if Select else 'None'}' Filter on station names. Default: do not filter.
+        Hide='GPS,address,first,last,count,type' Hide these XLSX columns. Default '{Hide}'.
         Expand='{Expand}'                     List of station properties of interest.
 Options XLSX spreadsheet book property settings:
         File=Outputfile.xlsx                  Default '{XLSXfile}'.
         Company=YourCompanyName               Default empty.
         Status=BookStatus                     Default 'draft'.
+        User=MyName                           Created by user name. Default: login name.
 Command options:
         Verbosity={Verbosity}                 Verbosity level. Level 5 gives timings info.
         DEBUG                                 In debig modus: Things queries will not be done.
         """)
 
-municipalities = []; company = ''; status = 'draft'; idx = 0
-for Municipality in sys.argv[1:]:
-    if re.match(r'^(--)?help$',Municipality,re.I):
+regions = []; Company = ''; bookstate = 'draft'; idx = 0; User = ''
+for RegionName in sys.argv[1:]:
+    if re.match(r'^(--)?help$',RegionName,re.I):
         help(); Workbook = None
         break
     idx += 1
-    if m := re.match(r'^(--)?([^\s]*)\s*(=)\s*([^\s]+.*)$', Municipality):
+    if m := re.match(r'^(--)?([^\s]*)\s*(=)\s*([^\s]+.*)$', RegionName):
       if m.groups()[2] == '=':
-        if m.groups()[1] == 'Period':    # only measurements in this period
+        if m.groups()[1]   == 'Period':    # only measurements in this period
             Period = ','.join([x.strip() for x in m.groups()[3].strip().split(',')])
-        elif m.groups()[1] == 'Company': # company of XLSX book creation
-            company = m.groups()[3].strip()
-        elif m.groups()[1] == 'Status':  # status of XLSX book
-            status = m.groups()[3].strip()
-        elif m.groups()[1] == 'File':    # file name of XLSX book
+        elif m.groups()[1] == 'Company':   # company of XLSX book creation
+            Company = m.groups()[3].strip()
+        elif m.groups()[1] == 'User':      # user of XLSX book creation
+            User = m.groups()[3].strip()
+        elif m.groups()[1] == 'Status':    # status of XLSX spreadsheet book
+            bookstate = m.groups()[3].strip()
+        elif m.groups()[1] == 'File':      # file name of XLSX spreadsheet book
             XLSXfile = m.groups()[3].strip()
-        elif m.groups()[1] == 'Sensors': # sensor types of interest (reg exp)
+        elif m.groups()[1] == 'Sensors':   # sensor types of interest (reg exp)
             Sensors = m.groups()[3].strip()
-        elif m.groups()[1] == 'Select':  # filter reg exp for stations names
+        elif m.groups()[1] == 'Select':    # filter reg exp for stations names
             Select = m.groups()[3].strip()
+        elif m.groups()[1] == 'Hide':      # hide these Xlsx columns
+            Hide = m.groups()[3].strip()
         elif m.groups()[1] == 'Verbosity': # verbosity level
             Verbosity = int(m.groups()[3].strip())
-        elif m.groups()[1] == 'Expand':  # show station property info as well
+        elif m.groups()[1] == 'Expand':    # show station property info as well
             Expand = m.groups()[3].strip()
         continue
-    if re.match(r'^(--)?debug$',Municipality,re.I):   # DEBUG use buildin station dict
+    if re.match(r'^(--)?debug$',RegionName,re.I):   # DEBUG use buildin station dict
         DEBUG = True; Verbosity = 1
-        XLSXfile = 'MunicipalityStations-TEST.xlsx'
+        XLSXfile = 'RegionName-TEST.xlsx'
+
     if Workbook is None:
         Workbook = xlsxwriter.Workbook(XLSXfile, {'remove_timezone': True})
         if Verbosity:
             sys.stderr.write(f"""Creating XLSX spreadsheet file: '{XLSXfile}'
-            for stations in municipalities: '{','.join(sys.argv[idx:])}'
+            for stations in regions: '{','.join(sys.argv[idx:])}'
             Filter on sensor types: '{Sensors.replace('|',', ')[1:-1]}'
-            Filter station names: '{'turned off' if not Select else Select}'
+            Filter station name{'s' if len(sys.argv[idx:]) else ''}: '{'turned off' if not Select else Select}'
             Also showing station properties: '{Expand}'\n""")
     # next can take quite some time. To Do: add progress meter?
     if DEBUG:
         Add_Stations('fake region', Period=Period)
         break
-    elif Add_Stations( Municipality, Period=Period):
-        municipalities.append(Municipality)
+    elif Add_Stations( RegionName, Period=Period):
+        regions.append(RegionName)
     else:
-        sys.stderr.write(f"Municipality '{Municipality}': no stations in period '{Period}'\n") 
+        sys.stderr.write(f"Region '{RegionName}': no stations in period '{Period}'\n") 
 
-if Workbook:                              # XLSX book creation
+if Workbook:                                # XLSX book creation
     import pwd
-    user = re.sub(r'\s*,.*$','',pwd.getpwnam(os.environ["USER"]).pw_gecos)
-    if user: user = f"{user} ({os.environ['USER']})"
-    else: user = ''
-    properties = {                        # XLSX book properties
+    if not User:
+        if (user := re.sub(r'\s*,.*$','',pwd.getpwnam(os.environ["USER"]).pw_gecos)):
+            User = f"{user} ({os.environ['USER']})"
+    properties = {                          # XLSX book properties
         "title": "Air Quality measurements information from RIVM/Things",
-        "subject": "Low-Cost stations in municipalities: " + ', '.join(municipalities),
-        "author": user,
+        "subject": "Low-Cost stations in regions: " + ', '.join(regions),
+        "author": User,
         "manager": "",
-        "company": company,
+        "company": Company,
         "category": "Air Quality measurements",
         "keywords": "Air Quality, sensors, Particular Matter, NOx, NH3",
         "comments": f"{__license__}.\nCreated by {os.path.basename(__file__)} with Python and XlsxWriter on {datetime.datetime.now().strftime('%-d %b %Y')}.",
-        "status": status,
+        "status": bookstate,
       }
     Workbook.set_properties(properties)
+    #calculationProperties = Workbook.CalculationProperties;
+    #        calculationProperties.ForceFullCalculation = true;
+    #        calculationProperties.FullCalculationOnLoad = true;
     # set to manual to speedup, use key F9 to recalculate cells
     Workbook.set_calc_mode('auto')
     Workbook.close()
 
     if Verbosity >= 0:
-        if DEBUG: municipalities = [None]
-        sys.stderr.write(f"Created XLSX book: '{XLSXfile}' with {len(municipalities)} municipalities sheet(s)'\n")
+        if DEBUG: regions = [None]
+        sys.stderr.write(f"Created XLSX book: '{XLSXfile}' with {len(regions)} regions sheet(s)'\n")
     if Verbosity:
         sys.stderr.write(f"\tXLSX properties:\n")
         for p,v in properties.items():
