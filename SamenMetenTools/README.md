@@ -29,6 +29,17 @@ The spreadsheets will show per sheet the historical and current stations informa
 
 The script uses municipality stations routine of the SamenMetenThings class module.
 
+### Things2HTML.py
+Things2HTML will generate an Open Streep Map with regional low-cost station location markers.
+Clicking o marker will show information of installed sensors and operational timings. The chart is interactive.
+Goal is to present heatmaps of measurements as well of PM calibrated (temperature and RH) measurements.
+The HTML can be used on a wegside via <iframe src=HTMLfile>.
+
+### ThingsArchive.py
+This script a a wrapper for XLSX, HTML map, CSV (+compressed), and JSON (+compressed).
+Input can be regional names (Samen Meten Things website will be used to download data), various file formats.
+The central archive will use Python Pandas dataframe format.
+
 ## Licensing
    Open Source Initiative  https://opensource.org/licenses/RPL-1.5
    Unless explicitly acquired and licensed from Licensor under another
