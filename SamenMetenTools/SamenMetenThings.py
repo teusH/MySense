@@ -13,7 +13,7 @@
 #   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
 #   language governing rights and limitations under the RPL.
 #
-# Copyright (C) 2024, Behoud de Parel, Teus Hagen, the Netherlands
+# Copyright (C) 2024, Teus Hagen, the Netherlands
 #
 
 """
@@ -370,7 +370,7 @@ class MyWorkers:
            Results dict with worker ident: { result and work info}."""
 
         if not self.Executor is None:
-            if timeout is None: timeout = 4*60         # all workers time metering
+            if timeout is None: timeout = 6*60         # all workers time metering
             for future in futures.as_completed(self.Futures, timeout=timeout):
                 if not self._WorkDone(future):
                     logging.debug(f"Worker {self.Futures[future]} timeout reached.")
@@ -586,9 +586,12 @@ import json
 def execute_request(Url:str, callBack:Callable=None) -> Union[dict,list]:
     """execute_request: get info from the outside world"""
     def GetData(Url):
-        ttl = 180 if callBack else 90                # Thinks service is slow
-        with urlopen(Request(requote_uri(Url)), timeout=ttl) as response:
-            return response.read()
+        ttl = 240 if callBack else 120                # Thinks service is slow
+        try:
+            with urlopen(Request(requote_uri(Url)), timeout=ttl) as response:
+                return response.read()
+        except:
+            raise IOError(f"Time out on data request or UIRL error with URL '{Url}'. Exiting.")
 
     if _opener is None:
         opener = build_opener()
@@ -928,7 +931,7 @@ class SamenMetenThings:
                     workers.Submit(f'{Station} {sensor} last ',self._SensorStatus,baskit.get('@iot.id'),Status='last', Start=Start, End=End)
                     if baskit.get('symbol'):    # need to add sensor product ID
                         workers.Submit(f'{Station} {sensor} product',self._ProductID,baskit.get('@iot.id'))
-            results = workers.Wait4Workers()
+            results = workers.Wait4Workers(round(float((len(Sensors)+2)/3)*30))
             if workers.Timing:
                 self._Verbose(f"thread '{workers.WorkerNames}' total timing {round(workers.Timing,1)}.",f"Station {Station} sensor status",3)
         for name, value in results.items():
@@ -1024,10 +1027,10 @@ class SamenMetenThings:
 
         if self.Verbose:
             if not len(stations):
-                self._Verbose(f"Unable to identify stations",f"Municipality name or region '{Region}'",1)
+                self._Verbose(f"Unable to identify stations",f"Municipality name or region '{Region}'",2)
                 return None
             else:
-                self._Verbose(f"selected {selected} (of {len(Data)}) stations with sensor observations.", f"Stations in {Region}",1)
+                self._Verbose(f"selected {selected} (of {len(Data)}) stations with sensor observations.", f"Stations in {Region}",2)
         return dict(sorted(stations.items()))     # clustering: use geohash of GPS as sort key?
     #
     # test: with argument Sensors='pm25'  Select='LTD_21568' ->
@@ -1062,7 +1065,7 @@ class SamenMetenThings:
                  workers.Submit(f'NeighbourInfo {str(station)}',self.get_InfoNeighbours,station,Region=Region,By=By, Select=Select, Sensors=Sensors, Start=Start,End=End)
                  if self.Verbose:
                      self._Verbose(f"get neighbour station info",f"Station {str(station)}",1)
-            results = workers.Wait4Workers()       # pick up work done info (timing, events)
+            results = workers.Wait4Workers(round((len(Names)+2)/6,0)*30)       # pick up work done info (timing, events)
             workers.Shutdown()
         for work in sorted(results.items(), key=lambda item: item[1]['nr']):
             name,result, = work                    # one tuple per sensor
@@ -1331,6 +1334,7 @@ class SamenMetenThings:
                 workers.Submit(f'Sensor IoT {str(Iotid)} first',self._SensorStatus,Iotid,Status='first',End=End,Start=Start)
                 workers.Submit(f'Sensor IoT {str(Iotid)} last',self._SensorStatus,Iotid,Status='last',End=End,Start=Start)
                 workers.Submit(f'Sensor IoT {str(Iotid)} product',self._SensorStatus,Iotid,Status='product')
+                #results = workers.Wait4Workers((round(3+2)/3,0)*40)   # wait for results, using different baskits
                 results = workers.Wait4Workers()   # wait for results, using different baskits
                 if workers.Timing:
                     self._Verbose(f"thread '{workers.WorkerNames}' total time {round(workers.Timing,1)}.",f"Sensor @iot.id '{str(Iotid)}' sensor status timing",3)
