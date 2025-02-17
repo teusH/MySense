@@ -25,7 +25,7 @@ Use CLI **python3 ScriptName.py help** option to get more information of option 
 
 ## Samen Meten Things architecture
 
-<img src="SamenMetenArchitecture.png" width="512"/>
+![Samen Meten Things Architecture](SamenMetenTools/SamenMetenArchitecture.png)
 
 ## Outline of modules
 ### SamenMetenThings.py
