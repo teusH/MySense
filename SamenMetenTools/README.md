@@ -18,14 +18,14 @@ The scripts will use various command line options (XYZ=value) as:
 - **Verbosity**=n level, input/output **File**=name, **DEBUG** test data only, etc.
 - Filtering options:
   - **Sensors**='pm10,pm25,pm10_kal,pm25_kal,temp,rh,no2,o3,co2,nh3' or reg.exp to focus on these sensors only.
-  - **Expand**='location,address,owner,project' to xpand db table domains.
+  - **Expand**='location,address,owner,project' to expand (a table join) db table domains.
   - **Select**='' (default all) to filter station names. Use regular expression.
 
 Use CLI **python3 ScriptName.py help** option to get more information of option use.
 
-## Samen Meten Things architecture
+## Samen Meten Things tools architecture
 
-![Samen Meten Things Architecture](SamenMetenTools/SamenMetenArchitecture.png)
+![Samen Meten Things Architecture](https://github.com/teusH/MySense/blob/master/SamenMetenTools/README.md)
 
 ## Outline of modules
 ### SamenMetenThings.py
