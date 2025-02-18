@@ -25,7 +25,8 @@ Use CLI **python3 ScriptName.py help** option to get more information of option 
 
 ## Samen Meten Things tools architecture
 
-![Samen Meten Things Architecture](https://github.com/teusH/MySense/blob/master/SamenMetenTools/images/SamenMetenArchitecture.png)
+![SamenMetenArchitecture](https://github.com/user-attachments/assets/01a0a6b5-c6db-432b-8c1c-b83a8c4d7264)
+
 
 ## Outline of modules
 ### SamenMetenThings.py
