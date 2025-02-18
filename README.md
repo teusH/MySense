@@ -1,4 +1,4 @@
-<img src="https://github.com/teusH/MySense/blob/master/RPi/images/MySense-logo.png" align=right width=100>
+<img src="https://github.com/user-attachments/assets/d440ab8b-911f-4806-b53e-cd0cef94175b" align=right width=100>
 
 # MySense
 Last update of the README on 2nd of Februar 2020
@@ -33,8 +33,9 @@ A description of the MySense PyCom based measurement kit, data collection and da
 
 
 ### MySense datacollector (Linux systems)
+The first station we build with RPi, gas, temperature, RHG and dust sensors looked like this:
+<img src="https://github.com/user-attachments/assets/6c587997-d47b-46ee-9d5a-ac65be9790d2" align=right height=100>
 
-<img src="RPi/images/MySenseCase-Pi.png" align=right height=100>
 MySense is able to act as *air quality measurement kit* or *node broker* (Pi based).
 As measurement kit MySense will collect measurements from dust,
 gas and/or gas sensors and location sensor,
@@ -56,8 +57,9 @@ Visual feedback is provided with led/button (power On/Off) and optional an Oled 
 
 ### MySense LoPy-4 PyCom controller
 
-<img src="PyCom/images/dubbelwandige-LantaarnType-MySense-3.png" align=right height=100>
-<img src="PyCom/images/SDS011-BME280-SSD1306.png" align=right height=100>
+<img src="https://github.com/user-attachments/assets/26fb876f-dd83-490d-804c-52ccdb3062fc" align=right height=100>
+<img src="https://github.com/user-attachments/assets/0220ea75-3fba-4850-9bc1-7325a25000a1" align=right height=100>
+
 MySense sensor kits can also be applied as *air quality satellite* sensorkits. E.g. using LoPy or WiPy PyCom controllers with GPS, dust and meteo sensors.
 In this case the data will be forwarded to <a href="https://www.thethingsnetwork.org/docs/lorawan/">LoRaWan</a> dataconcentrators as eg The Things Network or Mosquitto server.
 The LopY has support for SiGFox (due to proprietary chracter of this method it has been deprecated).
@@ -135,9 +137,10 @@ The plan is to be able to forecast PM levels for a short coming period as well.
 
 <div style='vertical-align: top; clear: both'>
 <figure>
-<img src="RPi/images/MySense-kit-1.png" align=left height=200>
-<img src="RPi/images/MySense-kit-2.png" height=200>
+<img src="https://github.com/user-attachments/assets/3080cf7e-e04e-48c2-9ed1-2cd9033791c1" align=left height=200>
+<img src="https://github.com/user-attachments/assets/a02615a1-0a5f-4120-960d-2e134bcb1a4d" height=200>
 <br />MySense sensor kits examples
+
 </figure>
 </div>
 <p>
@@ -167,7 +170,8 @@ The `@reboot /home/ios/MySense/MyStart.sh` in the ios crontab table will automat
 ## Sensor RPi kit case
 
 <div style='vertical-align: top; clear: both'>
-<img src="RPi/images/MySense-2-kast.png" align=left height=100>
+<img src="https://github.com/user-attachments/assets/84621d9f-3ad8-4e5e-b5d3-415a59ff0189" align=left height=100>
+
 The main sensor kit case carrying the Raspberry Pi and all sensor/GPS modules is build from PVC roof gutter pieces: gutter end pieces for keeping the air in and the rain out, and overflow gutter box as casing.
 The case has a poweroff button and small window to show a tiny display with current measurements.
 The sensors are fixated on a Lego plate to allow flexibility of sensor changes.
@@ -257,8 +261,8 @@ A working example of MySense script in todays operation:
                                     |>-raw measurement values -> InFlux server or file
                                            calibration
 ```
-<img src="RPi/images/dubbelwandige-LantaarnType-MySense-3.png" height=150>
-<img src="RPi/images/SDS011-BME280-SSD1306.png" height=150>
+<img src="https://github.com/user-attachments/assets/26fb876f-dd83-490d-804c-52ccdb3062fc" align=right height=150>
+<img src="https://github.com/user-attachments/assets/0220ea75-3fba-4850-9bc1-7325a25000a1" align=right height=150>
 
 MySense LoRa air quality measurement kit:
 ```
