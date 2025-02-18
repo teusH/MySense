@@ -1,4 +1,4 @@
-<img src="https://github.com/teusH/MySense/RPi/images/MySense-logo.png" align=right width=100>
+<img src="https://github.com/teusH/MySense/blob/master/RPi/images/MySense-logo.png" align=right width=100>
 
 # MySense
 Last update of the README on 2nd of Februar 2020
