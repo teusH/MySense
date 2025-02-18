@@ -6,6 +6,13 @@ Last update of the README on 2nd of Februar 2020
 ## Description
 Software Infrastructure or framework for managing environmental sensors and data aquisition.
 
+This is WORK IN PROGRESS!
+All available Python3 scripts/modules are tested standalone as alpha tests and with some real life examples.
+In this alpha phase one is recommanded to test and improve the modules before it is taken fully operational.
+One is invited to comment on functionality, improvements, and higher level modules to use this library module set.
+
+Be aware that there are discussions going on to change the IoT website query interface and website query implementation of the Samen Meten API.
+
 ### Outline
 A description of the MySense PyCom based measurement kit, data collection and data visualisation is provided in a presentation at Meetkoppelting20 conference in Amersfoort, Jan 2020. The PDF slides can be found at <a href=""http://behouddeparel.nl/sites/behouddeparel.nl/files/20200125-Koppelting-WAR-Amersfoort.pdf" alt="an How To build a kit and show the results">"Measuring Air Quality in an Agri Region: an How To"</a> (PDF 3 MB).
 
