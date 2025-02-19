@@ -63,6 +63,14 @@ The HTML can be used on a website via <iframe src=HTMLfile>.
 
 The file 'Land van Cuijk.html' is a real life example of a generated HTML interactive map page for an overview of Samen Meten stations in the region Land van Cuijk in Holland. Which can be visualised via a browser.
 
+### Things2CSV.py
+Things2CSV will generate a CSV file from station information obtained from JSON (one dimensional or multi dymensional) dict or downloaded regional stations information via Samen Meten API (SamenMetenTools.py) as comma separated file (default delimeter ';'). Content structure is:
+1. comment lines, start with '#' char, with file properties as e.g. owner, version, project, title, subject, etc.
+2. column header with column names in either human readable format, or Things standard naming.
+3. station info, default ';' char separated
+
+Generated file maybe gzipped compressed. Example of generated CSV file is 'test-stations.csv' (generated from 'test-stations.json).
+
 ### ThingsArchive.py
 This module will await completion of alpha tests of other modules.
 
