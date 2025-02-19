@@ -1,0 +1,12 @@
+# title: Air Quality measurements information from RIVM/Things
+# category: Air Quality measurements
+# keywords: Air Quality, sensors, Particular Matter, NOx, NH3
+# comments: Open Source Initiative RPL-1.5.;Created by Things2CSV.py with Python and CSV (Pandas)
+# generated: {'2025-02-16T18:12:54'}
+# version: Things2CSV.py V1.3
+# author: Teus Hagen (teus)
+# subject: Low-Cost stations in regions: test-stations
+Things ID;@iot.id;GPS;address;owner;project;NO₂ @iot.id;NO₂ product;NO₂ symbol;region;PM₁₀ @iot.id;PM₁₀ count;PM₁₀ first;PM₁₀ last;PM₁₀ product;PM₁₀ symbol;PM₂.₅ @iot.id;PM₂.₅ count;PM₂.₅ first;PM₂.₅ last;PM₂.₅ product;PM₂.₅ symbol;PM₂.₅ (gekalibreerd) @iot.id;PM₂.₅ (gekalibreerd) count;PM₂.₅ (gekalibreerd) first;PM₂.₅ (gekalibreerd) last;PM₂.₅ (gekalibreerd) product;PM₂.₅ (gekalibreerd) symbol;temperatuur @iot.id;temperatuur count;temperatuur first;temperatuur last;temperatuur product;temperatuur symbol
+GLBPB_033-030;1234;(5.725, 51.721);Zandvoortschestraat, Langenboom, gem. Land van Cuijk, prov. Noord-Brabant;Globe;Palmes;45582.0;Palmes buisje;ug/m3;test-stations;;;;;;;;;;;;;;;;;;;;;;;;
+LTD_60047;1324;(5.842, 51.644);Lamperen, Wanroij, gem. Land van Cuijk, prov. Noord-Brabant;Luftdaten;Luftdaten;;;;test-stations;37489.0;2937.0;2022-04-26 04:00;2022-12-23 16:00;Nova SDS011;ug/m3;34877.0;2937.0;2022-04-26 04:00;2022-12-23 16:00;Nova SDS011;ug/m3;;;;;;;;;;;;
+OHN_gm-2138;8238;(6.087, 51.511);Hoofd 4, Meer, gem. Horst, prov. Limburg;Ohnics;GM;;;;test-stations;;;;;;;42889.0;9160.0;2023-10-05 08:00;2024-10-28 11:00;Sensirion SPS030;ug/m3;42890.0;9096.0;2023-10-05 08:00;2024-10-28 11:00;Sensirion SPS030;ug/m3;42891.0;9160.0;2023-10-05 08:00;2024-10-28 11:00;DS18B20;C
