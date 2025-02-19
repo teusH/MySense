@@ -27,6 +27,7 @@ Use CLI **python3 ScriptName.py help** option to get more information of option 
 
 ![SamenMetenArchitecture](https://github.com/user-attachments/assets/01a0a6b5-c6db-432b-8c1c-b83a8c4d7264)
 
+The Python3 (>= version 3.8) scripts/modules have an extensive amount of documentation and comments. This may help you to answer the question 'how did they do it?'.
 
 ## Outline of modules
 ### SamenMetenThings.py
@@ -50,13 +51,17 @@ and operational data of installed sensors (type, first and last timestamps, reco
 The spreadsheets will show per sheet the historical and current stations information.
 Station names will be in color to denote active states (red: station not active in the period, orange: lately not active, black: active).
 
+Example of generated output file for region Land van Cuijk is 'Land van Cuijk.xlsx'.
+
 The script uses municipality stations routine of the SamenMetenThings class module.
 
 ### Things2HTML.py
 Things2HTML will generate an interactive (Python Folium) Open Streep Map with regional low-cost station location markers.
 Clicking o marker will show information of installed sensors and operational timings. The chart is interactive.
 Goal is to present heatmaps of measurements as well of PM calibrated (temperature and RH) measurements.
-The HTML can be used on a wegside via <iframe src=HTMLfile>.
+The HTML can be used on a website via <iframe src=HTMLfile>.
+
+The file 'Land van Cuijk.html' is a real life example of a generated HTML interactive map page for an overview of Samen Meten stations in the region Land van Cuijk in Holland. Which can be visualised via a browser.
 
 ### ThingsArchive.py
 This module will await completion of alpha tests of other modules.
