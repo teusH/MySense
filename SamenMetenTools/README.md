@@ -43,6 +43,9 @@ The current modules are in alpha status and subjected to improvements and need t
 The module consists about of 50% of documentation and have a 'help' function for CLI usage. The modules gives you a good overview of backgrounds of the website query interfaces and how to use Samen Meten tools and interfaces.
 So read the module script!
 
+Example output file: Real life regional stations overview (gzipped json format) is 'Land van Cuijk.json.gz'. Generation took about 1 hour to generate (111 low-cost stations with different sensors installed).
+Most of the time was spend waitinmg on Things queries results. *Conclusion*: use local archived data as much as possible.
+
 ### Things2XLSX.py
 Things2XLSX will generate XLSX spreadsheet with overview of Things station names, location (GPS, address),
 station properties (owner, project, gemcode, reference station codes),
