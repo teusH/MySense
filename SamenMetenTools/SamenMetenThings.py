@@ -41,6 +41,8 @@ def get_SensorStatus(self, Stations:dict, Start=None, End=None) -> None:
     def get_Neighbours(self,Point:Union[str,List[float]],Range:int=None,Max:int=50,Select:str=None, Address:bool=None) -> Dict[str,tuple]
     def get_StationInfo(self, Name:str, Address:bool=None, Neighbours:Union[int,bool]=None, Sensors:str=None, Start:Any=None, End:Any=None) -> Dict
     def get_StationData(self, Name:str, Address:bool=None, Humanise:bool=None, Start:Any=None, End:Any=None, Sensors:str=None, Neighbours:bool=None) -> Dict[str,Any]
+
+    To Do: add properties info (meta info about output generated) as tiltle, subject, owner, version,etc.
 """
 
 #
@@ -71,7 +73,7 @@ def get_SensorStatus(self, Stations:dict, Start=None, End=None) -> None:
 # Docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 4.4 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 4.5 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -221,7 +223,7 @@ class HumaniseClass:
     # convert names to Things IoT sensor namings e.g. pm25_kal ug/m3 (SPS30)
     # strict=True will convert to bare Things sensor and/or symbol names
     def DehumaniseSensor(self, name:str, strict:bool=True) -> str:
-        """DehumaniseSensor: conver a humanised sensor string into a bare string"""
+        """DehumaniseSensor: convert a humanised sensor string into a bare string"""
         if not self.utf82chr: # poor man's utf-8 decoding
             for item,utf8 in self.chr2utf8.items():
                 if len(utf8) == 1: self.utf82chr[utf8] = item
@@ -1039,7 +1041,7 @@ class SamenMetenThings:
     #          'sensors': {'pm10_kal': None, 'pm10': None, 'pm25_kal': None,
     #                      'pm25': {'@iot.id': 10017, 'symbol': 'ug/m3'}} } }
 
-    # ======== ROUTINE get_InfoNeighbours(): station info in a region
+    # ======== ROUTINE get_InfoNeighboursList(): list of stations info for a region
     # multi threaded neighbours info if Names is list. May cause routine recursion.
     # list of station names or @iot.id's of stations
     # will call get_InfoNeighbours() routine for individial station info
@@ -2127,6 +2129,8 @@ class SamenMetenThings:
 ################## command line tests of (class) subroutines or command line checks
 if __name__ == '__main__':
 
+    import gzip
+    import json
     def help() -> None:
         sys.stderr.write(
         f"""
@@ -2333,7 +2337,15 @@ Some test cases for how to use the routines:
                 print(f"\twith neighbours within {Tests['Region']} meters range.")
               print("This query may take quite some time. E.g. 20 secs per sensor.")
               result = SamenMetenPandasClass.get_StationInfo(val, Address=True, Neighbours=Tests.get('Region'), Sensors=r'^.*$')
-              print_test(test,val,result)
+              if Tests['Verbosity'] > 2 or not type(result) is dict:
+                  print_test(test,val,result)
+              elif not type(result) is dict:
+                  print_test(test,val,result)
+              else:
+                  print(f"'{key}' args: '{str(val)}'")
+                  print(f"Created result in {val}.json.gz as dump data in gzip json format.")
+                  with gzip.open(val+".json.gz", 'w') as fout:
+                      fout.write(json.dumps(result).encode('utf-8'))
             elif re.match('.+StationData',test,re.I): # get sensor observations for a station name
               print(f"Period: {' upto '.join(Tests['Period'])}, Sensors: '{Tests['Sensors']}',")
               if Tests.get('Region'):
@@ -2341,4 +2353,12 @@ Some test cases for how to use the routines:
               result = SamenMetenPandasClass.get_StationData(val,
                     Address=False,Sensors=Tests['Sensors'],Neighbours=Tests.get('Region'),
                     Start=Tests['Period'][0].strip(), End=Tests['Period'][1].strip())
-              print_test(test,val,result)
+              if Tests['Verbosity'] > 2 or not type(result) is dict:
+                  print_test(test,val,result)
+              elif not type(result) is dict:
+                  print_test(test,val,result)
+              else:
+                  print(f"'{key}' args: '{str(val)}'")
+                  print(f"Created result in {val}.json.gz as dump data in gzip json format.")
+                  with gzip.open(val+".json.gz", 'w') as fout:
+                      fout.write(json.dumps(result).encode('utf-8'))
