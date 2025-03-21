@@ -19,7 +19,7 @@ __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
 import os, sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.2 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.3 $"[-5:-2]
 import pandas as pd
 from typing import Union,List,Tuple,Set
 import math
@@ -32,7 +32,7 @@ import folium
 from folium import plugins
 from folium.plugins import GroupedLayerControl
 
-HELP = f"""Generate HTML file with an Open Street Map
+HELP = f"""Generate HTML file with an Open Street Map from CSV archived file.
     Municipality or (station name or GPS) region with low-cost Things stations
     from Pandas series indexed by station name.
     Test command line: python3 {os.path.basename(__file__)} CSV-archive-file-name ....
@@ -575,14 +575,14 @@ if __name__ == '__main__':
             DEBUG = True; arg = 'Land van Cuijk.csv'
         elif re.match(r'(-+)*v(erbos)*',arg,re.I):            # verbosity level
             if (m := re.match(r'Verbosity=(\d)$',arg,re.I)):
-                Verbosity = int(m[0])
+                Verbosity = int(m[1])
             else: Verbosity += 1
             continue
         elif (m := re.match(r'Title=(.*)',arg,re.I)):          # title of map page
-            Title = m[0]
+            Title = m[1]
             continue
         elif (m := re.match(r'Period=(20\d\d-\d\d-\d\d.*),\s*(20\d\d-\d\d-\d\d.*)',arg,re.I)):
-            Period = [m[0],m[1]]
+            Period = [m[1],m[2]]
             continue
         if not re.match(r'.*\.csv',arg,re.I):                 # should be csv file
             sys.stderr.write(f"File {arg} is not an CSV file. Skipped\n")
