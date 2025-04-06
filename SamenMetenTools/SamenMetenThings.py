@@ -73,7 +73,7 @@ def get_SensorStatus(self, Stations:dict, Start=None, End=None) -> None:
 # Docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 4.5 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 4.6 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -1218,6 +1218,7 @@ class SamenMetenThings:
         Select  = self._RegExp(Select)
         # select: name or id, or both. properties: e.g. owner, project
         select = []; properties = []; stationProps = []
+        if By is None: By = 'name,id'
         for item in [x.strip() for x in By.split(',')]:
             if re.match(r'^(name|id)$',item): select.append(item)
             elif re.match(r'^(owner|project|(gem|knmi)code|(nh3|no2|pm[0-9]{1,2})(close|regio|stad)code)$',item):

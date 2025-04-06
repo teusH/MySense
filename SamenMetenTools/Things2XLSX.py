@@ -30,7 +30,7 @@ from typing import Union,List,Dict,Union,Any # if Python 3.8
 
 import xlsxwriter
 
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 2.3 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 2.4 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -150,7 +150,7 @@ class Things2XLSX:
        for regionName,stations in Regions:
            if type(regionName) is dict:
                _ = regionName ; regionName = stations; stations = _
-           if self.Add_Stations(stations, RgionName=regionName, Period=None): # timestamps period
+           if self.Add_Stations(stations, RegionName=regionName, Period=None): # timestamps period
                regions.append(regionName)
            else:
                sys.stderr.write(f"Region '{regionName}': no stations found.'\n") 
@@ -662,12 +662,6 @@ Options XLSX spreadsheet book property settings:
         Things class (sensors,product type, human readable sensor types, sensors status (first/last, count in period)
         """
         import SamenMetenThings as RIVM
-        if Verbosity > 0:
-            sys.stderr.write(f'Collect stations with region {RegionName} for period {str(Period)}\n')
-        if Things is None:
-            # human readable info, UTF8, add sensor status, sensor type info, use threading
-            Things = RIVM.SamenMetenThings(Sensors=sensors,Product=True,Humanise=True,Utf8=True,Status=True,Verbosity=0,Threading=True)
-            if Verbosity > 1: Things.Verbose = Verbosity
         Period = kwargs.get('Period',None)
         Select = kwargs.get('Select',None)
         Sensors = kwargs.get('Sensors',None)
@@ -697,7 +691,12 @@ Options XLSX spreadsheet book property settings:
             period[0] = datetime.datetime.strptime('1970-01-01T00:00:00Z','%Y-%m-%dT%H:%M:%S%z')
         else:
             period[0] = datetime.datetime.strptime(RIVM.ISOtimestamp(Start),'%Y-%m-%dT%H:%M:%S%z')
+        if Verbosity > 0:
+            sys.stderr.write(f'Collect stations with region {RegionName} for period {period[0].strftime("%Y-%m-%dT%H:%MZ")} - {period[0].strftime("%Y-%m-%dT%H:%MZ")}\n')
     
+        # human readable info, UTF8, add sensor status, sensor type info, use threading
+        things = RIVM.SamenMetenThings(Sensors=Sensors,Product=True,Humanise=True,Utf8=True,Status=True,Verbosity=0,Threading=True)
+        if Verbosity > 1: things.Verbose = Verbosity
         sheetName = list(); region = None
         # filter low-cost station name, station @iot.id, or station GPS
         if (m := re.findall(r'([\(\[]\s*\d+\.\d+\s*,\s*\d+\.\d+\s*[\)\]]|[a-z]+_[a-z0-9_-]+[a-z0-9]|\d+)',RegionName,re.I)):
@@ -712,7 +711,7 @@ Options XLSX spreadsheet book property settings:
         if type(sheetName) is list: region = 0  # no region, list of single station names
     
         # may expand properties: e.g. gemcode (984), knmicode (knmi_06391), pm25regiocode (NL10131), etc.
-        stations = Things.get_InfoNeighbours(RegionName, Region=region,
+        stations = things.get_InfoNeighbours(RegionName, Region=region,
                 Select=Select, By=Expand,
                 Start=(None if not period[0] else periond[0].strftime("%Y-%m-%dT%H:%M:%SZ")),
                 End=(None if not period[1] else periond[1].strftime("%Y-%m-%dT%H:%M:%SZ")))
@@ -749,7 +748,7 @@ Options XLSX spreadsheet book property settings:
         else:   # region name: get staions of that region
             try:
                 # next can take a while. use progress metering?
-                item =  GetStationInfo(region,**Kwargs)
+                item =  GetStationInfo(region, **Kwargs)
                 if type(item[1]) is dict:
                     RegionalStations.append((item[0],item[1],item[2]))
                 # args: region name:str, stations:dict, period list[datetime,datetime]

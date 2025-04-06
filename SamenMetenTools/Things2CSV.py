@@ -29,7 +29,7 @@ from typing import Union,List,Dict,Union,Any # if Python 3.8
 import pandas as pd
 import SamenMetenThings as RIVM
 
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 2.2 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 2.3 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -256,7 +256,7 @@ class Things2CSV:
         # region names with list of collected station names
         self.Regions = dict()                        # {'regionI':[station1,..],..}
         if self.Verbosity:
-            sys.stderr.write(f"Creating CSV {'(gzipped) ' if self.ZipFile else ''}file: '{self.CSVfile}.csv'\n")
+            sys.stderr.write(f"CSV {'(gzipped) ' if self.ZipFile else ''}file name: '{self.CSVfile}.csv'\n")
 
     # to support 'with clause' Things2XLSX(): Generate Workbook c.q. Add Stations clause
     def __enter__(self):
@@ -509,7 +509,7 @@ class Things2CSV:
     # TO DO: add region name of stations to the series?
     # Add_Stations() add station to self.Stations Pandas dataframe series
     # Filtering: only stations with observation timestamps in Period.
-    def Add_Stations(self,Stations:dict,RegionName:str=None,Period:str=None) -> bool:
+    def Add_Stations(self,Stations:dict,RegionName:str=None,Period:Union[str,list]=None) -> bool:
         """Add_Stations from Samen Meten Tools dict or list of discts
         with station info
         add to Pandas dataframe series collection
@@ -531,7 +531,8 @@ class Things2CSV:
             sys.stderr.write(f"Found {len(stations)} stations in region {RegionName if RegionName else 'no region provided'}\n")
 
         # skip station if station dict is not conformant or not in period active
-        period = ParsePeriod(Period)
+        if type(Period) is str: period = ParsePeriod(Period)
+        else: period = Period
         if not type(period) is list: period = [pd.NaT,pd.NaT]
         for row, station in enumerate(stations):
             # check if records are conformant and complete
@@ -616,8 +617,8 @@ if __name__ == '__main__':
 Command examples:
     Do a test:
         {os.path.basename(__file__)} DEBUG (test data or use help.)
-    Create map with stations info for stations in munipality from source RIVM Things:
-        {os.path.basename(__file__)} Land\ van\ Cuijk File=Land\ van\ Cuijk.html
+    Create CSV file with stations info for stations in munipality from source RIVM Things:
+        {os.path.basename(__file__)} Land\ van\ Cuijk File=Land\ van\ Cuijk.csv
     Create archive file from CSV file and JSON archive into one CSV archive:
         {os.path.basename(__file__)} Venray 'Land van Cuijk.json.gz'  Sensors='pm10,pm25'
 
@@ -763,16 +764,11 @@ Options to filter data information domains:
         options Period (Start,End) may use Unix date command to get dateformat,
         Things class (sensors,product type, human readable sensor types, sensors status (first/last, count in period)
         """
-        if Verbosity > 0:
-            sys.stderr.write(f'Collect stations with region {RegionName} for period {str(Period)}\n')
-        if Things is None:
-            # human readable info, UTF8, add sensor status, sensor type info, use threading
-            Things = RIVM.SamenMetenThings(Sensors=sensors,Product=True,Humanise=True,Utf8=True,Status=True,Verbosity=0,Threading=True)
-            if Verbosity > 1: Things.Verbose = Verbosity
         Period = kwargs.get('Period',None)
         Select = kwargs.get('Select',None)
         Sensors = kwargs.get('Sensors',None)
-        Expand = kwargs.get('Expand',None)
+        Expand = kwargs.get('Expand','name')
+
         if Period and not type(Period) is list:
             period = []
             for _ in Period.strip().split(','):
@@ -798,7 +794,12 @@ Options to filter data information domains:
             period[0] = datetime.datetime.strptime('1970-01-01T00:00:00Z','%Y-%m-%dT%H:%M:%S%z')
         else:
             period[0] = datetime.datetime.strptime(RIVM.ISOtimestamp(Start),'%Y-%m-%dT%H:%M:%S%z')
+        if Verbosity > 0:
+            sys.stderr.write(f'Collect stations with region {RegionName} for period {period[0].strftime("%Y-%m-%dT%H:%MZ")} - {period[1].strftime("%Y-%m-%dT%H:%MZ")}\n')
     
+        # human readable info, UTF8, add sensor status, sensor type info, use threading
+        things = RIVM.SamenMetenThings(Sensors=Sensors,Product=True,Humanise=True,Utf8=True,Status=True,Verbosity=0,Threading=True)
+        if Verbosity > 1: things.Verbose = Verbosity
         sheetName = list(); region = None
         # filter low-cost station name, station @iot.id, or station GPS
         if (m := re.findall(r'([\(\[]\s*\d+\.\d+\s*,\s*\d+\.\d+\s*[\)\]]|[a-z]+_[a-z0-9_-]+[a-z0-9]|\d+)',RegionName,re.I)):
@@ -813,10 +814,10 @@ Options to filter data information domains:
         if type(sheetName) is list: region = 0  # no region, list of single station names
     
         # may expand properties: e.g. gemcode (984), knmicode (knmi_06391), pm25regiocode (NL10131), etc.
-        stations = Things.get_InfoNeighbours(RegionName, Region=region,
+        stations = things.get_InfoNeighbours(RegionName, Region=region,
                 Select=Select, By=Expand,
-                Start=(None if not period[0] else periond[0].strftime("%Y-%m-%dT%H:%M:%SZ")),
-                End=(None if not period[1] else periond[1].strftime("%Y-%m-%dT%H:%M:%SZ")))
+                Start=(None if not period[0] else period[0].strftime("%Y-%m-%dT%H:%M:%SZ")),
+                End=(None if not period[1] else period[1].strftime("%Y-%m-%dT%H:%M:%SZ")))
         return (RegionName,stations,period)
 
     if DEBUG:                # just some test data
@@ -874,8 +875,7 @@ Options to filter data information domains:
               else:   # region name: get stations of that region from Samen Meten API
                 try:
                     # next can take a while. To Do: use progress metering if Verbosity?
-                    # if Verbosity: progress(Name,GetStationInfo,region,Kwargs)
-                    item =  GetStationInfo(region,**Kwargs)
+                    item =  GetStationInfo(region, **Kwargs)
                     if not type(item[1]) is dict:
                         sys.stderr.write(f"Failed to get stations info from Samen Meten API for region '{region}'. Skipped.\n")
                         continue
@@ -886,6 +886,6 @@ Options to filter data information domains:
                     sys.stderr.write(f"Error to get stations in region '{region[0]}'. Skipped.\n")
                     continue
             # region[1] is (normalized?) dict, region[1] name region
-            # only with timestamps in this period: region[2] is period
+            # only with timestamps in this period: region[2] is tuple period in datetime format
             # add stations from dict to Pandas dataframe series
             Convert2CSV.Add_Stations(region[1],RegionName=region[0],Period=region[2])
