@@ -19,7 +19,7 @@ __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
 import os, sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.3 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.4 $"[-5:-2]
 import pandas as pd
 from typing import Union,List,Tuple,Set
 import math
@@ -106,7 +106,8 @@ def GetDataFromCSV(file_name:str) -> Tuple[pd.Series,pd.Timestamp,pd.Timestamp]:
     # timestamps are converted to local timezone aware
     for idx in [ _ for _ in data.keys() if re.match(r'.*\s(last|first)$',_)]:
         try:
-            data[idx] = [ pd.Timestamp(_).tz_localize(tz=datetime.datetime.now().astimezone().tzname()) for _ in data[idx] ]
+            #data[idx] = [ pd.Timestamp(_).tz_localize(tz=datetime.datetime.now().astimezone().tzname()) for _ in data[idx] ]
+            data[idx] = [ pd.Timestamp(_).tz_localize(tz='Europe/Amsterdam') for _ in data[idx] ]
         except: raise ValueError(f"Convert to pd.timestamp error in column '{idx}'")
     logger.info(f'Data from {file_name}: nr of (info) columns: {len(data.keys())}, (stations) rows: {len(data)}')
     return data
@@ -516,8 +517,10 @@ class GenerateThingsMap:
                 if not years.get(ayear): years[ayear] = {'pols': set(), 'types': set()}
                 if not asensor: return
                 years[ayear]['pols'] |= set([asensor])
-                if row[asensor + ' type'] and type(row[asensor + ' type']) is str:
+                try:
+                  if row[asensor + ' type'] and type(row[asensor + ' type']) is str:
                     years[ayear]['types'] |= set([re.sub(r'\s.*','',row[asensor+' type'])])
+                except: pass
             # get marker attrs per year, start-end period seen
             for sensor in sensors:       # for each sensor get marker attributes
                 first = None; last = None     # period of observations for this sensor
@@ -568,7 +571,7 @@ if __name__ == '__main__':
     Period = [None,None]; Title = None
     if not len(sys.argv[1:]) and HELP: sys.stderr.write(HELP+'\n')
     for arg in sys.argv[1:]:
-        if re.match(r'(-+)*h(elp)*',arg,re.I):              # print help info
+        if re.match(r'-(-)*h(elp)*',arg,re.I):              # print help info
             sys.stderr.write(HELP+'\n')
             exit(0)
         elif re.match(r'(-+)*d(ebug)*',arg,re.I):             # use debug .csv file
