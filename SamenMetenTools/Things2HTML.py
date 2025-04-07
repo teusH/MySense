@@ -19,7 +19,7 @@ __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
 import os, sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.4 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.5 $"[-5:-2]
 import pandas as pd
 from typing import Union,List,Tuple,Set
 import math
@@ -517,9 +517,13 @@ class GenerateThingsMap:
                 if not years.get(ayear): years[ayear] = {'pols': set(), 'types': set()}
                 if not asensor: return
                 years[ayear]['pols'] |= set([asensor])
+                # type is deprecated for product id
+                if asensor + ' type' in row.keys(): _ = asensor + ' type'
+                elif asensor + ' product' in row.keys(): _ = asensor + ' product'
+                else: _ = asensor + ' not supported'
                 try:
-                  if row[asensor + ' type'] and type(row[asensor + ' type']) is str:
-                    years[ayear]['types'] |= set([re.sub(r'\s.*','',row[asensor+' type'])])
+                  if row[_] and type(row[_]) is str:
+                    years[ayear]['types'] |= set([re.sub(r'\s.*','',row[_])
                 except: pass
             # get marker attrs per year, start-end period seen
             for sensor in sensors:       # for each sensor get marker attributes
