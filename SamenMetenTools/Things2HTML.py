@@ -19,7 +19,7 @@ __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
 import os, sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.6 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.7 $"[-5:-2]
 import pandas as pd
 from typing import Union,List,Tuple,Set
 import math
@@ -92,6 +92,8 @@ def GetDataFromCSV(file_name:str) -> Tuple[pd.Series,pd.Timestamp,pd.Timestamp]:
         raise IOError(f"File {file_name} does not exists or is not a CSV file")
     data = pd.read_csv(file_name, sep=';', header=0, skiprows=0, skip_blank_lines=True, comment='#', )
 
+    if not 'Things ID' in data.keys(): raise ValueError("Not a Things CVS file")
+    data.set_index('Things ID', drop=True, inplace=True)
     import ast
     if not 'GPS' in data.keys():
         if 'longitude' in data.keys() and 'altitude' in data.keys():
@@ -273,10 +275,6 @@ class GenerateThingsMap:
         if not type(Typing) is str: m = ','.join(Typing)
         else: m = Typing
         if not m: return rts
-        # ‘red’, ‘blue’, ‘green’, ‘purple’, ‘orange’, ‘darkred’,
-        # ’lightred’, ‘beige’, ‘darkblue’, ‘darkgreen’, ‘cadetblue’,
-        # ‘darkpurple’, ‘white’, ‘pink’, ‘lightblue’, ‘lightgreen’,
-        # ‘gray’, ‘black’, ‘lightgray’
         # get different colors for sensor types (dust blue-ish or gas)
         if (matches := len(tuple(re.finditer(r'pm',m,re.I)))):  # dust sensor type
             rts['prefix'] = 'fa'
@@ -456,10 +454,11 @@ class GenerateThingsMap:
     # check is the pandas series data is compliant with Things series
     def isThingsData(self, Data:pd.Series) -> bool:
         try:
-            if type(Data['Things ID']) is pd.Series and type(Data['GPS']) is pd.Series:
+            # has at least GPS column and is indexed by Things ID
+            if re.match('Things ID',Data.index.name,re.I) and type(Data['GPS']) is pd.Series:
                 return True
         except: pass
-        logger.warning("Provided Pandas data series fails 'Things ID' or 'GPS' location columns.")
+        logger.warning("Provided Pandas DataFormat has no 'GPS' location columns.")
         return False
 
     # add the stations as markers with data info on OpenStreet interactive  map
@@ -508,8 +507,7 @@ class GenerateThingsMap:
         # for each station get location, map marker+attributes per overlay year
         # every year has own overlay with markers
         # run over all stations to identify markers per overlay (a year in operation)
-        for idx, row in Data.iterrows():
-            station=row['Things ID']
+        for station, row in Data.iterrows():
             start = None; end = None     # period with observations for this station
             # years: dict with pollutant (sensor) and sensor type per year for this station
             years = dict()               # years = { year: { sensors=set(), types=set() } }
@@ -562,6 +560,23 @@ class GenerateThingsMap:
         self.AddMapControls(map, overlays) # add layer controls
         return map
     
+# concatenate two pandas dataframes
+# unique will overwrite the left dataframe series on doubles (dflt)
+def ConcatSeries(Left:pd.core.frame.DataFrame,Right:pd.core.frame.DataFrame,Unique:bool=True, Sort:bool=True) -> pd.core.frame.DataFrame:
+    """ConcatSeries() Combine two Pandas series dateframe into one (sorted) dataframe.
+    Not unique index name (station name) handling: optionaly overwrite with second frame."""
+
+    left = Left.copy()
+    doubles = []
+    if Unique:
+        for item in Right.index:
+            if item in Left.index: doubles.append(item)
+    if doubles: left.drop(index=doubles,inplace=True)
+    left = pd.concat([left,Right],sort=False)
+    if Sort: left.sort_index(ascending=True, inplace=True) # sort on station names
+    return left
+
+# class to convert Things station info dict to XLSX spreadsheet workbook
 # ================================================================================
 ################## command line tests of (class) subroutines or command line checks
 # command line options:  help, debug, verbosity=N,
@@ -569,21 +584,34 @@ class GenerateThingsMap:
 #                        period=YYYY-MM-DD HH:MM,YYYY-MM-DD HH:MM or auto detect
 if __name__ == '__main__':
     Verbosity = 0
-    DEBUG = False
-    Period = [None,None]; Title = None
+    logger = logging.getLogger(__name__)
+    if Verbosity >= 3:
+        logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+    elif Verbosity:
+        logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+    DEBUG = False; Data = None
+    Period = [None,None]; Title = None; File = None
     if not len(sys.argv[1:]) and HELP: sys.stderr.write(HELP+'\n')
-    for arg in sys.argv[1:]:
-        if re.match(r'-(-)*h(elp)*',arg,re.I):              # print help info
+    Regions = []
+    for arg in sys.argv[1:]:   # convert csv files into Pandas dataformat series
+        if re.match(r'-(-)*h(elp)*',arg,re.I):                # print help info
             sys.stderr.write(HELP+'\n')
             exit(0)
-        elif re.match(r'(-+)*d(ebug)*',arg,re.I):             # use debug .csv file
-            DEBUG = True; arg = 'Land van Cuijk.csv'
-        elif re.match(r'(-+)*v(erbos)*',arg,re.I):            # verbosity level
+        elif re.match(r'(-)+d(ebug)*',arg,re.I):             # use debug .csv file
+            DEBUG = True; arg = 'DEBUG.csv'
+        elif re.match(r'(-)+v(erbos)*',arg,re.I):            # verbosity level
             if (m := re.match(r'Verbosity=(\d)$',arg,re.I)):
                 Verbosity = int(m[1])
             else: Verbosity += 1
+            if Verbosity >= 3:
+                logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+            elif Verbosity:
+                logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
             continue
-        elif (m := re.match(r'Title=(.*)',arg,re.I)):          # title of map page
+        elif (m := re.match(r'File=(.*)',arg,re.I)):          # output file name of map page
+            File = m[1]
+            continue
+        elif (m := re.match(r'Title=(.*)',arg,re.I)):         # title name of map page
             Title = m[1]
             continue
         elif (m := re.match(r'Period=(20\d\d-\d\d-\d\d.*),\s*(20\d\d-\d\d-\d\d.*)',arg,re.I)):
@@ -592,21 +620,22 @@ if __name__ == '__main__':
         if not re.match(r'.*\.csv',arg,re.I):                 # should be csv file
             sys.stderr.write(f"File {arg} is not an CSV file. Skipped\n")
             continue
+        else: Regions.append(re.sub(r'.(csv|CSV)$','',arg))
 
-        if Title is None: Title = re.sub(r'.csv','',os.path.basename(arg),re.I)
-        if Verbosity >= 3:
-            logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
-        elif Verbosity:
-            logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
-        logger = logging.getLogger(__name__)
+        logger.info(f"Generate OS map for region '{Regions[-1]}' from file: {arg}")
+        try:
+            data = GetDataFromCSV(arg)  # convert csv file to panda series
+            logger.info(f'Collected info for {len(data)} stations for region: {Regions[-1]}')
+            if Data is None: Data = data.copy()
+            else: Data = ConcatSeries(Data,data,Unique=True, Sort=False)
+        except: sys.stderr.write(f"Failed to collect map from file {arg}. Skipped.\n")
 
-        logger.info(f"Generate OS map from {arg}, period {str(Period)}, title {Title}")
+    if not Data is None:
+        if Title is None: Title = f'AirQuality stations region{"s" if len(Regions) else ""}: ' + ', '.join(Regions)
+        if File is None: File = 'Regions ' + ','.join(Regions) + '.html'
         Map = None
-        Data = GetDataFromCSV(arg)  # convert csv file to panda series
-        logger.info(f'Collected info for {len(Data)} stations')
-        Map = GenerateThingsMap(Verbosity=Verbosity,Title=Title,Period=Period).Data2Map(Data)
-        if Map:
-            arg = arg.replace('.csv','')+'.html'
-            Map.save(arg)
-            sys.stderr.write(f"Generated map htmp file: '{arg}'\n")
-        
+        logger.info(f"Creating air quality stations map in file {File}, title: {Title}, period: {str(Period)}")
+        try:
+            Map = GenerateThingsMap(Verbosity=Verbosity,Title=Title,Period=Period).Data2Map(Data)
+            if Map: Map.save(File)
+        except: sys.stderr.write("Failed to create HTML map file\n")

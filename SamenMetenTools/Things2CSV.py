@@ -29,7 +29,7 @@ from typing import Union,List,Dict,Union,Any # if Python 3.8
 import pandas as pd
 import SamenMetenThings as RIVM
 
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 2.3 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 2.4 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -658,6 +658,10 @@ Options to filter data information domains:
     Period=None                                Only stations active in period.
     For period timestamp the Python time parser is applied to understand human expressions,
     this is language dependant (e.g. 'yesterday,now' or 'gisteren,vandaag').
+
+Note: The time it takes to collect stations information for a whole region can cause
+    timeout errors. Especially if information is required from a range of regions.
+    Advised is to limit CSV generation one by one and compine CSV files later.
 """)
         exit(0)
 
