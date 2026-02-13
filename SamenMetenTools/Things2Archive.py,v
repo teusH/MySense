@@ -1,0 +1,911 @@
+head	1.2;
+access;
+symbols;
+locks
+	teus:1.2; strict;
+comment	@# @;
+
+
+1.2
+date	2025.02.01.20.03.59;	author teus;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2025.01.12.13.34.00;	author teus;	state Exp;
+branches;
+next	;
+
+
+desc
+@Archive Samen Meten Things stations info to archive.
+Format: XLSX, CSV, JSON.
+@
+
+
+1.2
+log
+@tussen status. Next full archive tool.
+@
+text
+@# Open Source Initiative  https://opensource.org/licenses/RPL-1.5
+#
+#   Unless explicitly acquired and licensed from Licensor under another
+#   license, the contents of this file are subject to the RECIPROCAL PUBLIC
+#   LICENSE ("RPL") Version 1.5, or subsequent versions as allowed by the RPL,
+#   and You may not copy or use this file in either source code or executable
+#   form, except in compliance with the terms and conditions of the RPL.
+#
+#   All software distributed under the RPL is provided strictly on an "AS
+#   IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, AND
+#   LICENSOR HEREBY DISCLAIMS ALL SUCH WARRANTIES, INCLUDING WITHOUT
+#   LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+#   PURPOSE, QUIET ENJOYMENT, OR NON-INFRINGEMENT. See the RPL for specific
+#   language governing rights and limitations under the RPL.
+#
+# Copyright (C) 2024, Teus Hagen, the Netherlands
+#
+"""
+Python3.8+ script to generate Samen Meten Things stations info of a period
+into different formats: XLSX, CSV (sep ';', header columns dict keys),
+JSON. Archived data may be compressed in format defined in file extenstion.
+Archived data is an overview air quality observation low-cost stations
+in various municipalities or neighbouring stations or GPS ordinate
+in a certain period of time from RIVM database.
+Data is obtained via SamenMetenThings tools module from RIVM Samen Meten API.
+Script command line: 'python3 script [Period=one year ago,now] name ...
+Period name in human readable format is language dependant (command environment 'LANG').
+name may be a municipality name, low-cost station name or GPS ordinate.
+Archived is station ID, GPS, optional address, owner, project, sensors (first seen,
+last seen, count observations, sensor type and manufacturer, if defined), ...
+
+Command: scriptname [options] region (municipality, neighbours of station name or GPS) 
+Command example: python3 scriptname Land\ van\ Cuijk
+or               python3 scriptname DEBUG
+or               python3 scriptname help
+
+Command line options:
+    Help                                        # get help information
+    DEBUG=False                                 # use buildin test region
+    Period=,now                                 # from YYYY-MM-DD hh:mm to end time
+                                                # or period in human format, eg now
+    Sensors='(pm25|pm10|temp|rh|pres|nh3|no2)'  # only these sensors
+    Select='reg expression'                     # default all, filter on these station names
+    Verbosity=0                                 # >3 include thread info progress
+    Expand='location,address,owner,project'     # extra info
+    User=$USER                                  # user name
+    Company=''                                  # company name
+    Bookstate=draft                             # state of archive file
+    Output='Regional_Stations'                  # default archive file name
+    Ext=csv.gz                                  # default output format sep=; #-comments
+    Hide=GPS,address,first,last,count,type      # default XLSX hidden columns
+"""
+import re
+import sys,os
+from collections import OrderedDict
+import datetime
+import dateparser                      # check time period with Python dateparser
+from dateutil import tz                # get timezone
+from typing import Union,List          # if Python 3.8
+
+import SamenMetenThings as RIVM
+
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.1 $"[-5:-2]
+__license__ = 'Open Source Initiative RPL-1.5'
+__author__  = 'Teus Hagen'
+
+# globals which can be overwritten via command line: <name>='value', ....
+DEBUG     = False                       # debug modus, do not use SamenMetenThings class
+
+# defaults
+Period = ',now'                         # period of interest, comma separated
+# To Do: may need to filter out unsupported sensors
+Sensors   = '(pm25|pm10|temp|rh|pres|nh3|no2)' # sensor types of interest, reg exp
+# calibrated example: pm25_kal, pm10_kal
+Select    = None                        # filter station names (dflt None) else Reg Exp.
+Verbosity = 0                           # level of verbosity for Things
+Expand    = 'location,address,owner,project' # extra info of stations from Things
+# By = 'owner,project'
+Properties = dict()                     # archived properties
+import pwd
+if (_ := re.sub(r'\s*,.*$','',pwd.getpwnam(os.environ["USER"]).pw_gecos)):
+    User = f"{_} ({os.environ['USER']})"
+else: User = ''
+Output = 'Regional_Stations'            # default archive file name
+Ext    = 'csv.gz'                       # default file format sep=';' with '#'-comments
+Hide='GPS,address,first,last,count,type' # default XLSX hidden columns
+Regions = dict()                        # regions in archive
+Company = ''                            # company name user
+Bookstate = 'draft'                     # book state archive
+
+# progress metering, with teatime music: every station takes ca 30 seconds delay
+def progress(Name,func,*args,**kwargs):
+    from threading import Thread
+    thread = Thread(target=func, args=args, kwargs=kwargs)
+    #thread.setDeamon(True)              # P 3.10+: thread.deamon(True)
+    thread.start()
+    teaTime = time()
+    while thread.is_alive():
+        secs = time()-teaTime; mins = int(secs/60); secs = secs-(mins*60)
+        mins = f"{mins}s" if mins else ''
+        sys.stderr.write(f'Busy downloading for {Name}: {mins}{secs:.1f}s\r')
+        sleep(0.1)
+    thread.join()
+    sys.stderr.write(f'Download {Name} done in {mins.replace("m"," minutes ")}{int(secs)} seconds' + ' '*40 + '\n')
+
+def Get_Stations(RegionName:str,Things=None,Period:Union[str,List[str]]=Period) -> bool:
+    """Get_Stations(str: municipality, or list of (GPS or station ID's),
+    options Period (Start,End) may use Unix date command to get dateformat,
+    Things class (sensors,product type, human readable sensor types,
+                  sensors status (first/last, count in period).
+    """
+    global Sensors, Select, Expand
+    global Verbosity
+    if Verbosity > 0:
+        sys.stderr.write(f'Collect stations with region {RegionName} for period {str(Period)}\n')
+    if Things is None:
+        # human readable info, UTF8, add sensor status, sensor type info, use threading
+        Things = RIVM.SamenMetenThings(Sensors=sensors,Product=True,Humanise=True,Utf8=True,Status=True,Verbosity=0,Threading=True)
+        if Verbosity > 1: Things.Verbose = Verbosity
+    if DEBUG:
+        Period = '2023/01/01,2024/08/22'
+    if Period and not type(Period) is list:
+        period = []
+        for _ in Period.strip().split(','):
+            _ = _.strip(); dt = None
+            if len(_):  # command date just to get proper timestamp format
+                dt = dateparser.parse(_)
+                if not type(dt) is datetime.datetime:
+                    raise(f"Unix date {_} failure. Check LANG env. variable setting.")
+                dt = dt.astimezone(tz.UTC)  # convert local time to utc
+                dt = datetime.datetime.strftime(dt,"%Y-%m-%dT%H:%M:%SZ")
+                if not re.match(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z',dt):
+                    raise(f"Unix date {_} failure. Check LANG env. variable setting.\n")
+            period.append(dt)
+        if len(period) < 2: period.append(None)
+        elif type(Period) is list: period = Period[:2]
+    else: period = [None,None]
+    Start = period[0]; End = period[1]
+    # get period of timestamps of observations available Start - End
+    if End is None:
+        End = datetime.datetime.now(datetime.timezone.utc)
+    else:
+        End = datetime.datetime.strptime(RIVM.ISOtimestamp(End),'%Y-%m-%dT%H:%M:%S%z')
+    if Start is None:
+        Start = datetime.datetime.strptime('1970-01-01T00:00:00Z','%Y-%m-%dT%H:%M:%S%z')
+    else:
+        Start = datetime.datetime.strptime(RIVM.ISOtimestamp(Start),'%Y-%m-%dT%H:%M:%S%z')
+
+    sheetName = list(); region = None
+    # filter low-cost station name, station @@iot.id, or station GPS
+    if (m := re.findall(r'([\(\[]\s*\d+\.\d+\s*,\s*\d+\.\d+\s*[\)\]]|[a-z]+_[a-z0-9_-]+[a-z0-9]|\d+)',RegionName,re.I)):
+        # list of low-cost stations
+        for _ in m:
+                sheetName.append(_.strip())
+        # a single low_cost station name will be used to identify municipality!
+        if len(sheetName) == 1 and sheetName[0].find('_'):
+            # use station name to identify municipality
+            sheetName = sheetName[0]
+    else: sheetName = RegionName
+    if type(sheetName) is list: region = 0  # no region, list of single station names
+
+    # may expand properties: e.g. gemcode (984), knmicode (knmi_06391), pm25regiocode (NL10131), etc.
+    if DEBUG:                       # avoid wait on teatime 
+        stations = {
+           'OHN_gm-2136': {'@@iot.id': 8236, 'owner': 'Ohnics', 'project': 'GM', 'location': [(5.933, 51.474), 'Eijk 5, Veen, gem. Ven, prov. Lirg'],
+               'sensors': {
+                   'temp': {'@@iot.id': 42885, 'symbol': 'C', 'first': '2023-10-05T08:00:00.000Z', 'count': 9167, 'last': '2024-10-28T12:00:00.000Z', 'product': 'DS18B20'},
+                   'pm25_kal': {'@@iot.id': 42884, 'symbol': 'ug/m3', 'first': '2023-10-05T08:00:00.000Z', 'count': 9106, 'last': '2024-10-28T11:00:00.000Z', 'product': 'Sensirion SPS030'},
+                   'pm25': {'@@iot.id': 42883, 'symbol': 'ug/m3', 'first': '2023-10-05T08:00:00.000Z', 'count': 9167, 'last': '2024-10-28T12:00:00.000Z', 'product': 'Sensirion SPS030'}}},
+           'OHN_gm-2138': {'@@iot.id': 8238, 'owner': 'Ohnics', 'project': 'GM', 'location': [(6.087, 51.511), 'Hoofd 4, Meer, gem. Horst, prov. Limburg'],
+               'sensors': {
+                   'temp': {'@@iot.id': 42891, 'symbol': 'C', 'first': '2023-10-05T08:00:00.000Z', 'count': 9160, 'last': '2024-10-28T11:00:00.000Z', 'product': 'DS18B20'},
+                   'pm25_kal': {'@@iot.id': 42890, 'symbol': 'ug/m3', 'first': '2023-10-05T08:00:00.000Z', 'count': 9096, 'last': '2024-10-28T11:00:00.000Z', 'product': 'Sensirion SPS030'},
+                   'pm25': {'@@iot.id': 42889, 'symbol': 'ug/m3', 'first': '2023-10-05T08:00:00.000Z', 'count': 9160, 'last': '2024-10-28T11:00:00.000Z', 'product': 'Sensirion SPS030'}}},
+    'OHN_gm-2126': {'@@iot.id': 1234, 'owner': 'Ohnics', 'project': 'GM', 'location': [(5.938, 51.503)],
+            'sensors': {
+                  'temp': None, 'pm10': {'@@iot.id': 42860}, 'pm25': {'@@iot.id': 42859}}},
+    'OHN_gm-2216': {'owner': 'niks', 'project': 'Palmes',
+            'sensors': {
+                'rh': None,
+                'no2': {'@@iot.id': 42860, 'first': '2023-10-05T08:00:00.000Z', 'count': 10, 'last': '2024-07-30T08:00:00.000Z','product':'Palmes'}, 'pm25': {'@@iot.id': 42859}}}
+        }
+    else:
+        stations = Things.get_InfoNeighbours(RegionName, Region=region, Select=Select, By=Expand, Start=Start, End=End)
+    if not type(stations) is dict: return False
+    if not len(stations):
+        sys.stderr.write(f"Unable to get stations for municipality {RegionName}.\n")
+        return False
+    if not type(stations) is dict and not len(stations):
+        sys.stderr.write(f"Unable to find stations in municipality {RegionName}\n")
+        return False
+    if Verbosity > 0:
+        sys.stderr.write(f"Found {len(stations)} stations in municipality {RegionName}\n")
+    return stations
+
+# Pandas dataframe columns with indexes per row station (index Things ID):
+#   [ { 'Things ID':str,
+#       'GPS': [float,float],  #    'longitude':float, 'latitude':float,
+#       'address':str, 'owner':str, 'project':str,
+#       '<sensor-i> first':YYYY-MM-DDTHH:mm:ssZ, '<sensor-i> last:YYYY-MM-DDTHH:mm:ssZ,
+#       '<sensor-i> count':int, '<sensor-i> product':str, ... },
+#     { ... }, ... ]
+#   stations:dict: required keys:
+#         'Things ID', 'location':list[ordinates:list|tuple,address:str],
+#   other dict keys are optional:
+#           <sensor-i> name sensor with
+#               optional dict[str] keys: 'first', 'last', 'count', '@@iot.id', 'product'
+
+# simplify Samen Meten Things stations info dict to
+#     row of 1-dim dict[key:str,value:any] per station
+# make it ready to convert to e.g. CSV or Pandas dataframe
+def simplifySamenMetenStationsDict(Stations:dict) -> tuple:
+    import re
+    import pandas as pd
+    import datetime
+    # local time should be done with reg expression
+    def datetime_str_to_datetime(yyyy_mm_dd_hh_mm: str, end=False) -> str:
+        """datetime_str_to_datetime"""
+        if not type(yyyy_mm_dd_hh_mm) is str: return yyyy_mm_dd_hh_mm
+        if re.match(r'[0-9]{4}-[01][0-9]*-[0-3][0-9]$', yyyy_mm_dd_hh_mm):
+            date = datetime_str_to_datetime(yyyy_mm_dd_hh_mm +('23:59:59' if end else '00:00:00'))
+        elif re.match(r'[0-9]{4}-[01][0-9]*-[0-3][0-9]\s[0-2][0-9]:[0-5][0-9]$', yyyy_mm_dd_hh_mm):
+            date = datetime_str_to_datetime(yyyy_mm_dd_hh_mm + (":59" if end else ":00"))
+        else:
+            date = yyyy_mm_dd_hh_mm
+        return date
+
+    def local_to_panda(local: str, end=False, tz=None) -> datetime:
+        """local_to_panda"""
+        date = pd.to_datetime(datetime_str_to_datetime(local, end=end)).tz_localize(tz='Europe/Amsterdam')
+        if not tz:
+            return  date
+        else:
+            return date.tz_convert(tz=tz)
+
+    stations = list()
+    for station, value in Stations.items():
+        if not station or not value or not type(value) is dict: continue
+        row = dict()
+        for idx, idxVal in value.items():
+            if not idx or not idxVal: continue
+            if re.match(r'(sensors)$',idx,re.I):
+                for idxS, idxSVal in idxVal.items():
+                    if not type(idxSVal) is dict:
+                        row[f'{idxS}'] = idxSVal
+                        continue
+                    for idxST, idxSTV in idxSVal.items():
+                        if type(idxSTV) is str and re.match(r'20\d\d-\d\d-\d\d',idxSTV):
+                            # convert to type pd._libs.tslibs.timestamps.Timestamp UTC
+                            if re.match(r'20\d\d-\d\d-\d\d[T\s][\d:\.]*Z',idxSTV):
+                                row[f'{idxS} {idxST}'] = pd.to_datetime(idxSTV)
+                            else:
+                                row[f'{idxS} {idxST}'] = local_to_panda(idxSTV, tz=datetime.timezone.utc)
+                            #row[f'{idxS} {idxST}'] = datetime.datetime.strptime(first,"%Y-%m-%dT%H:%M:%S.%f%z")
+                        else: row[f'{idxS} {idxST}'] = idxSTV
+            elif re.match(r'(location)$',idx,re.I):
+                if not idxVal or not type(idxVal) is list: continue
+                try:              # GPS to grid of max 5 decimals (ca 1 meter)
+                    row['GPS'] = [round(float(idxVal[0][0]),3),round(float(idxVal[0][1],3))]
+                    #row['longitude'] = round(float(idxVal[0][0]),3)
+                    #row['latitude'] = round(float(idxVal[0][1],3))
+                except: continue
+                if idxVal[1]: row['address'] = idxVal[1]
+            else: row[idx] = str(idxVal)
+        if row:
+            row['Things ID'] = station
+            stations.append(row)
+    return stations
+
+# ======================================= get regional stations info in CSV archive file
+# https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.to_csv.html
+# DataFrame.to_csv(path_or_buf=None, *, sep=',', na_rep='',
+#    float_format=None, columns=None, header=True, index=True,
+#    index_label=None, mode='w', encoding=None, compression='infer',
+#    quoting=None, quotechar='"', lineterminator=None, chunksize=None,
+#    date_format=None, doublequote=True, escapechar=None, decimal='.',
+#    errors='strict', storage_options=None)
+
+# generate Samen Meten Things stations info dict to CSV file
+# timestamps in csv file are in local time
+# to do: add extra header info as e.g. period, version, generation date
+# mode append is not yet implemeted. Needs a keycheck and key ordering
+def SamenMetenStations2CSV(Regions:Any[List[str],dict],Output:str='SamenMetenStationsInfo.csv.gz', Mode:str='w',dropIoTids:bool=True) -> None:
+    stations = None
+    if type(Regions) is dict: stations = Regions.copy()
+    elif type(Regions) is list:
+        stations = dict()
+        for _ in Regions:
+            if (_ := Get_Stations( _, Things=None, Period=Period) and type(_) is dict:
+                stations.update(_)
+    # elif type(Regions) is str:   # get stations in dict format from archived file
+    #     stations = GetFromArchive(Regions)
+    else: return False
+    if not stations: return False
+    # simplify Stations info list to one dimensional list of dicts
+    stations = simplifySamenMetenStationsDict(stations)
+    import pandas as pd
+    import datetime
+    import re
+    try:
+        from tzlocal import get_localzone
+        localTZ = str(get_localzone())
+    except: localTZ = 'Europe/Amsterdam'
+    stations = pd.DataFrame.from_dict(stations)
+    stations.set_index('Things ID', drop=True, inplace=True) # indexed by station name
+    stations.sort_index(ascending=False, inplace=True)
+    # convert timestamp columns to local datetime strings
+    iotColumns = list()
+    for column in stations.keys():
+        if dropIoTids and re.match(r'.*@@iot.id$',column,re.I):
+            iotColumns.append(column)
+        elif re.match(r'.*\s(last|first)',column,re.I):  # pandas timestamp column
+            #stations[column] = stations[column].tz_localize(tz=localTZ)
+            stations[column] = stations[column].apply(lambda x: x.tz_convert(tz=localTZ))
+            #for _ in range(0,len(stations[column])):
+            #    stations[column][_] = stations[column][_].tz_convert(tz=localTZ)
+    if iotColumns:      # remove columns stations and sensor with @@iot.id Things ID:
+        stations.drop(columns=iotColumns, inplace=True)
+    stations.to_csv(Output, sep=';', date_format='%Y-%m-%d %H:%M', mode=Mode)
+# SamenMetenStations2CSV(stations, Output='SamenMetenStationsInfo.csv.gz'))
+# ================================= end routine stations to CSV archive
+
+#                                        ===================== main
+def help() -> None:
+    sys.stderr.write(
+        f"""
+Generate overview of low cost stations in regions 
+or comman separated list of low-cost stations (xlsx sheet per argument name).
+Spreadsheet workbook (XLSX), CSV file (sep ';'), JSON file, or HTML Open Street Map file
+with measurements info:
+    location (GPS, address),
+    station properties (owner,project, municipality code, ref codes), and
+    sensors installed (sensor type, first-last record timestamp, record count) in a period.
+
+Command: {os.path.basename(__file__)} [options] help or name, ...
+Name is either municipality name or comma separated list of low-cost station names.
+
+Output as formatted file (default: {CSV sep ';'}). Use File='Yours.xlsx' to change this.
+        GPS is a list [longitude,latitude].
+        Addresses are postal addresses (resolution is 100 meters)..
+        Observations timestamps are in local time format.
+
+Options station info settings:
+        Period to obtain operational stations from Things.
+        Period={Period}                       E.g. 'one year ago,now' Defines last year.
+        Sensors='{Sensors}'                   Defines sensor types of interest (regular expression).
+        Select='{Select if Select else 'None'}' Filter on station names. Default: do not filter.
+        Expand='{Expand}'                     List of station properties of interest.
+        `
+        File={Output}                         Default 'Regional_Stations'. File extention:
+        Ext={Ext}                             One of: xlsx,csv[.gz,tgz,gzip],json,html.
+        Verbosity={Verbosity}                 Verbosity level. Level 5 gives timings info.
+        DEBUG                                 In debug modus: Buildin data will be used.
+
+Options for archive property settings:
+        Company=YourCompanyName               Default empty.
+        Status={BookState}                    Status archived data.
+        User={User}                           Created by user name. Default: login name.
+        XLSX Workbook sheets are per region (municipality, neighbourhood station or GPS).
+        XLSX Hide={Hide}                      Hide these XLSX columns.
+Command options:
+        """)
+
+for arg in sys.argv[1:]:
+    if re.match(r'^(--)?help$',arg,re.I):
+        help()
+        exit(0)
+    # collect command line options
+    if m := re.match(r'^(--)?([^\s]*)\s*(=)\s*([^\s]+.*)$', arg):
+      if m.groups()[2] == '=':
+        if m.groups()[1]   == 'Period':    # only measurements in this period
+            Period = ','.join([x.strip() for x in m.groups()[3].strip().split(',')])
+        elif m.groups()[1] == 'Company':   # company of XLSX book creation
+            Company = m.groups()[3].strip()
+        elif m.groups()[1] == 'User':      # user of XLSX book creation
+            User = m.groups()[3].strip()
+        elif m.groups()[1] == 'Status':    # status of XLSX spreadsheet book
+            Bookstate = m.groups()[3].strip()
+        elif m.groups()[1] == 'File':      # file name of XLSX spreadsheet book
+            Output = m.groups()[3].strip()
+        elif m.groups()[1] == 'Sensors':   # sensor types of interest (reg exp)
+            Sensors = m.groups()[3].strip()
+        elif m.groups()[1] == 'Select':    # filter reg exp for stations names
+            Select = m.groups()[3].strip()
+        elif m.groups()[1] == 'Hide':      # hide these XLSX columns
+            Hide = m.groups()[3].strip()
+        elif m.groups()[1] == 'Verbosity': # verbosity level
+            Verbosity = int(m.groups()[3].strip())
+        elif m.groups()[1] == 'Expand':    # show station property info as well
+            Expand = m.groups()[3].strip()
+        elif m.groups()[1] == 'Ext':       # use Ext as archive format
+            Ext = re.sub('^.','',m.groups()[3].strip().lower())
+            if not re.match(r'(xlsx|(csv(.gz|.tgz|.gzip)|json)?)$',Ext):
+                sys.stderr,write(f"Output file extention '{m.groups()[0]}' is not supported\n")
+                exit(1)
+        continue
+    if re.match(r'^(--)?debug$',arg,re.I): # DEBUG use buildin station dict
+        DEBUG = True; Verbosity = 1
+        Output = 'RegionName-TEST'
+        continue
+    # collect region names
+    Regions.append(arg)
+
+if not len(Regions):
+    sys.stderr.write("No regions defined. Exiting\n")
+    exit(1)
+if Output == 'Regional_Stations' and len(regions) < 2: # get region name as file name
+    Output = regions[0]
+Success = None
+Properties = {                             # archived file properties
+            "title": "Air Quality measurements information from RIVM/Things",
+            "subject": "Low-Cost stations in regions: " + ', '.join(regions),
+            "author": User,
+            "manager": "",
+            "company": Company,
+            "category": "Air Quality measurements",
+            "keywords": "Air Quality, sensors, Particular Matter, NOx, NH3",
+            "comments": f"{__license__}.\nCreated by {os.path.basename(__file__)} with Python on {datetime.datetime.now().strftime('%-d %b %Y')}.",
+            "status": Bookstate,
+          }
+if re.Match(r'xlsx$', Ext):                # generate XLSX spreadsheet workbook
+    Success = GenerateXLSX(Regions, Output=Output+'.'+Ext, Properties=Properties)
+elif re.Match(r'csv', Ext, re.I):          # generate CSV archive of regional stations
+    Success =  SamenMetenStations2CSV(Regions, Output+'.'+Ext, Mode='w',dropIoTids=True)
+
+if not Verbosity: exit(0 if Success else 1)
+if not Success:
+    sys.stderr.write(f"No regional low-cost stations found.' if Success is None else 'Failed'}\n")
+    exit(1)
+if Verbosity:
+    sys.stderr.write(f"Generated archive file: '{Output+'.'+Ext}'\n")
+    for key, value in Properties.items():
+        sys.stderr.write(f"{key}\t{value}\n")
+
+    
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d16 1
+a16 1
+# Copyright (C) 2024, Behoud de Parel, Teus Hagen, the Netherlands
+d19 6
+a24 2
+Python3.8+ script to generate overview in XLSX of measurements taken by low-cost stations
+in various municipalities (one municipality per XLSX sheet) in a certain period of time.
+d26 1
+a26 1
+Script command line: python3 script [Period=one year ago,now] municipality_name ...
+d28 24
+d63 1
+a63 1
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.9 $"[-5:-2]
+d67 4
+a70 1
+# class defaults
+d72 2
+d75 1
+a75 3
+# To Do: may need to filter out unsupported sensors
+Sensors   = '(pm25|pm10|temp|rh|pres|nh3|no2)' # sensor types (ordered) of interest, reg exp
+Select    = None                        # don't filter station names (dflt None) else Reg Exp.
+d79 11
+a89 4
+# next is comma separated list or '' (rows and columns with no data are hided anyway)
+# hide xlsx column: GPS,owner,project,address,first,last,count,type
+Hide      = 'GPS,owner,first,count'     # default Hide
+DEBUG     = False                       # debug modus, do not use SamenMetenThings class
+d91 1
+a91 1
+# progress metering, teatime music: every station can take about 15-90 seconds download time
+d106 2
+a107 24
+import xlsxwriter
+# spreadsheet cell fg colors
+RED    = '#d92121'
+GREEN  = '#019b3f'
+YELLOW = '#c3b306'
+BLEW   = '#b7ebff'
+GRAY   = '#e8e8e8'
+MGRAY  = '#d8d8d8'
+DGRAY  = '#c8c8c8'
+ACTIVE = 7                               # 7 days before End is active
+nACTIVE = 21                             # 21 days before End is not active
+Workbook = None                          # XLSX workbook handle
+# take care: XLSX starts with row 1, not zero
+def n2a(n:int) -> str:                   # convert column number to xlsx column name
+    d, m = divmod(n,26)                  # 26 is the number of ASCII letters
+    return '' if n < 0 else n2a(d-1)+chr(m+65) # chr(65) = 'A'
+def cell2xlsx(row:int,col:int) -> str:
+    return f"{n2a(col)}{row+1}"
+
+# XLSX matrix columns, sheet has name municipality
+# name     GPS ...   properties ...                 sensors (name, first, last, count)
+# station, location, [address,] [owner,] [project,] [sensor-i, first, last, count] ,...
+def Add_Stations( RegionName:str, Things=None, Period:Union[str,List[str]]=Period) -> bool:
+    """Add_Stations(str: municipality, or list of (GPS or station ID's),
+d109 3
+a111 2
+    Things class (sensors,product type, human readable sensor types, sensors status (first/last, count in period)
+    create a spreadsheet sheet with station information."""
+d113 1
+a113 3
+    global Verbosity, Hide
+    global Workbook
+
+a148 1
+    sensors = Sensors
+d194 1
+d196 126
+a321 264
+    sensors = re.sub(r'[\(\)\s]','',Sensors).split('|') # ordered list of sensor names 
+    expand = set(Expand.split(',')) - set(['location','address'])
+    location = []
+    for _ in ['location','address']:
+        if Expand.find(_) >= 0: location.append(_)
+
+    # ================================================= convert to XLSX spreadsheet
+    # spreadsheet cell formats          ============= cell formats
+    title_format      = Workbook.add_format(
+        { 'bold': True, 'align': 'center', 'valign': 'vcenter',
+          'border_color': DGRAY, 'fg_color': DGRAY,})
+    italic            = Workbook.add_format({ 'italic': True, 'bold': False,})
+    hrd_bold          = Workbook.add_format(
+        { 'bold': True, 'align': 'center',
+          'left': True, 'right': True, 'left_color': 'white', 'right_color': 'white',
+          'valign': 'vcenter','fg_color': DGRAY,})
+    hrd_italic        = Workbook.add_format(
+        { 'italic': True, 'align': 'center', 'valign': 'vcenter',
+          'left': True, 'right': True, 'left_color': 'white', 'right_color': 'white',
+          'fg_color': MGRAY,})
+    ghrd_bold         = Workbook.add_format(
+        { 'bold': True, 'align': 'center',
+          'left': True, 'right': True, 'left_color': 'white', 'right_color': 'white',
+          'valign': 'vcenter','fg_color': '#b8b8b8',})
+    ghrd_italic       = Workbook.add_format(
+        { 'italic': True, 'align': 'center', 'valign': 'vcenter',
+          'left': True, 'right': True, 'left_color': 'white', 'right_color': 'white',
+          'fg_color': DGRAY,})
+    gray_format       = Workbook.add_format({'fg_color': GRAY})
+    gray_date_format  = Workbook.add_format({'num_format': 'yyyy-mm-dd', 'fg_color': GRAY})
+    mgray_format      = Workbook.add_format({'fg_color': MGRAY})
+    mgray_date_format = Workbook.add_format({'num_format': 'yyyy-mm-dd', 'fg_color': MGRAY})
+    dgray_format      = Workbook.add_format({'fg_color': DGRAY})
+    dgray_date_format = Workbook.add_format({'num_format': 'yyyy-mm-dd', 'fg_color': DGRAY})
+    date_format       = Workbook.add_format({'num_format': 'yyyy-mm-dd'})
+    human_date_format = Workbook.add_format({'num_format': 'd mmm yyyy'})
+    red_date_format   = Workbook.add_format({'num_format': 'yyyy-mm-dd', 'fg_color': RED})
+    red_format        = Workbook.add_format({'font_color': RED, 'bold':True})
+    yellow_date_format= Workbook.add_format({'num_format': 'yyyy-mm-dd', 'fg_color': YELLOW})
+    yellow_format     = Workbook.add_format({'font_color': YELLOW, 'bold': True})
+    green_format      = Workbook.add_format({'font_color': GREEN, 'bold': True})
+    bold_format       = Workbook.add_format({'bold': True})
+    invisible         = Workbook.add_format({'font_color': 'white'})
+    right             = Workbook.add_format({"align": "right"})
+
+    # conditional cell Arow format station with activity from Brow
+    # to do: gas Palmes sensors are once a month ...
+    def bgCondition(row:int, col:int, ref:int) -> None:
+        # Period is defined in the cell periodCell [start,end] dlft: 1970/1/1, now()
+        # active = end period - datetime.timedelta(days=ACTIVE)    # GREEN BOLD
+        # sleeping = end period - datetime.timedelta(days=nACTIVE) # YELLOW BOLD
+        # inactive = start period - datetime.timedelta(days=1)     # RED BOLD
+        # else: not seen in period: normal
+        if ref is None: ref = col
+        formatCell = f"{cell2xlsx(row,col)}"
+        refCell = f"{cell2xlsx(row,ref)}"
+        worksheet.conditional_format(
+                formatCell,
+                {'type':     'formula',
+                 'criteria': f"{refCell} >= {periodCell[1]} - {ACTIVEcell}",
+                 'format':   bold_format })
+        worksheet.conditional_format(
+                formatCell,
+                {'type':     'formula',
+                 'criteria': f"{refCell} >= {periodCell[1]} - {nACTIVEcell}",
+                 'format':   yellow_format })
+        worksheet.conditional_format(
+                formatCell,
+                {'type':     'formula',
+                 'criteria': f"{refCell} > {periodCell[0]}",
+                 'format':   red_format })
+
+    column = dict(); width = list()
+    Row = -1; col = -1; inactives = 0; deads = []
+    worksheet = Workbook.add_worksheet(name=RegionName)
+
+    # Row with title (header) spreadsheet sheet 6 cells wide
+    Row += 2
+    title_location = f"{cell2xlsx(Row-1,1)}:{cell2xlsx(Row,7)}"
+    worksheet.merge_range(title_location,"")  # just location
+
+    #                                    =============== define cells with reference values
+    # Row with globals period first (C), period last (D), active (E), inactive (F) allowance
+    Row += 1
+                                         # sheet period of measurements
+    periodCell = [cell2xlsx(Row,2),cell2xlsx(Row,3)] # Row (3), col C and D
+    worksheet.write_datetime(periodCell[0],Start,human_date_format)
+    worksheet.write_comment(periodCell[0],"First date of period shown in spreadsheet sheet.")
+    worksheet.write_datetime(periodCell[1],End,human_date_format)
+    worksheet.write_comment(periodCell[1],"Last date of period shown in spreadsheet sheet.")
+    ACTIVEcell = cell2xlsx(Row,4)        # ACTIVE days minimum active up to End, col E
+    worksheet.write_number(ACTIVEcell,ACTIVE)   # End -days -> active
+    worksheet.write_comment(ACTIVEcell,"labeled active (green) if last timestamp is seen within  nr days before end period.")
+    nACTIVEcell = cell2xlsx(Row,5)       # nACTIVE days minimum of inactive, col F
+    worksheet.write_number(nACTIVEcell,nACTIVE) # End - days -> inactive
+    worksheet.write_comment(nACTIVEcell,"labeled inactive (yellow) if last timestamp is seen before active (green) period and after first date of period.")
+
+    # header Row, Row+1                  =============== set header stations table
+    Row += 1; col += 1                   # column station
+    column['station'] = col; width.append(12);
+    worksheet.write_string(Row,column['station'],'station',ghrd_bold)
+    worksheet.write_string(Row+1,column['station'],'Things ID',hrd_italic)
+
+    col += 1; column['period'] = col     # column period
+    worksheet.write_string(Row,column['period'],'last seen',hrd_bold)
+    worksheet.write_string(Row+1,column['period'],'in period',hrd_italic)
+    width.append(0)                      # hide period (Start/End) column 1 (B)
+
+    if len(location) > 1:                # columns location (GPS, address)
+        col += 1
+        worksheet.merge_range(Row,col,Row,col+1,'location',hrd_bold)
+        worksheet.write_string(Row+1,col,"GPS",hrd_italic)
+        width.append(0); column['GPS'] = col
+        col += 1
+        worksheet.write_string(Row+1,col,"address",hrd_italic)
+        width.append(0); column['address'] = col
+    elif len(location) == 1:             # column GPS
+        col += 1
+        worksheet.write_string(Row,col,'location',hrd_bold)
+        worksheet.write_string(Row+1,col,'GPS',hrd_italic)
+        width.append(0); column['GPS'] = col
+
+    for prop in list(expand):            # columns station properties
+        col += 1
+        worksheet.write_string(Row,col,prop,ghrd_bold)
+        worksheet.write_string(Row+1,col,prop,ghrd_italic)
+        column[prop] = col; width.append(0)
+    humanise = RIVM.HumaniseClass(utf8=True)
+    lastColumn = []; lastRow = Row+1
+
+    dark = True
+    for name in sensors:                 # sensors name: first/last timestamp, record count, type
+        col += 1
+        worksheet.merge_range(Row,col,Row,col+3,humanise.HumaniseSensor(name),ghrd_bold if dark else hrd_bold)
+        worksheet.write_string(Row+1,col,'first',ghrd_italic if dark else hrd_italic); width.append(0)
+        worksheet.write_string(Row+1,col+1,'last',ghrd_italic if dark else hrd_italic); width.append(0)
+        lastColumn.append(col+1)         # columns with last timestamp sensor record
+        worksheet.write_string(Row+1,col+2,'count',ghrd_italic if dark else hrd_italic); width.append(0)
+        worksheet.write_string(Row+1,col+3,'type',ghrd_italic if dark else hrd_italic); width.append(0)
+        # set timestamp and record count columns format
+        worksheet.set_column(f"{cell2xlsx(Row+2,col)}:{cell2xlsx(Row+2+len(stations),col+1)}",15,gray_date_format if dark else date_format)
+        if dark:
+            worksheet.set_column(f"{cell2xlsx(Row+1+2,col+2)}:{cell2xlsx(Row+1+2+len(stations),col+3)}",7,gray_format)
+        column[name] = col; col += 3; dark = not dark
+    Row += 2
+
+    #                                   ============= formula cells
+    RowsStart = Row                     # stations table data starts here
+
+    # set datetime formats and last date in station sensor cells
+    def maxFormula(row:int,columns:list) -> None:
+        if not columns: return
+        #worksheet.write_comment(f"{cell2xlsx(0,0)}",f"Spreadsheet may need to be recalculated.\nThis differs per version.\nForce recalutation by pressing F9 or change days value in cell {nACTIVEcell}.",{'visible': True})
+        worksheet.set_column(f"{cell2xlsx(row,column['period'])}:{cell2xlsx(len(stations)+row,column['period'])}",None,date_format)
+        for r in range(row,len(stations)+row):
+            formula = ''
+            for c in columns:
+                formula += f",IF(ISBLANK({cell2xlsx(r,c)}),0,{cell2xlsx(r,c)})"
+            # ACTIVEcell IF() is just to cause recalculation. To Do: push button "recalculate"
+            formula = f"=IF({nACTIVEcell} > {ACTIVEcell},MAX({formula[1:]}),0)"
+            worksheet.write_formula(cell2xlsx(r,column['period']),formula)
+            bgCondition(r,column['station'], column['period']) # station background color condition
+
+    # set datetime and dark formats in sensors columns (first,last,count), every other gray
+    def sensorsFomatting(row:int,columns:list) -> None:
+        grayish = True
+        for c in columns:
+            worksheet.set_column(f"{cell2xlsx(row,c-1)}:{cell2xlsx(len(stations)+row,c)}",None,gray_date_format if grayish else date_format)
+            if grayish:
+                worksheet.set_column(f"{cell2xlsx(row,c+1)}:{cell2xlsx(len(stations)+row,c+2)}",None,gray_format)
+            grayish = not grayish
+
+    maxFormula(RowsStart,lastColumn)       # set formula for activity checks
+    sensorsFomatting(RowsStart,lastColumn) # set formats of sensor columns: dark, normal (swap)
+
+    #  spreadsheet station table         =============== station info Rows
+    active = 0                           # stations active or dead in period
+    for station,info in stations.items():
+        operational = False
+
+                                         # location info: GPS, optional address
+        if column.get('address') or column.get('GPS'):
+          if info.get('location') and len(info['location']):
+            if column.get('address'):
+               if len(info['location']) > 1 :
+                   address = re.sub(r',\s*(gem|prov)\.\s.*','',info['location'][1])
+               else: address = ''
+               worksheet.write_string(Row,column['address'],address)
+               width[column['address']] = max(len(address)+2,width[column['address']])
+            if column.get('GPS') and len(info['location']) and len(info['location'][0]):
+               location = str(info['location'][0])
+               worksheet.write_string(Row,column['GPS'],location)
+               width[column['GPS']] = max(len(location)+2,width[column['GPS']])
+
+        for n in expand:                 # owner, project, knmicode, etc.
+            if n == 'location' or n == 'address':    continue
+            if not info.get(n) or not column.get(n): continue
+            worksheet.write_string(Row,column[n],str(info.get(n)))
+            width[column[n]] = max(len(str(info.get(n)))+2,width[column[n]])
+
+        if info.get('sensors'):          # sensors of the station
+            actives = []; sensing = 0
+            for s,v in info.get('sensors').items():
+                if not (col := column.get(s)): continue # col -> first record
+                if type(info['sensors'][s]) is dict and info['sensors'][s].get('@@iot.id'):
+                    if (first := info['sensors'][s].get('first',None)):
+                        first = datetime.datetime.strptime(first,"%Y-%m-%dT%H:%M:%S.%f%z")
+                        worksheet.write_datetime(Row,col,first)
+                        width[col] = max(12,width[col])
+                    else: worksheet.write(Row,col,"")
+                    if (last := info['sensors'][s].get('last',None)):
+                        last = datetime.datetime.strptime(last,"%Y-%m-%dT%H:%M:%S.%f%z")
+                        bgCondition(Row,col+1, col+1)   # bg color condition on activity
+                        worksheet.write_datetime(Row,col+1,last)
+                        width[col+1] = max(12,width[col+1]); actives.append(s)
+                    else: worksheet.write(Row,col+1,"")
+                    if (count := info['sensors'][s].get('count',None)):
+                        worksheet.write_number(Row,col+2,count)
+                        width[col+2] = max(7,width[col+2]); sensing += 1
+                    else: worksheet.write(Row,col+2,"")
+                    if(product := info['sensors'][s].get('product',None)):
+                        product = product.split(' ')[0]
+                        worksheet.write(Row,col+3,product)
+                        width[col+3] = max(len(product)+1,width[col+3])
+                    else: worksheet.write(Row,col+3,"")
+
+        worksheet.write(Row,column['station'],station,gray_format)
+        width[column['station']] = max(7,len(station)+2)
+        if len(actives): active += 1
+        if not sensing: deads.append(Row)
+        if Verbosity:
+            sys.stderr.write(f"Station {station} ({RegionName}) was {'never' if not sensing else (str(len(actives))+' active')} sensor(s) operational.\n")
+        Row += 1
+
+    # sheet stations statistics info     ================== wrap up
+    if Verbosity:
+        sys.stderr.write(f"Stations in municipality {RegionName}: nr of station(s): {len(stations)}, station(s) active: {active}, {len(deads)} silent station(s).\n")
+    subtitle = f"\n{len(stations)} stations, {len(stations)-inactives} active, {len(deads)} unused."
+    #if len(period):
+    #    subtitle += f" in period{Start.strftime(' %-d %b %Y') if period[0] else ''}{End.strftime(' upto %-d %b %Y') if End else ''} "
+    generated = f"              (generated at {datetime.datetime.now().strftime('%-d %b %Y')})"
+    #                                    ================= title with overall info
+    worksheet.write_rich_string(re.sub(r':.*','',title_location),f"station statistics of municipality {RegionName}",italic,subtitle,right,generated,title_format)
+    #worksheet.write_rich_string(0,1,f"station statistics of municipality {RegionName}\n",italic,f"nr of stations: {len(stations)} ({inactives} inactive, {len(deads)} unused){period}",title_format)
+
+    #                                    ================== cleanup sheet
+    for i,w in enumerate(width):         # adjust column width's
+        if w: worksheet.set_column(f"{n2a(i)}:{n2a(i)}",w)
+        else: worksheet.set_column(f"{n2a(i)}:{n2a(i)}", None, None, {'hidden': 1})
+    for i in deads:
+        worksheet.set_row(i, None, None, {'hidden':1}) # hide rows dead stations
+    # hide sensor columns: first, lastColumn[], count, type
+    # column = {'station': 0, 'period': 1, 'GPS': 2, 'address': 3, 'owner': 4, 'project': 5, 'pm25': 6, 'pm10': 10, ...}
+    for col in (set(column.keys())-set(Sensors)).intersection(set(Hide.split(','))):
+        if (col := column.get(col)): # restrict hide to non sensors
+            worksheet.set_column(f"{n2a(col)}:{n2a(col)}", None, None, {'hidden': 1})
+    # sensor type
+    hide = { 'first': 0, 'last': 1, 'count': 2, 'type': 3, } # relative index
+    hide = [hide.get(_) for _ in  set(hide.keys()).intersection(set(Hide.split(',')))]
+    for rh in hide:
+        for col in Sensors:
+          if not (col := column.get(col)) is None:
+              worksheet.set_column(f"{n2a(rh+col)}:{n2a(rh+col)}", None, None, {'hidden': 1})
+    return True
+a323 1
+XLSXfile = 'Regional_Stations.xlsx'   # default XLSX spreadsheet file
+d329 2
+a330 1
+Spreadsheet sheet with measurements info:
+d338 4
+a341 1
+Output as XLSX formatted file (default: {XLSXfile}). Use File='Yours.xlsx' to change this.
+d344 2
+a345 2
+        Period='2021-01-31,2021-02-31 23:59'  Defines period of observations. Default: all.
+        Period='one year ago,now'             Defines last year.
+a347 1
+        Hide='GPS,address,first,last,count,type' Hide these XLSX columns. Default '{Hide}'.
+d349 7
+a355 2
+Options XLSX spreadsheet book property settings:
+        File=Outputfile.xlsx                  Default '{XLSXfile}'.
+d357 4
+a360 2
+        Status=BookStatus                     Default 'draft'.
+        User=MyName                           Created by user name. Default: login name.
+a361 2
+        Verbosity={Verbosity}                 Verbosity level. Level 5 gives timings info.
+        DEBUG                                 In debig modus: Things queries will not be done.
+d364 6
+a369 7
+regions = []; Company = ''; bookstate = 'draft'; idx = 0; User = ''
+for RegionName in sys.argv[1:]:
+    if re.match(r'^(--)?help$',RegionName,re.I):
+        help(); Workbook = None
+        break
+    idx += 1
+    if m := re.match(r'^(--)?([^\s]*)\s*(=)\s*([^\s]+.*)$', RegionName):
+d378 1
+a378 1
+            bookstate = m.groups()[3].strip()
+d380 1
+a380 1
+            XLSXfile = m.groups()[3].strip()
+d385 1
+a385 1
+        elif m.groups()[1] == 'Hide':      # hide these Xlsx columns
+d391 5
+d397 1
+a397 1
+    if re.match(r'^(--)?debug$',RegionName,re.I):   # DEBUG use buildin station dict
+d399 4
+a402 1
+        XLSXfile = 'RegionName-TEST.xlsx'
+d404 30
+a433 16
+    if Workbook is None:
+        Workbook = xlsxwriter.Workbook(XLSXfile, {'remove_timezone': True})
+        if Verbosity:
+            sys.stderr.write(f"""Creating XLSX spreadsheet file: '{XLSXfile}'
+            for stations in regions: '{','.join(sys.argv[idx:])}'
+            Filter on sensor types: '{Sensors.replace('|',', ')[1:-1]}'
+            Filter station name{'s' if len(sys.argv[idx:]) else ''}: '{'turned off' if not Select else Select}'
+            Also showing station properties: '{Expand}'\n""")
+    # next can take quite some time. To Do: add progress meter?
+    if DEBUG:
+        Add_Stations('fake region', Period=Period)
+        break
+    elif Add_Stations( RegionName, Period=Period):
+        regions.append(RegionName)
+    else:
+        sys.stderr.write(f"Region '{RegionName}': no stations in period '{Period}'\n") 
+d435 1
+a435 31
+if Workbook:                                # XLSX book creation
+    import pwd
+    if not User:
+        if (user := re.sub(r'\s*,.*$','',pwd.getpwnam(os.environ["USER"]).pw_gecos)):
+            User = f"{user} ({os.environ['USER']})"
+    properties = {                          # XLSX book properties
+        "title": "Air Quality measurements information from RIVM/Things",
+        "subject": "Low-Cost stations in regions: " + ', '.join(regions),
+        "author": User,
+        "manager": "",
+        "company": Company,
+        "category": "Air Quality measurements",
+        "keywords": "Air Quality, sensors, Particular Matter, NOx, NH3",
+        "comments": f"{__license__}.\nCreated by {os.path.basename(__file__)} with Python and XlsxWriter on {datetime.datetime.now().strftime('%-d %b %Y')}.",
+        "status": bookstate,
+      }
+    Workbook.set_properties(properties)
+    #calculationProperties = Workbook.CalculationProperties;
+    #        calculationProperties.ForceFullCalculation = true;
+    #        calculationProperties.FullCalculationOnLoad = true;
+    # set to manual to speedup, use key F9 to recalculate cells
+    Workbook.set_calc_mode('auto')
+    Workbook.close()
+
+    if Verbosity >= 0:
+        if DEBUG: regions = [None]
+        sys.stderr.write(f"Created XLSX book: '{XLSXfile}' with {len(regions)} regions sheet(s)'\n")
+    if Verbosity:
+        sys.stderr.write(f"\tXLSX properties:\n")
+        for p,v in properties.items():
+            if v: sys.stderr.write(f"\t\t{p}:\t{v}\n")
+@
