@@ -30,6 +30,17 @@ Use CLI **python3 ScriptName.py help** option to get more information about the 
 The Python3 (>= version 3.8) scripts/modules carry an extensive amount of documentation and comments. This may help you to answer the question 'how did they do it?' and use of API interface standards. Read thye source to get an impression of which Python (import) library modules are being used.
 
 ## Outline of modules
+### needed Python library modules
+Various not standard Python modules are used in the scripts:
+- xlsxwriter
+- pandas
+- dateparser
+- aiohttp
+- tzlocal
+- dateutil
+- folium
+  Install them with e.g. apt -y install module_name
+  
 ### SamenMetenThings.py
 The Samen Meten Things module provides a python interface to the RIVM Things API (an API) and various other website query services like Open Data Soft (CBS queries e.g. municipality id numbers) and Open Street Map (addresses of stations). The GPS location resolution is about 100 meters (3 decimals).
 The main routines are able to collect meta information (status information of the station, installed sensors and sensor types, period of availability, location, address, citizen reference stations), neighbouring stations, stations in a municipality of near a GPS location) and observation data in a period of time, all in Pandas (dataframe series) format.
