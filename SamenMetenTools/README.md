@@ -39,8 +39,21 @@ Various not standard Python modules are used in the scripts:
 - tzlocal
 - dateutil
 - folium
-  Install them with e.g. apt -y install module_name
-For easy search for neighbours geohashing is used. E.g. the module cgeohashing. One has to install it via pip3. Or use an own Python module.
+- pygeohash
+
+  Install them with e.g. apt -y install module_name.
+  For easy search for neighbours geohashing is used. E.g. the module cgeohashing. One has to install it via pip3. Or use an own Python module.
+
+## Example of CLI script use
+For test purpuses as long as the architecture of the tools is notr ready yet, one can use the follwing CLI commands to get a map with measurement stations in a village.
+
+First get an archive in CSV format for a period of time:
+  python3 Things2CSV.py Expand='location,address,owner,project' Sensors='(pm25|pm10)' Period='2018-01-01,now' Verbosity=2 User='MySense' File='Leidschendam-Voorburg.csv' 'Leidschendam-Voorburg'
+This will take about 5 minutes per region. More regions can be added on the command line end.
+
+Second to generate the HTML map with Things stations:
+  python3 Things2HTML.py Leidschendam-Voorburg.csv
+This will generate the file Regions\ Leidschendam-Voorburg.html
   
 ### SamenMetenThings.py
 The Samen Meten Things module provides a python interface to the RIVM Things API (an API) and various other website query services like Open Data Soft (CBS queries e.g. municipality id numbers) and Open Street Map (addresses of stations). The GPS location resolution is about 100 meters (3 decimals).
