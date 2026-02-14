@@ -48,11 +48,11 @@ Various not standard Python modules are used in the scripts:
 For test purpuses as long as the architecture of the tools is notr ready yet, one can use the follwing CLI commands to get a map with measurement stations in a village.
 
 First get an archive in CSV format for a period of time:
-  python3 Things2CSV.py Expand='location,address,owner,project' Sensors='(pm25|pm10)' Period='2018-01-01,now' Verbosity=2 User='MySense' File='Leidschendam-Voorburg.csv' 'Leidschendam-Voorburg'
+  **python3 Things2CSV.py Expand='location,address,owner,project' Sensors='(pm25|pm10)' Period='2018-01-01,now' Verbosity=2 User='MySense' File='Leidschendam-Voorburg.csv' 'Leidschendam-Voorburg'**
 This will take about 5 minutes per region. More regions can be added on the command line end.
 
 Second to generate the HTML map with Things stations:
-  python3 Things2HTML.py Leidschendam-Voorburg.csv
+  **python3 Things2HTML.py Leidschendam-Voorburg.csv**
 This will generate the file Regions\ Leidschendam-Voorburg.html
   
 ### SamenMetenThings.py
