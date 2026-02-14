@@ -40,6 +40,7 @@ Various not standard Python modules are used in the scripts:
 - dateutil
 - folium
   Install them with e.g. apt -y install module_name
+For easy search for neighbours geohashing is used. E.g. the module cgeohashing. One has to install it via pip3. Or use an own Python module.
   
 ### SamenMetenThings.py
 The Samen Meten Things module provides a python interface to the RIVM Things API (an API) and various other website query services like Open Data Soft (CBS queries e.g. municipality id numbers) and Open Street Map (addresses of stations). The GPS location resolution is about 100 meters (3 decimals).
