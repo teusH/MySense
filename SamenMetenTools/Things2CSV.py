@@ -696,6 +696,8 @@ Note: The time it takes to collect stations information for a whole region can c
             # to collect station info from Samen Meten Tools get regional stations
             elif re.match('Select$',m.groups()[1],re.I):    # filter reg exp for stations names
                 Kwargs.update({'Select': m.groups()[3].strip()})
+            elif re.match('Period',m.groups()[1],re.I):    # filter reg exp for period string
+                Kwargs.update({'Period': m.groups()[3].strip()})
             continue
         # options type script handling
         elif re.match(r'^((--)?debug|-d)$',arg,re.I):       # DEBUG use buildin station dict
@@ -793,11 +795,11 @@ Note: The time it takes to collect stations information for a whole region can c
         if period[1] is None:
             period[1] = datetime.datetime.now(datetime.timezone.utc)
         else:
-            period[1] = datetime.datetime.strptime(RIVM.ISOtimestamp(End),'%Y-%m-%dT%H:%M:%S%z')
+            period[1] = datetime.datetime.strptime(RIVM.ISOtimestamp(period[1]),'%Y-%m-%dT%H:%M:%S%z')
         if period[0] is None:
             period[0] = datetime.datetime.strptime('1970-01-01T00:00:00Z','%Y-%m-%dT%H:%M:%S%z')
         else:
-            period[0] = datetime.datetime.strptime(RIVM.ISOtimestamp(Start),'%Y-%m-%dT%H:%M:%S%z')
+            period[0] = datetime.datetime.strptime(RIVM.ISOtimestamp(period[0]),'%Y-%m-%dT%H:%M:%S%z')
         if Verbosity > 0:
             sys.stderr.write(f'Collect stations with region {RegionName} for period {period[0].strftime("%Y-%m-%dT%H:%MZ")} - {period[1].strftime("%Y-%m-%dT%H:%MZ")}\n')
     
