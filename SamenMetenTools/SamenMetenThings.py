@@ -73,7 +73,7 @@ def get_SensorStatus(self, Stations:dict, Start=None, End=None) -> None:
 # Docs geoPandas: https://geopandas.org/en/stable/getting_started.html
 
 import os,sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 4.6 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 4.7 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -372,7 +372,7 @@ class MyWorkers:
            Results dict with worker ident: { result and work info}."""
 
         if not self.Executor is None:
-            if timeout is None: timeout = 6*60         # all workers time metering
+            if timeout is None: timeout = 8*60         # all workers time metering
             for future in futures.as_completed(self.Futures, timeout=timeout):
                 if not self._WorkDone(future):
                     logging.debug(f"Worker {self.Futures[future]} timeout reached.")
@@ -588,12 +588,16 @@ import json
 def execute_request(Url:str, callBack:Callable=None) -> Union[dict,list]:
     """execute_request: get info from the outside world"""
     def GetData(Url):
-        ttl = 240 if callBack else 120                # Thinks service is slow
-        try:
-            with urlopen(Request(requote_uri(Url)), timeout=ttl) as response:
-                return response.read()
-        except:
-            raise IOError(f"Time out on data request or UIRL error with URL '{Url}'. Exiting.")
+        ttl = 360 if callBack else 240                # Things service is slow try again
+        with urlopen(Request(requote_uri(Url)), timeout=ttl) as response: return response.read()
+        #try:
+        #    with urlopen(Request(requote_uri(Url)), timeout=ttl) as response:
+        #        return response.read()
+        #except:
+        #    # if ttl does not cure, or if same ID fails again skip station ID via Select expression
+        #    sys.stderr.write(f"Time out (>{ttl} secs) on data request, URL error with URL '{Url}' or API error/bug. Exiting.\n")
+        #    return({})
+        #    raise IOError(f"Time out (>{ttl} secs) on data request, URL error with URL '{Url}' or API error/bug. Exiting.")
 
     if _opener is None:
         opener = build_opener()
@@ -788,6 +792,7 @@ class SamenMetenThings:
               429: "Too much load right now, try again later.",
               500: "Internal Server Error, try again later.",
               503: "Service offline for maintanance, try again later.",
+              504: "Things gateway timeout, delay and try again.",
             }
             msg = message
             try: msg = '\n'.join(content['error']['message'])
@@ -799,6 +804,7 @@ class SamenMetenThings:
             else: return False
 
         if not re.match(r'^https?://',Url): # Things API request
+            self._Verbose(f"DB request URL: {Url}","Things HTTP",4)
             return execute_request(self.URL + Url,callBack=requestsErrors)
         else: return execute_request(Url)
 
@@ -933,14 +939,19 @@ class SamenMetenThings:
                     workers.Submit(f'{Station} {sensor} last ',self._SensorStatus,baskit.get('@iot.id'),Status='last', Start=Start, End=End)
                     if baskit.get('symbol'):    # need to add sensor product ID
                         workers.Submit(f'{Station} {sensor} product',self._ProductID,baskit.get('@iot.id'))
-            results = workers.Wait4Workers(round(float((len(Sensors)+2)/3)*30))
+            if workers.Timing:
+                self._Verbose(f"max waiting {round(float((len(Sensors)+2)/3)*80)} seconds",f"Thread 'StatusSensors' {len(Sensors)} sensors",3) 
+            results = workers.Wait4Workers(round(float((len(Sensors)+2)/3)*80)) # was 40
             if workers.Timing:
                 self._Verbose(f"thread '{workers.WorkerNames}' total timing {round(workers.Timing,1)}.",f"Station {Station} sensor status",3)
         for name, value in results.items():
             # handle info about work done, synchronize results
             if not value.get('timing',None) is None:
                 self._Verbose(f"{round(value.get('timing'),1)} seconds",f"Timing {Station} sensors {name}",4)
-            if value.get('except',False): raise value.get('except')
+            if value.get('except',False):
+                self._Verbose(f"Timeout on station {Station}. Skipped due to sensor {sensor}",0)
+                return ({})
+                #raise value.get('except')
             elif type(value.get('result',None)) is dict:
                 try:
                     station, sensor = name.split(' ')[:2]
@@ -993,7 +1004,7 @@ class SamenMetenThings:
                     if Select and not Select.match(value):     # filtering station names
                         info = dict()                          # skip this station
                         if self.Verbose:
-                            self._Verbose(f"station nr {nr} of {len(Data)} not selected", f"Skip {station.get('name','unknown')})",2)
+                            self._Verbose(f"station nr {nr} of {len(Data)} not selected", f"Skip {station.get('name','unknown')}",2)
                         break
                     name = value
                 elif item == 'Locations' and type(value) is list and len(value):
@@ -1067,7 +1078,7 @@ class SamenMetenThings:
                  workers.Submit(f'NeighbourInfo {str(station)}',self.get_InfoNeighbours,station,Region=Region,By=By, Select=Select, Sensors=Sensors, Start=Start,End=End)
                  if self.Verbose:
                      self._Verbose(f"get neighbour station info",f"Station {str(station)}",1)
-            results = workers.Wait4Workers(round((len(Names)+2)/6,0)*30)       # pick up work done info (timing, events)
+            results = workers.Wait4Workers(round((len(Names)+2)/6,0)*80)       # pick up work done info (timing, events)
             workers.Shutdown()
         for work in sorted(results.items(), key=lambda item: item[1]['nr']):
             name,result, = work                    # one tuple per sensor
@@ -1242,10 +1253,18 @@ class SamenMetenThings:
             if self.Status or self.ProductID:
                 expand = expand[:-1] + ',unitOfMeasurement)'           # get measurement symbol
         url += expand
+        from operator import itemgetter
         try:
             data = self._execute_request(url)
             if type(data) is list:
-                data = sorted(data, key=lambda station: station['name']) # To Do: cluster sort
+                while (_ := data[-1].get("@iot.nextLink", None)):
+                    self._Verbose(_,"@iot.nextLink",3)
+                    del data[-1]
+                    try: _ = self._execute_request(_)           # could be paralized
+                    except: break
+                    if not type(_) is list: break
+                    data += _
+                data = sorted(data, key=lambda d: d['name']) # To Do: cluster sort
             else: data = [data]
         except: return None
 
@@ -1265,13 +1284,13 @@ class SamenMetenThings:
         # add addresses. This takes a small StreetMap while.
         if 'address' in properties: # teatime: 1-4 seconds per address, thread 9 secs
             if len(stations) > 100 and not self.Status:
-                self._Verbose(f"{len(stations)} stations!. This can take a while. Try to limit it with station selection filter!", f"Attention nr of stations in {Region} region",0)
+                self._Verbose(f"{len(stations)} stations!. This can take a while. Try to limit it with station selection filter!", f"Attention nr of stations in {Name} region",0)
             stations = self._AddAddresses(stations)  # will now be ordered by geohash clustering
 
         # add sensor status. This can take a Things while.
         if self.Status:   # add sensors details: first/last/count/unit/ID
             if len(stations) > 100:
-                self._Verbose(f"{len(stations)} stations!. This can take a while. Try to limit it with station selection filter!", f"Attention nr of stations in {Region} region",0)
+                self._Verbose(f"{len(stations)} stations!. This can take a while. Try to limit it with station selection filter!", f"Attention nr of stations in {Name} region",0)
                      # teatime: 15-75 seconds per sensor, thread 30-70 secs per station
             self.get_SensorStatus(stations, Start=Start, End=End)
 
@@ -1337,7 +1356,7 @@ class SamenMetenThings:
                 workers.Submit(f'Sensor IoT {str(Iotid)} first',self._SensorStatus,Iotid,Status='first',End=End,Start=Start)
                 workers.Submit(f'Sensor IoT {str(Iotid)} last',self._SensorStatus,Iotid,Status='last',End=End,Start=Start)
                 workers.Submit(f'Sensor IoT {str(Iotid)} product',self._SensorStatus,Iotid,Status='product')
-                #results = workers.Wait4Workers((round(3+2)/3,0)*40)   # wait for results, using different baskits
+                #results = workers.Wait4Workers((round(3+2)/3,0)*80)   # wait for results, using different baskits
                 results = workers.Wait4Workers()   # wait for results, using different baskits
                 if workers.Timing:
                     self._Verbose(f"thread '{workers.WorkerNames}' total time {round(workers.Timing,1)}.",f"Sensor @iot.id '{str(Iotid)}' sensor status timing",3)
@@ -1422,7 +1441,7 @@ class SamenMetenThings:
             # if count > 24*366: url = '' # limit downloads to 1 year?
             if self.Verbose and count < observations_values[-1].get('@iot.count',1):
                self._Verbose(f"downloaded {count} of {observations_values[-1].get('@iot.count')} records.",f"Sensor IoT {Iotid}", 4)
-            observations_values.pop(-1)   # ticky it was added by url request
+            observations_values.pop(-1)   # tricky it was added by url request
             if not len(observations_values): break
             if dataframe is None:  # timestamp="phenomenonTime", valueCols=["result"]
                 dataframe = self._ThingsToDataframe(observations_values)

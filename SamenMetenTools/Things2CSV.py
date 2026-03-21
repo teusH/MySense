@@ -29,7 +29,7 @@ from typing import Union,List,Dict,Union,Any # if Python 3.8
 import pandas as pd
 import SamenMetenThings as RIVM
 
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 2.4 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 2.5 $"[-5:-2]
 __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
@@ -412,7 +412,7 @@ class Things2CSV:
             if self.Verbosity:
                 sys.stderr.write(f"Created CSV file: {self.CSVfile}\n\tCSV properties:\n")
                 if self.Verbosity > 1 and self.Properties:
-                    sys.stderr.write('\TArchive properties:\n')
+                    sys.stderr.write('\tarchive properties:\n')
                     for p,v in self.Properties.items():
                         if v: sys.stderr.write(f"\t\t{p}:\t{v}\n")
                 if self.Verbosity > 1 and self.Regions:
@@ -618,7 +618,7 @@ Command examples:
     Do a test:
         {os.path.basename(__file__)} DEBUG (test data or use help.)
     Create CSV file with stations info for stations in munipality from source RIVM Things:
-        {os.path.basename(__file__)} Land\ van\ Cuijk File=Land\ van\ Cuijk.csv
+        {os.path.basename(__file__)} Land\\ van\\ Cuijk File=Land\\ van\\ Cuijk.csv
     Create archive file from CSV file and JSON archive into one CSV archive:
         {os.path.basename(__file__)} Venray 'Land van Cuijk.json.gz'  Sensors='pm10,pm25'
 
@@ -662,6 +662,7 @@ Options to filter data information domains:
 Note: The time it takes to collect stations information for a whole region can cause
     timeout errors. Especially if information is required from a range of regions.
     Advised is to limit CSV generation one by one and compine CSV files later.
+
 """)
         exit(0)
 
@@ -737,7 +738,7 @@ Note: The time it takes to collect stations information for a whole region can c
                 method = gzip.open
             try:
                 data = None
-                if re.match('.*\.json(\.gz)?$',filename):
+                if re.match(r'.*\.json(\.gz)?$',filename):
                     import json
                     with method(filename, 'r') as fin:
                         data = json.loads(fin.read())
@@ -889,7 +890,7 @@ Note: The time it takes to collect stations information for a whole region can c
                         region = (item[0],item[1],item[2])
                     # args: region name:str, stations:dict, period list[datetime,datetime]
                 except:
-                    sys.stderr.write(f"Error to get stations in region '{region[0]}'. Skipped.\n")
+                    sys.stderr.write(f"Error to get stations in region '{region}'. Skipped.\n")
                     continue
             # region[1] is (normalized?) dict, region[1] name region
             # only with timestamps in this period: region[2] is tuple period in datetime format

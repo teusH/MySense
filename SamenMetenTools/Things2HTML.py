@@ -19,7 +19,7 @@ __license__ = 'Open Source Initiative RPL-1.5'
 __author__  = 'Teus Hagen'
 
 import os, sys
-__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.7 $"[-5:-2]
+__version__ = os.path.basename(__file__) + " V" + "$Revision: 1.8 $"[-5:-2]
 import pandas as pd
 from typing import Union,List,Tuple,Set
 import math
@@ -37,6 +37,7 @@ HELP = f"""Generate HTML file with an Open Street Map from CSV archived file.
     from Pandas series indexed by station name.
     Test command line: python3 {os.path.basename(__file__)} CSV-archive-file-name ....
     Command line options:  help, debug, verbosity=N,
+                        statistics, (generates statistics as station name, owner, project, dates)
                         title=regionName,   or name of file without .csv
                         period=YYYY-MM-DD HH:MM,YYYY-MM-DD HH:MM Dflt auto detect
     To use map in your website page use iframe: https://www.w3schools.com/tags/tag_iframe.ASP"""
@@ -208,7 +209,7 @@ class GenerateThingsMap:
         # overlay=True add as optionallayer else base layer
         # FeatureGroupSubGroup: group argument MarkerCluster or FeatureGroup
         cluster = folium.plugins.MarkerCluster(name='stations zonder metingen',
-                control=True, show=False, overlay=True,
+                control=True, show=True, overlay=True,
                 disableClusteringAtZoom=14)
         Map.add_child(cluster)
         _ = folium.plugins.FeatureGroupSubGroup(cluster, "stations zonder metingen")
@@ -225,7 +226,7 @@ class GenerateThingsMap:
         self.AddMarker2Legend(description='cluster, click of zoom in', icon='cluster', prefix='fa', icon_color='white', color='rgba(89, 172, 236, 0.6)')
         return overlays
     
-    # callect legends items
+    # collect legends items
     LegendItems = {}
     def AddMarker2Legend(self, description:str=None, icon:str='circle', prefix:str='fa', icon_color:str='white', color:str='black') -> None:
         for _ in [('PM10','PM₁₀'),(r'PM2[\.,].*5','PM₂.₅'),('PM1','PM₁')]:
@@ -447,7 +448,7 @@ class GenerateThingsMap:
         if metingen:
             GroupedLayerControl(
                 groups={'operationele stations': metingen},
-                exclusive_groups=False,  # may show all selected
+                exclusive_groups=True,  # may show only selected, False will include all years
                 collapsed=False,
             ).add_to(Map)
     
@@ -576,6 +577,19 @@ def ConcatSeries(Left:pd.core.frame.DataFrame,Right:pd.core.frame.DataFrame,Uniq
     if Sort: left.sort_index(ascending=True, inplace=True) # sort on station names
     return left
 
+def Print_Statistics(statistics:dict,output:str=None) -> None:
+    if not statistics: return None
+    for one in statistics.keys():
+       for item in statistics[one]:
+          if not output: print(f"{item};",end='')
+       if not output: print('')
+
+def Collect_Statistics(data:pd.core.frame.DataFrame) -> dict:
+    collected = {}
+    for item in data.index.keys():
+        collected[item] = data[item][0]
+    return collected
+
 # class to convert Things station info dict to XLSX spreadsheet workbook
 # ================================================================================
 ################## command line tests of (class) subroutines or command line checks
@@ -593,6 +607,7 @@ if __name__ == '__main__':
     Period = [None,None]; Title = None; File = None
     if not len(sys.argv[1:]) and HELP: sys.stderr.write(HELP+'\n')
     Regions = []
+    Statistics = None
     for arg in sys.argv[1:]:   # convert csv files into Pandas dataformat series
         if re.match(r'-(-)*h(elp)*',arg,re.I):                # print help info
             sys.stderr.write(HELP+'\n')
@@ -617,6 +632,9 @@ if __name__ == '__main__':
         elif (m := re.match(r'Period=(20\d\d-\d\d-\d\d.*),\s*(20\d\d-\d\d-\d\d.*)',arg,re.I)):
             Period = [m[1],m[2]]
             continue
+        elif (m := re.match(r'Statistics=(.*)',arg,re.I)):       # generate stitics
+            Statistics = m[1]
+            continue
         if not re.match(r'.*\.csv',arg,re.I):                 # should be csv file
             sys.stderr.write(f"File {arg} is not an CSV file. Skipped\n")
             continue
@@ -630,6 +648,8 @@ if __name__ == '__main__':
             else: Data = ConcatSeries(Data,data,Unique=True, Sort=False)
         except: sys.stderr.write(f"Failed to collect map from file {arg}. Skipped.\n")
 
+    if not Data is None and not Statistics is None:            # collect statistical info
+        Print_Statistics(Collect_Statistics(Data),Statistics)
     if not Data is None:
         if Title is None: Title = f'AirQuality stations region{"s" if len(Regions) else ""}: ' + ', '.join(Regions)
         if File is None: File = 'Regions ' + ','.join(Regions) + '.html'
