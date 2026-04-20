@@ -32,6 +32,9 @@ import folium
 from folium import plugins
 from folium.plugins import GroupedLayerControl
 
+# Leaflet referrer policy may give blocked problems for local HTML file use!
+TileProvider='Leaflet'   # alternative is CartoDB positron or dark_matter
+
 HELP = f"""Generate HTML file with an Open Street Map from CSV archived file.
     Municipality or (station name or GPS) region with low-cost Things stations
     from Pandas series indexed by station name.
@@ -40,7 +43,13 @@ HELP = f"""Generate HTML file with an Open Street Map from CSV archived file.
                         statistics, (generates statistics as station name, owner, project, dates)
                         title=regionName,   or name of file without .csv
                         period=YYYY-MM-DD HH:MM,YYYY-MM-DD HH:MM Dflt auto detect
-    To use map in your website page use iframe: https://www.w3schools.com/tags/tag_iframe.ASP"""
+                        provider=positron or dark_matter (CartoDB, default is Leaflet)
+    To use map in your website page use iframe: https://www.w3schools.com/tags/tag_iframe.ASP
+
+    To show local HTML files in browser may cause referrer policy tiles blocks.
+    Use other tile 'provider' option or use local http server.
+    Eg via 'python3 -m http.server' and http://localhost:8000/Regio_map.html
+"""
 
 # read from json file or use Samen Meten Things API neighbouring stations
 # and convert to pandas dataframe
@@ -128,12 +137,21 @@ def getPeriod(Data:pd.Series) -> Tuple[pd.Timestamp,pd.Timestamp]:
             elif not _ is pd.NaT: max(last,_)
     return first,last
 
+# blocked 405 problem
+# default for browsers: referrerPolicy = 'strict-origin-when-cross-origin'
+# first solution: meta referrer unsafe-url is added to the map
+# second solution: for local HTML files:
+#       start local webserver: python -m http.server
+#       and open http://localhost:8000/map.html
+# third solution: change tile provider
+#       e.g. folium.TileLayer('CartoDB positron').add_to(m) or 'CartoDB dark_matter'
+
 # ========================================== Open Street Map generation via Folium
 class GenerateThingsMap:
     """GenerateThingsMap(): generate HTML Open Street Map with regional meetstations
        Period List first,last date/time, Title:str, Verbosity:int.
        Usage: GenerateThingsMap().Data2Map(data:pandas.dataframe)."""
-    def __init__(self, Period:List[str]=[None,None], Verbosity:int=0, Title:str='Regional Samen Meten Things low-cost lucht kwaliteits meetstations') -> None:
+    def __init__(self, Period:List[str]=[None,None], Verbosity:int=0, Title:str='Regional Samen Meten Things low-cost lucht kwaliteits meetstations', Provider:str='Leaflet') -> None:
         self.Verbosity = Verbosity
         for _ in Period:
             if _ and not re.match(r'20\d\d',_):
@@ -142,12 +160,17 @@ class GenerateThingsMap:
         self.First = Period[0]    # None: parse data for first and last timestamp
         self.Last = Period[1]
         self.Title = Title
+        self.Provider = Provider
 
     # Intro to Folium: https://python-visualization.github.io/folium/latest/getting_started.html
     # To Do: legend see https://www.geeksforgeeks.org/create-a-legend-on-a-folium-map-a-comprehensive-guide/
     # initialize the centered map, zommed, with title on top, returns the folium OSMap
     def InitMap(self, Center:List[float], Zoom:int=None, Title:str=None) -> folium.Map:
         map = folium.Map(location=Center, tiles="OpenStreetMap", zoom_start=Zoom)
+        # try to avoid tile blocking problems.
+        map.get_root().header.add_child( folium.Element("<meta name='referrer' content='unsafe-url'>") )
+        if self.Provider != 'Leaflet':   # alternative is CartoDB positron or dark_matter
+            folium.TileLayer(f"CartoDB {self.Provider}").add_to(map)
     
         folium.plugins.Fullscreen(
                 position="topleft",
@@ -609,7 +632,7 @@ if __name__ == '__main__':
     Regions = []
     Statistics = None
     for arg in sys.argv[1:]:   # convert csv files into Pandas dataformat series
-        if re.match(r'-(-)*h(elp)*',arg,re.I):                # print help info
+        if re.match(r'-(-)*h(elp)*',arg,re.I):               # print help info
             sys.stderr.write(HELP+'\n')
             exit(0)
         elif re.match(r'(-)+d(ebug)*',arg,re.I):             # use debug .csv file
@@ -632,8 +655,12 @@ if __name__ == '__main__':
         elif (m := re.match(r'Period=(20\d\d-\d\d-\d\d.*),\s*(20\d\d-\d\d-\d\d.*)',arg,re.I)):
             Period = [m[1],m[2]]
             continue
-        elif (m := re.match(r'Statistics=(.*)',arg,re.I)):       # generate stitics
+        elif (m := re.match(r'Statistics=(.*)',arg,re.I)):    # generate statistics
             Statistics = m[1]
+            continue
+        elif (m := re.match(r'Provider=(Leaflet|positron|dark_matter)',arg,re.I)): # tile provider
+            # avoid referrer policy blocking problems
+            TileProvider = m[1]
             continue
         if not re.match(r'.*\.csv',arg,re.I):                 # should be csv file
             sys.stderr.write(f"File {arg} is not an CSV file. Skipped\n")
@@ -652,10 +679,19 @@ if __name__ == '__main__':
         Print_Statistics(Collect_Statistics(Data),Statistics)
     if not Data is None:
         if Title is None: Title = f'AirQuality stations region{"s" if len(Regions) else ""}: ' + ', '.join(Regions)
-        if File is None: File = 'Regions ' + ','.join(Regions) + '.html'
+
+        if File is None:
+            File = 'Regions '
+        elif os.path.isdir(File):     # generate output HTML file name
+            if File[-1] != '/': File += '/'
+            File += 'Regions '
+        for _ in Regions:
+            File += re.split(r'/',_)[-1] + ','
+        File = File[:-1] + '.html'
+
         Map = None
         logger.info(f"Creating air quality stations map in file {File}, title: {Title}, period: {str(Period)}")
         try:
-            Map = GenerateThingsMap(Verbosity=Verbosity,Title=Title,Period=Period).Data2Map(Data)
+            Map = GenerateThingsMap(Verbosity=Verbosity,Title=Title,Period=Period,Provider=TileProvider).Data2Map(Data)
             if Map: Map.save(File)
         except: sys.stderr.write("Failed to create HTML map file\n")
